@@ -545,7 +545,7 @@ class Bridge:
 
     # 매크로 기준 위치 설정 — 기능마다 따로 저장하는 버튼 위치 · 영역 (feat: mpop / mfish)
     MPOS_POINTS = {"mpop": dict(popping.POS_KEYS), "mfish": dict(fishing.POS_KEYS)}
-    MPOS_REGIONS = {"mpop": ("ocr_region",), "mfish": ("panel_region", "reel_region", "result_region", "bar_region")}
+    MPOS_REGIONS = {"mpop": ("ocr_region",), "mfish": ("panel_region", "reel_region", "result_region", "bar_region", "notice_region")}
     # 16:9 위치 템플릿 (로블록스 창 기준 비율) — 스나이프 탭 오토 팝핑 16:9 템플릿과 같은 값
     # (자동 낚시는 템플릿 대신 낚시 창 · 결과창 영역으로 안쪽 위치를 계산 → fishing.WINDOW_KEYS)
     MPOS_TEMPLATE = {
@@ -707,6 +707,9 @@ class Bridge:
                 if mf.get("panel_region"):
                     moved = self.fisher._diamond_moved(sct, rect, mf)
                     out["diamond"] = "미니게임 자리" if moved else "대기 자리 (미니게임 아님)"
+                if mf.get("notice_region"):
+                    text = macro.notice_check(sct, rect, mf["notice_region"], fishing.FULL_WORDS)
+                    out["notice"] = "인벤토리 가득 알림 있음" if text else "없음"
                 if mf.get("title_pos"):
                     t = fishing.classify_title(self.fisher._grab_box(sct, rect, mf["title_pos"], 0.12, 0.05))
                     out["title"] = {"success": "성공", "junk": "쓰레기", "fail": "실패"}.get(t, "안 보임")

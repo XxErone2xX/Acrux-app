@@ -44,6 +44,7 @@ DIAMOND_IDLE_R = (0.8735, 0.8239)        # 미니게임 창 기준
 DIAMOND_REEL_R = (0.9317, 0.8310)        # 미니게임 창 기준
 FINISH_GAP = 0.1         # 낚은 뒤 Fish 버튼이 다시 보일 때까지 결과창 X 를 누르는 간격 (초)
 FINISH_MAX = 10.0        # 그래도 Fish 버튼이 안 보이면 이 시간 뒤 다시 상태 확인부터
+FULL_WORDS = ("cannot fish", "inventory space", "not have enough", "inventory")   # 인벤토리 가득 알림 글자
 POS_KEYS = (("fish_btn", "Fish 버튼"), ("close_pos", "결과창 X"), ("title_pos", "결과창 제목"))
 
 # 창 영역 → 안쪽 위치 (창 영역 안에서의 비율 · 0 = 왼쪽/위, 1 = 오른쪽/아래)
@@ -143,7 +144,7 @@ def analyze_bar(rgb, bar_top, bar_h):
     band = np.median(rgb[y0:y1], axis=0)                # 바 가운데 줄 (글자 노이즈를 줄이려고 여러 줄의 중앙값)
     colored = _colored(band)
     present = colored.sum() >= max(4, w * 0.03) and _left_ok(band)
-    out = {"present": bool(present), "marker": None, "zone": None, "w": w}
+    out = {"present": bool(present), "marker": None, "zone": None, "zones": [], "w": w}
     if not present:
         return out
     fill = colored & _is_fill(band)
@@ -153,7 +154,7 @@ def analyze_bar(rgb, bar_top, bar_h):
     texty = ((mx - mn) <= 50) & (mx > 90)               # 남은 시간 숫자 (흰 글자 · 글자 가장자리 회색)
     zone = colored & ~fill
     # 물고기 구간: 가장 긴 덩어리 (위에 겹친 숫자 글자 · 4px 이하 틈은 이어 붙임)
-    best, cur, gap = None, None, 0
+    segs, cur, gap = [], None, 0
     for x in range(w):
         if zone[x]:
             if cur is None:
@@ -164,13 +165,15 @@ def analyze_bar(rgb, bar_top, bar_h):
                 continue                                  # 숫자 글자 위는 틈으로 안 셈 (글자 테두리의 어두운 칸만 셈)
             gap += 1
             if gap > 4:
-                if best is None or cur[1] - cur[0] > best[1] - best[0]:
-                    best = cur
+                segs.append(cur)
                 cur, gap = None, 0
-    if cur is not None and (best is None or cur[1] - cur[0] > best[1] - best[0]):
-        best = cur
+    if cur is not None:
+        segs.append(cur)
+    segs = [(int(a), int(b)) for a, b in segs if b - a >= 3]
+    out["zones"] = segs                                  # 구간 후보 전부 (가운데 숫자 글자 조각 등이 섞일 수 있음 → ReelControl 이 고름)
+    best = max(segs, key=lambda z: z[1] - z[0], default=None)
     if best is not None and best[1] - best[0] >= max(3, w * 0.02):
-        out["zone"] = (int(best[0]), int(best[1]))
+        out["zone"] = best
     # 내 위치: 바 위쪽 ◇ 표시(밝은 흰색)의 가로 위치 → 없으면 청록 막대 오른쪽 끝
     if bar_top >= 3:
         top = rgb[max(0, int(bar_top - bar_h * 1.7)):int(bar_top) - 1]
@@ -472,6 +475,14 @@ class Fisher:
                     self._hold_point(stop)
                     progress_at = time.time()        # 양보한 시간은 '진행 안 됨'으로 안 셈
                     continue
+                # Fish 를 눌렀는데 오른쪽에 "Cannot Fish (인벤토리 공간 부족)" 알림 → 바로 인벤토리 가득 (3번 다시 안 눌러 봄)
+                if cast_at is not None and cfg.get("notice_region") and now - cast_at >= 0.2:
+                    text = macro.notice_check(sct, rect, cfg["notice_region"], FULL_WORDS)
+                    if text:
+                        self.log(f"알림 읽음: {' '.join(str(text).split())[:60]}", "d")
+                        self._inventory_full(stop, tries + 1, notice=True)
+                        cast_at, tries = None, 0
+                        continue
                 if cast_at is None or now - cast_at > 1.5:
                     if cast_at is not None:          # 1.5초 지나도 Exit 로 안 바뀜 = 반응 없음
                         tries += 1
@@ -501,9 +512,10 @@ class Fisher:
             self._click_ratio(cfg["close_pos"], stop)
             self._wait(0.5, stop)
 
-    def _inventory_full(self, stop, tries):
+    def _inventory_full(self, stop, tries, notice=False):
         self.stats["full"] += 1
-        self.log(f"Fish 를 {tries}번 눌러도 반응 없음 — 낚시 인벤토리 가득", "y")
+        self.log("인벤토리 가득 알림(Cannot Fish) — 낚시 인벤토리 가득" if notice
+                 else f"Fish 를 {tries}번 눌러도 반응 없음 — 낚시 인벤토리 가득", "y")
         if self.on_full:
             self.on_full()
             return
@@ -590,7 +602,7 @@ class Fisher:
                 time.sleep(0.01)
                 continue
             gone_since = None
-            click, m, zone, vel = ctl.step(now, a["marker"], a["zone"], a["w"])
+            click, m, zone, vel = ctl.step(now, a["marker"], a["zone"], a["w"], a["zones"])
             if click:
                 macro.mouse_click_here(hold_ms=int(cfg["click_ms"]))
                 ctl.clicked(time.time())
@@ -610,14 +622,49 @@ class ReelControl:
         self.hist = []              # 최근 내 위치 (시각, 위치) — 속도 계산용
         self.vel = 0.0
         self.odd = None             # 방금 튄 것처럼 보인 위치 (다음 화면과 비슷하면 진짜로 받아들임)
-        self.zone_ref = None        # (지금까지 본 구간 폭, 오른쪽 끝)
+        self.zone_ref = None        # 구간 기억 (폭, 가운데, 마지막으로 본 시각)
         self.last_click = 0.0
         self.rose = True            # 마지막 클릭 뒤 올라가기 시작한 게 보였는지
 
     def clicked(self, t):
         self.last_click, self.rose = t, False
 
-    def step(self, now, m, zone, w):
+    def _track_zone(self, now, cands, m, w):
+        """구간 추적 — 실제 로그에서: 내 위치가 구간 안에 있으면 막대와 겹친 부분 때문에 구간이 왼쪽부터 잘리거나
+        아예 안 보이는 화면이 20% 쯤 됐고, 가운데 남은 시간 숫자가 작은 가짜 구간으로 잡히기도 했음
+        → 구간 폭 · 위치를 기억해 두고, 맞는 후보만 씀
+          · 기억한 구간 근처의 제 크기 후보 → 그대로 (기억 갱신)
+          · 내 위치에서 잘린 후보(왼쪽 끝 ≈ 내 위치) → 오른쪽 끝 기준으로 기억한 폭만큼 되살림
+          · 그 밖의 작은 조각(숫자 글자 등) · 못 찾음 → 기억한 구간 (1초까지)"""
+        ref = self.zone_ref                        # (폭, 가운데, 마지막으로 본 시각)
+        if not ref:
+            big = [z for z in cands if z[1] - z[0] >= max(8, w * 0.06)]
+            if not big:
+                return None
+            z = max(big, key=lambda z: z[1] - z[0])
+            self.zone_ref = (z[1] - z[0], (z[0] + z[1]) / 2, now)
+            return z
+        rw, rc, rt = ref
+        reach = rw * 0.6 + 300 * max(0.0, now - rt)    # 구간이 움직일 수 있는 거리
+        full = [z for z in cands if z[1] - z[0] >= rw * 0.7 and abs((z[0] + z[1]) / 2 - rc) <= reach]
+        if full:
+            z = min(full, key=lambda z: abs((z[0] + z[1]) / 2 - rc))
+            zw = z[1] - z[0]
+            self.zone_ref = (rw * 0.8 + min(zw, rw * 1.3) * 0.2, (z[0] + z[1]) / 2, now)
+            return z
+        if m is not None:
+            cut = [z for z in cands if abs(z[0] - m) <= max(6, w * 0.02) and z[1] > m
+                   and abs(z[1] - (rc + rw / 2)) <= reach]
+            if cut:
+                right = max(z[1] for z in cut)
+                self.zone_ref = (rw, right - rw / 2, now)
+                return (int(round(right - rw)), right)
+        if now - rt <= 1.0:
+            return (int(round(rc - rw / 2)), int(round(rc + rw / 2)))
+        self.zone_ref = None
+        return None
+
+    def step(self, now, m, zone, w, zones=None):
         cfg, hist = self.cfg, self.hist
         if m is not None:
             # 한 화면만 튀는 값은 버림 (바로 전 두 값과 너무 멀면 무시) — 단, 튄 값이 두 번 연달아 비슷하게 나오면
@@ -640,16 +687,7 @@ class ReelControl:
             if t2 > t1:
                 self.vel = self.vel * 0.5 + ((x2 - x1) / (t2 - t1)) * 0.5
         vel = self.vel
-        if zone:
-            # 구간 기억: 막대가 겹친 부분이 막대 색처럼 읽히면 구간이 왼쪽부터 줄어든 것처럼 보임 → 오른쪽 끝이 그대로면
-            # 전에 본 폭으로 되돌림 (줄어든 구간을 쫓아 계속 눌러서 오른쪽으로 넘어가던 원인)
-            zw = zone[1] - zone[0]
-            ref = self.zone_ref
-            if ref and zw < ref[0] * 0.75 and abs(zone[1] - ref[1]) <= max(6, w * 0.03):
-                zone = (zone[1] - ref[0], zone[1])
-            else:
-                ref = (max(zw, ref[0]) if ref else zw, zone[1])
-            self.zone_ref = (ref[0], zone[1])
+        zone = self._track_zone(now, zones if zones is not None else ([zone] if zone else []), m, w)
         # 누르면 힘이 쌓일 수 있음 → 올라가는 중에 마구 누르면 오른쪽으로 튀어나감. 그래서
         #  ① 누른 뒤엔 올라가기 시작하는 게 보일 때까지 다시 안 누름 (게임에 반영되기까지 몇 화면 걸림 · 최대 CLICK_SETTLE)
         #  ② 올라가는 속도 제한: 목표에서 멀리 아래면 빨리 올라가도 되고 가까우면 천천히만 — 이미 그 이상으로 올라가는 중이면 안 누름

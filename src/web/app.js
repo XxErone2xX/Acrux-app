@@ -1270,7 +1270,8 @@ const MPOS = {
                      ['reel_region', '낚시 미니게임 창 영역', '누른 뒤 Fish 로 낚시 → 미니게임이 뜨면 화면이 멈춤 → 흰 꺾쇠 테두리까지 드래그'],
                      ['result_region', '결과창 영역', '한 번 낚아서 결과창이 떠 있을 때 흰 꺾쇠 테두리까지 드래그 → 결과창 X 와 제목 위치 자동 계산']],
            points: MFISH_POS,
-           regions: [['bar_region', '릴링 바 영역', '위쪽 바(파란 막대, Ready! 가 뜨는 바)만 딱 맞게 드래그 · ◇ 표시는 자동으로 찾음']] },
+           regions: [['bar_region', '릴링 바 영역', '위쪽 바(파란 막대, Ready! 가 뜨는 바)만 딱 맞게 드래그 · ◇ 표시는 자동으로 찾음'],
+                     ['notice_region', '알림 영역', '오른쪽에 알림 카드가 뜨는 자리를 넉넉히 드래그 · Cannot Fish 알림이 뜨면 인벤토리 가득으로 봄']] },
 };
 const MPOS_RATIOS = [['auto', '자동 (지금 창)'], ['16:9', '16:9'], ['16:10', '16:10'], ['21:9', '21:9'], ['32:9', '32:9'], ['4:3', '4:3'], ['5:4', '5:4']];
 let mposRatio = 'auto';
@@ -1346,7 +1347,7 @@ $('mfishCheck').addEventListener('click', async e => {
   try {
     const r = await api('mfish_check');
     if (r.error) return toast(r.error);
-    toast([r.button && `버튼: ${r.button}`, r.bar && `릴링 바: ${r.bar}`, r.diamond && `◇: ${r.diamond}`, r.title && `결과창: ${r.title}`].filter(Boolean).join(' · ') || '지정된 위치 없음');
+    toast([r.button && `버튼: ${r.button}`, r.bar && `릴링 바: ${r.bar}`, r.diamond && `◇: ${r.diamond}`, r.notice && `알림: ${r.notice}`, r.title && `결과창: ${r.title}`].filter(Boolean).join(' · ') || '지정된 위치 없음');
   } finally { b.disabled = false; }
 });
 
