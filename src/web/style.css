@@ -696,7 +696,8 @@ body:not(.in-page) .lang.in-card { display: none; }
 .ac-ocr-help { display: flex; flex-direction: column; gap: 6px; padding: 14px 18px; }
 .card.form .row.feat-soon { opacity: .45; }
 /* Acrux 탭 · 업데이트 로그 */
-.cl-list { display: flex; flex-direction: column; gap: 12px; }
+.cl-list { display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; overflow: auto; padding-right: 4px; }
+.cl-list > .card { flex: none; }
 .cl-item { padding: 14px 18px; }
 .cl-item.now { box-shadow: inset 3px 0 0 var(--accent); }
 .cl-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
