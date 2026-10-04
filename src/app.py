@@ -667,9 +667,8 @@ class Bridge:
         if not rect:
             return {"error": "로블록스 창 없음"}
         try:
-            import mss
             out = {}
-            with mss.mss() as sct:
+            with macro.ScreenGrabber() as sct:
                 if mf.get("fish_btn"):
                     st = fishing.button_state(self.fisher._grab_box(sct, rect, mf["fish_btn"]))
                     out["button"] = {"fish": "Fish (파랑)", "exit": "Exit (빨강)"}.get(st, "안 보임")

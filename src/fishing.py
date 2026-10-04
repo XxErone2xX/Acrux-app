@@ -25,6 +25,7 @@ DEFAULTS = {
     "result_wait": 0.8,    # 릴링이 끝난 뒤 결과창 X 를 누르기까지 (초)
     "cast_retry": 3,       # Fish 를 눌러도 안 바뀌면 다시 누르는 횟수 (넘으면 인벤토리 가득)
 }
+REEL_FRAME = 0.008       # 릴링 중 화면 읽는 최소 간격 (초)
 POS_KEYS = (("fish_btn", "Fish 버튼"), ("close_pos", "결과창 X"), ("title_pos", "결과창 제목"))
 
 # 창 영역 → 안쪽 위치 (창 영역 안에서의 비율 · 0 = 왼쪽/위, 1 = 오른쪽/아래)
@@ -288,7 +289,6 @@ class Fisher:
 
     # ---- 메인
     def _run(self, stop):
-        import mss
         cfg0 = self.get_cfg() or {}
         miss = self.missing(cfg0)
         try:
@@ -296,7 +296,8 @@ class Fisher:
                 self.log(f"{self.LABEL} 안 함 — 설정 필요: {', '.join(miss)}", "y")
                 return
             self.log(f"{self.LABEL} 시작", "g")
-            with mss.mss() as sct, macro.fast_timing():
+            # 화면 캡처는 CAPTUREBLT 없이 (ScreenGrabber) · 우선순위는 그대로 두고 릴링 중에만 타이머를 1ms 로
+            with macro.ScreenGrabber() as sct:
                 while True:
                     self._check(stop)
                     self._hold_point(stop)
@@ -400,10 +401,15 @@ class Fisher:
         cx = box["left"] + box["width"] // 2
         cy = box["top"] + box["height"] + int(bh * 3)
         macro.move_to(cx, cy)
+        with macro.fast_timing(priority=False):
+            self._reel_loop(sct, box, top_in, bh, cfg, stop)
+
+    def _reel_loop(self, sct, box, top_in, bh, cfg, stop):
         gone_since, last_click, prev = None, 0.0, None
         vel = 0.0
         end = time.time() + 40                       # 안전장치: 릴링은 길어야 수십 초
         while time.time() < end:
+            t0 = time.time()
             self._check(stop)
             img = sct.grab(box)
             a = analyze_bar(_np(bytes(img.bgra), img.width, img.height), top_in, bh)
@@ -423,5 +429,6 @@ class Fisher:
             if (now - last_click) * 1000 >= cfg["click_gap_ms"] and reel_decision(a["marker"], a["zone"], vel, cfg, a["w"]):
                 macro.mouse_click_here(hold_ms=int(cfg["click_ms"]))
                 last_click = time.time()
-            time.sleep(0.004)
+            # 게임 화면은 1초에 60번쯤 바뀜 → 그보다 자주 찍어 봐야 같은 화면이라 8ms 에 한 번까지만
+            time.sleep(max(0.001, REEL_FRAME - (time.time() - t0)))
         self.log("릴링이 40초 넘게 끝나지 않음 — 다음으로", "y")

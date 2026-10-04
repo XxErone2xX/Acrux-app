@@ -439,7 +439,11 @@ def roblox_window_cached(max_age=1.0):
 
 class fast_timing:
     """with fast_timing(): 동안만 윈도우 타이머를 1ms 단위로 + 이 프로그램 우선순위를 '높음'으로
-    (컴퓨터가 바쁠 때 클릭 간격이 밀리는 것을 줄임 · 끝나면 원래대로)"""
+    (컴퓨터가 바쁠 때 클릭 간격이 밀리는 것을 줄임 · 끝나면 원래대로)
+    priority=False: 타이머만 (오래 도는 작업은 우선순위를 올리면 로블록스와 CPU 를 다퉈서 게임이 버벅임)"""
+
+    def __init__(self, priority=True):
+        self.priority = priority
 
     def __enter__(self):
         self.ok_timer = self.ok_prio = False
@@ -449,6 +453,8 @@ class fast_timing:
             self.ok_timer = ctypes.windll.winmm.timeBeginPeriod(1) == 0
         except Exception:
             pass
+        if not self.priority:
+            return self
         try:
             k32 = ctypes.windll.kernel32
             proc = k32.GetCurrentProcess()
@@ -666,6 +672,131 @@ def pick_region_overlay(mode="region"):
 
 # ---------------------------------------------------------------- 화면 캡처 / OCR
 SHOT_DIR = None
+
+
+class ScreenGrabber:
+    """with ScreenGrabber() as g: g.grab({"left", "top", "width", "height"}) → .bgra / .width / .height (mss 와 같은 모양)
+    자주 찍는 곳(자동 낚시)용 — mss 는 BitBlt 에 CAPTUREBLT 를 붙여서 찍는데, 이러면 윈도우가 매번 모든 창을 다시 합쳐서
+    자주 찍을수록 게임이 버벅이고 커서가 깜빡임 → CAPTUREBLT 없이 SRCCOPY 로만 찍음 (DC · 비트맵은 재사용)
+    윈도우가 아니거나 실패하면 mss 로 찍음"""
+
+    class _Shot:
+        __slots__ = ("bgra", "width", "height")
+
+        def __init__(self, bgra, width, height):
+            self.bgra, self.width, self.height = bgra, width, height
+
+    def __init__(self):
+        self._mss = None
+        self._src = self._mem = self._old = None
+        self._bmps = {}                       # (w, h) → (비트맵, 픽셀 주소)
+
+    def __enter__(self):
+        if IS_WIN:
+            try:
+                self._api()
+                self._src = self._u.GetDC(None)
+                self._mem = self._g.CreateCompatibleDC(self._src)
+                if not self._src or not self._mem:
+                    raise OSError("GetDC")
+            except Exception:
+                self._close_gdi()
+        if not self._mem:
+            import mss
+            self._mss = mss.mss()
+        return self
+
+    def __exit__(self, *exc):
+        self._close_gdi()
+        if self._mss:
+            self._mss.close()
+            self._mss = None
+        return False
+
+    def _api(self):
+        # 다른 곳의 user32/gdi32 설정과 섞이지 않게 따로 불러서 64비트 핸들 타입을 지정
+        from ctypes import wintypes as W
+        u, g = ctypes.WinDLL("user32"), ctypes.WinDLL("gdi32")
+        u.GetDC.argtypes, u.GetDC.restype = [W.HWND], W.HDC
+        u.ReleaseDC.argtypes, u.ReleaseDC.restype = [W.HWND, W.HDC], ctypes.c_int
+        g.CreateCompatibleDC.argtypes, g.CreateCompatibleDC.restype = [W.HDC], W.HDC
+        g.DeleteDC.argtypes, g.DeleteDC.restype = [W.HDC], W.BOOL
+        g.SelectObject.argtypes, g.SelectObject.restype = [W.HDC, W.HGDIOBJ], W.HGDIOBJ
+        g.DeleteObject.argtypes, g.DeleteObject.restype = [W.HGDIOBJ], W.BOOL
+        g.CreateDIBSection.argtypes = [W.HDC, ctypes.c_void_p, W.UINT, ctypes.POINTER(ctypes.c_void_p), W.HANDLE, W.DWORD]
+        g.CreateDIBSection.restype = W.HBITMAP
+        g.BitBlt.argtypes = [W.HDC, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, W.HDC, ctypes.c_int, ctypes.c_int, W.DWORD]
+        g.BitBlt.restype = W.BOOL
+        g.GdiFlush.argtypes, g.GdiFlush.restype = [], W.BOOL
+        self._u, self._g = u, g
+
+    def _bitmap(self, w, h):
+        hit = self._bmps.get((w, h))
+        if hit:
+            return hit
+        from ctypes import wintypes as W
+
+        class BIH(ctypes.Structure):
+            _fields_ = [("biSize", W.DWORD), ("biWidth", W.LONG), ("biHeight", W.LONG), ("biPlanes", W.WORD),
+                        ("biBitCount", W.WORD), ("biCompression", W.DWORD), ("biSizeImage", W.DWORD),
+                        ("biXPelsPerMeter", W.LONG), ("biYPelsPerMeter", W.LONG), ("biClrUsed", W.DWORD),
+                        ("biClrImportant", W.DWORD)]
+
+        class BI(ctypes.Structure):
+            _fields_ = [("bmiHeader", BIH), ("bmiColors", W.DWORD * 3)]
+
+        bi = BI()
+        bi.bmiHeader.biSize = ctypes.sizeof(BIH)
+        bi.bmiHeader.biWidth, bi.bmiHeader.biHeight = w, -h      # 음수 = 위에서 아래로 (mss 와 같은 줄 순서)
+        bi.bmiHeader.biPlanes, bi.bmiHeader.biBitCount = 1, 32    # BGRA
+        bits = ctypes.c_void_p()
+        bmp = self._g.CreateDIBSection(self._mem, ctypes.byref(bi), 0, ctypes.byref(bits), None, 0)
+        if not bmp or not bits.value:
+            raise OSError("CreateDIBSection")
+        if len(self._bmps) >= 8:                  # 크기가 자꾸 바뀌면 오래된 것부터 정리
+            self._free_bitmaps()
+        self._bmps[(w, h)] = (bmp, bits.value)
+        return bmp, bits.value
+
+    def grab(self, box):
+        x, y = int(box["left"]), int(box["top"])
+        w, h = max(1, int(box["width"])), max(1, int(box["height"]))
+        if self._mss:
+            img = self._mss.grab({"left": x, "top": y, "width": w, "height": h})
+            return self._Shot(bytes(img.bgra), img.width, img.height)
+        try:
+            bmp, bits = self._bitmap(w, h)
+            old = self._g.SelectObject(self._mem, bmp)
+            if self._old is None:
+                self._old = old                   # 처음 DC 에 있던 비트맵 (닫을 때 되돌림)
+            if not self._g.BitBlt(self._mem, 0, 0, w, h, self._src, x, y, 0x00CC0020):   # SRCCOPY (CAPTUREBLT 없음)
+                raise OSError("BitBlt")
+            self._g.GdiFlush()
+            return self._Shot(ctypes.string_at(bits, w * h * 4), w, h)
+        except Exception:
+            # 잠금 화면 · 관리자 권한 창 등으로 실패하면 이번 실행 동안은 mss 로
+            self._close_gdi()
+            import mss
+            self._mss = mss.mss()
+            return self.grab(box)
+
+    def _free_bitmaps(self):
+        if self._mem and self._old is not None:
+            self._g.SelectObject(self._mem, self._old)
+        for bmp, _ in self._bmps.values():
+            self._g.DeleteObject(bmp)
+        self._bmps.clear()
+
+    def _close_gdi(self):
+        try:
+            if self._mem:
+                self._free_bitmaps()
+                self._g.DeleteDC(self._mem)
+            if self._src:
+                self._u.ReleaseDC(None, self._src)
+        except Exception:
+            pass
+        self._src = self._mem = self._old = None
 
 
 def grab(region):
