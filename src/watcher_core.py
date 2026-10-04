@@ -60,6 +60,7 @@ DEFAULT_CONFIG = {
     "pop": {},                # 오토 팝핑: 레어 바이옴 포션 사용 (아래 POP_DEFAULT)
     "ret": {},                # 매크로 복귀: {"ps_link": 내 브섭 링크}
     "biome": {},              # 바이옴 매크로 설정 (아래 BIOME_DEFAULT)
+    "mpop": {},               # 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버) (아래 MPOP_DEFAULT)
     "snipe": {}               # 스나이핑 안정성 설정 (아래 SNIPE_DEFAULT)
 }
 # 스나이핑 안정성: 최대한 사람이 직접 링크를 누르고 들어가는 것처럼
@@ -96,6 +97,14 @@ POP_DEFAULT = {
     # items: [{name, amount: 숫자 또는 "ALL", min_have: 최소 보유 개수}]
     "templates": {},
     "biomes_on": {},              # 팝핑 바이옴 설정 — 켜진 바이옴에서만 오토 팝핑 (기본 전부 켜짐)
+}
+MPOP_DEFAULT = {
+    # 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버) — 버튼 위치 · OCR · 딜레이는 오토 팝핑(pop) 설정을 같이 씀
+    "enabled": False,             # 켜짐: 지금 켜져 있는 로블록스(내 서버)에서 레어 바이옴이 감지되면 포션 사용
+    "start_delay": 1.0,           # 바이옴 감지 후 인벤토리를 열기까지 대기 (초)
+    "close_inventory": True,      # 다 쓰고 Inventory 버튼을 한 번 더 눌러 닫기
+    "templates": {},              # 바이옴별 포션 목록 (오토 팝핑과 따로)
+    "biomes_on": {},              # 켜진 바이옴에서만 (기본 전부 켜짐)
 }
 POP_BIOMES = ("CYBERSPACE", "GLITCHED", "DREAMSPACE")
 # 기본 템플릿 — 얼로니 SolsRNG 스크립트의 레어 바이옴 자동 팝핑(_RareBiomePotionTable) 그대로
@@ -267,35 +276,20 @@ def normalize(raw):
             except (TypeError, ValueError):
                 pass
     pop["delays"] = dl
-    tpls = {}
-    for b in POP_BIOMES:
-        src = pop.get("templates") or {}
-        t = src.get(b) or {}
-        if not pop.get("seeded") and not (t.get("items") or []):
-            t = json.loads(json.dumps(POP_TEMPLATES[b]))      # 처음 한 번: 기본 템플릿으로 채움
-        items = []
-        for it in t.get("items") or []:
-            if not isinstance(it, dict):
-                continue
-            amt = it.get("amount", "ALL")
-            if str(amt).upper() != "ALL":
-                try:
-                    amt = max(1, int(amt))
-                except (TypeError, ValueError):
-                    amt = "ALL"
-            else:
-                amt = "ALL"
-            try:
-                mh = max(1, int(it.get("min_have") or 1))
-            except (TypeError, ValueError):
-                mh = 1
-            items.append({"name": str(it.get("name") or "").strip(), "amount": amt, "min_have": mh})
-        tpls[b] = {"mode": "one" if t.get("mode") == "one" else "all", "items": items}
-    pop["templates"] = tpls
-    on = pop.get("biomes_on") if isinstance(pop.get("biomes_on"), dict) else {}
-    pop["biomes_on"] = {b: bool(on.get(b, True)) for b in POP_BIOMES}
+    pop["templates"], pop["biomes_on"] = _norm_templates(pop)
     pop["seeded"] = True                    # 기본 템플릿은 한 번만 (지운 건 다시 안 채움)
     d["pop"] = pop
+    mp = dict(MPOP_DEFAULT)
+    mp.update(d.get("mpop") if isinstance(d.get("mpop"), dict) else {})
+    mp["enabled"] = bool(mp.get("enabled"))
+    mp["close_inventory"] = bool(mp.get("close_inventory", True))
+    try:
+        mp["start_delay"] = min(60.0, max(0.0, float(mp.get("start_delay", 1.0))))
+    except (TypeError, ValueError):
+        mp["start_delay"] = 1.0
+    mp["templates"], mp["biomes_on"] = _norm_templates(mp)
+    mp["seeded"] = True
+    d["mpop"] = mp
     d["open_link"] = True                   # '실제 접속' 토글 없앰: 감지되면 항상 접속
     ret = d.get("ret") if isinstance(d.get("ret"), dict) else {}
     steps = [dict(x) for x in (ret.get("steps") or []) if isinstance(x, dict) and x.get("type")]
@@ -345,6 +339,37 @@ def normalize(raw):
         except (TypeError, ValueError):
             d[k] = DEFAULT_CONFIG[k]
     return d
+
+
+def _norm_templates(src_cfg):
+    """바이옴별 포션 템플릿 · 켜진 바이옴 정리 (오토 팝핑 · 매크로 탭 팝핑 공용)
+    처음 한 번(seeded 전)은 비어 있는 템플릿을 기본 템플릿으로 채움"""
+    tpls = {}
+    src = src_cfg.get("templates") or {}
+    for b in POP_BIOMES:
+        t = src.get(b) or {}
+        if not src_cfg.get("seeded") and not (t.get("items") or []):
+            t = json.loads(json.dumps(POP_TEMPLATES[b]))      # 처음 한 번: 기본 템플릿으로 채움
+        items = []
+        for it in t.get("items") or []:
+            if not isinstance(it, dict):
+                continue
+            amt = it.get("amount", "ALL")
+            if str(amt).upper() != "ALL":
+                try:
+                    amt = max(1, int(amt))
+                except (TypeError, ValueError):
+                    amt = "ALL"
+            else:
+                amt = "ALL"
+            try:
+                mh = max(1, int(it.get("min_have") or 1))
+            except (TypeError, ValueError):
+                mh = 1
+            items.append({"name": str(it.get("name") or "").strip(), "amount": amt, "min_have": mh})
+        tpls[b] = {"mode": "one" if t.get("mode") == "one" else "all", "items": items}
+    on = src_cfg.get("biomes_on") if isinstance(src_cfg.get("biomes_on"), dict) else {}
+    return tpls, {b: bool(on.get(b, True)) for b in POP_BIOMES}
 
 
 def load_config():
