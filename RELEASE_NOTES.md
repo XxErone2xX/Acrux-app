@@ -1,25 +1,23 @@
-## Acrux macro V1.16.0 업데이트
-- 자동 낚시 안정화 강화 (FishSol · Coteab 방식 참고)
-  - 미니게임 시작을 두 신호로 확인: 릴링 바 색 + 낚시 창 ◇ 표시가 미니게임 자리로 옮겨갔는지 (두 매크로가 미니게임 시작을 보는 자리와 같음)
-    - 색이 잠깐 번쩍이는 화면을 미니게임으로 착각하지 않음 · ◇ 위치가 조금 어긋나 있어도 바가 계속 보이면 미니게임으로 인정
-  - 미니게임 중 바가 잠깐 안 보여도 ◇ 가 미니게임 자리에 있으면 끝난 걸로 안 봄 (중간에 클릭을 멈추던 문제 방지)
-  - 내 위치를 잠깐 못 찾으면 직전 위치와 속도로 짐작해서 계속 조작 (0.15초까지)
-  - 미니게임 중 0.5초마다 로블록스가 맨 앞인지 확인해서 다른 창이 가리면 다시 띄움
-  - 결과창 X 연타는 Fish 뿐 아니라 Exit 가 보여도 멈춤
-- 실패 대비 (Coteab 방식 참고)
-  - 미니게임이 15초 넘게 안 끝나면 멈춘 걸로 보고 결과창 X + UI 내비게이션(\ → S → A → Enter → \)으로 닫기
-  - 입질 최대 대기 + 60초 동안 미니게임이 한 번도 안 열리면 화면 복구 · 3번 연속 안 되면 자동 낚시 멈춤
-- 매크로 기준 위치 설정의 [상태 확인]에 ◇ 위치(대기 자리 / 미니게임 자리)도 표시
+## Acrux macro V1.16.1 업데이트
+- 미니게임 중 표시가 물고기 구간 오른쪽으로 넘어가던 문제 수정
+  - 원인: 누를 때마다 위로 올라가는 힘이 쌓이는데, 게임에 반영되기까지 몇 화면 걸리는 사이 계속 눌러서 힘이 한꺼번에 쌓여 튀어나감
+  - 누른 뒤엔 올라가기 시작하는 게 보일 때까지 다시 안 누름
+  - 올라가는 속도 제한: 구간에서 멀리 아래면 계속 눌러 따라가고, 가까우면 이미 올라가는 중일 땐 안 누름
+  - 구간 가운데보다 오른쪽이면 절대 안 누름
+  - 막대가 겹친 부분 때문에 구간이 줄어든 것처럼 보여도 전에 본 구간 폭을 기억해서 씀
+  - 빠르게 움직인 직후 내 위치를 계속 못 보던 문제 수정
+  - 물리 모델(누를 때마다 힘이 쌓임 / 정해진 힘 · 입력 지연 0~100ms)로 수백 번 돌려 값을 골랐고, 모든 경우에서 전보다 구간 안에 더 오래 머물고 오른쪽으로 덜 넘어감
+  - 목표 위치 기본값 10 → 20% (기본값을 쓰던 사람은 자동으로 바뀜)
+- 화면 복구할 때 UI 내비게이션(\ 키)을 쓰지 않고 원래대로 결과창 X 만 누름
 
-## Acrux macro V1.16.0 Update
-- Stronger auto fishing stability (based on how FishSol and Coteab work)
-  - Minigame start is confirmed by two signals: the reel bar colors + the fishing window's ◇ moving to its minigame spot (the same spot both macros use to detect the minigame)
-    - A brief color flash is no longer mistaken for a minigame · if the ◇ spot is slightly off, it's still accepted when the bar keeps showing
-  - If the bar disappears briefly mid-minigame but the ◇ is still at the minigame spot, it no longer treats the minigame as over (prevents clicking stopping midway)
-  - If the marker is lost briefly, it keeps steering using the last position and speed (up to 0.15 s)
-  - During the minigame it checks every 0.5 s that Roblox is in front, and brings it back if another window covers it
-  - The result X spam now stops when Exit shows as well as Fish
-- Failsafes (based on Coteab)
-  - If a minigame doesn't end within 15 s, it's treated as stuck and closed with the result X + UI navigation (\ → S → A → Enter → \)
-  - If no minigame opens for the max bite wait + 60 s, it recovers the screen · after 3 failed recoveries in a row, auto fishing stops
-- [Check status] in Macro base position settings now also shows the ◇ position (idle spot / minigame spot)
+## Acrux macro V1.16.1 Update
+- Fixed the marker overshooting to the right of the fish zone during the minigame
+  - Cause: each click adds upward force, and because the game takes a few frames to show a click, it kept clicking in that gap and the force piled up all at once
+  - After a click it now waits until the marker visibly starts rising before clicking again
+  - Rise speed limit: far below the zone it keeps clicking to catch up; close to it, it doesn't click while already rising
+  - Never clicks when right of the zone's middle
+  - Remembers the zone's width even if the fill overlap makes the zone look narrower
+  - Fixed losing track of the marker right after a fast move
+  - Values chosen by running hundreds of reels on physics models (force adds up per click / fixed force · input lag 0–100 ms); in every case it stays in the zone longer and overshoots less than before
+  - Default target point 10 → 20% (applied automatically if you used the default)
+- Screen recovery no longer uses UI navigation (\ key); it just clicks the result X like before
