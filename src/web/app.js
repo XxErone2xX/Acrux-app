@@ -73,6 +73,8 @@ function setTab(tab, animate = true, dir = 0) {
     dir = d === 1 ? 1 : -1;
   }
   const menu = $('menu');
+  // 애니메이션 없이 넘길 땐 칸도 미끄러지지 않고 바로 제자리 (튜토리얼이 바로 위치를 재야 함)
+  if (!animate) menu.querySelectorAll('.menu-tab').forEach(p => p.classList.add('no-anim'));
   menu.querySelectorAll('.menu-tab').forEach(p => {
     const on = p.dataset.tab === tab, was = p.classList.contains('on');
     if (on && !was && animate && dir) {
@@ -90,6 +92,10 @@ function setTab(tab, animate = true, dir = 0) {
     p.classList.toggle('on', on);
     if (on) p.classList.remove('left', 'right');
   });
+  if (!animate) {
+    void menu.offsetWidth;
+    menu.querySelectorAll('.menu-tab').forEach(p => p.classList.remove('no-anim'));
+  }
   // 이름 줄: 지금 탭은 가운데, 이전 탭은 왼쪽, 다음 탭은 오른쪽 (돌아가며)
   // 글자 길이가 달라도 보이는 간격이 양쪽 똑같게: 가운데 글자 끝에서 같은 거리만큼 떨어뜨림
   const onBtn = document.querySelector(`.tab-name[data-tab="${tab}"]`);
@@ -139,7 +145,7 @@ const CREDIT_ENTRY = { key: 'credit', icon: 'heart', color: '#a070f8', title: '�
 // 피드백: 하늘색
 const FEEDBACK_ENTRY = { key: 'feedback', icon: 'chat', color: '#3ba7e8', title: '피드백', desc: '디스코드 서버에서 버그 · 건의',
   grad: 'linear-gradient(135deg, #7cc8f8, #3ba7e8 55%, #2a7fc0)' };
-// 스나이핑 안정성 설정: 검정 + 빨강 (오른쪽 위)
+// 스나이핑 안정성 설정: 검정 + 빨강 (스나이프 탭 맨 아래)
 const SNIPE_ENTRY = { key: 'snipe', icon: 'shield', color: '#e5484d', title: '스나이핑 안정성 설정', desc: '사람처럼 접속 · 안티 스나이핑 대비',
   grad: 'linear-gradient(135deg, #1a0607, #8e1c20 55%, #e5484d)', decos: ['#e5484d', '#8e1c20', '#8e1c20', '#e5484d'] };
 // 완전 삭제: 빨간색
@@ -1733,7 +1739,7 @@ const Tutorial = (() => {
       needs: 4 },
     { title: '설정이 완료되었습니다',
       body: `<p>감시 대상 등록이 끝났습니다.</p>
-             <p>메인 화면의 <b>시작</b> 버튼을 누르면 작동합니다.</p>
+             <p>메인 화면 <b>오토 스나이핑</b>의 <b>시작</b> 버튼을 누르면 작동합니다.</p>
              <p class="dim">필터 탭에서 바이옴을 선택하면 원하는 바이옴만 감지합니다.</p>` },
   ];
   TUTORIALS.push({ id: 'targets', name: '감시 대상 설정', steps: TARGET_STEPS, skipAll: true, menu: 'discord',
@@ -1786,7 +1792,7 @@ const Tutorial = (() => {
       needs: 5 },
     { title: '설정이 완료되었습니다',
       body: `<p>바이옴 매크로 설정이 끝났습니다.</p>
-             <p>메인 화면 <b>바이옴 매크로 설정</b> 버튼의 스위치나, 설정 화면 위쪽 스위치를 켜면 알림을 보냅니다.</p>
+             <p>메인 화면 <b>바이옴 매크로</b>의 <b>시작</b> 버튼이나, 설정 화면 위쪽 스위치를 켜면 알림을 보냅니다.</p>
              <p class="dim">프로그램을 켤 때마다 꺼진 상태로 시작합니다.</p>` },
   ];
   TUTORIALS.unshift({ id: 'biome', name: '바이옴 매크로 설정', steps: BIOME_STEPS, skipAll: false, menu: 'biome',
@@ -2135,6 +2141,20 @@ const Tutorial = (() => {
     if (chain && next) setTimeout(() => start(next.id, true), 400);
   }
   addEventListener('resize', () => { if (!el.hidden) requestAnimationFrame(() => place(false)); });
+  // 강조할 곳이 움직이면(탭이 미끄러져 들어옴 · 글자 길이 변화 · 화면 배치 변경 등) 강조 박스 · 안내창이 따라감
+  let lastRect = '';
+  (function follow() {
+    if (!el.hidden && focusEl && !busy) {
+      const r = focusEl.getBoundingClientRect();
+      const key = [r.left, r.top, r.width, r.height].map(v => Math.round(v)).join(',');
+      if (key !== lastRect) {
+        const first = !lastRect;
+        lastRect = key;
+        if (!first) place();
+      }
+    } else lastRect = '';
+    requestAnimationFrame(follow);
+  })();
 
   // 튜토리얼 중에는 안내창과 강조된 곳만 누를 수 있음 (나머지 버튼·단축키 차단)
   const allowed = t => card.contains(t) || !!t.closest?.('.lang') || (!el.classList.contains('passive') && focusEl && focusEl.contains(t));
