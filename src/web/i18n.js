@@ -53,6 +53,7 @@ const I18N = (() => {
     ['포션 자동 제작', 'Potion auto craft', 'ポーション自動作成'],
     ['Auto Crafted 알림', 'Auto Crafted notice', 'Auto Crafted通知'],
     ['메모리 매치', 'Memory Match', 'メモリーマッチ'],
+    ['오토 메모리 매치', 'Auto Memory Match', 'オートメモリーマッチ'],
     ['카드 짝 맞추기', 'Card pair matching', 'カードのペア合わせ'],
     ['자동 낚시', 'Auto fishing', '自動釣り'],
     ['던지기 · 릴링 · 판매', 'Cast · Reel · Sell', 'キャスト・リール・売却'],
