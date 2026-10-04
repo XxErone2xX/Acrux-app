@@ -21,8 +21,8 @@ import macro
 
 DEFAULTS = {
     "bite_max": 60.0,      # 입질 최대 대기 (초) — 넘으면 Exit 누르고 다시 던짐
-    "lead_ms": 60,         # 떨어지는 속도를 보고 이만큼 미리 누름 (ms)
-    "target_pct": 20,      # 목표 위치: 구간 왼쪽 끝에서 구간 폭의 몇 % (0 = 왼쪽 끝 · 50 = 가운데)
+    "lead_ms": 0,          # 떨어지는 속도를 보고 이만큼 미리 누름 (ms · 0 = 지금 위치 그대로)
+    "target_pct": 0,       # 목표 위치: 구간 왼쪽 끝에서 구간 폭의 몇 % (0 = 왼쪽 변 · 50 = 가운데)
     "deadband": 0.0,       # 목표 위치에서 이만큼(바 폭 비율) 더 왼쪽에 있어야 누름
     "click_ms": 25,        # 한 번 누르는 시간 (ms)
     "click_gap_ms": 45,    # 클릭 사이 최소 간격 (ms)
@@ -38,8 +38,10 @@ REEL_MAX = 15.0          # 미니게임 최대 길이 (초) — 넘으면 멈춘
 REEL_GONE = 0.6          # 바 · ◇ 신호가 둘 다 이만큼 안 보여야 미니게임 끝으로 봄 (초)
 # 낚시 창 ◇ 표시 (낚시 창 영역 안 비율) — 대기 땐 왼쪽(IDLE) 자리, 미니게임 땐 창이 넓어지며 오른쪽(REEL) 자리로 옮겨감
 # Noteab 보정값 fishing_detect_pixel (1175,836) · FishSol 도 같은 자리로 미니게임 시작을 봄 / 대기 자리는 스크린샷에서 (1146,835)
-DIAMOND_IDLE = (0.9268, 0.8264)
-DIAMOND_REEL = (0.9931, 0.8333)
+DIAMOND_IDLE = (0.9268, 0.8264)          # 대기 창 기준
+DIAMOND_REEL = (0.9931, 0.8333)          # 대기 창 기준 (미니게임 창을 따로 지정 안 했을 때)
+DIAMOND_IDLE_R = (0.8735, 0.8239)        # 미니게임 창 기준
+DIAMOND_REEL_R = (0.9317, 0.8310)        # 미니게임 창 기준
 FINISH_GAP = 0.1         # 낚은 뒤 Fish 버튼이 다시 보일 때까지 결과창 X 를 누르는 간격 (초)
 FINISH_MAX = 10.0        # 그래도 Fish 버튼이 안 보이면 이 시간 뒤 다시 상태 확인부터
 POS_KEYS = (("fish_btn", "Fish 버튼"), ("close_pos", "결과창 X"), ("title_pos", "결과창 제목"))
@@ -48,8 +50,11 @@ POS_KEYS = (("fish_btn", "Fish 버튼"), ("close_pos", "결과창 X"), ("title_p
 # 1920x1080 전체 화면 기준으로 잰 값: 낚시 창(Fish 버튼이 보일 때 흰 꺾쇠 테두리) (741,716)~(1178,860),
 # 결과창(흰 꺾쇠 테두리) (780,316)~(1140,765) · 창 크기가 바뀌어도 안쪽 배치는 같은 비율이라고 봄
 PANEL_LAYOUT = {"fish_btn": (0.2494, 0.8264), "bar_region": (0.0389, 0.2847, 0.9703, 0.4722)}
+# 미니게임 창은 대기 창보다 넓음 (1920x1080 에서 (711,718)~(1209,860)) → 따로 지정하면 릴링 바를 이 창 기준으로 계산
+# 릴링 바는 Noteab 보정값 fishing_bar_region (758,757)~(1165,784) 기준
+REEL_LAYOUT = {"bar_region": (0.0944, 0.2746, 0.9116, 0.4648)}
 RESULT_LAYOUT = {"close_pos": (0.9222, 0.0579), "title_pos": (0.4972, 0.0913)}
-WINDOW_KEYS = {"panel_region": PANEL_LAYOUT, "result_region": RESULT_LAYOUT}
+WINDOW_KEYS = {"panel_region": PANEL_LAYOUT, "reel_region": REEL_LAYOUT, "result_region": RESULT_LAYOUT}
 
 
 def layout_from(region, layout):
@@ -181,16 +186,16 @@ def analyze_bar(rgb, bar_top, bar_h):
 
 
 def reel_decision(marker, zone, vel, cfg, w):
-    """누를지: 떨어지는 속도만큼 미리 본 내 위치가 목표 위치보다 왼쪽이면 누름
-    목표 위치 = 구간 왼쪽 끝 + 구간 폭 × target_pct% (0 = 왼쪽 끝 · 50 = 가운데)
+    """누를지: 내 위치(lead_ms 만큼 미리 본 위치 · 기본 0 = 지금 위치)가 목표 위치 이하면 누름
+    목표 위치 = 구간 왼쪽 끝 + 구간 폭 × target_pct% (기본 0 = 왼쪽 변 · 50 = 가운데)
     → 왼쪽 끝 가까이로 떨어질 때만 눌러서 튀어 오른 만큼 구간 안에 머물게 함 (가운데 기준이면 너무 자주 눌러 오른쪽으로 넘어감)"""
     if marker is None or zone is None:
         return False
     target = zone[0] + (zone[1] - zone[0]) * cfg.get("target_pct", DEFAULTS["target_pct"]) / 100.0
-    pred = marker + vel * cfg["lead_ms"] / 1000.0
+    pred = marker + vel * cfg.get("lead_ms", DEFAULTS["lead_ms"]) / 1000.0
     if max(marker, pred) > (zone[0] + zone[1]) / 2:
         return False                                      # 구간 가운데보다 오른쪽이면 절대 안 누름 (오른쪽으로 넘어가는 것 방지)
-    return pred < target - cfg.get("deadband", 0) * w
+    return pred <= target - cfg.get("deadband", 0) * w   # 기본: 내 위치가 구간 왼쪽 변 이하로 내려오면 그때 누름
 
 
 # ---------------------------------------------------------------- 실행기
@@ -345,21 +350,23 @@ class Fisher:
             self.holding.clear()
 
     def _diamond_moved(self, sct, rect, cfg):
-        """낚시 창 ◇ 가 미니게임 자리로 옮겨갔는지 (바와 따로 보는 두 번째 신호) — 낚시 창 영역이 없으면 None
+        """낚시 창 ◇ 가 미니게임 자리로 옮겨갔는지 (바와 따로 보는 두 번째 신호) — 창 영역이 하나도 없으면 None
+        대기 자리는 대기 창 기준, 미니게임 자리는 미니게임 창 기준 (따로 지정 안 했으면 다른 창 기준으로 계산)
         미니게임 자리엔 대기 때도 창 테두리가 조금 걸리므로 '원래 자리가 비었는지'도 같이 봄"""
-        reg = cfg.get("panel_region")
-        if not reg:
+        idle_win, reel_win = cfg.get("panel_region"), cfg.get("reel_region")
+        if not idle_win and not reel_win:
             return None
-        x1, x2 = sorted((reg[0], reg[2]))
-        y1, y2 = sorted((reg[1], reg[3]))
-        size = max(3, int(rect[2] * (x2 - x1) * 0.012))
+        idle = (idle_win, DIAMOND_IDLE) if idle_win else (reel_win, DIAMOND_IDLE_R)
+        reel = (reel_win, DIAMOND_REEL_R) if reel_win else (idle_win, DIAMOND_REEL)
 
-        def white(rel):
-            pos = (x1 + rel[0] * (x2 - x1), y1 + rel[1] * (y2 - y1))
-            x, y = macro.to_screen(pos[0], pos[1], rect)
+        def white(win, rel):
+            x1, x2 = sorted((win[0], win[2]))
+            y1, y2 = sorted((win[1], win[3]))
+            size = max(3, int(rect[2] * (x2 - x1) * 0.012))
+            x, y = macro.to_screen(x1 + rel[0] * (x2 - x1), y1 + rel[1] * (y2 - y1), rect)
             img = sct.grab({"left": x - size, "top": y - size, "width": size * 2 + 1, "height": size * 2 + 1})
             return int((_np(bytes(img.bgra), img.width, img.height).min(axis=2) > 200).sum())
-        return white(DIAMOND_REEL) >= 6 and white(DIAMOND_IDLE) < 6
+        return white(*reel) >= 6 and white(*idle) < 6
 
     def _read_state(self, sct, rect, cfg):
         """지금 화면 → 'reel' / 'maybe'(바만 보이고 ◇ 는 안 맞음) / 'idle'(Fish) / 'wait'(Exit) / None(알 수 없음)

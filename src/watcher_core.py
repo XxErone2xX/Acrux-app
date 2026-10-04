@@ -119,11 +119,12 @@ MFISH_DEFAULT = {
     "bar_region": None,           # 릴링 바(위쪽 바) 영역 [x1, y1, x2, y2]
     "close_pos": None,            # 결과창 X
     "title_pos": None,            # 결과창 제목 (선택 · 색으로 성공/쓰레기/실패 구분)
-    "panel_region": None,         # 낚시 창 영역 → Fish 버튼 · 릴링 바 자동 계산
+    "panel_region": None,         # 낚시 대기 창 영역 → Fish 버튼 (· 미니게임 창이 없으면 릴링 바) 자동 계산
+    "reel_region": None,          # 낚시 미니게임 창 영역 → 릴링 바 자동 계산 (대기 창보다 넓음)
     "result_region": None,        # 결과창 영역 → 결과창 X · 제목 자동 계산
-    "bite_max": 60.0, "target_pct": 20, "lead_ms": 60, "click_ms": 25, "click_gap_ms": 45, "cast_retry": 3,
+    "bite_max": 60.0, "target_pct": 0, "lead_ms": 0, "click_ms": 25, "click_gap_ms": 45, "cast_retry": 3,
     "debug_log": False,           # 릴링 기록(fishing_log.csv) 저장 — 문제 확인용
-    "tp_v2": False,               # 목표 위치 기본값 10 → 20 적용했는지 (한 번만)
+    "click_v3": False,            # 클릭 기준을 '구간 왼쪽 변 이하'(목표 0 · 미리 누르기 0)로 바꾼 것 적용했는지 (한 번만)
 }
 POP_BIOMES = ("CYBERSPACE", "GLITCHED", "DREAMSPACE")
 # 기본 템플릿 — 얼로니 SolsRNG 스크립트의 레어 바이옴 자동 팝핑(_RareBiomePotionTable) 그대로
@@ -317,16 +318,18 @@ def normalize(raw):
     mf.update(d.get("mfish") if isinstance(d.get("mfish"), dict) else {})
     mf["enabled"] = bool(mf.get("enabled"))
     mf["debug_log"] = bool(mf.get("debug_log"))
-    if not mf.get("tp_v2"):                 # 예전 기본값(10)을 그대로 쓰던 사람은 새 기본값(20)으로 한 번만
+    if not mf.get("click_v3"):              # 예전 기본값을 그대로 쓰던 사람은 새 기본값(왼쪽 변 · 미리 누르기 없음)으로 한 번만
         try:
-            if float(mf.get("target_pct", 20)) == 10:
-                mf["target_pct"] = 20
+            if float(mf.get("target_pct", 0)) in (10, 20):
+                mf["target_pct"] = 0
+            if float(mf.get("lead_ms", 0)) == 60:
+                mf["lead_ms"] = 0
         except (TypeError, ValueError):
             pass
-        mf["tp_v2"] = True
+        mf["click_v3"] = True
     for k in ("fish_btn", "close_pos", "title_pos"):
         mf[k] = _ratio_list(mf.get(k), 2)
-    for k in ("bar_region", "panel_region", "result_region"):
+    for k in ("bar_region", "panel_region", "reel_region", "result_region"):
         mf[k] = _ratio_list(mf.get(k), 4)
     for k, lo, hi in (("bite_max", 5, 600), ("target_pct", 0, 90), ("lead_ms", 0, 300), ("click_ms", 5, 200), ("click_gap_ms", 10, 500),
                       ("cast_retry", 1, 10)):
