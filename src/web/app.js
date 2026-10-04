@@ -1191,8 +1191,8 @@ const MFISH_POS = [['fish_btn', 'Fish 버튼', 'Fish / Exit 버튼 가운데 (�
   ['title_pos', '결과창 제목', '선택 · 제목 색으로 성공 / 쓰레기 / 실패 구분']];
 const MFISH_REQ = ['fish_btn', 'bar_region', 'close_pos'];
 const MFISH_TUNE = [['bite_max', '입질 최대 대기', '이 시간 동안 입질이 없으면 Exit 후 다시 던짐 (초)', 60, 5, 1],
-  ['target_pct', '목표 위치', '구간 왼쪽 끝에서 구간 폭의 몇 % 지점까지 떨어지면 누를지 · 0 = 왼쪽 끝, 50 = 가운데 · 구간 왼쪽으로 자꾸 빠지면 늘리고, 오른쪽으로 넘어가면 줄임 (%)', 20, 0, 5],
-  ['lead_ms', '미리 누르기', '떨어지는 속도를 보고 이만큼 미리 누름 · 구간을 자꾸 넘어가면 늘리고, 못 따라가면 줄임 (ms)', 60, 0, 10],
+  ['target_pct', '목표 위치', '내 위치가 구간 왼쪽 변에서 구간 폭의 몇 % 지점 이하로 내려오면 누를지 · 0 = 딱 왼쪽 변, 50 = 가운데 · 구간 왼쪽으로 자꾸 빠지면 늘림 (%)', 0, 0, 5],
+  ['lead_ms', '미리 누르기', '떨어지는 속도를 보고 이만큼 미리 누름 · 0 = 지금 위치 그대로 · 누르는 게 늦어 구간 왼쪽으로 빠지면 조금 늘림 (ms)', 0, 0, 10],
   ['click_gap_ms', '클릭 최소 간격', '릴링 중 클릭 사이 최소 간격 (ms)', 45, 10, 5],
   ['cast_retry', 'Fish 다시 누르기', 'Fish 를 눌러도 반응이 없으면 다시 누르는 횟수 · 넘으면 인벤토리 가득으로 봄', 3, 1, 1]];
 function renderMfish() {
@@ -1266,7 +1266,8 @@ const MPOS = {
   mpop: { box: 'mposPop', tpl: true, points: POP_POS.map(([k, n, sub]) => [k, n, sub || '']),
           regions: [['ocr_region', 'OCR 영역', '검색 결과 아이템 이름·개수 (예: Warp Potion x23)']] },
   mfish: { box: 'mposFish',
-           windows: [['panel_region', '낚시 창 영역', 'Fish 버튼이 보일 때 낚시 창을 흰 꺾쇠 테두리까지 드래그 → Fish 버튼과 릴링 바 위치 자동 계산'],
+           windows: [['panel_region', '낚시 대기 창 영역', 'Fish 버튼이 보일 때 낚시 창을 흰 꺾쇠 테두리까지 드래그 → Fish 버튼과 릴링 바 위치 자동 계산'],
+                     ['reel_region', '낚시 미니게임 창 영역', '대기 창보다 조금 넓음 · 누른 뒤 로블록스에서 Fish 를 눌러 낚시 → 미니게임이 뜨면 화면이 멈춤 → 흰 꺾쇠 테두리까지 드래그 → 릴링 바 위치를 이 창 기준으로 다시 계산'],
                      ['result_region', '결과창 영역', '한 번 낚아서 결과창이 떠 있을 때 흰 꺾쇠 테두리까지 드래그 → 결과창 X 와 제목 위치 자동 계산']],
            points: MFISH_POS,
            regions: [['bar_region', '릴링 바 영역', '위쪽 바(파란 막대, Ready! 가 뜨는 바)만 딱 맞게 드래그 · ◇ 표시는 자동으로 찾음']] },
@@ -1315,7 +1316,8 @@ function renderMpos(feat) {
   }));
   box.querySelectorAll('[data-mpos-region]').forEach(b => b.addEventListener('click', async () => {
     const k = b.dataset.mposRegion, name = regions.find(x => x[0] === k)[1];
-    const r = await pickWith(b, `로블록스 화면에서 ${name} 드래그`, () => api('mpos_region', { feat, key: k }));
+    const msg = k === 'reel_region' ? '로블록스에서 Fish 를 눌러 미니게임을 띄우세요 · 뜨면 화면이 멈춤' : `로블록스 화면에서 ${name} 드래그`;
+    const r = await pickWith(b, msg, () => api('mpos_region', { feat, key: k }));
     if (r) { Object.assign(c, r[feat] || { [k]: r.region }); mposChanged(feat); toast(`${name} 저장`); }
   }));
 }

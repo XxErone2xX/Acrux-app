@@ -545,7 +545,7 @@ class Bridge:
 
     # 매크로 기준 위치 설정 — 기능마다 따로 저장하는 버튼 위치 · 영역 (feat: mpop / mfish)
     MPOS_POINTS = {"mpop": dict(popping.POS_KEYS), "mfish": dict(fishing.POS_KEYS)}
-    MPOS_REGIONS = {"mpop": ("ocr_region",), "mfish": ("panel_region", "result_region", "bar_region")}
+    MPOS_REGIONS = {"mpop": ("ocr_region",), "mfish": ("panel_region", "reel_region", "result_region", "bar_region")}
     # 16:9 위치 템플릿 (로블록스 창 기준 비율) — 스나이프 탭 오토 팝핑 16:9 템플릿과 같은 값
     # (자동 낚시는 템플릿 대신 낚시 창 · 결과창 영역으로 안쪽 위치를 계산 → fishing.WINDOW_KEYS)
     MPOS_TEMPLATE = {
@@ -573,6 +573,10 @@ class Bridge:
         key = str(p.get("key") or (keys[0] if keys else ""))
         if key not in keys:
             return {"error": "알 수 없는 항목"}
+        if feat == "mfish" and key == "reel_region":
+            err = self._wait_minigame(90)            # 미니게임은 몇 초만 떠 있음 → 뜰 때까지 기다렸다가 화면을 멈추고 드래그
+            if err:
+                return {"error": err}
         r = self._pick_overlay("--pick-region")
         if r.get("error"):
             return r
@@ -580,7 +584,10 @@ class Bridge:
             c = self.data.setdefault(feat, {})
             c[key] = r["region"]
             if feat == "mfish" and key in fishing.WINDOW_KEYS:
-                c.update(fishing.layout_from(r["region"], fishing.WINDOW_KEYS[key]))
+                lay = fishing.layout_from(r["region"], fishing.WINDOW_KEYS[key])
+                if key == "panel_region" and c.get("reel_region"):
+                    lay.pop("bar_region", None)       # 미니게임 창을 따로 지정했으면 릴링 바는 그쪽 기준 그대로
+                c.update(lay)
         self._save()
         return {"region": r["region"], feat: self.data[feat]}
 
@@ -600,6 +607,25 @@ class Bridge:
         for key, v in cls.MPOS_TEMPLATE[feat].items():
             out[key] = ([fx(key, v[0]), v[1], fx(key, v[2]), v[3]] if len(v) == 4 else [fx(key, v[0]), v[1]])
         return out
+
+    def _wait_minigame(self, timeout):
+        """낚시 미니게임이 화면에 뜰 때까지 기다림 (릴링 바 자리에 색이 보이면) → 오류 문구 또는 None
+        릴링 바 자리는 대기 창 영역(또는 직접 지정한 릴링 바)으로 계산한 것을 씀"""
+        mf = self.data.get("mfish", {})
+        if not mf.get("bar_region"):
+            return "낚시 대기 창 영역을 먼저 지정하세요"
+        hwnd = macro.roblox_window_cached(1.0)
+        if not hwnd:
+            return "로블록스 창 없음"
+        macro.focus(hwnd, wait=0.2)               # 로블록스에서 바로 Fish 를 누를 수 있게
+        end = time.time() + timeout
+        with macro.ScreenGrabber() as sct:
+            while time.time() < end:
+                rect = macro.client_rect(hwnd)
+                if rect and self.fisher._bar_seen(sct, rect, mf):
+                    return None
+                time.sleep(0.1)
+        return f"{timeout}초 동안 미니게임이 안 뜸 — 다시 시도하세요"
 
     def api_mpos_template(self, p):
         feat = str(p.get("feat", ""))
