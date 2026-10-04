@@ -668,18 +668,25 @@ body:not(.in-page) .lang.in-card { display: none; }
 
 /* ---------- 메인 화면 기능별 시작 버튼 (바이옴 매크로 / 오토 스나이핑 / 매크로) ---------- */
 .mains { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
-.main-tile { --deco: var(--k); display: flex; flex-direction: column; background: var(--panel); transition: background .35s ease; }
-.main-tile.on { background: linear-gradient(180deg, color-mix(in srgb, var(--k) 22%, var(--panel)), var(--panel)); }
+.main-tile { --deco: var(--k); position: relative; isolation: isolate; display: flex; flex-direction: column; background: var(--panel); }
+/* 켜질 때 색이 아래에서 위로 천천히 번지며 들어옴 (그라데이션은 바로 바뀌므로 덮개의 투명도 · 위치로 움직임) */
+.main-tile::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(0deg, color-mix(in srgb, var(--k) 30%, transparent), color-mix(in srgb, var(--k) 6%, transparent) 70%, transparent);
+  opacity: 0; transform: translateY(18%); transform-origin: bottom;
+  transition: opacity .7s var(--ease-out), transform .7s var(--ease-out); }
+.main-tile.on::before { opacity: 1; transform: none; }
 .mt-name { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 16px 10px 12px; background: none; color: var(--fg); cursor: pointer; }
 .mt-name b { font-size: 15px; }
-.mt-st { font-size: 11px; color: var(--muted); min-height: 14px; text-align: center; }
+.mt-st { font-size: 11px; color: var(--muted); min-height: 14px; text-align: center; transition: color .5s ease; }
 .main-tile.on .mt-st { color: color-mix(in srgb, var(--k) 70%, white); }
 .main-tile.on .mt-st::before { content: "● "; }
 .main-tile.wait .mt-st { color: var(--yellow); }
-.mt-go { margin: 0 12px 12px; height: 34px; font-weight: 700; font-size: 13px; color: var(--k); background: transparent;
-  border: 1px solid var(--k); transition: background .25s ease, color .25s ease, filter .2s ease; }
-.mt-go:hover { background: color-mix(in srgb, var(--k) 18%, transparent); }
-.main-tile.on .mt-go { background: var(--k); color: #111; }
+/* 버튼: 색이 왼쪽에서 오른쪽으로 차오름 */
+.mt-go { margin: 0 12px 12px; height: 34px; font-weight: 700; font-size: 13px; color: var(--k);
+  background: linear-gradient(var(--k), var(--k)) left / 0% 100% no-repeat; border: 1px solid var(--k);
+  transition: background-size .5s var(--ease-out), color .35s ease .1s, filter .2s ease; }
+.mt-go:hover { background-color: color-mix(in srgb, var(--k) 14%, transparent); }
+.main-tile.on .mt-go { background-size: 100% 100%; color: #111; }
 .main-tile.on .mt-go:hover { filter: brightness(1.1); }
 .mt-go:active { transform: scale(.98); }
 
