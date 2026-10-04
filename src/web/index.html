@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#1e1f22">
+<title>Acrux snipe &amp; popping macro - Made by 얼로니</title>
+<link rel="icon" href="icon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ================= 메인 ================= -->
+<main id="main">
+  <div class="col">
+    <header class="brand">
+      <h1>Acrux macro <span class="ver" id="verText">V1.2.1</span></h1>
+      <p class="sub">Snipe &amp; popping macro</p>
+      <p data-notr>Made by 얼로니</p>
+    </header>
+
+    <div class="card status-card">
+      <div class="status-left">
+        <div class="status-line"><span class="dot" data-status-dot></span><b data-status-text>중지됨</b></div>
+        <p id="modeText">-</p>
+      </div>
+      <div class="status-right">
+        <div id="count">0</div>
+        <span>감지</span>
+      </div>
+    </div>
+
+    <!-- 기능별 시작 버튼: 바이옴 매크로 / 매크로 / 오토 스나이핑 (각자 따로 켜고 끔 · 이름 쪽을 누르면 아래 설정 탭으로) -->
+    <div class="mains" id="mains">
+      <div class="main-tile deco" data-main="biome" style="--k: var(--cyan)">
+        <button class="mt-name" type="button" data-tab-go="biome"><b>바이옴 매크로</b><span class="mt-st" id="mtBiome">꺼짐</span></button>
+        <button class="mt-go" type="button" id="mgBiome">시작</button>
+      </div>
+      <div class="main-tile deco" data-main="macro" style="--k: var(--yellow)">
+        <button class="mt-name" type="button" data-tab-go="macro"><b>매크로</b><span class="mt-st" id="mtMacro">꺼짐</span></button>
+        <button class="mt-go" type="button" id="mgMacro">시작</button>
+      </div>
+      <div class="main-tile deco" data-main="snipe" style="--k: var(--accent)">
+        <button class="mt-name" type="button" data-tab-go="snipe"><b>오토 스나이핑</b><span class="mt-st" id="mtSnipe">꺼짐</span></button>
+        <button class="mt-go" type="button" id="runBtn" data-state="idle">시작</button>
+      </div>
+    </div>
+
+    <!-- 설정 탭: 바이옴 / 스나이프 / 매크로 / Acrux (가운데 큰 글씨가 지금 탭 · 탭 이름 클릭이나 ← → 키로 넘김) -->
+    <div class="label">설정</div>
+    <div class="tabs" id="tabs">
+      <div class="tab-track" id="tabTrack">
+        <button class="tab-name" type="button" data-tab="biome">바이옴</button>
+        <button class="tab-name" type="button" data-tab="snipe">스나이프</button>
+        <button class="tab-name" type="button" data-tab="macro">매크로</button>
+        <button class="tab-name" type="button" data-tab="acrux" data-notr>Acrux</button>
+      </div>
+    </div>
+    <div class="menu" id="menu"></div>
+  </div>
+  <div class="corner">
+  <div class="corner-btns" id="cornerBtns">
+    <button class="menu-card corner-btn donate-open deco" data-web="donate"><div class="head"></div></button>
+    <button class="menu-card corner-btn credit-open deco" data-key="credit"><div class="head"></div></button>
+    <button class="menu-card corner-btn feedback-open deco" type="button"><div class="head"></div></button>
+    <button class="menu-card corner-btn log-open deco" data-key="log"><div class="head"></div></button>
+    <button class="menu-card corner-btn uninstall-open deco" type="button"><div class="head"></div></button>
+  </div>
+  <button class="corner-toggle deco" id="cornerToggle" title="더 보기" aria-expanded="false"><span class="tri"></span></button>
+  </div>
+  <!-- 로블록스가 안 켜져 있을 때: 내 서버로 바로 접속 -->
+  <div class="rbx-notice deco" id="rbxNotice" hidden>
+    <span class="rbx-mark">!</span>
+    <div class="rbx-text">
+      <span>로블록스 클라이언트가 감지되지 않았습니다.</span>
+      <button class="rbx-join" id="rbxJoin" type="button">Sol's RNG에 접속하시겠습니까?</button>
+    </div>
+    <button class="rbx-x" id="rbxClose" type="button" title="닫기">✕</button>
+  </div>
+  <!-- 매크로 작동 중 로블록스가 갑자기 꺼졌을 때: 10초 뒤 매크로 복귀 (대기를 누르면 취소) -->
+  <div class="rbx-notice crash deco" id="rbxCrash" hidden>
+    <span class="rbx-mark">!</span>
+    <div class="rbx-text">
+      <span>로블록스가 갑자기 꺼졌습니다.</span>
+      <b class="crash-text" id="crashText"></b>
+    </div>
+    <button class="btn mini crash-wait" id="crashWait" type="button" data-tctx="step">대기</button>
+  </div>
+  <footer>설정 자동 저장 · Esc: 뒤로</footer>
+</main>
+
+<!-- 언어 선택 (메인 화면 왼쪽 위 · 튜토리얼 중에도 누를 수 있음) -->
+<div class="lang" id="langBox"></div>
+
+<!-- 펼침 애니메이션용 (카드 모양 껍데기 + 떠다니는 머리) -->
+<div id="shell"></div>
+<div id="decoBox" class="deco"></div>
+<div id="flyHead" class="head"></div>
+
+<!-- ================= 하위 화면들 ================= -->
+<section class="page" id="page-discord" data-key="discord">
+  <div class="topbar deco">
+    <button class="back deco" data-back><span class="ico" data-icon="back"></span>뒤로</button>
+    <div class="head" data-head></div>
+    <div class="top-right">
+      <span class="status-mini"><span class="dot" data-status-dot></span><span data-status-text>중지됨</span></span>
+      <label class="switch"><input type="checkbox" id="cfgEnabled"><i></i>감시 켜짐</label>
+    </div>
+  </div>
+  <div class="body">
+    <nav class="side">
+      <button class="item deco" data-sec="events"><b>감지 기록</b><span>최근에 잡힌 링크</span></button>
+      <button class="item deco" data-sec="targets"><b>감시 대상</b><span>서버 · 채널 목록</span></button>
+      <button class="item deco" data-sec="filters"><b>필터</b><span>바이옴 설정</span></button>
+      <button class="item deco" data-sec="conn"><b>기타 설정</b><span>디스코드 · 알림</span></button>
+    </nav>
+
+    <div class="content">
+      <div class="target-sum" id="targetSum"></div>
+
+      <!-- 감지 기록 -->
+      <div class="sec" data-sec="events">
+        <div class="sec-head"><h2>감지 기록</h2><button class="btn ghost" id="clearEvents">지우기</button></div>
+        <div class="table-wrap">
+          <table class="events">
+            <thead><tr><th style="width:86px">시간</th><th style="width:84px">상태</th><th>서버 #채널</th><th>링크</th><th style="width:120px"></th></tr></thead>
+            <tbody id="eventRows"></tbody>
+          </table>
+          <div class="empty" id="eventsEmpty">감지된 링크 없음</div>
+        </div>
+      </div>
+
+      <!-- 감시 대상 -->
+      <div class="sec" data-sec="targets">
+        <div class="sec-head"><h2>감시 대상</h2></div>
+        <div class="hint-row"><p class="hint">등록한 서버 / 채널만 감지 · 비어 있으면 감지 안 함</p><button class="btn ghost mini" id="tutorialBtn">튜토리얼 보기</button></div>
+        <div class="two">
+          <div class="card list-card">
+            <h3>서버 <small>이 서버의 모든 채널</small></h3>
+            <ul class="idlist" id="list-guild"></ul>
+            <form class="add" data-kind="guild"><input placeholder="서버 ID" inputmode="numeric"><button class="btn">추가</button></form>
+          </div>
+          <div class="card list-card">
+            <h3>채널 <small>이 채널만 (스레드 제외)</small></h3>
+            <ul class="idlist" id="list-channel"></ul>
+            <form class="add" data-kind="channel"><input placeholder="채널 ID" inputmode="numeric"><button class="btn">추가</button></form>
+          </div>
+        </div>
+      </div>
+
+      <!-- 필터 -->
+      <div class="sec" data-sec="filters">
+        <div class="sec-head"><h2>필터</h2></div>
+        <div class="card">
+          <h3>바이옴 설정 <small>선택한 바이옴이 포함된 링크만 감지 · 선택 없으면 전부 감지</small></h3>
+          <div class="chips" id="biomeChips"></div>
+          <form class="add biome-add" id="biomeAdd"><input placeholder="바이옴 이름 직접 추가"><button class="btn">추가</button></form>
+        </div>
+        <div class="card note">
+          <h3>자동 제외</h3>
+          <p><b>Ended</b>, <b>End</b> 단어가 포함된 메시지는 무시 (대소문자 구분 X, 단어 단위)</p>
+        </div>
+      </div>
+
+      <!-- 기타 설정 -->
+      <div class="sec" data-sec="conn">
+        <div class="sec-head"><h2>기타 설정</h2></div>
+        <div class="card form">
+          <label class="row"><span>디스코드 종류</span>
+            <select id="cfgFlavor"><option value="stable">Stable</option><option value="ptb">PTB</option><option value="canary">Canary</option></select></label>
+          <label class="row"><span>자동 재시작<small>디코가 일반 모드로 켜져 있으면 재시작</small></span><span class="switch"><input type="checkbox" id="cfgAutoRestart"><i></i></span></label>
+          <label class="row"><span>바로 작동<small>프로그램 켤 때 시작 버튼까지 눌린 상태로</small></span><span class="switch"><input type="checkbox" id="cfgAutostart"><i></i></span></label>
+          <label class="row"><span>소리<small>감지되면 알림음</small></span><span class="switch"><input type="checkbox" id="cfgBeep"><i></i></span></label>
+          <label class="row"><span>안정화 접속<small>로블록스 전부 종료 → 0.5초 후 실행 · 끄면 즉시 실행</small></span><span class="switch"><input type="checkbox" id="cfgStable"><i></i></span></label>
+          <label class="row"><span>모든 링크 표시<small>감시 대상 밖 링크도 기록에 '보임'으로</small></span><span class="switch"><input type="checkbox" id="cfgShowAll"><i></i></span></label>
+        </div>
+        <button class="btn ghost" id="openFolder">프로그램 폴더 열기</button>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section class="page" id="page-biome" data-key="biome">
+  <div class="topbar deco">
+    <button class="back deco" data-back><span class="ico" data-icon="back"></span>뒤로</button>
+    <div class="head" data-head></div>
+    <div class="top-right">
+      <span class="status-mini"><span class="dot" id="biomeDot"></span><span id="biomeNow">바이옴 인식 안 됨</span></span>
+      <label class="switch"><input type="checkbox" id="bioEnabled"><i></i>바이옴 매크로</label>
+    </div>
+  </div>
+  <div class="body">
+    <nav class="side">
+      <button class="item deco" data-sec="bio-basic"><b>기본 설정</b><span>플레이어 이름 · 브섭 링크</span></button>
+      <button class="item deco" data-sec="bio-hooks"><b>디스코드 웹후크</b><span>알림 받을 주소</span></button>
+      <button class="item deco" data-sec="bio-mention"><b>멘션 설정</b><span>바이옴별 역할 · @everyone</span></button>
+      <button class="item deco" data-sec="bio-history"><b>최근 바이옴</b><span>인식된 바이옴 기록</span></button>
+    </nav>
+    <div class="content">
+      <div class="sec" data-sec="bio-basic">
+        <div class="sec-head"><h2>기본 설정</h2><button class="btn ghost mini" id="bioTutorialBtn">튜토리얼 보기</button></div>
+        <div class="card form">
+          <label class="row col-row"><span>플레이어 이름<small>디스플레이 이름이 아닌 실제 닉네임 (@ 뒤 이름) · 게임 속 닉네임과 같아야 바이옴 감지</small></span>
+            <input id="bioPlayer" placeholder="예: Rn_Draon" spellcheck="false"></label>
+          <label class="row col-row"><span>브섭 링크<small>바이옴 시작 알림에 함께 표시</small></span>
+            <input id="bioPs" placeholder="https://www.roblox.com/share?code=...&type=Server" spellcheck="false"></label>
+        </div>
+        <div class="card note">
+          <h3>바이옴 인식 상태</h3>
+          <p id="bioStatus">-</p>
+          <p class="dim-line">로블록스 로그 파일로 인식 · 화면 인식(OCR) 불필요 · 바이옴 매크로 토글이 켜져 있을 때만 알림 전송 (시작 버튼과 무관) · 프로그램을 켜면 항상 꺼진 상태로 시작</p>
+        </div>
+      </div>
+
+      <div class="sec" data-sec="bio-mention">
+        <div class="sec-head"><h2>멘션 설정</h2></div>
+        <p class="hint">바이옴이 시작될 때 함께 멘션 · 역할 ID 는 디스코드에서 역할 우클릭 → ID 복사하기 (개발자 모드 필요)</p>
+        <div class="card mention-list" id="mentionList"></div>
+      </div>
+
+      <div class="sec" data-sec="bio-history">
+        <div class="sec-head"><h2>최근 바이옴</h2><span class="hint" id="bioHistCount"></span></div>
+        <div class="card bio-hist-card"><div class="bio-hist" id="bioHist"><span class="dim-line">기록 없음</span></div></div>
+      </div>
+
+      <div class="sec" data-sec="bio-hooks">
+        <div class="sec-head"><h2>디스코드 웹후크</h2><button class="btn" id="bioTest">테스트 전송</button></div>
+        <div class="card form">
+          <label class="row col-row"><span>웹후크 1</span><input id="bioHook1" placeholder="https://discord.com/api/webhooks/..." spellcheck="false"></label>
+          <label class="row col-row"><span>웹후크 2<small>선택</small></span><input id="bioHook2" placeholder="https://discord.com/api/webhooks/..." spellcheck="false"></label>
+        </div>
+        <div class="card note">
+          <h3>보내는 알림</h3>
+          <p><b>Biome Macro Enabled / Disabled</b> — 바이옴 매크로가 켜지거나 꺼질 때 (Acrux 다운로드 링크 포함)</p>
+          <p><b>Biome Started - 바이옴</b> — 시작 시각, Uptime, 브섭 링크, 바이옴 썸네일 + 멘션 설정의 역할 / @everyone</p>
+          <p><b>Biome Ended - 바이옴</b> — 바이옴이 끝났을 때</p>
+          <p><b>Player has left the game</b> — 로블록스 접속이 끊겼을 때</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="page" id="page-popping" data-key="popping">
+  <div class="topbar deco">
+    <button class="back deco" data-back><span class="ico" data-icon="back"></span>뒤로</button>
+    <div class="head" data-head></div>
+    <div class="top-right">
+      <span class="status-mini"><span class="dot" id="playDot"></span><span id="playState">대기</span></span>
+      <button class="btn" id="playTest">테스트</button>
+      <button class="btn ghost" id="playStop">정지</button>
+    </div>
+  </div>
+  <div class="body">
+    <nav class="side">
+      <button class="item deco" data-sec="pre"><b>접속 전 동작</b><span>프로그램 종료 · 키 입력</span></button>
+      <button class="item deco" data-sec="play"><b>게임 접속</b><span>Play 버튼 위치 · 대기</span></button>
+      <button class="item deco" data-sec="pop-set"><b>오토 팝핑 설정</b><span>버튼 위치 · OCR</span></button>
+      <button class="item deco" data-sec="pop-biomes"><b>팝핑 바이옴 설정</b><span>팝핑할 바이옴 켜기 · 끄기</span></button>
+      <button class="item deco" data-sec="pop-delay"><b>오토 팝핑 딜레이 설정</b><span>동작 사이 대기</span></button>
+      <button class="item deco" data-sec="pop-cyber"><b>Cyberspace</b><span>포션 템플릿</span></button>
+      <button class="item deco" data-sec="pop-glitch"><b>Glitched</b><span>포션 템플릿</span></button>
+      <button class="item deco" data-sec="pop-dream"><b>Dreamspace</b><span>포션 템플릿</span></button>
+    </nav>
+    <div class="content">
+      <div class="sec" data-sec="pre">
+        <div class="sec-head"><h2>접속 전 동작</h2><span class="hint">링크로 게임에 접속하기 직전에 순서대로 실행 · 끝나면 접속</span><button class="btn" id="preRun">테스트 실행</button></div>
+        <div class="add-bar" id="preAddBar"></div>
+        <div class="steps" id="preSteps"></div>
+        <div class="empty" id="preEmpty">동작 없음 · 필요하면 위 버튼으로 추가 (예: 특정 프로그램 강제 종료, 키 입력)</div>
+      </div>
+      <div class="sec" data-sec="play">
+        <div class="sec-head"><h2>게임 접속</h2><span class="hint" id="robloxState"></span><button class="btn ghost mini" id="popTutorialBtn">튜토리얼 보기</button></div>
+        <div class="card form">
+          <div class="row"><span>Play 버튼 위치<small>직접 지정 필요 · 로블록스 창 기준이라 창 크기가 바뀌어도 그대로</small></span>
+            <span class="pos"><code id="playPos">-</code><button class="btn mini ghost" type="button" id="playPick" data-which="play">위치 지정</button></span></div>
+          <div class="row"><span>Click to skip 버튼 위치<small>직접 지정 필요 · Play 버튼과 번갈아 클릭</small></span>
+            <span class="pos"><code id="skipPos">-</code><button class="btn mini ghost" type="button" id="skipPick" data-which="skip">위치 지정</button></span></div>
+          <label class="row"><span>클릭 간격<small>Play ↔ Click to skip 번갈아 누르는 간격 (초) · 기본 0.15</small></span><input type="number" min="0.05" step="0.05" id="playInterval"></label>
+          <label class="row"><span>접속 후 대기<small>로블록스 창이 뜬 뒤 첫 클릭까지 (초)</small></span><input type="number" min="0" step="1" id="playWait"></label>
+          <label class="row"><span>최대 시도 시간<small>이 시간 안에 입장이 안 되면 중지 (초)</small></span><input type="number" min="10" step="10" id="playMax"></label>
+        </div>
+      </div>
+
+      <div class="sec" data-sec="pop-set">
+        <div class="sec-head"><h2>오토 팝핑 설정</h2></div>
+        <div class="card form" id="popSetForm"></div>
+      </div>
+
+      <div class="sec" data-sec="pop-biomes">
+        <div class="sec-head"><h2>팝핑 바이옴 설정</h2></div>
+        <div class="card form" id="popBiomeForm"></div>
+      </div>
+      <div class="sec" data-sec="pop-delay">
+        <div class="sec-head"><h2>오토 팝핑 딜레이 설정</h2></div>
+        <div class="card form" id="popDelayForm"></div>
+      </div>
+
+      <div class="sec" data-sec="pop-cyber">
+        <div class="sec-head"><h2>Cyberspace</h2><button class="btn ghost" data-pop-default="CYBERSPACE">기본 템플릿으로</button><button class="btn" data-pop-test="CYBERSPACE">이 템플릿 테스트</button></div>
+        <div class="card form tpl" data-tpl="CYBERSPACE"></div>
+      </div>
+
+      <div class="sec" data-sec="pop-glitch">
+        <div class="sec-head"><h2>Glitched</h2><button class="btn ghost" data-pop-default="GLITCHED">기본 템플릿으로</button><button class="btn" data-pop-test="GLITCHED">이 템플릿 테스트</button></div>
+        <div class="card form tpl" data-tpl="GLITCHED"></div>
+      </div>
+
+      <div class="sec" data-sec="pop-dream">
+        <div class="sec-head"><h2>Dreamspace</h2><button class="btn ghost" data-pop-default="DREAMSPACE">기본 템플릿으로</button><button class="btn" data-pop-test="DREAMSPACE">이 템플릿 테스트</button></div>
+        <div class="card form tpl" data-tpl="DREAMSPACE"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="page" id="page-return" data-key="return">
+  <div class="topbar deco">
+    <button class="back deco" data-back><span class="ico" data-icon="back"></span>뒤로</button>
+    <div class="head" data-head></div>
+    <div class="top-right">
+      <span class="status-mini"><span class="dot" id="retDot"></span><span id="retState">대기</span></span>
+      <button class="btn" id="retTest">복귀 테스트</button>
+      <button class="btn ghost" id="retStop">정지</button>
+    </div>
+  </div>
+  <div class="body">
+    <nav class="side">
+      <button class="item deco" data-sec="ret-set"><b>복귀 설정</b><span>내 브섭 링크</span></button>
+      <button class="item deco" data-sec="ret-steps"><b>복귀 후 동작</b><span>직접 만드는 매크로</span></button>
+    </nav>
+    <div class="content">
+      <div class="sec" data-sec="ret-set">
+        <div class="sec-head"><h2>복귀 설정</h2><button class="btn ghost mini" id="retTutorialBtn">튜토리얼 보기</button></div>
+        <div class="card form">
+          <label class="row col-row"><span>내 브섭 링크<small>바이옴이 끝나거나 오토 팝핑이 어떤 이유로든 끝나면 → 로블록스 전부 종료 → 1초 → 이 링크로 접속 → Play</small></span>
+            <input id="retLink" placeholder="https://www.roblox.com/share?code=...&type=Server" spellcheck="false"></label>
+          <div class="row"><span>바이옴 매크로 설정의 브섭 링크 사용<small>바이옴 매크로 설정 → 기본 설정에 입력한 링크를 가져옴</small></span>
+            <button class="btn ghost mini" type="button" id="retFromBiome">가져오기</button></div>
+        </div>
+      </div>
+      <div class="sec" data-sec="ret-steps">
+        <div class="sec-head"><h2>복귀 후 동작</h2><span class="hint">내 서버 입장 후 순서대로 실행 · 정지: F7</span><button class="btn" id="stepsRun">테스트 실행</button></div>
+        <div class="card form start-wait">
+          <label class="row"><span>입장 후 대기<small>복귀 후 Play 로 게임 입장이 감지된 뒤 첫 동작까지 (초) · 기본 7.5</small></span>
+            <input type="number" min="0" step="0.5" id="retStartWait"></label>
+        </div>
+        <div class="add-bar" id="addBar"></div>
+        <div class="steps" id="steps"></div>
+        <div class="empty" id="stepsEmpty">동작 없음 · 위 버튼으로 추가</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="page" id="page-credit" data-key="credit">
+  <div class="topbar deco">
+    <button class="back deco" data-back><span class="ico" data-icon="back"></span>뒤로</button>
+    <div class="head" data-head></div>
+  </div>
+  <div class="body"><div class="content credit">
+    <div class="credit-card">
+      <div class="credit-links">
+        <button class="credit-row deco" data-web="discord"><span>Join my discord server!</span><span class="go">디스코드 서버 ›</span></button>
+      </div>
+      <p class="credit-made" data-notr>Made by <b>얼로니</b></p>
+      <p class="credit-thanks">Special thanks by ME!!!</p>
+      <div class="credit-groups" data-notr>
+        <div class="credit-group">
+          <h4>Icon Designed</h4>
+          <span class="credit-name">P.A.R.A.D.O.X</span>
+        </div>
+        <div class="credit-group">
+          <h4>Playtesters</h4>
+          <span class="credit-name">IEsenciaI</span>
+          <span class="credit-name">white_sun12312</span>
+          <span class="credit-name">saram6892</span>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</section>
+
+<section class="page" id="page-snipe" data-key="snipe">
+  <div class="topbar deco">
+    <button class="back deco" data-back><span class="ico" data-icon="back"></span>뒤로</button>
+    <div class="head" data-head></div>
+  </div>
+  <div class="body">
+    <nav class="side">
+      <button class="item deco" data-sec="sn-join"><b>접속</b><span>딜레이 · 링크 열기 방식</span></button>
+    </nav>
+    <div class="content">
+      <div class="sec" data-sec="sn-join">
+        <div class="sec-head"><h2>접속</h2><button class="btn ghost mini" id="snTutorialBtn">튜토리얼 보기</button></div>
+        <div class="card form">
+          <div class="row" id="snDelayRow"><span>링크 감지 후 접속 딜레이<small>링크를 보고 직접 누르는 것처럼, 최소 ~ 최대 사이에서 매번 다르게 기다린 뒤 접속 (초) · 기본 2 ~ 4</small></span>
+            <span class="range-pair"><input type="number" min="0" max="60" step="0.5" id="snDelayMin"><i>~</i><input type="number" min="0" max="120" step="0.5" id="snDelayMax"></span></div>
+          <label class="row" id="snDirectRow"><span>로블록스 바로 실행<small>켜짐: 로블록스를 바로 실행 (가장 빠름) · 꺼짐: 웹브라우저로 링크를 열어서 접속 (사람이 링크를 누른 것과 같은 방법)</small></span>
+            <span class="switch"><input type="checkbox" id="snDirect"><i></i></span></label>
+          <div id="snRepeatRows">
+            <label class="row"><span>같은 서버 다시 안 들어가기<small>같은 서버 링크는 이 시간 동안 한 번만 접속 (분) · 0 = 끔 · 기본 10</small></span>
+              <input type="number" min="0" max="1440" step="1" id="snSameMin"></label>
+            <label class="row"><span>연속 접속 최소 간격<small>한 번 접속한 뒤 이 시간 동안은 다른 링크를 타지 않음 (초) · 기본 5</small></span>
+              <input type="number" min="0" max="600" step="1" id="snCooldown"></label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 매크로 탭 (내 서버에서 돌리는 기능) ================= -->
+<section class="page" id="page-mfeat" data-key="mfeat">
+  <div class="topbar deco">
+    <button class="back deco" data-back><span class="ico" data-icon="back"></span>뒤로</button>
+    <div class="head" data-head></div>
+  </div>
+  <div class="body">
+    <nav class="side">
+      <button class="item deco" data-sec="mf-all"><b>기능 켜기 · 끄기</b><span>쓸 기능을 한 번에</span></button>
+      <button class="item deco" data-sec="mf-pop"><b>레어 바이옴 자동 팝핑</b><span>내 서버에서</span></button>
+      <button class="item deco" data-sec="mf-fish"><b>자동 낚시</b><span>던지기 · 릴링 · 판매</span></button>
+      <button class="item deco" data-sec="mf-merchant"><b>상인 자동 구매</b><span>마리 · 제스터</span></button>
+      <button class="item deco" data-sec="mf-craft"><b>포션 자동 제작</b><span>Auto Crafted 알림</span></button>
+      <button class="item deco" data-sec="mf-memory"><b>오토 메모리 매치</b><span>카드 짝 맞추기</span></button>
+    </nav>
+    <div class="content">
+      <div class="sec" data-sec="mf-all">
+        <div class="sec-head"><h2>기능 켜기 · 끄기</h2>
+          <button class="btn ghost" id="mfAllOff">전부 끄기</button>
+          <button class="btn" id="mfAllOn">전부 켜기</button></div>
+        <p class="hint">켜 둔 기능만 메인 화면의 매크로 버튼을 켰을 때 동작 · 위치는 매크로 기준 위치 설정에서 지정</p>
+        <div class="card form" id="mfAllForm"></div>
+      </div>
+      <div class="sec" data-sec="mf-pop">
+        <div class="sec-head"><h2>레어 바이옴 자동 팝핑</h2>
+          <span class="status-mini mpop-status"><span class="dot" id="mpopDot"></span><span id="mpopState">대기</span></span>
+          <button class="btn ghost" id="mpopStop">정지</button></div>
+        <p class="hint">지금 켜져 있는 로블록스(내 서버)에서 레어 바이옴이 시작되면 바로 포션 사용 · 스나이핑으로 들어간 서버에선 안 함 · 정지: F7</p>
+        <div class="card form" id="mpopForm"></div>
+        <div class="sec-head mpop-tpl-head"><h3>Cyberspace</h3><button class="btn ghost" data-mpop-default="CYBERSPACE">기본 템플릿으로</button><button class="btn" data-mpop-test="CYBERSPACE">이 템플릿 테스트</button></div>
+        <div class="card form tpl" data-mtpl="CYBERSPACE"></div>
+        <div class="sec-head mpop-tpl-head"><h3>Glitched</h3><button class="btn ghost" data-mpop-default="GLITCHED">기본 템플릿으로</button><button class="btn" data-mpop-test="GLITCHED">이 템플릿 테스트</button></div>
+        <div class="card form tpl" data-mtpl="GLITCHED"></div>
+        <div class="sec-head mpop-tpl-head"><h3>Dreamspace</h3><button class="btn ghost" data-mpop-default="DREAMSPACE">기본 템플릿으로</button><button class="btn" data-mpop-test="DREAMSPACE">이 템플릿 테스트</button></div>
+        <div class="card form tpl" data-mtpl="DREAMSPACE"></div>
+      </div>
+      <div class="sec" data-sec="mf-fish">
+        <div class="sec-head"><h2>자동 낚시</h2>
+          <span class="status-mini mpop-status"><span class="dot" id="mfishDot"></span><span id="mfishState">대기</span></span>
+          <button class="btn ghost" id="mfishStop">정지</button></div>
+        <p class="hint">매크로 버튼과 아래 켜기가 켜져 있으면, 지금 켜진 로블록스(내 서버)의 낚시 자리에서 계속 낚시 · 정지: F7 (매크로 꺼짐)</p>
+        <div class="card form" id="mfishForm"></div>
+        <div class="sec-head mpop-tpl-head"><h3>세부 설정</h3></div>
+        <div class="card form" id="mfishTune"></div>
+      </div>
+      <div class="sec" data-sec="mf-merchant"><div class="sec-head"><h2>상인 자동 구매</h2></div><div class="empty">준비 중</div></div>
+      <div class="sec" data-sec="mf-craft"><div class="sec-head"><h2>포션 자동 제작</h2></div><div class="empty">준비 중</div></div>
+      <div class="sec" data-sec="mf-memory"><div class="sec-head"><h2>오토 메모리 매치</h2></div><div class="empty">준비 중</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="page" id="page-mpos" data-key="mpos">
+  <div class="topbar deco">
+    <button class="back deco" data-back><span class="ico" data-icon="back"></span>뒤로</button>
+    <div class="head" data-head></div>
+  </div>
+  <div class="body">
+    <nav class="side">
+      <button class="item deco" data-sec="mp-pop"><b>레어 바이옴 자동 팝핑</b><span>버튼 6개 · OCR 영역</span></button>
+      <button class="item deco" data-sec="mp-fish"><b>자동 낚시</b><span>Fish 버튼 · 릴링 바 · 결과창</span></button>
+      <button class="item deco" data-sec="mp-base"><b>기준 위치</b><span>이동 기능의 출발점</span></button>
+    </nav>
+    <div class="content">
+      <div class="sec" data-sec="mp-pop">
+        <div class="sec-head"><h2>레어 바이옴 자동 팝핑</h2>
+          <button class="btn ghost" id="mposPopCopy">스나이프 탭 위치 가져오기</button>
+          <button class="btn ghost" id="mposPopOcr">OCR 테스트</button></div>
+        <p class="hint">로블록스를 켜 두고 각 항목의 [위치 지정] → 로블록스 화면에서 클릭 (영역은 드래그) · 위치는 로블록스 창 기준이라 창 크기를 바꾸면 다시 지정</p>
+        <div class="card form" id="mposPop"></div>
+      </div>
+      <div class="sec" data-sec="mp-fish">
+        <div class="sec-head"><h2>자동 낚시</h2>
+          <button class="btn ghost" id="mfishCheck">상태 확인</button></div>
+        <p class="hint">대기 창 · 미니게임 창 · 결과창 영역만 드래그하면 안쪽 위치는 자동으로 계산 · 화면 크기나 비율이 달라도 그대로 맞음 · [상태 확인] 으로 제대로 읽는지 확인</p>
+        <div class="card form" id="mposFish"></div>
+      </div>
+      <div class="sec" data-sec="mp-base"><div class="sec-head"><h2>기준 위치</h2></div><div class="empty">준비 중</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="page" id="page-mstats" data-key="mstats">
+  <div class="topbar deco">
+    <button class="back deco" data-back><span class="ico" data-icon="back"></span>뒤로</button>
+    <div class="head" data-head></div>
+  </div>
+  <div class="body">
+    <nav class="side">
+      <button class="item deco" data-sec="ms-session"><b>이번 실행</b><span>매크로를 켠 뒤부터</span></button>
+      <button class="item deco" data-sec="ms-all"><b>올타임</b><span>지금까지 전부</span></button>
+    </nav>
+    <div class="content">
+      <div class="sec" data-sec="ms-session"><div class="sec-head"><h2>이번 실행</h2></div><div class="empty">아직 기록 없음</div></div>
+      <div class="sec" data-sec="ms-all"><div class="sec-head"><h2>올타임</h2></div><div class="empty">아직 기록 없음</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= Acrux 탭 (Acrux macro 자체 설정) ================= -->
+<section class="page" id="page-acrux" data-key="acrux">
+  <div class="topbar deco">
+    <button class="back deco" data-back><span class="ico" data-icon="back"></span>뒤로</button>
+    <div class="head" data-head></div>
+  </div>
+  <div class="body">
+    <nav class="side">
+      <button class="item deco" data-sec="ac-ocr"><b>OCR 감지 방식</b><span>화면 글자 읽는 엔진</span></button>
+      <button class="item deco" data-sec="ac-gen"><b>일반</b><span>언어 · 데이터 폴더</span></button>
+    </nav>
+    <div class="content">
+      <div class="sec" data-sec="ac-ocr">
+        <div class="sec-head"><h2>OCR 감지 방식</h2></div>
+        <div class="card form">
+          <label class="row"><span>OCR 엔진<small>오토 팝핑 · 레어 바이옴 자동 팝핑에서 아이템 이름 · 개수를 읽을 때 씀</small></span>
+            <select id="acOcr">
+              <option value="auto">자동 (추천)</option>
+              <option value="rapid">RapidOCR</option>
+              <option value="windows">윈도우 OCR</option>
+            </select></label>
+          <div class="row"><span>지금 쓰는 엔진<small>RapidOCR 를 골랐어도 설치가 안 돼 있으면 윈도우 OCR 을 씀</small></span><b id="acOcrNow">-</b></div>
+        </div>
+        <div class="card form ac-ocr-help">
+          <p class="hint"><b>자동</b>: RapidOCR 가 있으면 RapidOCR, 없으면 윈도우 OCR</p>
+          <p class="hint"><b>RapidOCR</b>: 게임 글자(테두리 · 배경색)에 강하고 더 정확함 · 처음 한 번 불러올 때 조금 느림</p>
+          <p class="hint"><b>윈도우 OCR</b>: 윈도우 기본 기능 · 가볍지만 덜 정확함 · 윈도우 언어팩(한국어/영어) 필요</p>
+        </div>
+      </div>
+      <div class="sec" data-sec="ac-gen">
+        <div class="sec-head"><h2>일반</h2></div>
+        <div class="card form">
+          <label class="row"><span>언어<small>화면 왼쪽 위 Language 와 같은 설정</small></span><select id="acLang" data-notr></select></label>
+          <div class="row"><span>데이터 폴더<small>설정 · 기록 · 템플릿이 저장되는 곳</small></span>
+            <button class="btn mini ghost" type="button" id="acFolder">폴더 열기</button></div>
+          <div class="row"><span>버전</span><b id="acVer" data-notr>-</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="page" id="page-updates" data-key="updates">
+  <div class="topbar deco">
+    <button class="back deco" data-back><span class="ico" data-icon="back"></span>뒤로</button>
+    <div class="head" data-head></div>
+  </div>
+  <div class="body"><div class="content"><div class="cl-list" id="acLog" data-notr></div></div></div>
+</section>
+
+<section class="page" id="page-log" data-key="log">
+  <div class="topbar deco">
+    <button class="back deco" data-back><span class="ico" data-icon="back"></span>뒤로</button>
+    <div class="head" data-head></div>
+    <div class="top-right">
+      <span class="status-mini"><span class="dot" data-status-dot></span><span data-status-text>중지됨</span></span>
+      <button class="btn ghost" id="clearLog">지우기</button>
+    </div>
+  </div>
+  <div class="body"><div class="content"><div class="log" id="log"></div></div></div>
+</section>
+
+<!-- 감시 대상 설정 튜토리얼 -->
+<div id="tut" hidden>
+  <div class="tut-dim"></div>
+  <div class="tut-spot" id="tutSpot"></div>
+  <div class="tut-card deco" id="tutCard">
+    <div class="tut-top" id="tutTop"><span class="tut-left" id="tutLeft"></span></div>
+    <div class="tut-head"><span class="tut-name" id="tutName"></span><span class="grow"></span><span class="tut-step" id="tutStep"></span><div class="lang in-card" id="tutLangBox"></div></div>
+    <h3 id="tutTitle"></h3>
+    <div class="tut-body" id="tutBody"></div>
+    <div class="tut-btns">
+      <button class="btn ghost" id="tutSkip">스킵</button>
+      <button class="btn ghost" id="tutStepSkip">이 단계 건너뛰기</button>
+      <span class="grow"></span>
+      <button class="btn ghost" id="tutPrev">이전</button>
+      <button class="btn" id="tutNext">다음</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- 완전 삭제 확인 -->
+<div id="confirm" hidden>
+  <div class="confirm-dim"></div>
+  <div class="confirm-card deco">
+    <h3>Acrux 매크로를 완전히 삭제할까요?</h3>
+    <p>설정 · 위치 · 템플릿 · 기록과 내려받은 프로그램 파일이 전부 지워지고, 이 창이 닫힙니다.</p>
+    <p class="dim">실행기(Acrux.exe)는 그대로 남습니다. 다시 실행하면 처음부터 새로 설치됩니다.</p>
+    <div class="confirm-btns"><button class="btn ghost" id="confirmNo" type="button">취소</button><button class="btn danger" id="confirmYes" type="button">완전 삭제</button></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script src="i18n.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
