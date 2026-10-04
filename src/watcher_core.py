@@ -102,8 +102,11 @@ POP_DEFAULT = {
     "biomes_on": {},              # 팝핑 바이옴 설정 — 켜진 바이옴에서만 오토 팝핑 (기본 전부 켜짐)
 }
 MPOP_DEFAULT = {
-    # 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버) — 버튼 위치 · OCR · 딜레이는 오토 팝핑(pop) 설정을 같이 씀
-    "enabled": False,             # 켜짐: 지금 켜져 있는 로블록스(내 서버)에서 레어 바이옴이 감지되면 포션 사용
+    # 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버) — 위치 · OCR 영역은 따로(매크로 기준 위치 설정), 딜레이 · 일치율은 오토 팝핑(pop) 설정을 같이 씀
+    "enabled": False,
+    "inventory_pos": None, "items_pos": None, "search_pos": None,
+    "item_pos": None, "amount_pos": None, "use_pos": None,
+    "ocr_region": None,             # 켜짐: 지금 켜져 있는 로블록스(내 서버)에서 레어 바이옴이 감지되면 포션 사용
     "start_delay": 1.0,           # 바이옴 감지 후 인벤토리를 열기까지 대기 (초)
     "close_inventory": True,      # 다 쓰고 Inventory 버튼을 한 번 더 눌러 닫기
     "templates": {},              # 바이옴별 포션 목록 (오토 팝핑과 따로)
@@ -299,6 +302,9 @@ def normalize(raw):
         mp["start_delay"] = min(60.0, max(0.0, float(mp.get("start_delay", 1.0))))
     except (TypeError, ValueError):
         mp["start_delay"] = 1.0
+    for k in ("inventory_pos", "items_pos", "search_pos", "item_pos", "amount_pos", "use_pos"):
+        mp[k] = _ratio_list(mp.get(k), 2)
+    mp["ocr_region"] = _ratio_list(mp.get("ocr_region"), 4)
     mp["templates"], mp["biomes_on"] = _norm_templates(mp)
     mp["seeded"] = True
     d["mpop"] = mp

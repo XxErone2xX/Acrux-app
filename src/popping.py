@@ -360,7 +360,7 @@ class Popper:
 # ---------------------------------------------------------------- 매크로 탭: 내 서버 팝핑
 class MyServerPopper(Popper):
     """지금 켜져 있는 로블록스(내 서버)에서 레어 바이옴이 감지되면 바로 포션 사용
-    - 버튼 위치 · OCR · 딜레이 · 일치율은 오토 팝핑(pop) 설정을 같이 씀, 포션 목록 · 켜진 바이옴은 따로(mpop)
+    - 버튼 위치 · OCR 영역 · 포션 목록 · 켜진 바이옴은 따로(mpop), 딜레이 · 일치율은 오토 팝핑(pop) 설정을 같이 씀
     - 바이옴이 끝날 때까지 기다리거나 매크로 복귀로 이어지지 않음 (내 서버에 그대로 있음)"""
 
     LABEL = "레어 바이옴 자동 팝핑"
@@ -373,6 +373,8 @@ class MyServerPopper(Popper):
     def _merged(self):
         cfg = dict(self.get_pop() or {})
         mp = self.get_mpop() or {}
+        for k in (*dict(POS_KEYS), "ocr_region"):
+            cfg[k] = mp.get(k)
         cfg["templates"] = mp.get("templates") or {}
         cfg["biomes_on"] = mp.get("biomes_on") or {}
         return cfg
@@ -396,7 +398,7 @@ class MyServerPopper(Popper):
         miss = self.missing(cfg)
         try:
             if miss:
-                self.log(f"{self.LABEL} 취소 — 오토 팝핑 설정 필요: {', '.join(miss)}", "y")
+                self.log(f"{self.LABEL} 취소 — 매크로 기준 위치 설정 필요: {', '.join(miss)}", "y")
                 return
             if self.before and not self.before():
                 self.log(f"{self.LABEL} — 자동 낚시가 자리를 비켜주지 않아 그냥 진행", "y")
