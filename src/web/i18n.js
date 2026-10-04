@@ -559,7 +559,7 @@ const I18N = (() => {
     ['복사한 채널 ID를 이 칸에 붙여넣고 <b>추가</b>를 눌러주세요.', 'Paste the copied channel ID here and click <b>Add</b>.', 'コピーしたチャンネルIDをこの欄に貼り付けて<b>追加</b>をクリックしてください。'],
     ['서버 ID는 왼쪽 서버 칸에 넣어주세요. 이름은 디스코드에서 자동으로 가져옵니다.', 'Put server IDs in the Server box on the left. Names are fetched from Discord automatically.', 'サーバーIDは左のサーバー欄に入れてください。名前はDiscordから自動で取得します。'],
     ['감시 대상 등록이 끝났습니다.', 'Watch targets are registered.', '監視対象の登録が完了しました。'],
-    ['메인 화면의 <b>시작</b> 버튼을 누르면 작동합니다.', 'Press <b>Start</b> on the main screen to begin.', 'メイン画面の<b>開始</b>ボタンを押すと作動します。'],
+    ['메인 화면 <b>오토 스나이핑</b>의 <b>시작</b> 버튼을 누르면 작동합니다.', 'Press <b>Start</b> on <b>Auto sniping</b> on the main screen to begin.', 'メイン画面の<b>オートスナイプ</b>の<b>開始</b>ボタンを押すと作動します。'],
     ['필터 탭에서 바이옴을 선택하면 원하는 바이옴만 감지합니다.', 'Pick biomes in the Filter tab to detect only the ones you want.', 'フィルタータブでバイオームを選ぶと、そのバイオームだけ検知します。'],
 
     // 튜토리얼 — 바이옴 매크로
@@ -585,9 +585,9 @@ const I18N = (() => {
     ['복사한 주소를 <b>웹후크 1</b> 칸에 붙여넣어주세요.', 'Paste the URL into the <b>Webhook 1</b> box.', 'コピーしたURLを<b>Webhook 1</b>欄に貼り付けてください。'],
     ['튜토리얼이 끝난 뒤 위쪽 [테스트 전송]으로 확인할 수 있습니다. 선택 항목입니다.', 'After the tutorial, you can check it with [Send test] at the top. Optional.', 'チュートリアル後、上の［テスト送信］で確認できます。任意項目です。'],
     ['바이옴 매크로 설정이 끝났습니다.', 'Biome macro setup is done.', 'バイオームマクロの設定が完了しました。'],
-    ['메인 화면 <b>바이옴 매크로 설정</b> 버튼의 스위치나, 설정 화면 위쪽 스위치를 켜면 알림을 보냅니다.',
-     'Turn on the switch on the <b>Biome macro settings</b> button on the main screen, or the one at the top of its settings, to send alerts.',
-     'メイン画面の<b>バイオームマクロ設定</b>ボタンのスイッチ、または設定画面上部のスイッチをオンにすると通知します。'],
+    ['메인 화면 <b>바이옴 매크로</b>의 <b>시작</b> 버튼이나, 설정 화면 위쪽 스위치를 켜면 알림을 보냅니다.',
+     'Press <b>Start</b> on <b>Biome macro</b> on the main screen, or turn on the switch at the top of its settings, to send alerts.',
+     'メイン画面の<b>バイオームマクロ</b>の<b>開始</b>ボタン、または設定画面上部のスイッチをオンにすると通知します。'],
     ['프로그램을 켤 때마다 꺼진 상태로 시작합니다.', 'It starts off every time you open the program.', 'プログラムを起動するたびにオフの状態で始まります。'],
 
     // 튜토리얼 — 오토 팝핑
