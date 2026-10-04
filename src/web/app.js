@@ -767,7 +767,7 @@ function syncMainTiles() {
     : lastMpop && lastMpop.running ? (lastMpop.msg || '포션 사용 중')
     : sniping ? '스나이핑 중이라 대기'
     : n ? `작동 중 · 기능 ${n}개` : '켜진 기능 없음';
-  const on = [bOn && '바이옴 매크로', armed && '오토 스나이핑', mOn && '매크로'].filter(Boolean);
+  const on = [bOn && '바이옴 매크로', mOn && '매크로', armed && '오토 스나이핑'].filter(Boolean);
   $('modeText').textContent = on.length ? `작동 중: ${on.join(' · ')}` : '모두 꺼짐 — 아래 버튼으로 켜기';
 }
 
