@@ -862,6 +862,32 @@ class Bridge:
         threading.Thread(target=bye, daemon=True).start()
         return {"ok": True}
 
+    def api_changelog(self, _):
+        """업데이트 로그 (CHANGELOG.md) → [{version, date, ko, en}] · ko/en 은 그 언어 부분 마크다운"""
+        try:
+            text = Path(__file__).with_name("CHANGELOG.md").read_text(encoding="utf-8")
+        except OSError:
+            return {"entries": [], "current": VERSION}
+        text = re.sub(r"<!--.*?-->", "", text, flags=re.S)
+        entries = []
+        for block in re.split(r"(?m)^# (?=V\d)", text)[1:]:
+            head, _, body = block.partition("\n")
+            m = re.match(r"V([\d.]+)(?:\s*·\s*(\S+))?", head.strip())
+            if not m:
+                continue
+            parts = {"ko": [], "en": []}
+            cur = None
+            for line in body.splitlines():
+                h = re.match(r"## .*?(업데이트|Update)\s*$", line)
+                if h:
+                    cur = "ko" if h.group(1) == "업데이트" else "en"
+                    continue
+                if cur:
+                    parts[cur].append(line)
+            entries.append({"version": m.group(1), "date": m.group(2) or "",
+                            "ko": "\n".join(parts["ko"]).strip(), "en": "\n".join(parts["en"]).strip()})
+        return {"entries": entries, "current": VERSION}
+
     def api_ocr_info(self, _):
         """Acrux 설정 · OCR 감지 방식: 지금 쓰는 엔진 · RapidOCR 설치 여부"""
         rapid = macro.rapid_engine() is not None

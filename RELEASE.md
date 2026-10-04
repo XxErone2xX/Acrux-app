@@ -28,9 +28,11 @@
    - Added ○○
    - Removed ○○
    ```
-4. 커밋 · 푸시
-5. GitHub → **Actions** → **Release** → **Run workflow**
-6. 몇 분 뒤 `v1.2.2` 릴리스가 생기면 끝 — 사용자들은 다음에 켤 때 자동으로 받습니다 (앱 코드만, 몇 MB)
+4. `src/CHANGELOG.md` 맨 위에 `# V1.2.2 · 날짜` 줄 + 3번 내용을 추가 — 앱의 Acrux 탭 → 업데이트 로그에 보임
+   (빠지면 Release 가 실패함)
+5. 커밋 · 푸시
+6. GitHub → **Actions** → **Release** → **Run workflow**
+7. 몇 분 뒤 `v1.2.2` 릴리스가 생기면 끝 — 사용자들은 다음에 켤 때 자동으로 받습니다 (앱 코드만, 몇 MB)
 
 ## 이럴 때만 숫자를 더 올리기
 
