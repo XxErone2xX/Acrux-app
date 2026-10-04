@@ -669,12 +669,12 @@ body:not(.in-page) .lang.in-card { display: none; }
 /* ---------- 메인 화면 기능별 시작 버튼 (바이옴 매크로 / 오토 스나이핑 / 매크로) ---------- */
 .mains { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
 .main-tile { --deco: var(--k); position: relative; isolation: isolate; display: flex; flex-direction: column; background: var(--panel); }
-/* 켜질 때 색이 아래에서 위로 천천히 번지며 들어옴 (그라데이션은 바로 바뀌므로 덮개의 투명도 · 위치로 움직임) */
+/* 켜질 때 색이 아래에서 위로 천천히 번지며 들어옴 (그라데이션은 바로 바뀌므로 덮개의 투명도 · 잘라내는 범위로 움직임) */
 .main-tile::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
   background: linear-gradient(0deg, color-mix(in srgb, var(--k) 30%, transparent), color-mix(in srgb, var(--k) 6%, transparent) 70%, transparent);
-  opacity: 0; transform: translateY(18%); transform-origin: bottom;
-  transition: opacity .7s var(--ease-out), transform .7s var(--ease-out); }
-.main-tile.on::before { opacity: 1; transform: none; }
+  opacity: 0; clip-path: inset(100% 0 0 0);          /* 칸 안에서만 아래 → 위로 차오름 (칸 밖으로 안 나감) */
+  transition: opacity .7s var(--ease-out), clip-path .7s var(--ease-out); }
+.main-tile.on::before { opacity: 1; clip-path: inset(0 0 0 0); }
 .mt-name { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 16px 10px 12px; background: none; color: var(--fg); cursor: pointer; }
 .mt-name b { font-size: 15px; }
 .mt-st { font-size: 11px; color: var(--muted); min-height: 14px; text-align: center; transition: color .5s ease; }
