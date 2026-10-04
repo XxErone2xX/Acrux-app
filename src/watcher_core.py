@@ -62,6 +62,7 @@ DEFAULT_CONFIG = {
     "biome": {},              # 바이옴 매크로 설정 (아래 BIOME_DEFAULT)
     "ocr_engine": "auto",     # Acrux 설정 · OCR 감지 방식: auto / rapid / windows
     "macro_on": False,        # 메인 화면 '매크로' 버튼 — 꺼져 있으면 매크로 탭 기능이 전부 안 돎 (켤 때마다 꺼진 상태로 시작)
+    "mfish": {},              # 매크로 탭 · 자동 낚시 (아래 MFISH_DEFAULT)
     "mpop": {},               # 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버) (아래 MPOP_DEFAULT)
     "snipe": {}               # 스나이핑 안정성 설정 (아래 SNIPE_DEFAULT)
 }
@@ -107,6 +108,15 @@ MPOP_DEFAULT = {
     "close_inventory": True,      # 다 쓰고 Inventory 버튼을 한 번 더 눌러 닫기
     "templates": {},              # 바이옴별 포션 목록 (오토 팝핑과 따로)
     "biomes_on": {},              # 켜진 바이옴에서만 (기본 전부 켜짐)
+}
+MFISH_DEFAULT = {
+    # 매크로 탭 · 자동 낚시 (제자리 낚시) — 위치는 로블록스 창 기준 비율
+    "enabled": False,
+    "fish_btn": None,             # Fish / Exit 버튼 (같은 자리 · 파랑 = Fish, 빨강 = Exit)
+    "bar_region": None,           # 릴링 바(위쪽 바) 영역 [x1, y1, x2, y2]
+    "close_pos": None,            # 결과창 X
+    "title_pos": None,            # 결과창 제목 (선택 · 색으로 성공/쓰레기/실패 구분)
+    "bite_max": 60.0, "lead_ms": 60, "click_ms": 25, "click_gap_ms": 45, "result_wait": 0.8, "cast_retry": 3,
 }
 POP_BIOMES = ("CYBERSPACE", "GLITCHED", "DREAMSPACE")
 # 기본 템플릿 — 얼로니 SolsRNG 스크립트의 레어 바이옴 자동 팝핑(_RareBiomePotionTable) 그대로
@@ -293,6 +303,20 @@ def normalize(raw):
     mp["seeded"] = True
     d["mpop"] = mp
     d["macro_on"] = bool(d.get("macro_on"))
+    mf = dict(MFISH_DEFAULT)
+    mf.update(d.get("mfish") if isinstance(d.get("mfish"), dict) else {})
+    mf["enabled"] = bool(mf.get("enabled"))
+    for k in ("fish_btn", "close_pos", "title_pos"):
+        mf[k] = _ratio_list(mf.get(k), 2)
+    mf["bar_region"] = _ratio_list(mf.get("bar_region"), 4)
+    for k, lo, hi in (("bite_max", 5, 600), ("lead_ms", 0, 300), ("click_ms", 5, 200), ("click_gap_ms", 10, 500),
+                      ("result_wait", 0, 10), ("cast_retry", 1, 10)):
+        try:
+            mf[k] = min(hi, max(lo, float(mf.get(k, MFISH_DEFAULT[k]))))
+        except (TypeError, ValueError):
+            mf[k] = MFISH_DEFAULT[k]
+    mf["cast_retry"] = int(mf["cast_retry"])
+    d["mfish"] = {k: mf[k] for k in MFISH_DEFAULT}
     if d.get("ocr_engine") not in ("auto", "rapid", "windows"):
         d["ocr_engine"] = "auto"
     d["open_link"] = True                   # '실제 접속' 토글 없앰: 감지되면 항상 접속

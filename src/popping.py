@@ -365,9 +365,10 @@ class MyServerPopper(Popper):
 
     LABEL = "레어 바이옴 자동 팝핑"
 
-    def __init__(self, get_pop, get_mpop, log):
+    def __init__(self, get_pop, get_mpop, log, before=None, after=None):
         super().__init__(lambda: self._merged(), log)
         self.get_pop, self.get_mpop = get_pop, get_mpop
+        self.before, self.after = before, after     # 시작 전 · 끝난 뒤 (자동 낚시를 잠깐 멈추고 다시 이어가기)
 
     def _merged(self):
         cfg = dict(self.get_pop() or {})
@@ -397,6 +398,8 @@ class MyServerPopper(Popper):
             if miss:
                 self.log(f"{self.LABEL} 취소 — 오토 팝핑 설정 필요: {', '.join(miss)}", "y")
                 return
+            if self.before and not self.before():
+                self.log(f"{self.LABEL} — 자동 낚시가 자리를 비켜주지 않아 그냥 진행", "y")
             with macro.fast_timing():
                 if test:
                     self.log(f"{self.LABEL} 테스트 — {cur} 템플릿", "c")
@@ -416,3 +419,8 @@ class MyServerPopper(Popper):
             self.log(f"{self.LABEL} 오류: {e}", "r")
         finally:
             self._set(msg="대기")
+            if self.after:
+                try:
+                    self.after()
+                except Exception:
+                    pass

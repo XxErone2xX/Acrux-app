@@ -1,0 +1,385 @@
+# -*- coding: utf-8 -*-
+"""
+매크로 탭 · 자동 낚시 (제자리 낚시)
+흐름: ① Fish 클릭 → ② 입질 대기(빨간 Exit) → ③ Ready! → ④ 릴링 → ⑤ 결과창 X → ①
+- 상태는 화면 픽셀 색으로만 판단 (가운데 문구는 랜덤이라 안 읽음)
+  · Fish/Exit 버튼 자리: 파랑 = 대기(Fish) / 빨강 = 입질 기다리는 중(Exit)
+  · 릴링 바(위쪽 바): 청록 막대 끝(◇ 표시) = 내 위치, 청록도 바탕(검정)도 아닌 색 덩어리 = 물고기 구간(색은 매번 랜덤)
+    클릭하면 내 위치가 오른쪽으로, 안 누르면 왼쪽으로 떨어짐 → 내 위치를 구간 가운데에 붙잡아 둠
+  · 결과창 제목 색: 하늘색 = 성공 / 회색 = 쓰레기 / 빨강 = 실패
+- Fish 를 눌러도 Exit 로 안 바뀌는 게 3번 이어지면 = 낚시 인벤토리 가득 (판매는 다음 단계에서 붙임)
+- 위치는 전부 로블록스 창 기준 비율 → 창 크기가 바뀌어도 그대로
+"""
+import threading
+import time
+
+import macro
+
+DEFAULTS = {
+    "bite_max": 60.0,      # 입질 최대 대기 (초) — 넘으면 Exit 누르고 다시 던짐
+    "lead_ms": 60,         # 떨어지는 속도를 보고 이만큼 미리 누름 (ms)
+    "deadband": 0.0,       # 구간 가운데에서 이만큼(바 폭 비율) 왼쪽에 있어야 누름
+    "click_ms": 25,        # 한 번 누르는 시간 (ms)
+    "click_gap_ms": 45,    # 클릭 사이 최소 간격 (ms)
+    "result_wait": 0.8,    # 릴링이 끝난 뒤 결과창 X 를 누르기까지 (초)
+    "cast_retry": 3,       # Fish 를 눌러도 안 바뀌면 다시 누르는 횟수 (넘으면 인벤토리 가득)
+}
+POS_KEYS = (("fish_btn", "Fish 버튼"), ("close_pos", "결과창 X"), ("title_pos", "결과창 제목"))
+
+
+# ---------------------------------------------------------------- 화면 분석 (순수 함수 · 테스트 가능)
+def _np(data, w, h):
+    import numpy as np
+    return np.frombuffer(data, dtype=np.uint8).reshape(h, w, 4)[:, :, 2::-1].astype(np.int16)   # BGRA → RGB
+
+
+def button_state(rgb):
+    """Fish/Exit 버튼 주변 픽셀 → 'fish'(파랑) / 'exit'(빨강) / None(둘 다 아님 · 다른 창이 가림)"""
+    r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
+    n = max(1, r.size)
+    blue = int(((b > 140) & (b > r + 45) & (b > g + 20)).sum())
+    red = int(((r > 150) & (r > g + 60) & (r > b + 40)).sum())
+    if max(blue, red) < n * 0.01:
+        return None
+    return "fish" if blue >= red else "exit"
+
+
+def classify_title(rgb):
+    """결과창 제목 주변 픽셀 → 'success'(하늘색) / 'junk'(회색) / 'fail'(빨강) / None"""
+    r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
+    n = max(1, r.size)
+    bright = (r + g + b) > 330
+    cyan = int((bright & (g > r + 40) & (b > r + 40)).sum())
+    red = int(((r > 170) & (r > g + 80) & (r > b + 80)).sum())
+    gray = int((bright & (abs(r - g) < 22) & (abs(g - b) < 22) & (r < 225)).sum())
+    best = max((cyan, "success"), (red, "fail"), (gray, "junk"))
+    return best[1] if best[0] >= n * 0.02 else None
+
+
+def _is_teal(px):
+    r, g, b = px[..., 0], px[..., 1], px[..., 2]
+    return (r < 95) & (g >= 95) & (b >= 125) & ((b - g) >= -15) & ((b - g) <= 80)
+
+
+def analyze_bar(rgb, bar_top, bar_h):
+    """rgb: 릴링 바 + 그 위 ◇ 표시까지 잡은 이미지 / bar_top·bar_h: 그 안에서 바의 세로 위치
+    → {"present", "marker", "zone": (시작, 끝) 또는 None, "w"} (x 는 이미지 안 픽셀)"""
+    import numpy as np
+    h, w = rgb.shape[:2]
+    y0 = int(bar_top + bar_h * 0.35)
+    y1 = max(y0 + 1, int(bar_top + bar_h * 0.65))
+    band = np.median(rgb[y0:y1], axis=0)                # 바 가운데 줄 (글자 노이즈를 줄이려고 여러 줄의 중앙값)
+    teal = _is_teal(band)
+    present = teal.sum() >= max(4, w * 0.03)
+    out = {"present": bool(present), "marker": None, "zone": None, "w": w}
+    if not present:
+        return out
+    mx, mn = band.max(axis=1), band.min(axis=1)
+    dark = mx < 60
+    white = mn > 180                                    # 남은 시간 숫자 (흰 글자)
+    zone = ~teal & ~dark & ~white
+    # 물고기 구간: 가장 긴 덩어리 (흰 글자 · 4px 이하 틈은 이어 붙임)
+    best, cur, gap = None, None, 0
+    for x in range(w):
+        if zone[x]:
+            if cur is None:
+                cur = [x, x]
+            cur[1], gap = x, 0
+        elif cur is not None:
+            gap += 1
+            if gap > 4 and not white[x]:
+                if best is None or cur[1] - cur[0] > best[1] - best[0]:
+                    best = cur
+                cur, gap = None, 0
+    if cur is not None and (best is None or cur[1] - cur[0] > best[1] - best[0]):
+        best = cur
+    if best is not None and best[1] - best[0] >= max(3, w * 0.02):
+        out["zone"] = (int(best[0]), int(best[1]))
+    # 내 위치: 바 위쪽 ◇ 표시(밝은 흰색)의 가로 위치 → 없으면 청록 막대 오른쪽 끝
+    if bar_top >= 3:
+        top = rgb[max(0, int(bar_top - bar_h * 1.7)):int(bar_top) - 1]
+        cnt = (top.min(axis=2) > 185).sum(axis=0).astype(float)
+        edge = max(2, int(w * 0.03))
+        cnt[:edge] = 0                                   # 바 테두리 · 창 테두리(세로선)는 빼고
+        cnt[-edge:] = 0
+        if cnt.sum() >= 6:
+            # ◇ 표시는 폭이 좁은 덩어리 → 가장 많이 모인 곳(표시 폭만큼) 기준으로 가중 평균
+            k = max(5, int(w * 0.05))
+            dens = np.convolve(cnt, np.ones(k), mode="same")
+            c = int(dens.argmax())
+            lo, hi = max(0, c - k), min(w, c + k + 1)
+            seg = cnt[lo:hi]
+            if seg.sum() >= 6:
+                out["marker"] = float((np.arange(lo, hi) * seg).sum() / seg.sum())
+    if out["marker"] is None:
+        xs = np.where(teal)[0]
+        out["marker"] = float(xs.max()) if len(xs) else None
+    return out
+
+
+def reel_decision(marker, zone, vel, cfg, w):
+    """누를지: 떨어지는 속도만큼 미리 본 내 위치가 구간 가운데보다 왼쪽이면 누름"""
+    if marker is None or zone is None:
+        return False
+    center = (zone[0] + zone[1]) / 2
+    pred = marker + vel * cfg["lead_ms"] / 1000.0
+    return pred < center - cfg["deadband"] * w
+
+
+# ---------------------------------------------------------------- 실행기
+class Stopped(Exception):
+    pass
+
+
+class Fisher:
+    LABEL = "자동 낚시"
+
+    def __init__(self, get_cfg, log, on_full=None, on_user_stop=None):
+        self.get_cfg = get_cfg              # () -> mfish 설정
+        self.log = log
+        self.on_full = on_full              # 인벤토리 가득 (판매 단계에서 연결)
+        self.on_user_stop = on_user_stop    # F7 로 멈춤
+        self.stop_ev = threading.Event()
+        self.thread = None
+        self.lock = threading.Lock()
+        self.state = {"msg": "대기"}
+        self.stats = {"success": 0, "junk": 0, "fail": 0, "unknown": 0, "full": 0}
+        self.hold_req = threading.Event()   # 다른 기능(레어 바이옴 팝핑 등)이 잠깐 자리를 달라고 함
+        self.holding = threading.Event()    # 안전한 곳에서 멈춰 기다리는 중
+
+    # ---- 상태
+    def running(self):
+        return bool(self.thread and self.thread.is_alive())
+
+    def snapshot(self):
+        with self.lock:
+            return dict(self.state, running=self.running(), stats=dict(self.stats))
+
+    def _set(self, **kw):
+        with self.lock:
+            self.state.update(kw)
+
+    @staticmethod
+    def missing(cfg):
+        miss = [name for key, name in POS_KEYS if key != "title_pos" and not cfg.get(key)]
+        if not cfg.get("bar_region"):
+            miss.append("릴링 바 영역")
+        return miss
+
+    def start(self):
+        if self.running():
+            return False
+        self.stop_ev = threading.Event()
+        self.hold_req.clear()
+        self.holding.clear()
+        self.thread = threading.Thread(target=self._run, args=(self.stop_ev,), daemon=True)
+        self.thread.start()
+        return True
+
+    def stop(self):
+        self.stop_ev.set()
+
+    def hold(self, timeout=30.0):
+        """다른 기능이 쓰는 동안 안전한 곳(릴링이 끝난 뒤)에서 멈춰 기다리게 함 — 멈췄으면 True"""
+        if not self.running():
+            return True
+        self.hold_req.set()
+        return self.holding.wait(timeout)
+
+    def release(self):
+        self.hold_req.clear()
+
+    # ---- 도우미
+    def _check(self, stop):
+        if stop.is_set():
+            raise Stopped()
+        if macro.key_down_now("f7"):
+            stop.set()
+            if self.on_user_stop:
+                self.on_user_stop()
+            raise Stopped()
+
+    def _wait(self, sec, stop):
+        end = time.time() + max(0.0, sec)
+        while True:
+            self._check(stop)
+            left = end - time.time()
+            if left <= 0:
+                return
+            time.sleep(min(0.03, left))
+
+    def _hold_point(self, stop):
+        if not self.hold_req.is_set():
+            return
+        self._set(msg="다른 기능에 자리 양보 중")
+        self.holding.set()
+        while self.hold_req.is_set():
+            self._wait(0.2, stop)
+        self.holding.clear()
+
+    def _rect(self, stop):
+        for _ in range(20):
+            hwnd = macro.roblox_window_cached()
+            rect = macro.client_rect(hwnd) if hwnd else None
+            if rect and rect[2] > 50 and rect[3] > 50:
+                macro.focus(hwnd)
+                return rect
+            self._wait(0.5, stop)
+        raise RuntimeError("로블록스 창을 찾을 수 없음")
+
+    def _click_ratio(self, pos, stop):
+        rect = self._rect(stop)
+        x, y = macro.to_screen(pos[0], pos[1], rect)
+        macro.click(x, y)
+
+    def _grab_box(self, sct, rect, pos, bw=0.045, bh=0.035):
+        """비율 위치 주변 작은 상자 캡처 → RGB 배열"""
+        x, y = macro.to_screen(pos[0], pos[1], rect)
+        w, h = max(6, int(rect[2] * bw)), max(6, int(rect[3] * bh))
+        img = sct.grab({"left": x - w // 2, "top": y - h // 2, "width": w, "height": h})
+        return _np(bytes(img.bgra), img.width, img.height)
+
+    def _bar_geom(self, rect, region):
+        """바 영역(비율) → 캡처할 화면 상자 (◇ 표시까지 위로 늘림) + 그 안의 바 위치"""
+        x1, y1 = macro.to_screen(min(region[0], region[2]), min(region[1], region[3]), rect)
+        x2, y2 = macro.to_screen(max(region[0], region[2]), max(region[1], region[3]), rect)
+        bh = max(4, y2 - y1)
+        extra = int(bh * 1.8)
+        box = {"left": x1, "top": max(rect[1], y1 - extra), "width": max(8, x2 - x1), "height": 0}
+        top_in = y1 - box["top"]
+        box["height"] = top_in + bh
+        return box, top_in, bh
+
+    # ---- 메인
+    def _run(self, stop):
+        import mss
+        cfg0 = self.get_cfg() or {}
+        miss = self.missing(cfg0)
+        try:
+            if miss:
+                self.log(f"{self.LABEL} 안 함 — 설정 필요: {', '.join(miss)}", "y")
+                return
+            self.log(f"{self.LABEL} 시작", "g")
+            with mss.mss() as sct, macro.fast_timing():
+                while True:
+                    self._check(stop)
+                    self._hold_point(stop)
+                    cfg = dict(DEFAULTS, **(self.get_cfg() or {}))
+                    self._one_fish(sct, cfg, stop)
+        except Stopped:
+            self.log(f"{self.LABEL} 정지", "d")
+        except Exception as e:
+            self.log(f"{self.LABEL} 오류: {e}", "r")
+        finally:
+            self._set(msg="대기")
+            self.holding.clear()
+
+    def _one_fish(self, sct, cfg, stop):
+        rect = self._rect(stop)
+        # ① 던지기: Fish(파랑) 클릭 → Exit(빨강)로 바뀌는지 확인 (안 바뀌면 다시 · 계속 안 되면 인벤토리 가득)
+        tries = 0
+        while True:
+            st = button_state(self._grab_box(sct, rect, cfg["fish_btn"]))
+            if st == "exit":
+                break
+            if st is None:
+                # 결과창 등이 가리고 있을 수 있음 → X 한 번 누르고 다시 봄
+                self._set(msg="낚시 화면 확인 중")
+                self._click_ratio(cfg["close_pos"], stop)
+                self._wait(0.6, stop)
+                st = button_state(self._grab_box(sct, rect, cfg["fish_btn"]))
+                if st is None:
+                    self._set(msg="낚시 버튼이 안 보임 — 대기")
+                    self._wait(2.0, stop)
+                    return
+                continue
+            if tries >= int(cfg["cast_retry"]):
+                self.stats["full"] += 1
+                self.log(f"Fish 를 {tries}번 눌러도 반응 없음 — 낚시 인벤토리 가득", "y")
+                if self.on_full:
+                    self.on_full()
+                    return
+                self._set(msg="인벤토리 가득 — 판매 필요")
+                self.stop_ev.set()
+                raise Stopped()
+            tries += 1
+            self._set(msg="Fish 클릭" + (f" ({tries}번째)" if tries > 1 else ""))
+            self._click_ratio(cfg["fish_btn"], stop)
+            end = time.time() + 1.5
+            while time.time() < end:
+                self._wait(0.1, stop)
+                if button_state(self._grab_box(sct, rect, cfg["fish_btn"])) == "exit":
+                    break
+            else:
+                continue
+            break
+
+        # ② 입질 대기: 릴링 바가 나타날 때까지 (너무 오래면 Exit → 다시 던짐)
+        self._set(msg="입질 기다리는 중")
+        box, top_in, bh = self._bar_geom(rect, cfg["bar_region"])
+        start = time.time()
+        while True:
+            self._check(stop)
+            img = sct.grab(box)
+            if analyze_bar(_np(bytes(img.bgra), img.width, img.height), top_in, bh)["present"]:
+                break
+            if self.hold_req.is_set():               # 레어 바이옴 팝핑 등이 기다림 → 던진 걸 취소하고 바로 비켜줌
+                self._click_ratio(cfg["fish_btn"], stop)
+                self._wait(0.8, stop)
+                return
+            if time.time() - start > float(cfg["bite_max"]):
+                self.log(f"입질이 {cfg['bite_max']:g}초 동안 없음 — Exit 후 다시 던짐", "y")
+                self._click_ratio(cfg["fish_btn"], stop)
+                self._wait(1.0, stop)
+                return
+            if time.time() - start > 2 and button_state(self._grab_box(sct, rect, cfg["fish_btn"])) == "fish":
+                return                               # 물고기가 도망가서 다시 Fish 로 돌아옴
+            time.sleep(0.03)
+
+        # ③·④ Ready! → 릴링 (바가 사라질 때까지)
+        self._reel(sct, rect, box, top_in, bh, cfg, stop)
+
+        # ⑤ 결과창: 제목 색으로 결과 기록 → X
+        self._wait(float(cfg["result_wait"]), stop)
+        kind = None
+        if cfg.get("title_pos"):
+            kind = classify_title(self._grab_box(sct, rect, cfg["title_pos"], 0.12, 0.05))
+        self.stats[kind or "unknown"] += 1
+        name = {"success": "성공", "junk": "쓰레기", "fail": "실패"}.get(kind, "결과 확인 안 함")
+        self.log(f"낚시 결과: {name} · 성공 {self.stats['success']} / 쓰레기 {self.stats['junk']} / 실패 {self.stats['fail']}",
+                 "g" if kind == "success" else "d")
+        self._set(msg="결과창 닫기")
+        self._click_ratio(cfg["close_pos"], stop)
+        self._wait(0.5, stop)
+
+    def _reel(self, sct, rect, box, top_in, bh, cfg, stop):
+        self._set(msg="릴링 중")
+        # 클릭 위치: 바 아래쪽 (게임 UI 버튼이 없는 곳 · 아무 데나 눌러도 릴링됨)
+        cx = box["left"] + box["width"] // 2
+        cy = box["top"] + box["height"] + int(bh * 3)
+        macro.move_to(cx, cy)
+        gone_since, last_click, prev = None, 0.0, None
+        vel = 0.0
+        end = time.time() + 40                       # 안전장치: 릴링은 길어야 수십 초
+        while time.time() < end:
+            self._check(stop)
+            img = sct.grab(box)
+            a = analyze_bar(_np(bytes(img.bgra), img.width, img.height), top_in, bh)
+            now = time.time()
+            if not a["present"]:
+                gone_since = gone_since or now
+                if now - gone_since > 0.4:
+                    return
+                time.sleep(0.01)
+                continue
+            gone_since = None
+            if a["marker"] is not None and prev is not None and now > prev[1]:
+                v = (a["marker"] - prev[0]) / (now - prev[1])
+                vel = vel * 0.6 + v * 0.4               # 튀는 값을 줄이려고 부드럽게
+            if a["marker"] is not None:
+                prev = (a["marker"], now)
+            if (now - last_click) * 1000 >= cfg["click_gap_ms"] and reel_decision(a["marker"], a["zone"], vel, cfg, a["w"]):
+                macro.mouse_click_here(hold_ms=int(cfg["click_ms"]))
+                last_click = time.time()
+            time.sleep(0.004)
+        self.log("릴링이 40초 넘게 끝나지 않음 — 다음으로", "y")

@@ -482,22 +482,19 @@ function fillFields() {
 }
 
 let pending = {}, saveTimer = null;
+const LOCAL_KEYS = ['play', 'biome', 'pop', 'ret', 'snipe', 'mpop', 'mfish'];
 function queueSave(patch) {
   Object.assign(pending, patch);
-  for (const [k, v] of Object.entries(patch)) if (!['play', 'biome', 'pop', 'ret', 'snipe'].includes(k)) config[k] = v;   // 팝핑·바이옴은 화면 쪽 객체가 원본
+  // 팝핑·바이옴·매크로 탭 설정은 화면 쪽 객체가 원본 (폼이 그 객체를 직접 고치므로 복사본으로 바꾸면 이후 수정이 사라짐)
+  for (const [k, v] of Object.entries(patch)) if (!LOCAL_KEYS.includes(k)) config[k] = v;
   renderSummary();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     const p = pending; pending = {};
     try {
-      const local = config.play, localBio = config.biome, localPop = config.pop, localRet = config.ret;   // 편집 중인 값은 화면 쪽 객체를 그대로 유지
-      const localSnipe = config.snipe;
+      const keep = Object.fromEntries(LOCAL_KEYS.map(k => [k, config[k]]));   // 편집 중인 값은 화면 쪽 객체를 그대로 유지
       config = (await api('set_config', { patch: p })).config;
-      if (localSnipe) config.snipe = localSnipe;
-      if (local) config.play = local;
-      if (localPop) config.pop = localPop;
-      if (localRet) config.ret = localRet;
-      if (localBio) config.biome = localBio;
+      for (const [k, v] of Object.entries(keep)) if (v) config[k] = v;
       renderSummary();
     }
     catch { toast('설정 저장 실패'); }
@@ -744,15 +741,15 @@ $('mgMacro').addEventListener('click', () => {
   const on = !config.macro_on;
   config.macro_on = on;
   queueSave({ macro_on: on });
-  if (!on) api('mpop_stop');
+  if (!on) { api('mpop_stop'); api('mfish_stop'); }
   syncMainTiles();
   toast('매크로 ' + (on ? '켜짐' : '꺼짐'));
 });
 document.querySelectorAll('[data-tab-go]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tabGo, true)));
 
 // 켜진 매크로 탭 기능 수
-const macroFeatures = () => [mpop().enabled].filter(Boolean).length;
-let lastBio = null, lastMpop = null;
+const macroFeatures = () => [mpop().enabled, mfish().enabled].filter(Boolean).length;
+let lastBio = null, lastMpop = null, lastMfish = null;
 function syncMainTiles() {
   const bOn = !!bio().enabled;
   setTile('biome', bOn);
@@ -766,6 +763,7 @@ function syncMainTiles() {
   tile('macro').classList.toggle('wait', mOn && sniping);
   $('mtMacro').textContent = !mOn ? (n ? `꺼짐 · 기능 ${n}개 켜짐` : '꺼짐')
     : lastMpop && lastMpop.running ? (lastMpop.msg || '포션 사용 중')
+    : lastMfish && lastMfish.running ? (lastMfish.msg || '낚시 중')
     : sniping ? '스나이핑 중이라 대기'
     : n ? `작동 중 · 기능 ${n}개` : '켜진 기능 없음';
   const on = [bOn && '바이옴 매크로', mOn && '매크로', armed && '오토 스나이핑'].filter(Boolean);
@@ -794,7 +792,8 @@ async function poll() {
     updateSteps(r.steps, r.pre);
     updateBiome(r.biome);
     updateMpop(r.mpop);
-    lastBio = r.biome; lastMpop = r.mpop;
+    updateMfish(r.mfish);
+    lastBio = r.biome; lastMpop = r.mpop; lastMfish = r.mfish;
     syncMainTiles();
     r.events.forEach(addEventRow);
     const nm = JSON.stringify([r.names, r.channels]);
@@ -1181,6 +1180,75 @@ document.querySelectorAll('[data-mpop-test]').forEach(b => b.addEventListener('c
   toast(r.error || '레어 바이옴 자동 팝핑 테스트 시작 · 인벤토리 열기부터 · 정지: 위쪽 [정지] 또는 F7');
 }));
 $('mpopStop').addEventListener('click', () => api('mpop_stop'));
+
+// ---------------------------------------------------------------- 매크로 탭 · 자동 낚시 (제자리 낚시)
+const mfish = () => (config.mfish ||= {});
+const saveMfish = () => queueSave({ mfish: JSON.parse(JSON.stringify(mfish())) });
+const MFISH_POS = [['fish_btn', 'Fish 버튼', 'Fish / Exit 버튼 가운데 (같은 자리)'], ['close_pos', '결과창 X', '낚시 결과창 오른쪽 위 X'],
+  ['title_pos', '결과창 제목', '선택 · 제목 색으로 성공 / 쓰레기 / 실패 구분']];
+const MFISH_TUNE = [['bite_max', '입질 최대 대기', '이 시간 동안 입질이 없으면 Exit 후 다시 던짐 (초)', 60, 5, 1],
+  ['lead_ms', '미리 누르기', '떨어지는 속도를 보고 이만큼 미리 누름 · 구간을 자꾸 넘어가면 늘리고, 못 따라가면 줄임 (ms)', 60, 0, 10],
+  ['click_gap_ms', '클릭 최소 간격', '릴링 중 클릭 사이 최소 간격 (ms)', 45, 10, 5],
+  ['result_wait', '결과창 대기', '릴링이 끝난 뒤 결과창 X 를 누르기까지 (초)', 0.8, 0, 0.1],
+  ['cast_retry', 'Fish 다시 누르기', 'Fish 를 눌러도 반응이 없으면 다시 누르는 횟수 · 넘으면 인벤토리 가득으로 봄', 3, 1, 1]];
+function renderMfish() {
+  const m = mfish();
+  $('mfishForm').innerHTML = `
+    <label class="row"><span>켜기<small>매크로 버튼이 켜져 있는 동안 계속 낚시 · 레어 바이옴이 뜨면 잠깐 멈추고 팝핑 후 이어감</small></span>
+      <span class="switch"><input type="checkbox" id="mfishOn" ${m.enabled ? 'checked' : ''}><i></i></span></label>
+    <div class="row tpl-pick"><span>위치 템플릿<small>16:9 로블록스 창 기준 기본 위치를 한 번에 채움 · 안 맞으면 아래에서 직접 지정</small></span>
+      <span class="pos"><button class="btn mini" type="button" id="mfishTpl">16:9 적용</button></span></div>` +
+    MFISH_POS.map(([k, name, sub]) => `
+    <div class="row"><span>${name} 위치<small>${sub}</small></span>
+      <span class="pos"><code class="${m[k] ? '' : 'unset'}">${fmtPos(m[k])}</code>
+      <button class="btn mini ghost" type="button" data-mfish-pick="${k}">위치 지정</button></span></div>`).join('') + `
+    <div class="row"><span>릴링 바 영역<small>위쪽 바(청록 막대 · 색 구간이 있는 바)만 딱 맞게 드래그 · ◇ 표시는 자동으로 찾음</small></span>
+      <span class="pos"><code class="${m.bar_region ? '' : 'unset'}">${fmtReg(m.bar_region)}</code>
+      <button class="btn mini ghost" type="button" id="mfishBar">드래그로 지정</button></span></div>
+    <div class="row"><span>이번 실행 기록<small>성공 · 쓰레기 · 실패 · 인벤토리 가득</small></span><b id="mfishStats">-</b></div>`;
+  $('mfishOn').addEventListener('change', e => {
+    m.enabled = e.target.checked; saveMfish(); syncMainTiles();
+    toast(m.enabled ? '자동 낚시 켜짐' : '자동 낚시 꺼짐');
+    if (!m.enabled) api('mfish_stop');
+  });
+  $('mfishTpl').addEventListener('click', async () => {
+    const r = await api('mfish_template');
+    if (r.error) return toast(r.error);
+    config.mfish = r.mfish; renderMfish(); toast('16:9 템플릿 적용');
+  });
+  $('mfishForm').querySelectorAll('[data-mfish-pick]').forEach(b => b.addEventListener('click', async () => {
+    const k = b.dataset.mfishPick, name = MFISH_POS.find(x => x[0] === k)[1];
+    const r = await pickWith(b, `로블록스 화면에서 ${name} 클릭`, () => api('mfish_pos', { key: k }));
+    if (r) { m[k] = r.pos; renderMfish(); toast(`${name} 위치 저장`); }
+  }));
+  $('mfishBar').addEventListener('click', async e => {
+    const r = await pickWith(e.currentTarget, '로블록스 화면에서 릴링 바 드래그', () => api('mfish_region'));
+    if (r) { m.bar_region = r.region; renderMfish(); toast('릴링 바 영역 저장'); }
+  });
+  $('mfishTune').innerHTML = MFISH_TUNE.map(([k, name, sub, def, min, step]) => `
+    <label class="row"><span>${name}<small>${sub} · 기본 ${def}</small></span>
+      <input type="number" min="${min}" step="${step}" data-mfish-tune="${k}" value="${m[k] ?? def}"></label>`).join('');
+  $('mfishTune').querySelectorAll('[data-mfish-tune]').forEach(i => i.addEventListener('input', () => {
+    const n = parseFloat(i.value);
+    if (Number.isFinite(n) && n >= parseFloat(i.min)) { m[i.dataset.mfishTune] = n; saveMfish(); }
+  }));
+}
+function updateMfish(st) {
+  const running = !!(st && st.running);
+  $('mfishDot').dataset.s = running ? 'flux' : '';
+  $('mfishState').textContent = running ? (st.msg || '실행 중') : '대기';
+  const s = st && st.stats, el = $('mfishStats');
+  if (s && el) el.textContent = `${s.success} · ${s.junk} · ${s.fail} · ${s.full}`;
+}
+$('mfishStop').addEventListener('click', () => api('mfish_stop'));
+$('mfishCheck').addEventListener('click', async e => {
+  const b = e.currentTarget; b.disabled = true;
+  try {
+    const r = await api('mfish_check');
+    if (r.error) return toast(r.error);
+    toast([r.button && `버튼: ${r.button}`, r.bar && `릴링 바: ${r.bar}`, r.title && `결과창: ${r.title}`].filter(Boolean).join(' · ') || '지정된 위치 없음');
+  } finally { b.disabled = false; }
+});
 
 // ---------------------------------------------------------------- Acrux 설정 (OCR 감지 방식 · 일반)
 async function refreshOcrInfo() {
@@ -2244,6 +2312,7 @@ const Tutorial = (() => {
   fillSteps();
   fillBiome();
   fillMpop();
+  renderMfish();
   fillAcrux();
   renderSummary();
   setStatus(s.status);

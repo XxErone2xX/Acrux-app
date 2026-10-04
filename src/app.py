@@ -26,6 +26,7 @@ import macro
 import biome
 import rejoin
 import popping
+import fishing
 import steps as stepmod
 from version import VERSION
 
@@ -88,8 +89,12 @@ class Bridge:
         # 오토 팝핑: Play 버튼 자동 클릭
         self.pop = popping.Popper(lambda: self.data.get("pop", {}), self._on_log, on_end=self._on_pop_end)
         # 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버)
+        # 매크로 탭 · 자동 낚시 (제자리 낚시) — 매크로 버튼 + 켜기가 켜져 있는 동안 계속
+        self.fisher = fishing.Fisher(lambda: self.data.get("mfish", {}), self._on_log,
+                                     on_user_stop=self._macro_user_stop)
         self.mpop = popping.MyServerPopper(lambda: self.data.get("pop", {}), lambda: self.data.get("mpop", {}),
-                                           self._on_log)
+                                           self._on_log, before=lambda: self.fisher.hold(45),
+                                           after=self.fisher.release)
         self.play = rejoin.PlayClicker(lambda: self.data.get("play", {}), self._on_log,
                                        on_ingame=self._on_ingame, on_fail=self._on_play_fail)
         # 매크로 복귀: 로블록스 전부 종료 → 1초 → 내 브섭 링크 → Play
@@ -102,6 +107,7 @@ class Bridge:
         self.ret = rejoin.Returner(lambda: self.data.get("ret", {}), self._on_log, self.play,
                                    kill=core.kill_roblox, launch=core.open_link)
         self.biome.start()                  # 바이옴 변경 콜백이 위 실행기들을 쓰므로 맨 마지막에 시작
+        threading.Thread(target=self._macro_loop, daemon=True).start()
 
     # 엔진 콜백 (작업 스레드에서 옴)
     def _next(self):
@@ -251,6 +257,7 @@ class Bridge:
         roblox = bool(macro.roblox_window_cached(2.0))     # 창 검색은 잠금 밖에서, 2초 동안 재사용
         play, bio, pop, ret = self.play.snapshot(), self.biome.state(), self.pop.snapshot(), self.ret.snapshot()
         mpop = self.mpop.snapshot()
+        mfish = self.fisher.snapshot()
         st = self.steps.snapshot()
         pre = self.pre.snapshot()
         with self.lock:
@@ -258,7 +265,7 @@ class Bridge:
             events = [dict(e, seq=s) for s, e in self.events if s > since]
             return {"seq": self.seq, "logs": logs, "events": events, "status": list(self.status),
                     "running": self.running(), "armed": core.ARMED.is_set(),
-                    "play": play, "pop": pop, "ret": ret, "mpop": mpop, "steps": st, "pre": pre, "roblox": roblox,
+                    "play": play, "pop": pop, "ret": ret, "mpop": mpop, "mfish": mfish, "steps": st, "pre": pre, "roblox": roblox,
                     "crash": {"left": max(0.0, self.crash["until"] - time.time())} if self.crash else None,
                     "biome": bio,
                     "count": self.handler.count, "names": self.data.get("names", {}),
@@ -310,6 +317,7 @@ class Bridge:
         다른 사람 서버로 들어가는 것이라, 그 접속 동안은 바이옴 웹후크를 보내지 않음"""
         self.pop.stop()
         self.mpop.stop()
+        self.fisher.stop()
         self.ret.stop()
         self.biome.mute_next_session()
         self.play.start("서버 접속")
@@ -325,6 +333,40 @@ class Bridge:
     def _on_play_fail(self, reason):
         if reason == "서버 접속":           # 스나이핑한 서버에 못 들어감 → 복귀
             self.ret.start("접속 실패")
+
+    # ---------------- 매크로 탭 · 자동 낚시 ----------------
+    def _macro_loop(self):
+        """1초마다: 매크로 버튼 + 자동 낚시 켜기 + 로블록스 창 있음 + 내 서버(스나이핑 아님)
+        + 스나이핑 쪽 동작(오토 팝핑 · 복귀 · Play 클릭 · 접속 전 동작) 없음 → 자동 낚시 돌림, 아니면 멈춤"""
+        warned = None
+        while True:
+            time.sleep(1.0)
+            try:
+                mf = self.data.get("mfish", {})
+                want = bool(self.data.get("macro_on") and mf.get("enabled"))
+                busy = self.pop.running() or self.ret.running() or self.play.running() or self.pre.running()
+                ok = want and not busy and not self.biome.muted() and bool(macro.roblox_window_cached(2.0))
+                if want and fishing.Fisher.missing(mf):
+                    ok = False
+                    miss = ", ".join(fishing.Fisher.missing(mf))
+                    if warned != miss:
+                        warned = miss
+                        self._on_log(f"자동 낚시 안 함 — 설정 필요: {miss}", "y")
+                else:
+                    warned = None
+                if ok and not self.fisher.running() and not self.mpop.running():
+                    self.fisher.start()
+                elif not ok and self.fisher.running():
+                    self.fisher.stop()
+            except Exception as e:
+                write_crash(f"macro loop: {e}")
+
+    def _macro_user_stop(self):
+        """F7: 매크로 버튼을 끔 (자동 낚시 · 매크로 탭 기능 전부 멈춤)"""
+        with self.lock:
+            self.data["macro_on"] = False
+        self._save()
+        self._on_log("F7 — 매크로 꺼짐", "y")
 
     def _on_biome_change(self, prev, found, sniping):
         """매크로 탭 · 레어 바이옴 자동 팝핑: 지금 켜져 있는 로블록스(내 서버)에서 레어 바이옴이 시작되면 포션 사용
@@ -496,6 +538,69 @@ class Bridge:
                 if i.get("name")]:
             return {"error": "포션 목록이 비어 있음"}
         self.mpop.start(b, test=True)
+        return {"ok": True}
+
+    def api_mfish_pos(self, p):
+        key = str(p.get("key", ""))
+        if key not in dict(fishing.POS_KEYS):
+            return {"error": "알 수 없는 항목"}
+        r = self._pick_overlay("--pick-point")
+        if r.get("error"):
+            return r
+        with self.lock:
+            self.data.setdefault("mfish", {})[key] = [round(r["x"], 4), round(r["y"], 4)]
+        self._save()
+        return {"pos": self.data["mfish"][key]}
+
+    def api_mfish_region(self, _):
+        r = self._pick_overlay("--pick-region")
+        if r.get("error"):
+            return r
+        with self.lock:
+            self.data.setdefault("mfish", {})["bar_region"] = r["region"]
+        self._save()
+        return {"region": r["region"]}
+
+    # 16:9 위치 템플릿 — Fish 버튼 · 릴링 바 · 결과창 X 는 Noteab/Coteab Macro(Apache-2.0)의 1920x1080 보정값을
+    # 로블록스 창 기준 비율로 바꾼 것, 결과창 제목은 결과창 X 기준으로 계산
+    MFISH_TEMPLATE = {"fish_btn": [0.4427, 0.7731], "bar_region": [0.3948, 0.7009, 0.6068, 0.7259],
+                      "close_pos": [0.5792, 0.3167], "title_pos": [0.4995, 0.3306]}
+
+    def api_mfish_template(self, _):
+        with self.lock:
+            self.data.setdefault("mfish", {}).update(json.loads(json.dumps(self.MFISH_TEMPLATE)))
+        self._save()
+        return {"mfish": self.data["mfish"]}
+
+    def api_mfish_check(self, _):
+        """상태 확인: 지금 화면에서 Fish 버튼 색 · 릴링 바 · 결과창 제목을 읽어서 알려줌"""
+        mf = self.data.get("mfish", {})
+        hwnd = macro.roblox_window_cached(1.0)
+        rect = macro.client_rect(hwnd) if hwnd else None
+        if not rect:
+            return {"error": "로블록스 창 없음"}
+        try:
+            import mss
+            out = {}
+            with mss.mss() as sct:
+                if mf.get("fish_btn"):
+                    st = fishing.button_state(self.fisher._grab_box(sct, rect, mf["fish_btn"]))
+                    out["button"] = {"fish": "Fish (파랑)", "exit": "Exit (빨강)"}.get(st, "안 보임")
+                if mf.get("bar_region"):
+                    box, top_in, bh = self.fisher._bar_geom(rect, mf["bar_region"])
+                    img = sct.grab(box)
+                    a = fishing.analyze_bar(fishing._np(bytes(img.bgra), img.width, img.height), top_in, bh)
+                    out["bar"] = (f"보임 · 내 위치 {a['marker']:.0f} · 구간 {a['zone']}" if a["present"] and a["marker"] is not None
+                                  else "보임" if a["present"] else "안 보임")
+                if mf.get("title_pos"):
+                    t = fishing.classify_title(self.fisher._grab_box(sct, rect, mf["title_pos"], 0.12, 0.05))
+                    out["title"] = {"success": "성공", "junk": "쓰레기", "fail": "실패"}.get(t, "안 보임")
+            return out
+        except Exception as e:
+            return {"error": f"확인 실패: {e}"}
+
+    def api_mfish_stop(self, _):
+        self.fisher.stop()
         return {"ok": True}
 
     def api_mpop_stop(self, _):
