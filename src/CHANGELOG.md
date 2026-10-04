@@ -1,6 +1,16 @@
 <!-- 업데이트 로그 — Acrux 탭 · 업데이트 로그에 그대로 보임
      새 버전을 올릴 때마다 맨 위에 "# V버전 · 날짜" + RELEASE_NOTES.md 내용을 추가 (릴리스 때 빠졌으면 실패함) -->
 
+# V1.13.2 · 2026-10-04
+
+## Acrux macro V1.13.2 업데이트
+- 업데이트 로그를 Acrux 설정 안에서 꺼내 메인 화면 Acrux 탭의 카드로 옮김
+  - 메인 화면 → Acrux 탭 → **업데이트 로그** 카드를 누르면 바로 보임
+
+## Acrux macro V1.13.2 Update
+- Moved the update log out of Acrux settings into its own card on the main screen's Acrux tab
+  - Main screen → Acrux tab → click the **Update log** card
+
 # V1.13.1 · 2026-10-04
 
 ## Acrux macro V1.13.1 업데이트
