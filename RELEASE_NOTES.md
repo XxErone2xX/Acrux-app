@@ -1,7 +1,7 @@
-## Acrux macro V1.7.5 업데이트
-- 메인 화면 설정 부분을 조금 위로 올림
-- 기본 창 크기 변경 (1392 x 903 비율 · 화면이 작으면 비율 그대로 줄임 · 처음 한 번만 적용)
+## Acrux macro V1.8.0 업데이트
+- 매크로 탭에 메뉴 3개 추가: 매크로 기능 설정 / 매크로 기준 위치 설정 / 통계 보기
+- 매크로 기능 설정: 레어 바이옴 자동 팝핑(내 서버) · 상인 자동 구매 · 포션 자동 제작 · 메모리 매치 · 자동 낚시 (기능은 준비 중)
 
-## Acrux macro V1.7.5 Update
-- Moved the settings area on the main screen up a little
-- New default window size (1392 x 903 ratio · scaled down on smaller screens · applied once)
+## Acrux macro V1.8.0 Update
+- Added 3 menus to the Macro tab: Macro feature settings / Macro base position settings / View stats
+- Macro feature settings: Rare biome auto popping (your server) · Merchant auto buy · Potion auto craft · Memory Match · Auto fishing (features coming soon)

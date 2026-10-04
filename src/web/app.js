@@ -30,6 +30,8 @@ const ICONS = {
   heart: '<svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.6-7 10-7 10z"/></svg>',
   trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>',
   shield: '<svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>',
+  pin: '<svg viewBox="0 0 24 24"><path d="M12 21s-6-5.6-6-11a6 6 0 0112 0c0 5.4-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/></svg>',
+  chart: '<svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M7 16v-5M12 16V6M17 16v-8"/></svg>',
   globe: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c2.5 2.5 2.5 13.5 0 16M12 4c-2.5 2.5-2.5 13.5 0 16"/></svg>',
 };
 const icon = n => `<span class="ico">${ICONS[n] || ''}</span>`;
@@ -49,6 +51,9 @@ const MENU = [
   { key: 'discord', tab: 'snipe', icon: 'chat', color: 'var(--accent)', title: '디스코드 감지 설정', desc: '감시할 서버·채널, 필터, 감지 기록' },
   { key: 'popping', tab: 'snipe', icon: 'bolt', color: 'var(--orange)', title: '오토 팝핑 매크로 설정', desc: '게임 접속 후 Play 버튼 자동 클릭' },
   { key: 'return', tab: 'snipe', icon: 'undo', color: 'var(--green)', title: '매크로 복귀 설정', desc: '바이옴이 끝나면 내 서버로 복귀' },
+  { key: 'mfeat', tab: 'macro', icon: 'bolt', color: 'var(--yellow)', title: '매크로 기능 설정', desc: '내 서버에서 돌릴 기능 켜기 · 끄기' },
+  { key: 'mpos', tab: 'macro', icon: 'pin', color: 'var(--red)', title: '매크로 기준 위치 설정', desc: '기능마다 이동할 기준 위치' },
+  { key: 'mstats', tab: 'macro', icon: 'chart', color: 'var(--cyan)', title: '통계 보기', desc: '이번 실행 · 올타임 기록' },
 ];
 // 설정 탭 — 끝없이 돌아감 (바이옴 → 스나이프 → 매크로 → 바이옴 …)
 const TABS = ['biome', 'snipe', 'macro'];
@@ -197,12 +202,6 @@ function buildMenu() {
     menu.appendChild(p);
     panels[t] = p;
   }
-  // 매크로 탭: 곧 추가
-  const soon = document.createElement('div');
-  soon.className = 'menu-card soon-card deco';
-  soon.style.setProperty('--deco', 'var(--muted)');
-  soon.innerHTML = `<div class="head">${headHTML({ icon: 'bolt', color: 'var(--muted)', title: '매크로', desc: '곧 추가됩니다', soon: true })}</div>`;
-  panels.macro.appendChild(soon);
   document.querySelectorAll('.tab-name').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
   for (const m of MENU) {
     const b = document.createElement('button');
