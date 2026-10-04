@@ -664,7 +664,7 @@ body:not(.in-page) .lang.in-card { display: none; }
 #runIco { display: none; }
 
 /* 메인: 설정 줄을 시작 버튼 쪽으로 조금 올림 */
-#main .col > .label { margin: 18px 0 2px; }
+#main .col > .label { margin: 18px 0 2px; position: relative; top: 21px; }   /* 옆 탭 이름(바이옴 · 매크로)과 높이 맞춤 (아래 칸 위치는 그대로) */
 
 /* ---------- 메인 화면 기능별 시작 버튼 (바이옴 매크로 / 오토 스나이핑 / 매크로) ---------- */
 .mains { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
