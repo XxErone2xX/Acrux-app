@@ -7,7 +7,8 @@
   · 릴링(릴링 바가 보임) → 릴링 → Fish 버튼이 다시 보일 때까지 결과창 X 를 0.1초마다 (그 사이 제목 색으로 결과 기록)
   · 알 수 없음 3초 이상 → X 한 번 (처음부터 결과창이 떠 있던 경우 등)
 - 상태는 화면 픽셀 색으로만 판단 (가운데 문구는 랜덤이라 안 읽음)
-  · 릴링 바: 왼쪽부터 차는 청록 막대 끝(◇ 표시) = 내 위치, 청록도 바탕(검정)도 아닌 색 덩어리 = 물고기 구간(색은 매번 랜덤)
+  · 릴링 바: 왼쪽부터 차는 막대 끝(◇ 표시) = 내 위치, 막대 색이 아닌 색 덩어리 = 물고기 구간
+    (바가 떠 있는지는 색 있는 칸으로 봄 — 막대가 거의 비어도 구간은 보임 · 막대는 청록 ~ 파랑 폭넓게)
     막대와 구간이 겹친 부분은 구간 색이 밝게 보임 · 클릭하면 내 위치가 오른쪽으로, 안 누르면 왼쪽으로 떨어짐
     → 구간 왼쪽 끝 근처로 떨어질 때만 눌러서 구간 안에 붙잡아 둠 (FishSol 등 다른 낚시 매크로도 같은 방식)
   · 결과창 제목 색: 하늘색 = 성공 / 회색 = 쓰레기 / 빨강 = 실패
@@ -82,16 +83,27 @@ def classify_title(rgb):
     return best[1] if best[0] >= n * 0.02 else None
 
 
-def _is_teal(px):
-    r, g, b = px[..., 0], px[..., 1], px[..., 2]
-    return (r < 95) & (g >= 95) & (b >= 125) & ((b - g) >= -15) & ((b - g) <= 80)
+def _colored(band):
+    """바 가운데 줄 → 색이 있는 칸 (막대 · 구간) — 어두운 바탕 · 흰 글자 · 회색 테두리는 아님
+    막대 · 구간 색은 매번 다를 수 있어서(청록 · 파랑 · 분홍 …) 특정 색이 아니라 '채도 있고 어둡지 않음'으로 봄"""
+    mx, mn = band.max(axis=1), band.min(axis=1)
+    return ((mx - mn) > 50) & (mx > 90)
 
 
 def bar_present(rgb):
-    """바 가운데 줄 몇 개만 잡은 이미지 → 릴링 바(청록 막대)가 떠 있는지 (입질 대기용 가벼운 확인)"""
+    """바 가운데 줄 몇 개만 잡은 이미지 → 릴링 바가 떠 있는지 (입질 대기용 가벼운 확인)
+    막대가 거의 비어 있어도 물고기 구간은 항상 보이므로 '색 있는 칸'이 조금이라도 있으면 떠 있는 것"""
     import numpy as np
     band = np.median(rgb, axis=0)
-    return int(_is_teal(band).sum()) >= max(4, band.shape[0] * 0.03)
+    return int(_colored(band).sum()) >= max(4, band.shape[0] * 0.03)
+
+
+def _is_fill(px):
+    """왼쪽부터 차는 막대 색 (청록 ~ 파랑) — 스크린샷에서 본 값: (33,144,170) (36,151,169) (44,135,175) (36,92,167)
+    전에는 초록이 95 이상이어야 했는데 (36,92,167) 처럼 더 파란 막대를 못 봐서 넓힘
+    구간 색과는 겹치지 않게: 남색 구간 (29,60,129) · 초록 (50,203,110) · 보라 (149,97,210) 등은 아님"""
+    r, g, b = px[..., 0], px[..., 1], px[..., 2]
+    return (r < 100) & (g >= 80) & (b >= 140) & ((b - g) >= -15) & ((b - g) <= 85)
 
 
 def analyze_bar(rgb, bar_top, bar_h):
@@ -102,16 +114,18 @@ def analyze_bar(rgb, bar_top, bar_h):
     y0 = int(bar_top + bar_h * 0.35)
     y1 = max(y0 + 1, int(bar_top + bar_h * 0.65))
     band = np.median(rgb[y0:y1], axis=0)                # 바 가운데 줄 (글자 노이즈를 줄이려고 여러 줄의 중앙값)
-    teal = _is_teal(band)
-    present = teal.sum() >= max(4, w * 0.03)
+    colored = _colored(band)
+    present = colored.sum() >= max(4, w * 0.03)
     out = {"present": bool(present), "marker": None, "zone": None, "w": w}
     if not present:
         return out
+    fill = colored & _is_fill(band)
+    xs = np.where(fill)[0]
+    fill_end = int(xs.max()) if len(xs) else -1          # 막대 끝 (-1 = 비어 있음)
     mx, mn = band.max(axis=1), band.min(axis=1)
-    dark = mx < 60
-    white = mn > 180                                    # 남은 시간 숫자 (흰 글자)
-    zone = ~teal & ~dark & ~white
-    # 물고기 구간: 가장 긴 덩어리 (흰 글자 · 4px 이하 틈은 이어 붙임)
+    texty = ((mx - mn) <= 50) & (mx > 90)               # 남은 시간 숫자 (흰 글자 · 글자 가장자리 회색)
+    zone = colored & ~fill
+    # 물고기 구간: 가장 긴 덩어리 (위에 겹친 숫자 글자 · 4px 이하 틈은 이어 붙임)
     best, cur, gap = None, None, 0
     for x in range(w):
         if zone[x]:
@@ -119,8 +133,10 @@ def analyze_bar(rgb, bar_top, bar_h):
                 cur = [x, x]
             cur[1], gap = x, 0
         elif cur is not None:
+            if texty[x]:
+                continue                                  # 숫자 글자 위는 틈으로 안 셈 (글자 테두리의 어두운 칸만 셈)
             gap += 1
-            if gap > 4 and not white[x]:
+            if gap > 4:
                 if best is None or cur[1] - cur[0] > best[1] - best[0]:
                     best = cur
                 cur, gap = None, 0
@@ -145,14 +161,12 @@ def analyze_bar(rgb, bar_top, bar_h):
             if seg.sum() >= 6:
                 out["marker"] = float((np.arange(lo, hi) * seg).sum() / seg.sum())
     if out["marker"] is None:
-        # ◇ 를 못 찾았을 때: 청록 막대 끝 = 내 위치 · 단, 막대가 구간과 겹치면 겹친 부분은 구간 색(밝게)으로 보여서
-        # 청록이 구간 왼쪽 끝에서 끊김 → 그때는 내 위치를 알 수 없으니 None (안 누르고 다음 화면을 봄)
-        xs = np.where(teal)[0]
-        if len(xs):
-            end = int(xs.max())
-            z = out["zone"]
-            if z is None or not (z[0] - 3 <= end <= z[1] + 2):
-                out["marker"] = float(end)
+        # ◇ 를 못 찾았을 때: 막대 끝 = 내 위치 (막대가 비어 있으면 맨 왼쪽) · 단, 막대가 구간과 겹치면 겹친 부분은
+        # 구간 색(밝게)으로 보여서 막대가 구간 왼쪽 끝에서 끊김 → 그때는 내 위치를 알 수 없으니 None (안 누르고 다음 화면을 봄)
+        end = max(0, fill_end)
+        z = out["zone"]
+        if z is None or not (z[0] - 3 <= end <= z[1] + 2):
+            out["marker"] = float(end)
     return out
 
 
