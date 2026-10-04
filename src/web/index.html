@@ -419,6 +419,7 @@
   </div>
   <div class="body">
     <nav class="side">
+      <button class="item deco" data-sec="mf-all"><b>기능 켜기 · 끄기</b><span>쓸 기능을 한 번에</span></button>
       <button class="item deco" data-sec="mf-pop"><b>레어 바이옴 자동 팝핑</b><span>내 서버에서</span></button>
       <button class="item deco" data-sec="mf-fish"><b>자동 낚시</b><span>던지기 · 릴링 · 판매</span></button>
       <button class="item deco" data-sec="mf-merchant"><b>상인 자동 구매</b><span>마리 · 제스터</span></button>
@@ -426,6 +427,13 @@
       <button class="item deco" data-sec="mf-memory"><b>오토 메모리 매치</b><span>카드 짝 맞추기</span></button>
     </nav>
     <div class="content">
+      <div class="sec" data-sec="mf-all">
+        <div class="sec-head"><h2>기능 켜기 · 끄기</h2>
+          <button class="btn ghost" id="mfAllOff">전부 끄기</button>
+          <button class="btn" id="mfAllOn">전부 켜기</button></div>
+        <p class="hint">켜 둔 기능만 메인 화면의 매크로 버튼을 켰을 때 동작 · 위치는 매크로 기준 위치 설정에서 지정</p>
+        <div class="card form" id="mfAllForm"></div>
+      </div>
       <div class="sec" data-sec="mf-pop">
         <div class="sec-head"><h2>레어 바이옴 자동 팝핑</h2>
           <span class="status-mini mpop-status"><span class="dot" id="mpopDot"></span><span id="mpopState">대기</span></span>
@@ -442,7 +450,6 @@
       <div class="sec" data-sec="mf-fish">
         <div class="sec-head"><h2>자동 낚시</h2>
           <span class="status-mini mpop-status"><span class="dot" id="mfishDot"></span><span id="mfishState">대기</span></span>
-          <button class="btn ghost" id="mfishCheck">상태 확인</button>
           <button class="btn ghost" id="mfishStop">정지</button></div>
         <p class="hint">매크로 버튼과 아래 켜기가 켜져 있으면, 지금 켜진 로블록스(내 서버)의 낚시 자리에서 계속 낚시 · 정지: F7 (매크로 꺼짐)</p>
         <div class="card form" id="mfishForm"></div>
@@ -463,9 +470,24 @@
   </div>
   <div class="body">
     <nav class="side">
-      <button class="item deco" data-sec="mp-base"><b>기준 위치</b><span>모든 기능의 출발점</span></button>
+      <button class="item deco" data-sec="mp-pop"><b>레어 바이옴 자동 팝핑</b><span>버튼 6개 · OCR 영역</span></button>
+      <button class="item deco" data-sec="mp-fish"><b>자동 낚시</b><span>Fish 버튼 · 릴링 바 · 결과창</span></button>
+      <button class="item deco" data-sec="mp-base"><b>기준 위치</b><span>이동 기능의 출발점</span></button>
     </nav>
     <div class="content">
+      <div class="sec" data-sec="mp-pop">
+        <div class="sec-head"><h2>레어 바이옴 자동 팝핑</h2>
+          <button class="btn ghost" id="mposPopCopy">스나이프 탭 위치 가져오기</button>
+          <button class="btn ghost" id="mposPopOcr">OCR 테스트</button></div>
+        <p class="hint">로블록스를 켜 두고 각 항목의 [위치 지정] → 로블록스 화면에서 클릭 (영역은 드래그) · 위치는 로블록스 창 기준이라 창 크기를 바꾸면 다시 지정</p>
+        <div class="card form" id="mposPop"></div>
+      </div>
+      <div class="sec" data-sec="mp-fish">
+        <div class="sec-head"><h2>자동 낚시</h2>
+          <button class="btn ghost" id="mfishCheck">상태 확인</button></div>
+        <p class="hint">낚시 자리에서 낚시 창을 띄워 두고 지정 · 릴링 바와 결과창은 한 번 낚아서 화면에 떠 있을 때 지정 · [상태 확인] 으로 제대로 읽는지 확인</p>
+        <div class="card form" id="mposFish"></div>
+      </div>
       <div class="sec" data-sec="mp-base"><div class="sec-head"><h2>기준 위치</h2></div><div class="empty">준비 중</div></div>
     </div>
   </div>

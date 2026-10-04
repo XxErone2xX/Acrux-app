@@ -53,7 +53,7 @@ const MENU = [
   { key: 'popping', tab: 'snipe', icon: 'bolt', color: 'var(--orange)', title: '오토 팝핑 매크로 설정', desc: '게임 접속 후 Play 버튼 자동 클릭' },
   { key: 'return', tab: 'snipe', icon: 'undo', color: 'var(--green)', title: '매크로 복귀 설정', desc: '바이옴이 끝나면 내 서버로 복귀' },
   { key: 'mfeat', tab: 'macro', icon: 'bolt', color: 'var(--yellow)', title: '매크로 기능 설정', desc: '내 서버에서 돌릴 기능 켜기 · 끄기' },
-  { key: 'mpos', tab: 'macro', icon: 'pin', color: 'var(--red)', title: '매크로 기준 위치 설정', desc: '기능마다 이동할 기준 위치' },
+  { key: 'mpos', tab: 'macro', icon: 'pin', color: 'var(--red)', title: '매크로 기준 위치 설정', desc: '기능마다 버튼 위치 · 영역 지정' },
   { key: 'mstats', tab: 'macro', icon: 'chart', color: 'var(--cyan)', title: '통계 보기', desc: '이번 실행 · 올타임 기록' },
   { key: 'acrux', tab: 'acrux', icon: 'gear', color: '#7c6cf6', title: 'Acrux 설정', desc: 'OCR 감지 방식 · 언어 · 데이터 폴더',
     grad: 'linear-gradient(135deg, #8fa0ff, #6c7bff 50%, #8b5cf6)' },
@@ -1121,22 +1121,23 @@ document.querySelectorAll('[data-pop-test]').forEach(b => b.addEventListener('cl
 }));
 
 // ---------------------------------------------------------------- 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버)
-// 포션 목록 · 켜진 바이옴은 따로(mpop), 버튼 위치 · OCR · 딜레이는 오토 팝핑(pop) 설정을 같이 씀
+// 포션 목록 · 켜진 바이옴 · 버튼 위치 · OCR 영역은 따로(mpop), 딜레이 · 일치율은 오토 팝핑(pop) 설정을 같이 씀
 const mpop = () => (config.mpop ||= {});
 const saveMpop = () => queueSave({ mpop: JSON.parse(JSON.stringify(mpop())) });
 const POP_POS_KEYS = ['inventory_pos', 'items_pos', 'search_pos', 'item_pos', 'amount_pos', 'use_pos', 'ocr_region'];
 function renderMpop() {
   const m = mpop(), on = (m.biomes_on ||= {});
   const player = ((config.biome || {}).player || '').trim();
-  const posMiss = POP_POS_KEYS.filter(k => !pop()[k]).length;
+  const posMiss = POP_POS_KEYS.filter(k => !m[k]).length;
   const label = { CYBERSPACE: 'Cyberspace', GLITCHED: 'Glitched', DREAMSPACE: 'Dreamspace' };
   $('mpopForm').innerHTML = `
     <label class="row"><span>켜기<small>켜져 있는 동안 레어 바이옴이 감지되면 아래 포션 목록대로 사용 (시작 버튼과 무관)</small></span>
       <span class="switch"><input type="checkbox" id="mpopOn" ${m.enabled ? 'checked' : ''}><i></i></span></label>
     <div class="row"><span>플레이어 이름<small>바이옴 감지에 필요 · 바이옴 매크로 설정 → 기본 설정에서 입력</small></span>
       <span class="${player ? '' : 'warn'}">${player ? esc(player) : '입력 안 됨 — 바이옴 감지 안 됨'}</span></div>
-    <div class="row"><span>버튼 위치 · OCR · 딜레이<small>오토 팝핑 매크로 설정(스나이프 탭)에 지정한 것을 같이 씀</small></span>
+    <div class="row"><span>버튼 위치 · OCR 영역<small>매크로 기준 위치 설정 → 레어 바이옴 자동 팝핑 에서 지정</small></span>
       <span class="${posMiss ? 'warn' : ''}">${posMiss ? `${posMiss}개 지정 안 됨` : '지정됨'}</span></div>
+    <div class="row"><span>딜레이 · 이름 일치율<small>오토 팝핑 매크로 설정(스나이프 탭)에 지정한 것을 같이 씀</small></span><span>오토 팝핑과 같음</span></div>
     <label class="row"><span>시작 전 대기<small>바이옴 감지 후 인벤토리를 열기까지 (초) · 기본 1</small></span>
       <input type="number" min="0" max="60" step="0.5" id="mpopDelay" value="${m.start_delay ?? 1}"></label>
     <label class="row"><span>다 쓰고 인벤토리 닫기<small>Inventory 버튼을 한 번 더 눌러 닫음</small></span>
@@ -1145,8 +1146,7 @@ function renderMpop() {
     <label class="row"><span>${label[b]}<small>켜져 있어야 이 바이옴에서 팝핑 · 포션 목록은 아래</small></span>
       <span class="switch"><input type="checkbox" data-mpop-on="${b}" ${on[b] !== false ? 'checked' : ''}><i></i></span></label>`).join('');
   $('mpopOn').addEventListener('change', e => {
-    m.enabled = e.target.checked; saveMpop();
-    toast(m.enabled ? '레어 바이옴 자동 팝핑 켜짐' : '레어 바이옴 자동 팝핑 꺼짐');
+    setFeature('mpop', e.target.checked);
   });
   $('mpopDelay').addEventListener('input', e => {
     const n = parseFloat(e.target.value);
@@ -1186,6 +1186,7 @@ const mfish = () => (config.mfish ||= {});
 const saveMfish = () => queueSave({ mfish: JSON.parse(JSON.stringify(mfish())) });
 const MFISH_POS = [['fish_btn', 'Fish 버튼', 'Fish / Exit 버튼 가운데 (같은 자리)'], ['close_pos', '결과창 X', '낚시 결과창 오른쪽 위 X'],
   ['title_pos', '결과창 제목', '선택 · 제목 색으로 성공 / 쓰레기 / 실패 구분']];
+const MFISH_REQ = ['fish_btn', 'bar_region', 'close_pos'];
 const MFISH_TUNE = [['bite_max', '입질 최대 대기', '이 시간 동안 입질이 없으면 Exit 후 다시 던짐 (초)', 60, 5, 1],
   ['lead_ms', '미리 누르기', '떨어지는 속도를 보고 이만큼 미리 누름 · 구간을 자꾸 넘어가면 늘리고, 못 따라가면 줄임 (ms)', 60, 0, 10],
   ['click_gap_ms', '클릭 최소 간격', '릴링 중 클릭 사이 최소 간격 (ms)', 45, 10, 5],
@@ -1193,38 +1194,14 @@ const MFISH_TUNE = [['bite_max', '입질 최대 대기', '이 시간 동안 입�
   ['cast_retry', 'Fish 다시 누르기', 'Fish 를 눌러도 반응이 없으면 다시 누르는 횟수 · 넘으면 인벤토리 가득으로 봄', 3, 1, 1]];
 function renderMfish() {
   const m = mfish();
+  const posMiss = MFISH_REQ.filter(k => !m[k]).length;
   $('mfishForm').innerHTML = `
     <label class="row"><span>켜기<small>매크로 버튼이 켜져 있는 동안 계속 낚시 · 레어 바이옴이 뜨면 잠깐 멈추고 팝핑 후 이어감</small></span>
       <span class="switch"><input type="checkbox" id="mfishOn" ${m.enabled ? 'checked' : ''}><i></i></span></label>
-    <div class="row tpl-pick"><span>위치 템플릿<small>16:9 로블록스 창 기준 기본 위치를 한 번에 채움 · 안 맞으면 아래에서 직접 지정</small></span>
-      <span class="pos"><button class="btn mini" type="button" id="mfishTpl">16:9 적용</button></span></div>` +
-    MFISH_POS.map(([k, name, sub]) => `
-    <div class="row"><span>${name} 위치<small>${sub}</small></span>
-      <span class="pos"><code class="${m[k] ? '' : 'unset'}">${fmtPos(m[k])}</code>
-      <button class="btn mini ghost" type="button" data-mfish-pick="${k}">위치 지정</button></span></div>`).join('') + `
-    <div class="row"><span>릴링 바 영역<small>위쪽 바(청록 막대 · 색 구간이 있는 바)만 딱 맞게 드래그 · ◇ 표시는 자동으로 찾음</small></span>
-      <span class="pos"><code class="${m.bar_region ? '' : 'unset'}">${fmtReg(m.bar_region)}</code>
-      <button class="btn mini ghost" type="button" id="mfishBar">드래그로 지정</button></span></div>
+    <div class="row"><span>버튼 위치 · 릴링 바 영역<small>매크로 기준 위치 설정 → 자동 낚시 에서 지정</small></span>
+      <span class="${posMiss ? 'warn' : ''}">${posMiss ? `${posMiss}개 지정 안 됨` : '지정됨'}</span></div>
     <div class="row"><span>이번 실행 기록<small>성공 · 쓰레기 · 실패 · 인벤토리 가득</small></span><b id="mfishStats">-</b></div>`;
-  $('mfishOn').addEventListener('change', e => {
-    m.enabled = e.target.checked; saveMfish(); syncMainTiles();
-    toast(m.enabled ? '자동 낚시 켜짐' : '자동 낚시 꺼짐');
-    if (!m.enabled) api('mfish_stop');
-  });
-  $('mfishTpl').addEventListener('click', async () => {
-    const r = await api('mfish_template');
-    if (r.error) return toast(r.error);
-    config.mfish = r.mfish; renderMfish(); toast('16:9 템플릿 적용');
-  });
-  $('mfishForm').querySelectorAll('[data-mfish-pick]').forEach(b => b.addEventListener('click', async () => {
-    const k = b.dataset.mfishPick, name = MFISH_POS.find(x => x[0] === k)[1];
-    const r = await pickWith(b, `로블록스 화면에서 ${name} 클릭`, () => api('mfish_pos', { key: k }));
-    if (r) { m[k] = r.pos; renderMfish(); toast(`${name} 위치 저장`); }
-  }));
-  $('mfishBar').addEventListener('click', async e => {
-    const r = await pickWith(e.currentTarget, '로블록스 화면에서 릴링 바 드래그', () => api('mfish_region'));
-    if (r) { m.bar_region = r.region; renderMfish(); toast('릴링 바 영역 저장'); }
-  });
+  $('mfishOn').addEventListener('change', e => setFeature('mfish', e.target.checked));
   $('mfishTune').innerHTML = MFISH_TUNE.map(([k, name, sub, def, min, step]) => `
     <label class="row"><span>${name}<small>${sub} · 기본 ${def}</small></span>
       <input type="number" min="${min}" step="${step}" data-mfish-tune="${k}" value="${m[k] ?? def}"></label>`).join('');
@@ -1232,6 +1209,7 @@ function renderMfish() {
     const n = parseFloat(i.value);
     if (Number.isFinite(n) && n >= parseFloat(i.min)) { m[i.dataset.mfishTune] = n; saveMfish(); }
   }));
+  if (lastMfish) updateMfish(lastMfish);
 }
 function updateMfish(st) {
   const running = !!(st && st.running);
@@ -1241,6 +1219,100 @@ function updateMfish(st) {
   if (s && el) el.textContent = `${s.success} · ${s.junk} · ${s.fail} · ${s.full}`;
 }
 $('mfishStop').addEventListener('click', () => api('mfish_stop'));
+
+// ---------------------------------------------------------------- 매크로 기능 설정 · 기능 켜기 · 끄기
+// 준비 중인 기능은 자리만 (만들면 key 를 채움)
+const MFEATS = [['mpop', '레어 바이옴 자동 팝핑', '내 서버에서 레어 바이옴이 뜨면 포션 사용'],
+  ['mfish', '자동 낚시', '제자리 낚시 (판매와 이동은 다음 업데이트)'],
+  [null, '상인 자동 구매', '준비 중'], [null, '포션 자동 제작', '준비 중'], [null, '오토 메모리 매치', '준비 중']];
+const FEAT_NAME = { mpop: '레어 바이옴 자동 팝핑', mfish: '자동 낚시' };
+const featCfg = k => ({ mpop, mfish })[k]();
+function setFeature(k, on, quiet) {
+  const c = featCfg(k);
+  c.enabled = !!on;
+  queueSave({ [k]: JSON.parse(JSON.stringify(c)) });
+  if (k === 'mfish' && !on) api('mfish_stop');
+  if (k === 'mpop') renderMpop(); else renderMfish();
+  renderMfAll(); syncMainTiles();
+  if (!quiet) toast(`${FEAT_NAME[k]} ${on ? '켜짐' : '꺼짐'}`);
+}
+function renderMfAll() {
+  $('mfAllForm').innerHTML = MFEATS.map(([k, name, sub]) => k ? `
+    <label class="row"><span>${name}<small>${sub}</small></span>
+      <span class="switch"><input type="checkbox" data-feat="${k}" ${featCfg(k).enabled ? 'checked' : ''}><i></i></span></label>` : `
+    <div class="row feat-soon"><span>${name}<small>${sub}</small></span>
+      <span class="switch"><input type="checkbox" disabled><i></i></span></div>`).join('');
+  $('mfAllForm').querySelectorAll('[data-feat]').forEach(i => i.addEventListener('change', () => setFeature(i.dataset.feat, i.checked)));
+}
+function setAllFeatures(on) {
+  MFEATS.forEach(([k]) => k && setFeature(k, on, true));
+  toast(on ? '기능 전부 켜짐' : '기능 전부 꺼짐');
+}
+$('mfAllOn').addEventListener('click', () => setAllFeatures(true));
+$('mfAllOff').addEventListener('click', () => setAllFeatures(false));
+
+// ---------------------------------------------------------------- 매크로 기준 위치 설정 (기능마다 따로)
+// feat: 설정 묶음 (mpop / mfish) · points: [키, 이름, 설명] · region: [키, 이름, 설명] · 저장은 서버(api)에서
+const MPOS = {
+  mpop: { box: 'mposPop', points: POP_POS.map(([k, n, sub]) => [k, n, sub || '']),
+          region: ['ocr_region', 'OCR 영역', '검색 결과 아이템 이름·개수 (예: Warp Potion x23)'] },
+  mfish: { box: 'mposFish', points: MFISH_POS,
+           region: ['bar_region', '릴링 바 영역', '위쪽 바(파란 막대 · Ready! 가 뜨는 바)만 딱 맞게 드래그 · ◇ 표시는 자동으로 찾음'] },
+};
+function renderMpos(feat) {
+  const d = MPOS[feat], c = featCfg(feat), box = $(d.box);
+  const [rk, rname, rsub] = d.region;
+  const row = (k, name, sub, val, fmt, btn, attr) => `
+    <div class="row"><span>${name}<small>${sub}</small></span>
+      <span class="pos"><code class="${val ? '' : 'unset'}">${fmt(val)}</code>
+      <button class="btn mini ghost" type="button" ${attr}="${k}">${btn}</button></span></div>`;
+  box.innerHTML = `
+    <div class="row tpl-pick"><span>위치 템플릿<small>16:9 로블록스 창(1920x1080 전체 화면 등) 기준 위치를 한 번에 채움 · 안 맞는 건 아래에서 직접 지정</small></span>
+      <span class="pos"><button class="btn mini" type="button" data-mpos-tpl>16:9 적용</button></span></div>` +
+    d.points.map(([k, name, sub]) => row(k, `${name} 위치`, sub, c[k], fmtPos, '위치 지정', 'data-mpos-pick')).join('') +
+    row(rk, rname, rsub, c[rk], fmtReg, '드래그로 지정', 'data-mpos-region');
+  box.querySelector('[data-mpos-tpl]').addEventListener('click', async e => {
+    const b = e.currentTarget;
+    const set = [...d.points.map(x => x[0]), rk].some(k => c[k]);
+    if (set && !(b._armed > Date.now())) {             // 이미 지정한 게 있으면 한 번 더 눌러야 덮어씀
+      b._armed = Date.now() + 3000; b.textContent = '한 번 더 누르면 덮어쓰기';
+      setTimeout(() => { b.textContent = '16:9 적용'; b._armed = 0; }, 3000);
+      return;
+    }
+    const r = await api('mpos_template', { feat });
+    if (r.error) return toast(r.error);
+    Object.assign(c, r[feat]); mposChanged(feat); toast('16:9 템플릿 적용');
+  });
+  box.querySelectorAll('[data-mpos-pick]').forEach(b => b.addEventListener('click', async () => {
+    const k = b.dataset.mposPick, name = d.points.find(x => x[0] === k)[1];
+    const r = await pickWith(b, `로블록스 화면에서 ${name} 클릭`, () => api('mpos_point', { feat, key: k }));
+    if (r) { c[k] = r.pos; mposChanged(feat); toast(`${name} 위치 저장`); }
+  }));
+  box.querySelector('[data-mpos-region]').addEventListener('click', async e => {
+    const r = await pickWith(e.currentTarget, `로블록스 화면에서 ${rname} 드래그`, () => api('mpos_region', { feat }));
+    if (r) { c[rk] = r.region; mposChanged(feat); toast(`${rname} 저장`); }
+  });
+}
+// 위치는 서버가 이미 저장함 → 화면만 다시 그림
+function mposChanged(feat) {
+  renderMpos(feat);
+  if (feat === 'mpop') renderMpop(); else renderMfish();
+}
+$('mposPopCopy').addEventListener('click', async () => {
+  const r = await api('mpos_copy_pop');
+  if (r.error) return toast(r.error);
+  Object.assign(mpop(), r.mpop); mposChanged('mpop'); toast('스나이프 탭 오토 팝핑 위치를 가져옴');
+});
+$('mposPopOcr').addEventListener('click', async e => {
+  const b = e.currentTarget;
+  b.disabled = true;
+  try {
+    const r = await Promise.race([api('mpop_ocr_test'), wait(25000).then(() => ({ error: 'OCR 응답 없음 · 로그 확인' }))]);
+    if (r.error) toast(r.error);
+    else toast((r.text ? `이름: ${r.name || '-'} · 개수: ${r.count ?? '표시 없음(1개)'}` : '읽은 글자 없음') + ` · ${r.engine}`);
+  } catch (err) { toast('OCR 오류: ' + err.message); }
+  finally { b.disabled = false; }
+});
 $('mfishCheck').addEventListener('click', async e => {
   const b = e.currentTarget; b.disabled = true;
   try {
@@ -2313,6 +2385,8 @@ const Tutorial = (() => {
   fillBiome();
   fillMpop();
   renderMfish();
+  renderMfAll();
+  renderMpos('mpop'); renderMpos('mfish');
   fillAcrux();
   renderSummary();
   setStatus(s.status);

@@ -694,3 +694,4 @@ body:not(.in-page) .lang.in-card { display: none; }
 /* 설정 탭이 4개: 지금 탭 양옆만 보이고 반대편 하나는 숨김 */
 .tab-name.far { opacity: 0; pointer-events: none; }
 .ac-ocr-help { display: flex; flex-direction: column; gap: 6px; padding: 14px 18px; }
+.card.form .row.feat-soon { opacity: .45; }

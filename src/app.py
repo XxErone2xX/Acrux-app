@@ -351,7 +351,7 @@ class Bridge:
                     miss = ", ".join(fishing.Fisher.missing(mf))
                     if warned != miss:
                         warned = miss
-                        self._on_log(f"자동 낚시 안 함 — 설정 필요: {miss}", "y")
+                        self._on_log(f"자동 낚시 안 함 — 매크로 기준 위치 설정 필요: {miss}", "y")
                 else:
                     warned = None
                 if ok and not self.fisher.running() and not self.mpop.running():
@@ -531,46 +531,92 @@ class Bridge:
 
     def api_mpop_test(self, p):
         b = str(p.get("biome", "")).upper()
-        miss = popping.Popper.missing(self.data.get("pop", {}))
+        miss = popping.Popper.missing(self.data.get("mpop", {}))
         if miss:
-            return {"error": "오토 팝핑 설정 필요: " + ", ".join(miss)}
+            return {"error": "매크로 기준 위치 설정 필요: " + ", ".join(miss)}
         if not [i for i in ((self.data.get("mpop", {}).get("templates") or {}).get(b) or {}).get("items", [])
                 if i.get("name")]:
             return {"error": "포션 목록이 비어 있음"}
         self.mpop.start(b, test=True)
         return {"ok": True}
 
-    def api_mfish_pos(self, p):
-        key = str(p.get("key", ""))
-        if key not in dict(fishing.POS_KEYS):
+    # 매크로 기준 위치 설정 — 기능마다 따로 저장하는 버튼 위치 · 영역 (feat: mpop / mfish)
+    MPOS_POINTS = {"mpop": dict(popping.POS_KEYS), "mfish": dict(fishing.POS_KEYS)}
+    MPOS_REGIONS = {"mpop": "ocr_region", "mfish": "bar_region"}
+    # 16:9 위치 템플릿 (로블록스 창 기준 비율)
+    # - mpop: 스나이프 탭 오토 팝핑 16:9 템플릿과 같은 값
+    # - mfish: Fish 버튼 · 릴링 바 · 결과창 X 는 Noteab/Coteab Macro(Apache-2.0)의 1920x1080 보정값을 비율로 바꾼 것
+    #   (1920x1080 전체 화면 스크린샷으로 다시 확인) · 결과창 제목은 결과창 X 기준으로 계산
+    MPOS_TEMPLATE = {
+        "mpop": {"inventory_pos": [0.018, 0.474], "items_pos": [0.663, 0.312], "search_pos": [0.458, 0.34],
+                 "item_pos": [0.443, 0.44], "amount_pos": [0.296, 0.534], "use_pos": [0.356, 0.535],
+                 "ocr_region": [0.415, 0.392, 0.469, 0.491]},
+        "mfish": {"fish_btn": [0.4427, 0.7731], "bar_region": [0.3948, 0.7009, 0.6068, 0.7259],
+                  "close_pos": [0.5792, 0.3167], "title_pos": [0.4995, 0.3306]},
+    }
+
+    def api_mpos_point(self, p):
+        feat, key = str(p.get("feat", "")), str(p.get("key", ""))
+        if key not in self.MPOS_POINTS.get(feat, {}):
             return {"error": "알 수 없는 항목"}
         r = self._pick_overlay("--pick-point")
         if r.get("error"):
             return r
         with self.lock:
-            self.data.setdefault("mfish", {})[key] = [round(r["x"], 4), round(r["y"], 4)]
+            self.data.setdefault(feat, {})[key] = [round(r["x"], 4), round(r["y"], 4)]
         self._save()
-        return {"pos": self.data["mfish"][key]}
+        return {"pos": self.data[feat][key]}
 
-    def api_mfish_region(self, _):
+    def api_mpos_region(self, p):
+        feat = str(p.get("feat", ""))
+        key = self.MPOS_REGIONS.get(feat)
+        if not key:
+            return {"error": "알 수 없는 항목"}
         r = self._pick_overlay("--pick-region")
         if r.get("error"):
             return r
         with self.lock:
-            self.data.setdefault("mfish", {})["bar_region"] = r["region"]
+            self.data.setdefault(feat, {})[key] = r["region"]
         self._save()
         return {"region": r["region"]}
 
-    # 16:9 위치 템플릿 — Fish 버튼 · 릴링 바 · 결과창 X 는 Noteab/Coteab Macro(Apache-2.0)의 1920x1080 보정값을
-    # 로블록스 창 기준 비율로 바꾼 것, 결과창 제목은 결과창 X 기준으로 계산
-    MFISH_TEMPLATE = {"fish_btn": [0.4427, 0.7731], "bar_region": [0.3948, 0.7009, 0.6068, 0.7259],
-                      "close_pos": [0.5792, 0.3167], "title_pos": [0.4995, 0.3306]}
-
-    def api_mfish_template(self, _):
+    def api_mpos_template(self, p):
+        feat = str(p.get("feat", ""))
+        t = self.MPOS_TEMPLATE.get(feat)
+        if not t:
+            return {"error": "알 수 없는 항목"}
         with self.lock:
-            self.data.setdefault("mfish", {}).update(json.loads(json.dumps(self.MFISH_TEMPLATE)))
+            self.data.setdefault(feat, {}).update(json.loads(json.dumps(t)))
         self._save()
-        return {"mfish": self.data["mfish"]}
+        return {feat: self.data[feat]}
+
+    def api_mpos_copy_pop(self, _):
+        """레어 바이옴 자동 팝핑 위치 ← 스나이프 탭 오토 팝핑에 지정한 위치 그대로 복사"""
+        src = self.data.get("pop", {})
+        keys = (*self.MPOS_POINTS["mpop"], "ocr_region")
+        if not any(src.get(k) for k in keys):
+            return {"error": "스나이프 탭 오토 팝핑에 지정된 위치 없음"}
+        with self.lock:
+            mp = self.data.setdefault("mpop", {})
+            for k in keys:
+                if src.get(k):
+                    mp[k] = json.loads(json.dumps(src[k]))
+        self._save()
+        return {"mpop": self.data["mpop"]}
+
+    def api_mpop_ocr_test(self, _):
+        region = self.data.get("mpop", {}).get("ocr_region")
+        if not region:
+            return {"error": "OCR 영역 먼저 지정"}
+        try:
+            text = macro.ocr_region(region, item=True)
+        except ModuleNotFoundError:
+            return {"error": "OCR 패키지가 설치되지 않음 (run.bat 으로 실행 필요)"}
+        except Exception as e:
+            return {"error": f"OCR 오류: {e}"}
+        name, count = popping.parse_ocr(text)
+        self._on_log(f"OCR 테스트: '{text[:60]}' → 이름 '{name}' · 개수 {count}", "d")
+        return {"text": text, "name": name, "count": count, "engine": macro.ocr_engine_name()}
 
     def api_mfish_check(self, _):
         """상태 확인: 지금 화면에서 Fish 버튼 색 · 릴링 바 · 결과창 제목을 읽어서 알려줌"""
