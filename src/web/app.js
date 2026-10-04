@@ -1188,6 +1188,7 @@ const MFISH_POS = [['fish_btn', 'Fish 버튼', 'Fish / Exit 버튼 가운데 (�
   ['title_pos', '결과창 제목', '선택 · 제목 색으로 성공 / 쓰레기 / 실패 구분']];
 const MFISH_REQ = ['fish_btn', 'bar_region', 'close_pos'];
 const MFISH_TUNE = [['bite_max', '입질 최대 대기', '이 시간 동안 입질이 없으면 Exit 후 다시 던짐 (초)', 60, 5, 1],
+  ['target_pct', '목표 위치', '구간 왼쪽 끝에서 구간 폭의 몇 % 지점까지 떨어지면 누를지 · 0 = 왼쪽 끝, 50 = 가운데 · 구간 왼쪽으로 자꾸 빠지면 늘리고, 오른쪽으로 넘어가면 줄임 (%)', 10, 0, 5],
   ['lead_ms', '미리 누르기', '떨어지는 속도를 보고 이만큼 미리 누름 · 구간을 자꾸 넘어가면 늘리고, 못 따라가면 줄임 (ms)', 60, 0, 10],
   ['click_gap_ms', '클릭 최소 간격', '릴링 중 클릭 사이 최소 간격 (ms)', 45, 10, 5],
   ['result_wait', '결과창 대기', '릴링이 끝난 뒤 결과창 X 를 누르기까지 (초)', 0.8, 0, 0.1],
@@ -1257,8 +1258,10 @@ const MPOS = {
   mpop: { box: 'mposPop', points: POP_POS.map(([k, n, sub]) => [k, n, sub || '']),
           region: ['ocr_region', 'OCR 영역', '검색 결과 아이템 이름·개수 (예: Warp Potion x23)'] },
   mfish: { box: 'mposFish', points: MFISH_POS,
-           region: ['bar_region', '릴링 바 영역', '위쪽 바(파란 막대 · Ready! 가 뜨는 바)만 딱 맞게 드래그 · ◇ 표시는 자동으로 찾음'] },
+           region: ['bar_region', '릴링 바 영역', '위쪽 바(파란 막대, Ready! 가 뜨는 바)만 딱 맞게 드래그 · ◇ 표시는 자동으로 찾음'] },
 };
+const MPOS_RATIOS = [['auto', '자동 (지금 창)'], ['16:9', '16:9'], ['16:10', '16:10'], ['21:9', '21:9'], ['32:9', '32:9'], ['4:3', '4:3'], ['5:4', '5:4']];
+let mposRatio = 'auto';
 function renderMpos(feat) {
   const d = MPOS[feat], c = featCfg(feat), box = $(d.box);
   const [rk, rname, rsub] = d.region;
@@ -1267,21 +1270,28 @@ function renderMpos(feat) {
       <span class="pos"><code class="${val ? '' : 'unset'}">${fmt(val)}</code>
       <button class="btn mini ghost" type="button" ${attr}="${k}">${btn}</button></span></div>`;
   box.innerHTML = `
-    <div class="row tpl-pick"><span>위치 템플릿<small>16:9 로블록스 창(1920x1080 전체 화면 등) 기준 위치를 한 번에 채움 · 안 맞는 건 아래에서 직접 지정</small></span>
-      <span class="pos"><button class="btn mini" type="button" data-mpos-tpl>16:9 적용</button></span></div>` +
+    <div class="row tpl-pick"><span>위치 템플릿<small>화면 비율에 맞는 기본 위치를 한 번에 채움 · 자동 = 지금 로블록스 창 크기로 계산 · 16:9 말고는 추정값이라 안 맞는 건 아래에서 직접 지정</small></span>
+      <span class="pos"><select data-mpos-ratio>${MPOS_RATIOS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select>
+      <button class="btn mini" type="button" data-mpos-tpl>적용</button></span></div>` +
     d.points.map(([k, name, sub]) => row(k, `${name} 위치`, sub, c[k], fmtPos, '위치 지정', 'data-mpos-pick')).join('') +
     row(rk, rname, rsub, c[rk], fmtReg, '드래그로 지정', 'data-mpos-region');
+  const sel = box.querySelector('[data-mpos-ratio]');
+  sel.value = mposRatio;
+  sel.addEventListener('change', () => { mposRatio = sel.value; });
   box.querySelector('[data-mpos-tpl]').addEventListener('click', async e => {
     const b = e.currentTarget;
     const set = [...d.points.map(x => x[0]), rk].some(k => c[k]);
     if (set && !(b._armed > Date.now())) {             // 이미 지정한 게 있으면 한 번 더 눌러야 덮어씀
       b._armed = Date.now() + 3000; b.textContent = '한 번 더 누르면 덮어쓰기';
-      setTimeout(() => { b.textContent = '16:9 적용'; b._armed = 0; }, 3000);
+      setTimeout(() => { b.textContent = '적용'; b._armed = 0; }, 3000);
       return;
     }
-    const r = await api('mpos_template', { feat });
+    const ratio = box.querySelector('[data-mpos-ratio]').value;
+    mposRatio = ratio;
+    const r = await api('mpos_template', { feat, ratio });
     if (r.error) return toast(r.error);
-    Object.assign(c, r[feat]); mposChanged(feat); toast('16:9 템플릿 적용');
+    Object.assign(c, r[feat]); mposChanged(feat);
+    toast(r.guess ? `${r.label} 템플릿 적용 · 추정값이라 [상태 확인] 으로 확인` : `${r.label} 템플릿 적용`);
   });
   box.querySelectorAll('[data-mpos-pick]').forEach(b => b.addEventListener('click', async () => {
     const k = b.dataset.mposPick, name = d.points.find(x => x[0] === k)[1];

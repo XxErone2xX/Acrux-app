@@ -583,15 +583,44 @@ class Bridge:
         self._save()
         return {"region": r["region"]}
 
+    # 화면 비율 — 로블록스 UI 는 화면 높이에 맞춰 커지고, 낚시 창 · 결과창 · 인벤토리 창은 가로 가운데 기준,
+    # Inventory 버튼(왼쪽 메뉴)은 왼쪽 끝 기준이라고 보고 16:9 값을 바꿈 (16:9 가 아닌 비율은 추정값)
+    MPOS_RATIOS = {"16:9": 16 / 9, "16:10": 16 / 10, "21:9": 21 / 9, "32:9": 32 / 9, "4:3": 4 / 3, "5:4": 5 / 4}
+    MPOS_LEFT = {"inventory_pos"}
+
+    @classmethod
+    def _mpos_scaled(cls, feat, aspect):
+        k = (16 / 9) / aspect
+
+        def fx(key, x):
+            v = x * k if key in cls.MPOS_LEFT else 0.5 + (x - 0.5) * k
+            return round(min(1.0, max(0.0, v)), 4)
+        out = {}
+        for key, v in cls.MPOS_TEMPLATE[feat].items():
+            out[key] = ([fx(key, v[0]), v[1], fx(key, v[2]), v[3]] if len(v) == 4 else [fx(key, v[0]), v[1]])
+        return out
+
     def api_mpos_template(self, p):
         feat = str(p.get("feat", ""))
-        t = self.MPOS_TEMPLATE.get(feat)
-        if not t:
+        if feat not in self.MPOS_TEMPLATE:
             return {"error": "알 수 없는 항목"}
+        ratio = str(p.get("ratio") or "16:9")
+        if ratio == "auto":                       # 지금 로블록스 창 크기로
+            hwnd = macro.roblox_window_cached(1.0)
+            rect = macro.client_rect(hwnd) if hwnd else None
+            if not rect or rect[3] <= 0:
+                return {"error": "로블록스 창 없음 — 화면 비율을 직접 고르세요"}
+            aspect = rect[2] / rect[3]
+            label = f"{rect[2]}x{rect[3]}"
+        elif ratio in self.MPOS_RATIOS:
+            aspect, label = self.MPOS_RATIOS[ratio], ratio
+        else:
+            return {"error": "알 수 없는 화면 비율"}
+        t = self._mpos_scaled(feat, aspect)
         with self.lock:
-            self.data.setdefault(feat, {}).update(json.loads(json.dumps(t)))
+            self.data.setdefault(feat, {}).update(t)
         self._save()
-        return {feat: self.data[feat]}
+        return {feat: self.data[feat], "label": label, "guess": abs(aspect - 16 / 9) > 0.02}
 
     def api_mpos_copy_pop(self, _):
         """레어 바이옴 자동 팝핑 위치 ← 스나이프 탭 오토 팝핑에 지정한 위치 그대로 복사"""
