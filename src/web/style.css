@@ -417,6 +417,12 @@ table.events { width: 100%; border-collapse: collapse; font-size: 13px; table-la
 .tpl-row .ib .ico { width: 14px; height: 14px; }
 .tpl select[data-mode] { min-width: 230px; }
 .sec-head [data-pop-default] { margin-left: auto; margin-right: 8px; }
+/* 매크로 탭 · 레어 바이옴 자동 팝핑 */
+.sec-head .mpop-status { margin: 0 12px 0 auto; }
+.mpop-tpl-head { margin-top: 6px; }
+.mpop-tpl-head h3 { margin: 0; font-size: 15px; }
+.sec-head [data-mpop-default] { margin-left: auto; margin-right: 8px; }
+.row .warn { color: var(--yellow); }
 
 /* 복귀 후 동작 (초록) */
 #page-return .step { border-left-color: var(--green); }

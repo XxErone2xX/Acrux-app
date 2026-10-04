@@ -81,10 +81,13 @@ class Bridge:
         core.Bus.on_joined = self._on_joined
         # 바이옴 매크로: 로그는 항상 읽고(현재 바이옴 표시), 웹후크는 바이옴 매크로 토글이 켜져 있을 때만 (시작 버튼과 무관)
         self.biome = biome.BiomeWatcher(lambda: self.data.get("biome", {}),
-                                        lambda: bool(self.data.get("biome", {}).get("enabled")))
-        self.biome.start()
+                                        lambda: bool(self.data.get("biome", {}).get("enabled")),
+                                        on_change=self._on_biome_change)
         # 오토 팝핑: Play 버튼 자동 클릭
         self.pop = popping.Popper(lambda: self.data.get("pop", {}), self._on_log, on_end=self._on_pop_end)
+        # 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버)
+        self.mpop = popping.MyServerPopper(lambda: self.data.get("pop", {}), lambda: self.data.get("mpop", {}),
+                                           self._on_log)
         self.play = rejoin.PlayClicker(lambda: self.data.get("play", {}), self._on_log,
                                        on_ingame=self._on_ingame, on_fail=self._on_play_fail)
         # 매크로 복귀: 로블록스 전부 종료 → 1초 → 내 브섭 링크 → Play
@@ -96,6 +99,7 @@ class Bridge:
         self.steps = stepmod.StepRunner(lambda: self.data.get("ret", {}).get("steps", []), self._on_log)
         self.ret = rejoin.Returner(lambda: self.data.get("ret", {}), self._on_log, self.play,
                                    kill=core.kill_roblox, launch=core.open_link)
+        self.biome.start()                  # 바이옴 변경 콜백이 위 실행기들을 쓰므로 맨 마지막에 시작
 
     # 엔진 콜백 (작업 스레드에서 옴)
     def _next(self):
@@ -194,7 +198,7 @@ class Bridge:
                     seen, gone_since = False, None
                 now = time.time()
                 present = bool(macro.roblox_window_cached(0.5))
-                busy = (self.ret.running() or self.play.running() or self.pop.running()
+                busy = (self.ret.running() or self.play.running() or self.pop.running() or self.mpop.running()
                         or self.pre.running() or now < core.EXPECT_CLOSE["until"])
                 if present:
                     seen, gone_since = True, None
@@ -243,6 +247,7 @@ class Bridge:
         since = int(p.get("since", 0))
         roblox = bool(macro.roblox_window_cached(2.0))     # 창 검색은 잠금 밖에서, 2초 동안 재사용
         play, bio, pop, ret = self.play.snapshot(), self.biome.state(), self.pop.snapshot(), self.ret.snapshot()
+        mpop = self.mpop.snapshot()
         st = self.steps.snapshot()
         pre = self.pre.snapshot()
         with self.lock:
@@ -250,7 +255,7 @@ class Bridge:
             events = [dict(e, seq=s) for s, e in self.events if s > since]
             return {"seq": self.seq, "logs": logs, "events": events, "status": list(self.status),
                     "running": self.running(), "armed": core.ARMED.is_set(),
-                    "play": play, "pop": pop, "ret": ret, "steps": st, "pre": pre, "roblox": roblox,
+                    "play": play, "pop": pop, "ret": ret, "mpop": mpop, "steps": st, "pre": pre, "roblox": roblox,
                     "crash": {"left": max(0.0, self.crash["until"] - time.time())} if self.crash else None,
                     "biome": bio,
                     "count": self.handler.count, "names": self.data.get("names", {}),
@@ -301,6 +306,7 @@ class Bridge:
         """로블록스 실행 직후: 항상 Play 버튼 클릭 시작 (위치가 없으면 로그만 남김)
         다른 사람 서버로 들어가는 것이라, 그 접속 동안은 바이옴 웹후크를 보내지 않음"""
         self.pop.stop()
+        self.mpop.stop()
         self.ret.stop()
         self.biome.mute_next_session()
         self.play.start("서버 접속")
@@ -316,6 +322,25 @@ class Bridge:
     def _on_play_fail(self, reason):
         if reason == "서버 접속":           # 스나이핑한 서버에 못 들어감 → 복귀
             self.ret.start("접속 실패")
+
+    def _on_biome_change(self, prev, found, sniping):
+        """매크로 탭 · 레어 바이옴 자동 팝핑: 지금 켜져 있는 로블록스(내 서버)에서 레어 바이옴이 시작되면 포션 사용
+        스나이핑으로 들어간 다른 사람 서버이거나, 오토 팝핑 · 복귀 · Play 클릭이 도는 중이면 안 함"""
+        mp = self.data.get("mpop", {})
+        if not mp.get("enabled") or found not in popping.POP_BIOMES:
+            return
+        if sniping:
+            self._on_log(f"{found} 감지 — 스나이핑 접속이라 내 서버 팝핑 안 함", "d")
+            return
+        if self.pop.running() or self.ret.running() or self.play.running() or self.pre.running():
+            self._on_log(f"{found} 감지 — 다른 매크로가 도는 중이라 내 서버 팝핑 안 함", "y")
+            return
+        if not (mp.get("biomes_on") or {}).get(found, True):
+            self._on_log(f"{found} 감지 — 매크로 탭 팝핑 바이옴에서 꺼져 있음", "y")
+            return
+        if not macro.roblox_window_cached(1.0):
+            return                          # 옛 로그 파일 (로블록스가 꺼져 있음)
+        self.mpop.start(found)
 
     def _on_pop_end(self, stopped):
         if not stopped:                     # 바이옴 종료·접속 끊김 등으로 끝남 → 복귀 (직접 멈춘 경우 제외)
@@ -446,6 +471,32 @@ class Bridge:
             return {"error": "포션 목록이 비어 있음"}
         self.play.stop()
         self.pop.start(test_biome=b)
+        return {"ok": True}
+
+    # ---------------- 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버) ----------------
+    def api_mpop_default(self, p):
+        b = str(p.get("biome", "")).upper()
+        if b not in core.POP_TEMPLATES:
+            return {"error": "알 수 없는 바이옴"}
+        tpl = json.loads(json.dumps(core.POP_TEMPLATES[b]))
+        with self.lock:
+            self.data.setdefault("mpop", {}).setdefault("templates", {})[b] = tpl
+        self._save()
+        return {"template": self.data["mpop"]["templates"][b]}
+
+    def api_mpop_test(self, p):
+        b = str(p.get("biome", "")).upper()
+        miss = popping.Popper.missing(self.data.get("pop", {}))
+        if miss:
+            return {"error": "오토 팝핑 설정 필요: " + ", ".join(miss)}
+        if not [i for i in ((self.data.get("mpop", {}).get("templates") or {}).get(b) or {}).get("items", [])
+                if i.get("name")]:
+            return {"error": "포션 목록이 비어 있음"}
+        self.mpop.start(b, test=True)
+        return {"ok": True}
+
+    def api_mpop_stop(self, _):
+        self.mpop.stop()
         return {"ok": True}
 
     def api_play_pos(self, p):

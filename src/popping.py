@@ -263,26 +263,8 @@ class Popper:
                 self.log(f"오토 팝핑 안 함 — 현재 바이옴 {cur or '알 수 없음'} (템플릿 없음)", "y")
                 return
             self.log(f"오토 팝핑 시작 — {cur}", "g")
-        tpl = templates.get(cur) or {}
-        items = [it for it in (tpl.get("items") or []) if it.get("name")]
-        if not items:
-            self.log(f"{cur} 템플릿에 포션이 없음", "y")
+        if self._use_template(cfg, d, cur, stop) is None:
             return
-
-        self._set(msg="Inventory 열기")
-        self._click(cfg["inventory_pos"], stop)
-        self._wait(d["inventory"], stop)
-        self._click(cfg["items_pos"], stop)
-        self._wait(d["items"], stop)
-
-        one = tpl.get("mode") == "one"        # 위에서부터 조건 맞는 하나만
-        used = 0
-        for it in items:
-            if self._use_item(cfg, d, it, stop):
-                used += 1
-                if one:
-                    break
-        self.log(f"오토 팝핑 완료 — {cur} · {used}/{1 if one else len(items)}개 사용", "g")
 
         if test_biome:
             return
@@ -302,6 +284,30 @@ class Popper:
             if gone >= 5:                       # 로블록스가 꺼짐
                 self.log("로블록스 창이 사라짐 — 오토 팝핑 종료", "y")
                 return
+
+    def _use_template(self, cfg, d, cur, stop, label="오토 팝핑"):
+        """Inventory → Items → 템플릿 포션 순서대로 사용. 사용한 개수 (포션 목록이 비면 None)"""
+        tpl = (cfg.get("templates") or {}).get(cur) or {}
+        items = [it for it in (tpl.get("items") or []) if it.get("name")]
+        if not items:
+            self.log(f"{cur} 템플릿에 포션이 없음", "y")
+            return None
+
+        self._set(msg="Inventory 열기")
+        self._click(cfg["inventory_pos"], stop)
+        self._wait(d["inventory"], stop)
+        self._click(cfg["items_pos"], stop)
+        self._wait(d["items"], stop)
+
+        one = tpl.get("mode") == "one"        # 위에서부터 조건 맞는 하나만
+        used = 0
+        for it in items:
+            if self._use_item(cfg, d, it, stop):
+                used += 1
+                if one:
+                    break
+        self.log(f"{label} 완료 — {cur} · {used}/{1 if one else len(items)}개 사용", "g")
+        return used
 
     def _use_item(self, cfg, d, it, stop):
         name = it["name"].strip()
@@ -349,3 +355,64 @@ class Popper:
         self._click(cfg["use_pos"], stop)
         self.log(f"{name} {use}개 사용", "g")
         return True
+
+
+# ---------------------------------------------------------------- 매크로 탭: 내 서버 팝핑
+class MyServerPopper(Popper):
+    """지금 켜져 있는 로블록스(내 서버)에서 레어 바이옴이 감지되면 바로 포션 사용
+    - 버튼 위치 · OCR · 딜레이 · 일치율은 오토 팝핑(pop) 설정을 같이 씀, 포션 목록 · 켜진 바이옴은 따로(mpop)
+    - 바이옴이 끝날 때까지 기다리거나 매크로 복귀로 이어지지 않음 (내 서버에 그대로 있음)"""
+
+    LABEL = "레어 바이옴 자동 팝핑"
+
+    def __init__(self, get_pop, get_mpop, log):
+        super().__init__(lambda: self._merged(), log)
+        self.get_pop, self.get_mpop = get_pop, get_mpop
+
+    def _merged(self):
+        cfg = dict(self.get_pop() or {})
+        mp = self.get_mpop() or {}
+        cfg["templates"] = mp.get("templates") or {}
+        cfg["biomes_on"] = mp.get("biomes_on") or {}
+        return cfg
+
+    def start(self, biome_name, test=False):
+        if self.running():
+            if test:
+                self.stop()
+                self.thread.join(3)
+            else:
+                return False                   # 이미 쓰는 중이면 겹쳐서 실행하지 않음
+        self.stop_ev = threading.Event()
+        self.thread = threading.Thread(target=self._run_my, args=(biome_name, test, self.stop_ev), daemon=True)
+        self.thread.start()
+        return True
+
+    def _run_my(self, cur, test, stop):
+        cfg = self._merged()
+        mp = self.get_mpop() or {}
+        d = dict(DELAY_DEFAULT, **(cfg.get("delays") or {}))
+        miss = self.missing(cfg)
+        try:
+            if miss:
+                self.log(f"{self.LABEL} 취소 — 오토 팝핑 설정 필요: {', '.join(miss)}", "y")
+                return
+            with macro.fast_timing():
+                if test:
+                    self.log(f"{self.LABEL} 테스트 — {cur} 템플릿", "c")
+                else:
+                    self.log(f"{self.LABEL} 시작 — {cur} (내 서버)", "g")
+                    wait = float(mp.get("start_delay", 1.0))
+                    self._set(msg=f"시작 전 대기 {wait:g}초")
+                    self._wait(wait, stop)
+                used = self._use_template(cfg, d, cur, stop, label=self.LABEL)
+                if used is not None and mp.get("close_inventory", True):
+                    self._wait(d["after_enter"], stop)
+                    self._set(msg="Inventory 닫기")
+                    self._click(cfg["inventory_pos"], stop)
+        except Stopped:
+            self.log(f"{self.LABEL} 정지", "d")
+        except Exception as e:
+            self.log(f"{self.LABEL} 오류: {e}", "r")
+        finally:
+            self._set(msg="대기")

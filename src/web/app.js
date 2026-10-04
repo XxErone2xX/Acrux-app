@@ -334,6 +334,7 @@ async function openPage(key) {
   page.classList.add('reveal');
   hideDeco();
   if (key === 'log') scrollLog(true);
+  if (key === 'mfeat') renderMpop();          // 플레이어 이름 · 버튼 위치가 바뀌었을 수 있음
   shell.getAnimations().forEach(x => x.cancel());
   fly.getAnimations().forEach(x => x.cancel());
   shell.style.display = 'none';
@@ -749,6 +750,7 @@ async function poll() {
     updateRet(r.ret, r.play);
     updateSteps(r.steps, r.pre);
     updateBiome(r.biome);
+    updateMpop(r.mpop);
     r.events.forEach(addEventRow);
     const nm = JSON.stringify([r.names, r.channels]);
     if (nm !== lastNames) { lastNames = nm; config.names = r.names; config.channels = r.channels; renderLists(); }
@@ -988,10 +990,12 @@ function renderPopDelays() {
   }));
 }
 
-function renderTemplate(b) {
-  const tpls = (pop().templates ||= {});
+// src: 설정 묶음 (오토 팝핑 pop / 매크로 탭 mpop) · save: 저장 · attr: 템플릿 칸 표시
+function renderTemplate(b, src = pop, save = savePop, attr = 'data-tpl') {
+  const tpls = (src().templates ||= {});
   const t = (tpls[b] ||= { mode: 'all', items: [] });
-  const box = document.querySelector(`.tpl[data-tpl="${b}"]`);
+  const box = document.querySelector(`.tpl[${attr}="${b}"]`);
+  const again = () => renderTemplate(b, src, save, attr);
   box.innerHTML = `
     <label class="row"><span>사용 방식<small>목록 위쪽일수록 먼저 · 목록이 비어 있으면 이 바이옴에선 오토 팝핑 안 함</small></span>
       <select data-mode><option value="all">목록 전부 순서대로</option><option value="one">위에서부터 조건 맞는 하나만</option></select></label>
@@ -1000,7 +1004,7 @@ function renderTemplate(b) {
       <span class="hint">최소 보유: OCR 로 읽은 개수가 이보다 적으면 그 포션은 건너뜀</span></div>`;
   const sel = box.querySelector('[data-mode]');
   sel.value = t.mode === 'one' ? 'one' : 'all';
-  sel.addEventListener('change', () => { t.mode = sel.value; savePop(); });
+  sel.addEventListener('change', () => { t.mode = sel.value; save(); });
   const list = box.querySelector('.tpl-list');
   if (!t.items.length) list.innerHTML = '<div class="empty">포션 없음 · 아래 버튼으로 추가</div>';
   t.items.forEach((it, i) => {
@@ -1017,26 +1021,26 @@ function renderTemplate(b) {
     const [nameI, modeS, amtI, minI] = [row.querySelector('.tpl-name'), row.querySelector('.tpl-amt-mode'),
       row.querySelector('.tpl-amt'), row.querySelector('.tpl-min input')];
     modeS.value = all ? 'all' : 'n';
-    nameI.addEventListener('input', () => { it.name = nameI.value; savePop(); });
+    nameI.addEventListener('input', () => { it.name = nameI.value; save(); });
     modeS.addEventListener('change', () => {
       it.amount = modeS.value === 'all' ? 'ALL' : Math.max(1, parseInt(amtI.value, 10) || 1);
-      amtI.disabled = modeS.value === 'all'; savePop();
+      amtI.disabled = modeS.value === 'all'; save();
     });
-    amtI.addEventListener('input', () => { const n = parseInt(amtI.value, 10); if (n >= 1) { it.amount = n; savePop(); } });
-    minI.addEventListener('input', () => { const n = parseInt(minI.value, 10); if (n >= 1) { it.min_have = n; savePop(); } });
+    amtI.addEventListener('input', () => { const n = parseInt(amtI.value, 10); if (n >= 1) { it.amount = n; save(); } });
+    minI.addEventListener('input', () => { const n = parseInt(minI.value, 10); if (n >= 1) { it.min_have = n; save(); } });
     row.querySelectorAll('.ib').forEach(btn => btn.addEventListener('click', () => {
       const a = btn.dataset.a, L = t.items;
       if (a === 'up' && i > 0) [L[i - 1], L[i]] = [L[i], L[i - 1]];
       else if (a === 'down' && i < L.length - 1) [L[i + 1], L[i]] = [L[i], L[i + 1]];
       else if (a === 'del') L.splice(i, 1);
       else return;
-      savePop(); renderTemplate(b); Tutorial.refresh();
+      save(); again(); Tutorial.refresh();
     }));
     list.appendChild(row);
   });
   box.querySelector('[data-add]').addEventListener('click', () => {
     t.items.push({ name: '', amount: 'ALL', min_have: 1 });
-    savePop(); renderTemplate(b); Tutorial.refresh();
+    save(); again(); Tutorial.refresh();
     box.querySelector('.tpl-row:last-child .tpl-name')?.focus();
   });
 }
@@ -1057,7 +1061,7 @@ function fillPop() {
   renderPopSet();
   renderPopBiomes();
   renderPopDelays();
-  POP_BIOMES.forEach(renderTemplate);
+  POP_BIOMES.forEach(b => renderTemplate(b));
 }
 document.querySelectorAll('[data-pop-default]').forEach(b => b.addEventListener('click', async () => {
   const bio = b.dataset.popDefault;
@@ -1071,6 +1075,67 @@ document.querySelectorAll('[data-pop-test]').forEach(b => b.addEventListener('cl
   const r = await api('pop_test', { biome: b.dataset.popTest });
   toast(r.error || '오토 팝핑 테스트 시작 · 인벤토리 열기부터 · 정지: 위쪽 [정지] 또는 F7');
 }));
+
+// ---------------------------------------------------------------- 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버)
+// 포션 목록 · 켜진 바이옴은 따로(mpop), 버튼 위치 · OCR · 딜레이는 오토 팝핑(pop) 설정을 같이 씀
+const mpop = () => (config.mpop ||= {});
+const saveMpop = () => queueSave({ mpop: JSON.parse(JSON.stringify(mpop())) });
+const POP_POS_KEYS = ['inventory_pos', 'items_pos', 'search_pos', 'item_pos', 'amount_pos', 'use_pos', 'ocr_region'];
+function renderMpop() {
+  const m = mpop(), on = (m.biomes_on ||= {});
+  const player = ((config.biome || {}).player || '').trim();
+  const posMiss = POP_POS_KEYS.filter(k => !pop()[k]).length;
+  const label = { CYBERSPACE: 'Cyberspace', GLITCHED: 'Glitched', DREAMSPACE: 'Dreamspace' };
+  $('mpopForm').innerHTML = `
+    <label class="row"><span>켜기<small>켜져 있는 동안 레어 바이옴이 감지되면 아래 포션 목록대로 사용 (시작 버튼과 무관)</small></span>
+      <span class="switch"><input type="checkbox" id="mpopOn" ${m.enabled ? 'checked' : ''}><i></i></span></label>
+    <div class="row"><span>플레이어 이름<small>바이옴 감지에 필요 · 바이옴 매크로 설정 → 기본 설정에서 입력</small></span>
+      <span class="${player ? '' : 'warn'}">${player ? esc(player) : '입력 안 됨 — 바이옴 감지 안 됨'}</span></div>
+    <div class="row"><span>버튼 위치 · OCR · 딜레이<small>오토 팝핑 매크로 설정(스나이프 탭)에 지정한 것을 같이 씀</small></span>
+      <span class="${posMiss ? 'warn' : ''}">${posMiss ? `${posMiss}개 지정 안 됨` : '지정됨'}</span></div>
+    <label class="row"><span>시작 전 대기<small>바이옴 감지 후 인벤토리를 열기까지 (초) · 기본 1</small></span>
+      <input type="number" min="0" max="60" step="0.5" id="mpopDelay" value="${m.start_delay ?? 1}"></label>
+    <label class="row"><span>다 쓰고 인벤토리 닫기<small>Inventory 버튼을 한 번 더 눌러 닫음</small></span>
+      <span class="switch"><input type="checkbox" id="mpopClose" ${m.close_inventory !== false ? 'checked' : ''}><i></i></span></label>` +
+    POP_BIOMES.map(b => `
+    <label class="row"><span>${label[b]}<small>켜져 있어야 이 바이옴에서 팝핑 · 포션 목록은 아래</small></span>
+      <span class="switch"><input type="checkbox" data-mpop-on="${b}" ${on[b] !== false ? 'checked' : ''}><i></i></span></label>`).join('');
+  $('mpopOn').addEventListener('change', e => {
+    m.enabled = e.target.checked; saveMpop();
+    toast(m.enabled ? '레어 바이옴 자동 팝핑 켜짐' : '레어 바이옴 자동 팝핑 꺼짐');
+  });
+  $('mpopDelay').addEventListener('input', e => {
+    const n = parseFloat(e.target.value);
+    if (n >= 0 && n <= 60) { m.start_delay = n; saveMpop(); }
+  });
+  $('mpopClose').addEventListener('change', e => { m.close_inventory = e.target.checked; saveMpop(); });
+  $('mpopForm').querySelectorAll('[data-mpop-on]').forEach(i => i.addEventListener('change', () => {
+    on[i.dataset.mpopOn] = i.checked; saveMpop();
+  }));
+}
+function fillMpop() {
+  renderMpop();
+  POP_BIOMES.forEach(b => renderTemplate(b, mpop, saveMpop, 'data-mtpl'));
+}
+function updateMpop(st) {
+  const running = !!(st && st.running);
+  $('mpopDot').dataset.s = running ? 'flux' : '';
+  $('mpopState').textContent = running ? (st.msg || '실행 중') : '대기';
+  document.querySelectorAll('[data-mpop-test]').forEach(b => { b.disabled = running; });
+}
+document.querySelectorAll('[data-mpop-default]').forEach(b => b.addEventListener('click', async () => {
+  const bio = b.dataset.mpopDefault;
+  const r = await api('mpop_default', { biome: bio });
+  if (r.error) return toast(r.error);
+  (mpop().templates ||= {})[bio] = r.template;
+  renderTemplate(bio, mpop, saveMpop, 'data-mtpl');
+  toast('기본 템플릿으로 되돌림');
+}));
+document.querySelectorAll('[data-mpop-test]').forEach(b => b.addEventListener('click', async () => {
+  const r = await api('mpop_test', { biome: b.dataset.mpopTest });
+  toast(r.error || '레어 바이옴 자동 팝핑 테스트 시작 · 인벤토리 열기부터 · 정지: 위쪽 [정지] 또는 F7');
+}));
+$('mpopStop').addEventListener('click', () => api('mpop_stop'));
 
 // ---------------------------------------------------------------- 스나이핑 안정성
 const snipe = () => (config.snipe ||= {});
@@ -2091,6 +2156,7 @@ const Tutorial = (() => {
   fillSnipe();
   fillSteps();
   fillBiome();
+  fillMpop();
   renderSummary();
   setStatus(s.status);
   armed = !!s.armed;

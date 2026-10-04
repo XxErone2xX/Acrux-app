@@ -201,8 +201,9 @@ def fmt_uptime(sec):
 class BiomeWatcher:
     """1초마다 최신 로그의 새 줄을 읽어서 바이옴 변화를 감지"""
 
-    def __init__(self, get_cfg, is_active, log_dir=None):
+    def __init__(self, get_cfg, is_active, log_dir=None, on_change=None):
         self.get_cfg = get_cfg          # () -> biome 설정 dict
+        self.on_change = on_change      # (이전, 새 바이옴, 스나이핑 접속인지) — 바이옴이 바뀔 때마다 (웹후크와 무관)
         self.is_active = is_active      # () -> 웹후크를 보낼 상태인지 (바이옴 매크로 토글 켜짐)
         self.log_dir = log_dir
         self.current = None             # 지금 바이옴 (예: 'GLITCHED')
@@ -341,6 +342,11 @@ class BiomeWatcher:
         self.history.append((time.time(), found))
         self.history = self.history[-50:]
         _log(f"바이옴: {prev or '-'} → {found}", "g" if found in RARE_BIOMES else "c")
+        if self.on_change:
+            try:
+                self.on_change(prev, found, self.muted())
+            except Exception as e:
+                _log(f"바이옴 변경 처리 오류: {e}", "r")
 
         # 앱을 켜거나 이름을 바꾼 직후 읽은 기존 기록이면 알림 없이 현재 바이옴만 맞춤
         if fresh and prev is None:
