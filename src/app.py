@@ -482,12 +482,15 @@ class Bridge:
         region = self.data.get("pop", {}).get("ocr_region")
         if not region:
             return {"error": "OCR 영역 먼저 지정"}
+        back = macro.foreground()
         try:
             text = macro.ocr_region(region, item=True)
         except ModuleNotFoundError:
             return {"error": "OCR 패키지가 설치되지 않음 (run.bat 으로 실행 필요)"}
         except Exception as e:
             return {"error": f"OCR 오류: {e}"}
+        finally:
+            macro.focus_back(back)
         name, count = popping.parse_ocr(text)
         target = str(p.get("name") or "")
         score = popping.similarity(name, target) if target else None
@@ -608,12 +611,15 @@ class Bridge:
         region = self.data.get("mpop", {}).get("ocr_region")
         if not region:
             return {"error": "OCR 영역 먼저 지정"}
+        back = macro.foreground()
         try:
             text = macro.ocr_region(region, item=True)
         except ModuleNotFoundError:
             return {"error": "OCR 패키지가 설치되지 않음 (run.bat 으로 실행 필요)"}
         except Exception as e:
             return {"error": f"OCR 오류: {e}"}
+        finally:
+            macro.focus_back(back)
         name, count = popping.parse_ocr(text)
         self._on_log(f"OCR 테스트: '{text[:60]}' → 이름 '{name}' · 개수 {count}", "d")
         return {"text": text, "name": name, "count": count, "engine": macro.ocr_engine_name()}
@@ -622,7 +628,12 @@ class Bridge:
         """상태 확인: 지금 화면에서 Fish 버튼 색 · 릴링 바 · 결과창 제목을 읽어서 알려줌"""
         mf = self.data.get("mfish", {})
         hwnd = macro.roblox_window_cached(1.0)
-        rect = macro.client_rect(hwnd) if hwnd else None
+        if not hwnd:
+            return {"error": "로블록스 창 없음"}
+        # Acrux 창이 로블록스를 가리면 Acrux 화면을 읽게 됨 → 로블록스를 맨 앞으로 띄우고 확인 후 Acrux 로 돌아옴
+        back = macro.foreground()
+        macro.focus(hwnd, wait=0.35)
+        rect = macro.client_rect(hwnd)
         if not rect:
             return {"error": "로블록스 창 없음"}
         try:
@@ -644,6 +655,8 @@ class Bridge:
             return out
         except Exception as e:
             return {"error": f"확인 실패: {e}"}
+        finally:
+            macro.focus_back(back)
 
     def api_mfish_stop(self, _):
         self.fisher.stop()
