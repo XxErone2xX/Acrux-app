@@ -4,9 +4,8 @@
 상태 기계: 매번 화면을 보고 지금 상태를 정한 뒤 그 상태에 맞는 행동만 함 → 클릭 하나를 놓치거나 화면이 늦게 바뀌어도 다음 번에 바로잡힘
   · 대기(파란 Fish)  → Fish 클릭 · 1.5초 안에 안 바뀌면 다시 · cast_retry 번 넘으면 인벤토리 가득
   · 입질 대기(빨간 Exit) → 기다림 · bite_max 초 넘거나 다른 기능이 자리를 달라 하면 Exit
-  · 릴링(릴링 바가 보임) → 릴링 → 결과창 대기 → 결과 기록 → X
-  · 결과창(제목 색이 보임) → X
-  · 알 수 없음 3초 이상 → X 한 번 (가린 창 닫기)
+  · 릴링(릴링 바가 보임) → 릴링 → Fish 버튼이 다시 보일 때까지 결과창 X 를 0.1초마다 (그 사이 제목 색으로 결과 기록)
+  · 알 수 없음 3초 이상 → X 한 번 (처음부터 결과창이 떠 있던 경우 등)
 - 상태는 화면 픽셀 색으로만 판단 (가운데 문구는 랜덤이라 안 읽음)
   · 릴링 바: 왼쪽부터 차는 청록 막대 끝(◇ 표시) = 내 위치, 청록도 바탕(검정)도 아닌 색 덩어리 = 물고기 구간(색은 매번 랜덤)
     막대와 구간이 겹친 부분은 구간 색이 밝게 보임 · 클릭하면 내 위치가 오른쪽으로, 안 누르면 왼쪽으로 떨어짐
@@ -26,11 +25,12 @@ DEFAULTS = {
     "deadband": 0.0,       # 목표 위치에서 이만큼(바 폭 비율) 더 왼쪽에 있어야 누름
     "click_ms": 25,        # 한 번 누르는 시간 (ms)
     "click_gap_ms": 45,    # 클릭 사이 최소 간격 (ms)
-    "result_wait": 1.3,    # 릴링이 끝난 뒤 결과창 X 를 누르기까지 (초)
     "cast_retry": 3,       # Fish 를 눌러도 안 바뀌면 다시 누르는 횟수 (넘으면 인벤토리 가득)
     "debug_log": False,    # 릴링 기록(fishing_log.csv) 저장 — 문제 확인용
 }
 REEL_FRAME = 0.008       # 릴링 중 화면 읽는 최소 간격 (초)
+FINISH_GAP = 0.1         # 낚은 뒤 Fish 버튼이 다시 보일 때까지 결과창 X 를 누르는 간격 (초)
+FINISH_MAX = 10.0        # 그래도 Fish 버튼이 안 보이면 이 시간 뒤 다시 상태 확인부터
 POS_KEYS = (("fish_btn", "Fish 버튼"), ("close_pos", "결과창 X"), ("title_pos", "결과창 제목"))
 
 # 창 영역 → 안쪽 위치 (창 영역 안에서의 비율 · 0 = 왼쪽/위, 1 = 오른쪽/아래)
@@ -319,7 +319,9 @@ class Fisher:
             self.holding.clear()
 
     def _read_state(self, sct, rect, cfg):
-        """지금 화면 → 'reel' / 'idle'(Fish) / 'wait'(Exit) / 'result' / None(알 수 없음)"""
+        """지금 화면 → 'reel' / 'idle'(Fish) / 'wait'(Exit) / None(알 수 없음)
+        결과창은 여기서 판단하지 않음 — 입질 → 미니게임으로 넘어가는 순간엔 버튼도 바도 안 보여서 결과창 제목 자리에
+        하늘 등이 보이는데, 이걸 결과창(회색 = 쓰레기)으로 잘못 보고 X 를 누르던 문제가 있었음 → 결과창은 릴링이 끝난 뒤에만 다룸"""
         img = sct.grab(self._band_box(rect, cfg["bar_region"]))
         if bar_present(_np(bytes(img.bgra), img.width, img.height)):
             return "reel"
@@ -328,8 +330,6 @@ class Fisher:
             return "idle"
         if st == "exit":
             return "wait"
-        if cfg.get("title_pos") and classify_title(self._grab_box(sct, rect, cfg["title_pos"], 0.12, 0.05)):
-            return "result"
         return None
 
     def _loop(self, sct, stop):
@@ -348,14 +348,10 @@ class Fisher:
 
             if st == "reel":
                 cast_at, tries = None, 0
+                # 결과창 제목 자리의 '결과창이 없을 때' 모습 (릴링 중엔 결과창이 없고, 낚시 중엔 카메라가 안 움직임)
+                base = self._grab_box(sct, rect, cfg["title_pos"], 0.12, 0.05) if cfg.get("title_pos") else None
                 self._reel(sct, rect, cfg, stop)
-                self._finish(sct, cfg, stop)
-                continue
-
-            if st == "result":                       # 결과창이 남아 있음 (X 를 놓쳤거나 늦게 뜸)
-                self._set(msg="결과창 닫기")
-                self._click_ratio(cfg["close_pos"], stop)
-                self._wait(0.6, stop)
+                self._finish(sct, cfg, stop, base)
                 continue
 
             if st == "wait":                         # 던졌음 → 입질 기다리는 중
@@ -406,21 +402,31 @@ class Fisher:
         self.stop_ev.set()
         raise Stopped()
 
-    def _finish(self, sct, cfg, stop):
-        """릴링이 끝난 뒤: 결과창이 뜰 때까지 기다림 → 제목 색으로 결과 기록 → X"""
-        self._set(msg="결과창 기다리는 중")
-        self._wait(float(cfg["result_wait"]), stop)
-        rect = self._rect(stop)
-        kind = None
-        if cfg.get("title_pos"):
-            kind = classify_title(self._grab_box(sct, rect, cfg["title_pos"], 0.12, 0.05))
+    def _finish(self, sct, cfg, stop, base=None):
+        """릴링이 끝난 뒤: Fish 버튼이 다시 보일 때까지 결과창 X 를 0.1초마다 누름 (결과창이 뜨자마자 닫혀서 가장 빠름)
+        X 를 누르기 직전마다 결과창 제목 색을 봐서 결과를 기록 — 단, 릴링을 시작할 때(base · 결과창 없음)와 비교해
+        제목 자리가 바뀌었을 때만 (결과창이 아직 안 떴을 때 그 자리의 하늘 · 배경을 결과로 잘못 읽지 않게)"""
+        import numpy as np
+        self._set(msg="결과창 닫는 중")
+        title = cfg.get("title_pos") if base is not None else None
+        kind, end = None, time.time() + FINISH_MAX
+        while time.time() < end:
+            self._check(stop)
+            rect = self._rect(stop)
+            if button_state(self._grab_box(sct, rect, cfg["fish_btn"])) == "fish":
+                break
+            if title and kind is None:
+                img = self._grab_box(sct, rect, title, 0.12, 0.05)
+                if img.shape == base.shape and float(np.abs(img - base).mean()) > 18:
+                    kind = classify_title(img)
+            self._click_ratio(cfg["close_pos"], stop)
+            self._wait(FINISH_GAP, stop)
+        else:
+            self.log(f"결과창을 닫은 뒤 {FINISH_MAX:g}초 동안 Fish 버튼이 안 보임 — 다시 확인", "y")
         self.stats[kind or "unknown"] += 1
-        name = {"success": "성공", "junk": "쓰레기", "fail": "실패"}.get(kind, "결과 확인 안 함")
+        name = {"success": "성공", "junk": "쓰레기", "fail": "실패"}.get(kind, "결과 확인 안 됨")
         self.log(f"낚시 결과: {name} · 성공 {self.stats['success']} / 쓰레기 {self.stats['junk']} / 실패 {self.stats['fail']}",
                  "g" if kind == "success" else "d")
-        self._set(msg="결과창 닫기")
-        self._click_ratio(cfg["close_pos"], stop)
-        self._wait(0.5, stop)
 
     def _reel(self, sct, rect, cfg, stop):
         self._set(msg="릴링 중")

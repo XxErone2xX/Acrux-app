@@ -121,9 +121,8 @@ MFISH_DEFAULT = {
     "title_pos": None,            # 결과창 제목 (선택 · 색으로 성공/쓰레기/실패 구분)
     "panel_region": None,         # 낚시 창 영역 → Fish 버튼 · 릴링 바 자동 계산
     "result_region": None,        # 결과창 영역 → 결과창 X · 제목 자동 계산
-    "bite_max": 60.0, "target_pct": 10, "lead_ms": 60, "click_ms": 25, "click_gap_ms": 45, "result_wait": 1.3, "cast_retry": 3,
+    "bite_max": 60.0, "target_pct": 10, "lead_ms": 60, "click_ms": 25, "click_gap_ms": 45, "cast_retry": 3,
     "debug_log": False,           # 릴링 기록(fishing_log.csv) 저장 — 문제 확인용
-    "rw_v2": False,               # 결과창 대기 기본값을 0.8 → 1.3 으로 올린 것 적용했는지 (한 번만)
 }
 POP_BIOMES = ("CYBERSPACE", "GLITCHED", "DREAMSPACE")
 # 기본 템플릿 — 얼로니 SolsRNG 스크립트의 레어 바이옴 자동 팝핑(_RareBiomePotionTable) 그대로
@@ -317,19 +316,12 @@ def normalize(raw):
     mf.update(d.get("mfish") if isinstance(d.get("mfish"), dict) else {})
     mf["enabled"] = bool(mf.get("enabled"))
     mf["debug_log"] = bool(mf.get("debug_log"))
-    if not mf.get("rw_v2"):                 # 예전 기본값(0.8)을 그대로 쓰던 사람은 새 기본값(1.3)으로 한 번만 올림
-        try:
-            if abs(float(mf.get("result_wait", 1.3)) - 0.8) < 1e-6:
-                mf["result_wait"] = 1.3
-        except (TypeError, ValueError):
-            pass
-        mf["rw_v2"] = True
     for k in ("fish_btn", "close_pos", "title_pos"):
         mf[k] = _ratio_list(mf.get(k), 2)
     for k in ("bar_region", "panel_region", "result_region"):
         mf[k] = _ratio_list(mf.get(k), 4)
     for k, lo, hi in (("bite_max", 5, 600), ("target_pct", 0, 90), ("lead_ms", 0, 300), ("click_ms", 5, 200), ("click_gap_ms", 10, 500),
-                      ("result_wait", 0, 10), ("cast_retry", 1, 10)):
+                      ("cast_retry", 1, 10)):
         try:
             mf[k] = min(hi, max(lo, float(mf.get(k, MFISH_DEFAULT[k]))))
         except (TypeError, ValueError):
