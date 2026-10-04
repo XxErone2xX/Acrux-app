@@ -1236,8 +1236,9 @@ function setFeature(k, on, quiet) {
   c.enabled = !!on;
   queueSave({ [k]: JSON.parse(JSON.stringify(c)) });
   if (k === 'mfish' && !on) api('mfish_stop');
-  if (k === 'mpop') renderMpop(); else renderMfish();
-  renderMfAll(); syncMainTiles();
+  // 다시 그리지 않고 같은 기능의 스위치만 맞춤 (다시 그리면 누른 스위치가 새로 생겨서 움직이는 애니메이션이 안 보임)
+  document.querySelectorAll(`#${k}On, [data-feat="${k}"]`).forEach(i => { i.checked = !!on; });
+  syncMainTiles();
   if (!quiet) toast(`${FEAT_NAME[k]} ${on ? '켜짐' : '꺼짐'}`);
 }
 function renderMfAll() {
