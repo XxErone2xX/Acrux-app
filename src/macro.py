@@ -192,6 +192,15 @@ def click(x, y, button="left", hold_ms=30):
     _send(_mouse(up))
 
 
+def mouse_click_here(button="left", hold_ms=25):
+    """마우스를 움직이지 않고 지금 자리에서 바로 클릭 (자동 낚시 릴링처럼 빠르게 연속으로 누를 때)"""
+    down, up = (MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP) if button == "right" else \
+        (MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP)
+    _send(_mouse(down))
+    time.sleep(max(0, hold_ms) / 1000)
+    _send(_mouse(up))
+
+
 def scroll(amount):
     _send(_mouse(MOUSEEVENTF_WHEEL, data=ctypes.c_uint32(int(amount) * 120).value))
 
