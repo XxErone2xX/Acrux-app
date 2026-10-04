@@ -862,31 +862,44 @@ class Bridge:
         threading.Thread(target=bye, daemon=True).start()
         return {"ok": True}
 
-    def api_changelog(self, _):
-        """업데이트 로그 (CHANGELOG.md) → [{version, date, ko, en}] · ko/en 은 그 언어 부분 마크다운"""
+    # 업데이트 로그 — GitHub 릴리스 설명(RELEASE_NOTES.md 로 올라간 것)을 그대로 가져옴 · 10분 동안은 다시 안 받음
+    RELEASES_API = "https://api.github.com/repos/rngenesis0-coder/Acrux-app/releases?per_page=100"
+    _changelog_cache = (0.0, None)
+
+    @staticmethod
+    def _split_notes(body):
+        """릴리스 설명 → {"ko": 한국어 부분, "en": 영어 부분} (## … 업데이트 / ## … Update 제목 기준)"""
+        parts, cur = {"ko": [], "en": []}, None
+        for line in (body or "").replace("\r\n", "\n").split("\n"):
+            h = re.match(r"\s*## .*?(업데이트|Update)\s*$", line)
+            if h:
+                cur = "ko" if h.group(1) == "업데이트" else "en"
+            elif cur:
+                parts[cur].append(line)
+        return {k: "\n".join(v).strip() for k, v in parts.items()}
+
+    def api_changelog(self, p):
+        at, cached = self._changelog_cache
+        if cached is not None and not p.get("refresh") and time.time() - at < 600:
+            return cached
         try:
-            text = Path(__file__).with_name("CHANGELOG.md").read_text(encoding="utf-8")
-        except OSError:
-            return {"entries": [], "current": VERSION}
-        text = re.sub(r"<!--.*?-->", "", text, flags=re.S)
+            import urllib.request
+            req = urllib.request.Request(self.RELEASES_API, headers={
+                "User-Agent": "AcruxMacro", "Accept": "application/vnd.github+json"})
+            with urllib.request.urlopen(req, timeout=10) as r:
+                rel = json.loads(r.read().decode("utf-8"))
+        except Exception as e:
+            return {"error": f"업데이트 로그를 못 불러옴: {e}"}
         entries = []
-        for block in re.split(r"(?m)^# (?=V\d)", text)[1:]:
-            head, _, body = block.partition("\n")
-            m = re.match(r"V([\d.]+)(?:\s*·\s*(\S+))?", head.strip())
-            if not m:
+        for x in rel:
+            if x.get("draft") or not str(x.get("tag_name", "")).startswith("v"):
                 continue
-            parts = {"ko": [], "en": []}
-            cur = None
-            for line in body.splitlines():
-                h = re.match(r"## .*?(업데이트|Update)\s*$", line)
-                if h:
-                    cur = "ko" if h.group(1) == "업데이트" else "en"
-                    continue
-                if cur:
-                    parts[cur].append(line)
-            entries.append({"version": m.group(1), "date": m.group(2) or "",
-                            "ko": "\n".join(parts["ko"]).strip(), "en": "\n".join(parts["en"]).strip()})
-        return {"entries": entries, "current": VERSION}
+            notes = self._split_notes(x.get("body"))
+            entries.append({"version": x["tag_name"][1:], "date": str(x.get("published_at") or "")[:10], **notes})
+        entries.sort(key=lambda e: [int(n) if n.isdigit() else 0 for n in e["version"].split(".")], reverse=True)
+        out = {"entries": entries, "current": VERSION}
+        Bridge._changelog_cache = (time.time(), out)
+        return out
 
     def api_ocr_info(self, _):
         """Acrux 설정 · OCR 감지 방식: 지금 쓰는 엔진 · RapidOCR 설치 여부"""
