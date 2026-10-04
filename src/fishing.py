@@ -30,6 +30,12 @@ DEFAULTS = {
     "debug_log": False,    # 릴링 기록(fishing_log.csv) 저장 — 문제 확인용
 }
 REEL_FRAME = 0.008       # 릴링 중 화면 읽는 최소 간격 (초)
+REEL_MAX = 15.0          # 미니게임 최대 길이 (초) — 넘으면 멈춘 걸로 보고 닫기 (FishSol 은 9초)
+REEL_GONE = 0.6          # 바 · ◇ 신호가 둘 다 이만큼 안 보여야 미니게임 끝으로 봄 (초)
+# 낚시 창 ◇ 표시 (낚시 창 영역 안 비율) — 대기 땐 왼쪽(IDLE) 자리, 미니게임 땐 창이 넓어지며 오른쪽(REEL) 자리로 옮겨감
+# Noteab 보정값 fishing_detect_pixel (1175,836) · FishSol 도 같은 자리로 미니게임 시작을 봄 / 대기 자리는 스크린샷에서 (1146,835)
+DIAMOND_IDLE = (0.9268, 0.8264)
+DIAMOND_REEL = (0.9931, 0.8333)
 FINISH_GAP = 0.1         # 낚은 뒤 Fish 버튼이 다시 보일 때까지 결과창 X 를 누르는 간격 (초)
 FINISH_MAX = 10.0        # 그래도 Fish 버튼이 안 보이면 이 시간 뒤 다시 상태 확인부터
 POS_KEYS = (("fish_btn", "Fish 버튼"), ("close_pos", "결과창 X"), ("title_pos", "결과창 제목"))
@@ -332,13 +338,36 @@ class Fisher:
             self._set(msg="대기")
             self.holding.clear()
 
+    def _diamond_moved(self, sct, rect, cfg):
+        """낚시 창 ◇ 가 미니게임 자리로 옮겨갔는지 (바와 따로 보는 두 번째 신호) — 낚시 창 영역이 없으면 None
+        미니게임 자리엔 대기 때도 창 테두리가 조금 걸리므로 '원래 자리가 비었는지'도 같이 봄"""
+        reg = cfg.get("panel_region")
+        if not reg:
+            return None
+        x1, x2 = sorted((reg[0], reg[2]))
+        y1, y2 = sorted((reg[1], reg[3]))
+        size = max(3, int(rect[2] * (x2 - x1) * 0.012))
+
+        def white(rel):
+            pos = (x1 + rel[0] * (x2 - x1), y1 + rel[1] * (y2 - y1))
+            x, y = macro.to_screen(pos[0], pos[1], rect)
+            img = sct.grab({"left": x - size, "top": y - size, "width": size * 2 + 1, "height": size * 2 + 1})
+            return int((_np(bytes(img.bgra), img.width, img.height).min(axis=2) > 200).sum())
+        return white(DIAMOND_REEL) >= 6 and white(DIAMOND_IDLE) < 6
+
     def _read_state(self, sct, rect, cfg):
-        """지금 화면 → 'reel' / 'idle'(Fish) / 'wait'(Exit) / None(알 수 없음)
+        """지금 화면 → 'reel' / 'maybe'(바만 보이고 ◇ 는 안 맞음) / 'idle'(Fish) / 'wait'(Exit) / None(알 수 없음)
         결과창은 여기서 판단하지 않음 — 입질 → 미니게임으로 넘어가는 순간엔 버튼도 바도 안 보여서 결과창 제목 자리에
         하늘 등이 보이는데, 이걸 결과창(회색 = 쓰레기)으로 잘못 보고 X 를 누르던 문제가 있었음 → 결과창은 릴링이 끝난 뒤에만 다룸"""
-        img = sct.grab(self._band_box(rect, cfg["bar_region"]))
-        if bar_present(_np(bytes(img.bgra), img.width, img.height)):
-            return "reel"
+        if self._bar_seen(sct, rect, cfg):
+            # 바와 ◇ 두 신호가 같이 맞아야 바로 미니게임으로 봄 (색이 잠깐 번쩍이는 화면을 착각하지 않게)
+            moved = self._diamond_moved(sct, rect, cfg)
+            if moved:
+                return "reel"
+            time.sleep(0.04)
+            if self._bar_seen(sct, rect, cfg):
+                # 낚시 창 영역이 없으면 바만 두 번 보이면 인정 · 있는데 ◇ 가 안 맞으면 '아마도' → 3번 이어지면 인정
+                return "reel" if moved is None else "maybe"
         st = button_state(self._grab_box(sct, rect, cfg["fish_btn"]))
         if st == "fish":
             return "idle"
@@ -346,15 +375,41 @@ class Fisher:
             return "wait"
         return None
 
+    def _bar_seen(self, sct, rect, cfg):
+        img = sct.grab(self._band_box(rect, cfg["bar_region"]))
+        return bar_present(_np(bytes(img.bgra), img.width, img.height))
+
     def _loop(self, sct, stop):
         cast_at, tries = None, 0          # 마지막 Fish 클릭 시각 · 반응 없던 횟수
         wait_at, unknown_at = None, None  # 입질 대기 시작 · 알 수 없는 화면 시작
+        progress_at, rescues = time.time(), 0   # 마지막으로 미니게임이 시작된 시각 · 연속 복구 횟수
+        maybe = 0                                # '바만 보임' 이 이어진 횟수
         while True:
             self._check(stop)
             cfg = dict(DEFAULTS, **(self.get_cfg() or {}))
             rect = self._rect(stop)
             st = self._read_state(sct, rect, cfg)
             now = time.time()
+            # 감시: 입질 최대 대기 + 60초 동안 미니게임이 한 번도 안 열림 → 화면이 꼬인 것 → 복구 (3번 연속 안 되면 멈춤)
+            if not self.hold_req.is_set() and now - progress_at > float(cfg["bite_max"]) + 60:
+                rescues += 1
+                if rescues > 3:
+                    self.log("낚시 화면을 계속 못 찾음 — 자동 낚시 멈춤 (낚시 자리 · 위치 설정 확인)", "r")
+                    self.stop_ev.set()
+                    raise Stopped()
+                self.log(f"한동안 낚시가 진행되지 않음 — 화면 복구 ({rescues}/3)", "y")
+                self._rescue(cfg, stop)
+                progress_at = time.time()
+                cast_at, tries, wait_at, unknown_at = None, 0, None, None
+                continue
+            if st == "maybe":                        # 바만 보이고 ◇ 는 안 맞음 (◇ 위치가 조금 어긋났을 수 있음)
+                maybe = maybe + 1
+                st = "reel" if maybe >= 3 else None
+                if st is None:
+                    self._wait(0.05, stop)
+                    continue
+            else:
+                maybe = 0
             if st != "wait":
                 wait_at = None
             if st is not None:
@@ -362,6 +417,7 @@ class Fisher:
 
             if st == "reel":
                 cast_at, tries = None, 0
+                progress_at, rescues = now, 0
                 # 결과창 제목 자리의 '결과창이 없을 때' 모습 (릴링 중엔 결과창이 없고, 낚시 중엔 카메라가 안 움직임)
                 base = self._grab_box(sct, rect, cfg["title_pos"], 0.12, 0.05) if cfg.get("title_pos") else None
                 self._reel(sct, rect, cfg, stop)
@@ -383,7 +439,10 @@ class Fisher:
                 self._set(msg="입질 기다리는 중")
 
             elif st == "idle":                       # Fish 버튼 → 던지기 (안전한 곳이라 여기서 자리 양보)
-                self._hold_point(stop)
+                if self.hold_req.is_set():
+                    self._hold_point(stop)
+                    progress_at = time.time()        # 양보한 시간은 '진행 안 됨'으로 안 셈
+                    continue
                 if cast_at is None or now - cast_at > 1.5:
                     if cast_at is not None:          # 1.5초 지나도 Exit 로 안 바뀜 = 반응 없음
                         tries += 1
@@ -406,6 +465,19 @@ class Fisher:
             # 기다리는 동안은 0.1초마다만 봄 (화면 캡처는 로블록스를 버벅이게 할 수 있음)
             self._wait(0.1, stop)
 
+    def _rescue(self, cfg, stop):
+        """꼬인 화면 풀기: 결과창 X → UI 내비게이션으로 미니게임 창 닫기(\ → S → A → Enter → \ · Noteab 의 실패 대비 방식)
+        → 결과창 X 한 번 더"""
+        self._set(msg="화면 복구 중")
+        self._click_ratio(cfg["close_pos"], stop)
+        self._wait(0.4, stop)
+        for k in ("\\", "s", "a", "enter", "\\"):
+            self._check(stop)
+            macro.key_tap(k)
+            self._wait(0.25, stop)
+        self._click_ratio(cfg["close_pos"], stop)
+        self._wait(0.6, stop)
+
     def _inventory_full(self, stop, tries):
         self.stats["full"] += 1
         self.log(f"Fish 를 {tries}번 눌러도 반응 없음 — 낚시 인벤토리 가득", "y")
@@ -427,8 +499,8 @@ class Fisher:
         while time.time() < end:
             self._check(stop)
             rect = self._rect(stop)
-            if button_state(self._grab_box(sct, rect, cfg["fish_btn"])) == "fish":
-                break
+            if button_state(self._grab_box(sct, rect, cfg["fish_btn"])) in ("fish", "exit"):
+                break                                # Fish(또는 이미 다시 던진 Exit)가 보이면 낚시 화면으로 돌아온 것
             if title and kind is None:
                 img = self._grab_box(sct, rect, title, 0.12, 0.05)
                 if img.shape == base.shape and float(np.abs(img - base).mean()) > 18:
@@ -458,16 +530,28 @@ class Fisher:
         gone_since, last_click = None, 0.0
         hist = []                                    # 최근 내 위치 (시각, 위치) — 속도 계산용
         vel = 0.0
-        end = time.time() + 40                       # 안전장치: 릴링은 길어야 수십 초
+        start = time.time()
+        end = start + REEL_MAX
+        hwnd, fg_at = macro.roblox_window_cached(), start
         while time.time() < end:
             t0 = time.time()
             self._check(stop)
+            if t0 - fg_at > 0.5:                     # 다른 창이 로블록스를 가리면 화면을 잘못 읽음 → 0.5초마다 맨 앞인지 확인
+                fg_at = t0
+                if hwnd and not macro.is_foreground(hwnd):
+                    macro.focus(hwnd)
             img = sct.grab(box)
             a = analyze_bar(_np(bytes(img.bgra), img.width, img.height), top_in, bh)
             now = time.time()
             if not a["present"]:
+                # 바가 안 보여도 ◇ 가 미니게임 자리에 있으면 아직 미니게임 중 (잠깐 가려지거나 잘못 읽힌 화면)
+                rect = macro.client_rect(hwnd) if hwnd else None
+                if rect and self._diamond_moved(sct, rect, cfg):
+                    gone_since = None
+                    time.sleep(0.01)
+                    continue
                 gone_since = gone_since or now
-                if now - gone_since > 0.4:
+                if now - gone_since > REEL_GONE:
                     return
                 time.sleep(0.01)
                 continue
@@ -480,6 +564,8 @@ class Fisher:
                 else:
                     hist.append((now, m))
                     hist = hist[-5:]
+            if m is None and hist and now - hist[-1][0] < 0.15:
+                m = hist[-1][1] + vel * (now - hist[-1][0])   # 잠깐 못 찾으면 직전 위치 + 속도로 짐작 (0.15초까지만)
             if len(hist) >= 3:
                 # 최근 몇 화면의 기울기 (한 화면 차이보다 덜 흔들림)
                 (t1, x1), (t2, x2) = hist[0], hist[-1]
@@ -492,7 +578,8 @@ class Fisher:
             rec.add(now, m, a["zone"], vel, click, a["w"])
             # 게임 화면은 1초에 60번쯤 바뀜 → 그보다 자주 찍어 봐야 같은 화면이라 8ms 에 한 번까지만
             time.sleep(max(0.001, REEL_FRAME - (time.time() - t0)))
-        self.log("릴링이 40초 넘게 끝나지 않음 — 다음으로", "y")
+        self.log(f"미니게임이 {REEL_MAX:g}초 넘게 안 끝남 — 멈춘 걸로 보고 닫기", "y")
+        self._rescue(dict(DEFAULTS, **(self.get_cfg() or {})), stop)
 
 
 class _ReelLog:
