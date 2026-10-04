@@ -545,17 +545,13 @@ class Bridge:
 
     # 매크로 기준 위치 설정 — 기능마다 따로 저장하는 버튼 위치 · 영역 (feat: mpop / mfish)
     MPOS_POINTS = {"mpop": dict(popping.POS_KEYS), "mfish": dict(fishing.POS_KEYS)}
-    MPOS_REGIONS = {"mpop": "ocr_region", "mfish": "bar_region"}
-    # 16:9 위치 템플릿 (로블록스 창 기준 비율)
-    # - mpop: 스나이프 탭 오토 팝핑 16:9 템플릿과 같은 값
-    # - mfish: Fish 버튼 · 릴링 바 · 결과창 X 는 Noteab/Coteab Macro(Apache-2.0)의 1920x1080 보정값을 비율로 바꾼 것
-    #   (1920x1080 전체 화면 스크린샷으로 다시 확인) · 결과창 제목은 결과창 X 기준으로 계산
+    MPOS_REGIONS = {"mpop": ("ocr_region",), "mfish": ("panel_region", "result_region", "bar_region")}
+    # 16:9 위치 템플릿 (로블록스 창 기준 비율) — 스나이프 탭 오토 팝핑 16:9 템플릿과 같은 값
+    # (자동 낚시는 템플릿 대신 낚시 창 · 결과창 영역으로 안쪽 위치를 계산 → fishing.WINDOW_KEYS)
     MPOS_TEMPLATE = {
         "mpop": {"inventory_pos": [0.018, 0.474], "items_pos": [0.663, 0.312], "search_pos": [0.458, 0.34],
                  "item_pos": [0.443, 0.44], "amount_pos": [0.296, 0.534], "use_pos": [0.356, 0.535],
                  "ocr_region": [0.415, 0.392, 0.469, 0.491]},
-        "mfish": {"fish_btn": [0.4427, 0.7731], "bar_region": [0.3948, 0.7009, 0.6068, 0.7259],
-                  "close_pos": [0.5792, 0.3167], "title_pos": [0.4995, 0.3306]},
     }
 
     def api_mpos_point(self, p):
@@ -571,17 +567,22 @@ class Bridge:
         return {"pos": self.data[feat][key]}
 
     def api_mpos_region(self, p):
+        """영역 드래그 — mfish 의 낚시 창 · 결과창 영역은 안쪽 위치(Fish 버튼 · 릴링 바 · 결과창 X · 제목)까지 계산해서 저장"""
         feat = str(p.get("feat", ""))
-        key = self.MPOS_REGIONS.get(feat)
-        if not key:
+        keys = self.MPOS_REGIONS.get(feat, ())
+        key = str(p.get("key") or (keys[0] if keys else ""))
+        if key not in keys:
             return {"error": "알 수 없는 항목"}
         r = self._pick_overlay("--pick-region")
         if r.get("error"):
             return r
         with self.lock:
-            self.data.setdefault(feat, {})[key] = r["region"]
+            c = self.data.setdefault(feat, {})
+            c[key] = r["region"]
+            if feat == "mfish" and key in fishing.WINDOW_KEYS:
+                c.update(fishing.layout_from(r["region"], fishing.WINDOW_KEYS[key]))
         self._save()
-        return {"region": r["region"]}
+        return {"region": r["region"], feat: self.data[feat]}
 
     # 화면 비율 — 로블록스 UI 는 화면 높이에 맞춰 커지고, 낚시 창 · 결과창 · 인벤토리 창은 가로 가운데 기준,
     # Inventory 버튼(왼쪽 메뉴)은 왼쪽 끝 기준이라고 보고 16:9 값을 바꿈 (16:9 가 아닌 비율은 추정값)

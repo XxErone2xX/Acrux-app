@@ -27,6 +27,25 @@ DEFAULTS = {
 }
 POS_KEYS = (("fish_btn", "Fish 버튼"), ("close_pos", "결과창 X"), ("title_pos", "결과창 제목"))
 
+# 창 영역 → 안쪽 위치 (창 영역 안에서의 비율 · 0 = 왼쪽/위, 1 = 오른쪽/아래)
+# 1920x1080 전체 화면 기준으로 잰 값: 낚시 창(Fish 버튼이 보일 때 흰 꺾쇠 테두리) (741,716)~(1178,860),
+# 결과창(흰 꺾쇠 테두리) (780,316)~(1140,765) · 창 크기가 바뀌어도 안쪽 배치는 같은 비율이라고 봄
+PANEL_LAYOUT = {"fish_btn": (0.2494, 0.8264), "bar_region": (0.0389, 0.2847, 0.9703, 0.4722)}
+RESULT_LAYOUT = {"close_pos": (0.9222, 0.0579), "title_pos": (0.4972, 0.0913)}
+WINDOW_KEYS = {"panel_region": PANEL_LAYOUT, "result_region": RESULT_LAYOUT}
+
+
+def layout_from(region, layout):
+    """창 영역 [x1, y1, x2, y2] (로블록스 창 비율) → {키: 위치 또는 영역} (로블록스 창 비율)"""
+    x1, x2 = sorted((region[0], region[2]))
+    y1, y2 = sorted((region[1], region[3]))
+    w, h = x2 - x1, y2 - y1
+    out = {}
+    for key, rel in layout.items():
+        pts = [round(x1 + rel[i] * w, 4) if i % 2 == 0 else round(y1 + rel[i] * h, 4) for i in range(len(rel))]
+        out[key] = pts
+    return out
+
 
 # ---------------------------------------------------------------- 화면 분석 (순수 함수 · 테스트 가능)
 def _np(data, w, h):
