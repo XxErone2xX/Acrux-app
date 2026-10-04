@@ -1,15 +1,11 @@
-## Acrux macro V1.14.0 업데이트
-- 자동 낚시 위치 지정 방식 변경: 위치 템플릿 대신 **창 영역**을 드래그로 지정
-  - **낚시 창 영역**: Fish 버튼이 보일 때 낚시 창을 흰 꺾쇠 테두리까지 드래그 → Fish 버튼과 릴링 바 위치를 자동으로 계산
-  - **결과창 영역**: 결과창이 떠 있을 때 흰 꺾쇠 테두리까지 드래그 → 결과창 X 와 제목 위치를 자동으로 계산
-  - 창 안쪽 배치 기준으로 계산해서 화면 크기 · 비율이 달라도 맞음
-  - 조금 어긋나면 아래 **세부 위치**에서 하나씩 직접 지정 가능
-- 레어 바이옴 자동 팝핑의 위치 템플릿은 그대로
+## Acrux macro V1.14.1 업데이트
+- 일부 토글(기능 켜기 · 끄기, 레어 바이옴 자동 팝핑 · 자동 낚시의 켜기)이 움직이는 애니메이션 없이 바로 바뀌던 문제 수정
+- 자동 낚시로 입질을 기다리는 동안 로블록스가 버벅이던 문제 개선
+  - 기다리는 동안 화면을 읽는 횟수를 1초에 약 30번 → 10번으로 줄이고, 릴링 바 가운데 줄만 작게 읽도록 바꿈
+  - Fish 버튼 확인도 1초에 한 번만 함
 
-## Acrux macro V1.14.0 Update
-- New way to set auto fishing positions: drag **window areas** instead of using a position template
-  - **Fishing window area**: while the Fish button shows, drag over the fishing window up to its white corner brackets → the Fish button and reel bar positions are calculated
-  - **Result window area**: while the result window shows, drag up to its white corner brackets → the result X and title positions are calculated
-  - Calculated from the layout inside each window, so it works with any screen size or ratio
-  - If something is slightly off, set it yourself under **Detailed positions**
-- The position template for rare biome auto popping stays as it is
+## Acrux macro V1.14.1 Update
+- Fixed some toggles (Features on / off, the on switches for rare biome auto popping and auto fishing) switching instantly without the slide animation
+- Reduced lag in Roblox while auto fishing waits for a bite
+  - While waiting, it now reads the screen about 10 times a second instead of 30, and only reads a thin strip in the middle of the reel bar
+  - The Fish button is checked only once a second

@@ -81,6 +81,13 @@ def _is_teal(px):
     return (r < 95) & (g >= 95) & (b >= 125) & ((b - g) >= -15) & ((b - g) <= 80)
 
 
+def bar_present(rgb):
+    """바 가운데 줄 몇 개만 잡은 이미지 → 릴링 바(청록 막대)가 떠 있는지 (입질 대기용 가벼운 확인)"""
+    import numpy as np
+    band = np.median(rgb, axis=0)
+    return int(_is_teal(band).sum()) >= max(4, band.shape[0] * 0.03)
+
+
 def analyze_bar(rgb, bar_top, bar_h):
     """rgb: 릴링 바 + 그 위 ◇ 표시까지 잡은 이미지 / bar_top·bar_h: 그 안에서 바의 세로 위치
     → {"present", "marker", "zone": (시작, 끝) 또는 None, "w"} (x 는 이미지 안 픽셀)"""
@@ -261,6 +268,13 @@ class Fisher:
         img = sct.grab({"left": x - w // 2, "top": y - h // 2, "width": w, "height": h})
         return _np(bytes(img.bgra), img.width, img.height)
 
+    def _band_box(self, rect, region):
+        """바 영역(비율) → 바 가운데 줄(35~65%)만 잡는 작은 캡처 상자 (입질 대기 중 가볍게 보기)"""
+        x1, y1 = macro.to_screen(min(region[0], region[2]), min(region[1], region[3]), rect)
+        x2, y2 = macro.to_screen(max(region[0], region[2]), max(region[1], region[3]), rect)
+        bh = max(4, y2 - y1)
+        return {"left": x1, "top": y1 + int(bh * 0.35), "width": max(8, x2 - x1), "height": max(1, int(bh * 0.3))}
+
     def _bar_geom(self, rect, region):
         """바 영역(비율) → 캡처할 화면 상자 (◇ 표시까지 위로 늘림) + 그 안의 바 위치"""
         x1, y1 = macro.to_screen(min(region[0], region[2]), min(region[1], region[3]), rect)
@@ -338,12 +352,15 @@ class Fisher:
 
         # ② 입질 대기: 릴링 바가 나타날 때까지 (너무 오래면 Exit → 다시 던짐)
         self._set(msg="입질 기다리는 중")
+        # 화면 캡처는 로블록스를 버벅이게 할 수 있음 → 기다리는 동안은 바 가운데 줄만 0.1초마다,
+        # Fish 버튼은 1초마다만 봄 (Ready! 는 잠깐 떠 있으니 0.1초면 충분)
         box, top_in, bh = self._bar_geom(rect, cfg["bar_region"])
-        start = time.time()
+        band = self._band_box(rect, cfg["bar_region"])
+        start = last_btn = time.time()
         while True:
             self._check(stop)
-            img = sct.grab(box)
-            if analyze_bar(_np(bytes(img.bgra), img.width, img.height), top_in, bh)["present"]:
+            img = sct.grab(band)
+            if bar_present(_np(bytes(img.bgra), img.width, img.height)):
                 break
             if self.hold_req.is_set():               # 레어 바이옴 팝핑 등이 기다림 → 던진 걸 취소하고 바로 비켜줌
                 self._click_ratio(cfg["fish_btn"], stop)
@@ -354,9 +371,12 @@ class Fisher:
                 self._click_ratio(cfg["fish_btn"], stop)
                 self._wait(1.0, stop)
                 return
-            if time.time() - start > 2 and button_state(self._grab_box(sct, rect, cfg["fish_btn"])) == "fish":
-                return                               # 물고기가 도망가서 다시 Fish 로 돌아옴
-            time.sleep(0.03)
+            now = time.time()
+            if now - start > 2 and now - last_btn >= 1.0:
+                last_btn = now
+                if button_state(self._grab_box(sct, rect, cfg["fish_btn"])) == "fish":
+                    return                           # 물고기가 도망가서 다시 Fish 로 돌아옴
+            time.sleep(0.1)
 
         # ③·④ Ready! → 릴링 (바가 사라질 때까지)
         self._reel(sct, rect, box, top_in, bh, cfg, stop)
