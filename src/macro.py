@@ -767,8 +767,23 @@ def rapid_engine():
         return _RAPID["engine"]
 
 
+# OCR 감지 방식 (Acrux 설정): auto = RapidOCR 가 있으면 RapidOCR, 없으면 윈도우 OCR / rapid / windows
+OCR_MODE = {"mode": "auto"}
+
+
+def set_ocr_mode(mode):
+    OCR_MODE["mode"] = mode if mode in ("auto", "rapid", "windows") else "auto"
+
+
+def ocr_engine():
+    """지금 쓸 RapidOCR 엔진 (윈도우 OCR 을 쓸 거면 None) — RapidOCR 를 골랐어도 설치가 안 돼 있으면 윈도우 OCR"""
+    if OCR_MODE["mode"] == "windows":
+        return None
+    return rapid_engine()
+
+
 def ocr_engine_name():
-    return "RapidOCR" if rapid_engine() else "윈도우 OCR"
+    return "RapidOCR" if ocr_engine() else "윈도우 OCR"
 
 
 def _rapid_worker(eng, data, w, h):
@@ -827,7 +842,7 @@ def ocr_item_bgra(data, w, h):
     """아이템 칸 읽기: 이름 + 개수. 전체를 읽고, 개수를 못 찾으면 오른쪽 아래만 따로 다시 읽음"""
     import re
     text = ocr_bgra(data, w, h)
-    eng = rapid_engine()
+    eng = ocr_engine()
     if eng is not None and not re.search(r"[x×X]\s*[0-9]", text or ""):
         try:
             cnt = _rapid_count(eng, data, w, h)
@@ -847,7 +862,7 @@ def ocr_bgra(data, w, h):
 
     def run():
         try:
-            eng = rapid_engine()
+            eng = ocr_engine()
             if eng is not None:
                 box["text"] = _rapid_worker(eng, data, w, h)
                 return

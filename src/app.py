@@ -58,13 +58,15 @@ class Bridge:
     def __init__(self):
         self.lock = threading.Lock()
         self.data = core.load_config()
-        # 바이옴 매크로는 프로그램을 켤 때마다 꺼진 상태로 시작
-        if (self.data.get("biome") or {}).get("enabled"):
+        # 바이옴 매크로 · 매크로(매크로 탭)는 프로그램을 켤 때마다 꺼진 상태로 시작
+        if (self.data.get("biome") or {}).get("enabled") or self.data.get("macro_on"):
             self.data["biome"]["enabled"] = False
+            self.data["macro_on"] = False
             try:
                 core.save_config(self.data)
             except Exception:
                 pass
+        macro.set_ocr_mode(self.data.get("ocr_engine"))
         self.cfg = core.Config(dict(self.data))
         self.handler = core.Handler(self.cfg)
         self.thread = None
@@ -166,6 +168,7 @@ class Bridge:
         with self.lock:
             self.data = core.normalize(self.data)
             data = dict(self.data)
+        macro.set_ocr_mode(data.get("ocr_engine"))
         self.cfg.set_data(data)
         try:
             core.save_config(data)
@@ -327,7 +330,7 @@ class Bridge:
         """매크로 탭 · 레어 바이옴 자동 팝핑: 지금 켜져 있는 로블록스(내 서버)에서 레어 바이옴이 시작되면 포션 사용
         스나이핑으로 들어간 다른 사람 서버이거나, 오토 팝핑 · 복귀 · Play 클릭이 도는 중이면 안 함"""
         mp = self.data.get("mpop", {})
-        if not mp.get("enabled") or found not in popping.POP_BIOMES:
+        if not self.data.get("macro_on") or not mp.get("enabled") or found not in popping.POP_BIOMES:
             return
         if sniping:
             self._on_log(f"{found} 감지 — 스나이핑 접속이라 내 서버 팝핑 안 함", "d")
@@ -665,6 +668,12 @@ class Bridge:
             os._exit(0)
         threading.Thread(target=bye, daemon=True).start()
         return {"ok": True}
+
+    def api_ocr_info(self, _):
+        """Acrux 설정 · OCR 감지 방식: 지금 쓰는 엔진 · RapidOCR 설치 여부"""
+        rapid = macro.rapid_engine() is not None
+        return {"engine": macro.ocr_engine_name(), "rapid": rapid, "mode": macro.OCR_MODE["mode"],
+                "rapid_error": None if rapid else macro._RAPID.get("failed")}
 
     def api_open_folder(self, _):
         os.startfile(str(core.DATA_BASE))      # 설정·로그가 있는 폴더

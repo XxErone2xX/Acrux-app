@@ -30,24 +30,33 @@
       </div>
     </div>
 
-    <button id="runBtn" class="run deco" data-state="idle">
-      <span class="ico" id="runIco"></span><span id="runText">시작</span>
-    </button>
+    <!-- 기능별 시작 버튼: 바이옴 매크로 / 오토 스나이핑 / 매크로 (각자 따로 켜고 끔 · 이름 쪽을 누르면 아래 설정 탭으로) -->
+    <div class="mains" id="mains">
+      <div class="main-tile deco" data-main="biome" style="--k: var(--cyan)">
+        <button class="mt-name" type="button" data-tab-go="biome"><b>바이옴 매크로</b><span class="mt-st" id="mtBiome">꺼짐</span></button>
+        <button class="mt-go" type="button" id="mgBiome">시작</button>
+      </div>
+      <div class="main-tile deco" data-main="snipe" style="--k: var(--accent)">
+        <button class="mt-name" type="button" data-tab-go="snipe"><b>오토 스나이핑</b><span class="mt-st" id="mtSnipe">꺼짐</span></button>
+        <button class="mt-go" type="button" id="runBtn" data-state="idle">시작</button>
+      </div>
+      <div class="main-tile deco" data-main="macro" style="--k: var(--yellow)">
+        <button class="mt-name" type="button" data-tab-go="macro"><b>매크로</b><span class="mt-st" id="mtMacro">꺼짐</span></button>
+        <button class="mt-go" type="button" id="mgMacro">시작</button>
+      </div>
+    </div>
 
-    <!-- 설정 탭: 바이옴 / 스나이프 / 매크로 (가운데 큰 글씨가 지금 탭 · 탭 이름 클릭이나 ← → 키로 넘김) -->
+    <!-- 설정 탭: 바이옴 / 스나이프 / 매크로 / Acrux (가운데 큰 글씨가 지금 탭 · 탭 이름 클릭이나 ← → 키로 넘김) -->
     <div class="label">설정</div>
     <div class="tabs" id="tabs">
       <div class="tab-track" id="tabTrack">
         <button class="tab-name" type="button" data-tab="biome">바이옴</button>
         <button class="tab-name" type="button" data-tab="snipe">스나이프</button>
         <button class="tab-name" type="button" data-tab="macro">매크로</button>
+        <button class="tab-name" type="button" data-tab="acrux" data-notr>Acrux</button>
       </div>
     </div>
     <div class="menu" id="menu"></div>
-  </div>
-  <!-- 오른쪽 위: 스나이핑 안정성 설정 -->
-  <div class="snipe-corner">
-    <button class="menu-card corner-btn snipe-open deco" data-key="snipe" type="button"><div class="head"></div></button>
   </div>
   <div class="corner">
   <div class="corner-btns" id="cornerBtns">
@@ -466,6 +475,48 @@
     <div class="content">
       <div class="sec" data-sec="ms-session"><div class="sec-head"><h2>이번 실행</h2></div><div class="empty">아직 기록 없음</div></div>
       <div class="sec" data-sec="ms-all"><div class="sec-head"><h2>올타임</h2></div><div class="empty">아직 기록 없음</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= Acrux 탭 (Acrux macro 자체 설정) ================= -->
+<section class="page" id="page-acrux" data-key="acrux">
+  <div class="topbar deco">
+    <button class="back deco" data-back><span class="ico" data-icon="back"></span>뒤로</button>
+    <div class="head" data-head></div>
+  </div>
+  <div class="body">
+    <nav class="side">
+      <button class="item deco" data-sec="ac-ocr"><b>OCR 감지 방식</b><span>화면 글자 읽는 엔진</span></button>
+      <button class="item deco" data-sec="ac-gen"><b>일반</b><span>언어 · 데이터 폴더</span></button>
+    </nav>
+    <div class="content">
+      <div class="sec" data-sec="ac-ocr">
+        <div class="sec-head"><h2>OCR 감지 방식</h2></div>
+        <div class="card form">
+          <label class="row"><span>OCR 엔진<small>오토 팝핑 · 레어 바이옴 자동 팝핑에서 아이템 이름 · 개수를 읽을 때 씀</small></span>
+            <select id="acOcr">
+              <option value="auto">자동 (추천)</option>
+              <option value="rapid">RapidOCR</option>
+              <option value="windows">윈도우 OCR</option>
+            </select></label>
+          <div class="row"><span>지금 쓰는 엔진<small>RapidOCR 를 골랐어도 설치가 안 돼 있으면 윈도우 OCR 을 씀</small></span><b id="acOcrNow">-</b></div>
+        </div>
+        <div class="card form ac-ocr-help">
+          <p class="hint"><b>자동</b>: RapidOCR 가 있으면 RapidOCR, 없으면 윈도우 OCR</p>
+          <p class="hint"><b>RapidOCR</b>: 게임 글자(테두리 · 배경색)에 강하고 더 정확함 · 처음 한 번 불러올 때 조금 느림</p>
+          <p class="hint"><b>윈도우 OCR</b>: 윈도우 기본 기능 · 가볍지만 덜 정확함 · 윈도우 언어팩(한국어/영어) 필요</p>
+        </div>
+      </div>
+      <div class="sec" data-sec="ac-gen">
+        <div class="sec-head"><h2>일반</h2></div>
+        <div class="card form">
+          <label class="row"><span>언어<small>화면 왼쪽 위 Language 와 같은 설정</small></span><select id="acLang" data-notr></select></label>
+          <div class="row"><span>데이터 폴더<small>설정 · 기록 · 템플릿이 저장되는 곳</small></span>
+            <button class="btn mini ghost" type="button" id="acFolder">폴더 열기</button></div>
+          <div class="row"><span>버전</span><b id="acVer" data-notr>-</b></div>
+        </div>
+      </div>
     </div>
   </div>
 </section>

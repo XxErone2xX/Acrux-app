@@ -60,6 +60,8 @@ DEFAULT_CONFIG = {
     "pop": {},                # 오토 팝핑: 레어 바이옴 포션 사용 (아래 POP_DEFAULT)
     "ret": {},                # 매크로 복귀: {"ps_link": 내 브섭 링크}
     "biome": {},              # 바이옴 매크로 설정 (아래 BIOME_DEFAULT)
+    "ocr_engine": "auto",     # Acrux 설정 · OCR 감지 방식: auto / rapid / windows
+    "macro_on": False,        # 메인 화면 '매크로' 버튼 — 꺼져 있으면 매크로 탭 기능이 전부 안 돎 (켤 때마다 꺼진 상태로 시작)
     "mpop": {},               # 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버) (아래 MPOP_DEFAULT)
     "snipe": {}               # 스나이핑 안정성 설정 (아래 SNIPE_DEFAULT)
 }
@@ -290,6 +292,9 @@ def normalize(raw):
     mp["templates"], mp["biomes_on"] = _norm_templates(mp)
     mp["seeded"] = True
     d["mpop"] = mp
+    d["macro_on"] = bool(d.get("macro_on"))
+    if d.get("ocr_engine") not in ("auto", "rapid", "windows"):
+        d["ocr_engine"] = "auto"
     d["open_link"] = True                   # '실제 접속' 토글 없앰: 감지되면 항상 접속
     ret = d.get("ret") if isinstance(d.get("ret"), dict) else {}
     steps = [dict(x) for x in (ret.get("steps") or []) if isinstance(x, dict) and x.get("type")]
@@ -329,7 +334,7 @@ def normalize(raw):
     sn["cooldown_sec"] = _num(sn["cooldown_sec"], 0, 600, SNIPE_DEFAULT["cooldown_sec"])
     d["snipe"] = {k: sn[k] for k in SNIPE_DEFAULT}
     d["names"] = dict(d.get("names") or {})
-    if d.get("menu_tab") not in ("biome", "snipe", "macro"):
+    if d.get("menu_tab") not in ("biome", "snipe", "macro", "acrux"):
         d["menu_tab"] = "snipe"
     d["tutorials_done"] = list(dict.fromkeys(str(x) for x in d.get("tutorials_done") or []))
     d["channels"] = {str(k): dict(v) for k, v in (d.get("channels") or {}).items() if isinstance(v, dict)}
