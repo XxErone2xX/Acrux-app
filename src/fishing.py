@@ -22,7 +22,7 @@ import macro
 DEFAULTS = {
     "bite_max": 60.0,      # 입질 최대 대기 (초) — 넘으면 Exit 누르고 다시 던짐
     "lead_ms": 60,         # 떨어지는 속도를 보고 이만큼 미리 누름 (ms)
-    "target_pct": 10,      # 목표 위치: 구간 왼쪽 끝에서 구간 폭의 몇 % (0 = 왼쪽 끝 · 50 = 가운데)
+    "target_pct": 20,      # 목표 위치: 구간 왼쪽 끝에서 구간 폭의 몇 % (0 = 왼쪽 끝 · 50 = 가운데)
     "deadband": 0.0,       # 목표 위치에서 이만큼(바 폭 비율) 더 왼쪽에 있어야 누름
     "click_ms": 25,        # 한 번 누르는 시간 (ms)
     "click_gap_ms": 45,    # 클릭 사이 최소 간격 (ms)
@@ -30,6 +30,10 @@ DEFAULTS = {
     "debug_log": False,    # 릴링 기록(fishing_log.csv) 저장 — 문제 확인용
 }
 REEL_FRAME = 0.008       # 릴링 중 화면 읽는 최소 간격 (초)
+# 아래 세 값은 물리 모델(누를 때마다 힘이 쌓임 · 누른 걸 놓음 · 입력 지연 0~100ms)로 수백 번 돌려서 고른 값
+RISE_GAIN = 2.0          # 목표까지 거리(px) × 이 값 = 허용하는 올라가는 속도 (px/초)
+RISE_MAX = 0.5           # 허용하는 올라가는 속도 최대 (바 폭 × 이 값 / 초)
+CLICK_SETTLE = 0.2       # 누른 뒤 효과가 보일 때까지 다시 안 누르는 최대 시간 (초)
 REEL_MAX = 15.0          # 미니게임 최대 길이 (초) — 넘으면 멈춘 걸로 보고 닫기 (FishSol 은 9초)
 REEL_GONE = 0.6          # 바 · ◇ 신호가 둘 다 이만큼 안 보여야 미니게임 끝으로 봄 (초)
 # 낚시 창 ◇ 표시 (낚시 창 영역 안 비율) — 대기 땐 왼쪽(IDLE) 자리, 미니게임 땐 창이 넓어지며 오른쪽(REEL) 자리로 옮겨감
@@ -184,6 +188,8 @@ def reel_decision(marker, zone, vel, cfg, w):
         return False
     target = zone[0] + (zone[1] - zone[0]) * cfg.get("target_pct", DEFAULTS["target_pct"]) / 100.0
     pred = marker + vel * cfg["lead_ms"] / 1000.0
+    if max(marker, pred) > (zone[0] + zone[1]) / 2:
+        return False                                      # 구간 가운데보다 오른쪽이면 절대 안 누름 (오른쪽으로 넘어가는 것 방지)
     return pred < target - cfg.get("deadband", 0) * w
 
 
@@ -466,17 +472,11 @@ class Fisher:
             self._wait(0.1, stop)
 
     def _rescue(self, cfg, stop):
-        """꼬인 화면 풀기: 결과창 X → UI 내비게이션으로 미니게임 창 닫기(\ → S → A → Enter → \ · Noteab 의 실패 대비 방식)
-        → 결과창 X 한 번 더"""
+        """꼬인 화면 풀기: 결과창 X 를 몇 번 누름 (UI 내비게이션 \ 은 안 씀)"""
         self._set(msg="화면 복구 중")
-        self._click_ratio(cfg["close_pos"], stop)
-        self._wait(0.4, stop)
-        for k in ("\\", "s", "a", "enter", "\\"):
-            self._check(stop)
-            macro.key_tap(k)
-            self._wait(0.25, stop)
-        self._click_ratio(cfg["close_pos"], stop)
-        self._wait(0.6, stop)
+        for _ in range(3):
+            self._click_ratio(cfg["close_pos"], stop)
+            self._wait(0.5, stop)
 
     def _inventory_full(self, stop, tries):
         self.stats["full"] += 1
@@ -527,9 +527,8 @@ class Fisher:
             rec.close()
 
     def _reel_loop(self, sct, box, top_in, bh, cfg, stop, rec):
-        gone_since, last_click = None, 0.0
-        hist = []                                    # 최근 내 위치 (시각, 위치) — 속도 계산용
-        vel = 0.0
+        gone_since = None
+        ctl = ReelControl(cfg)
         start = time.time()
         end = start + REEL_MAX
         hwnd, fg_at = macro.roblox_window_cached(), start
@@ -556,30 +555,80 @@ class Fisher:
                 time.sleep(0.01)
                 continue
             gone_since = None
-            m = a["marker"]
-            if m is not None:
-                # 한 화면만 튀는 값은 버림 (바로 전 두 값과 너무 멀면 무시)
-                if len(hist) >= 2 and abs(m - hist[-1][1]) > a["w"] * 0.25 and abs(m - hist[-2][1]) > a["w"] * 0.25:
-                    m = None
-                else:
-                    hist.append((now, m))
-                    hist = hist[-5:]
-            if m is None and hist and now - hist[-1][0] < 0.15:
-                m = hist[-1][1] + vel * (now - hist[-1][0])   # 잠깐 못 찾으면 직전 위치 + 속도로 짐작 (0.15초까지만)
-            if len(hist) >= 3:
-                # 최근 몇 화면의 기울기 (한 화면 차이보다 덜 흔들림)
-                (t1, x1), (t2, x2) = hist[0], hist[-1]
-                if t2 > t1:
-                    vel = vel * 0.5 + ((x2 - x1) / (t2 - t1)) * 0.5
-            click = (now - last_click) * 1000 >= cfg["click_gap_ms"] and reel_decision(m, a["zone"], vel, cfg, a["w"])
+            click, m, zone, vel = ctl.step(now, a["marker"], a["zone"], a["w"])
             if click:
                 macro.mouse_click_here(hold_ms=int(cfg["click_ms"]))
-                last_click = time.time()
-            rec.add(now, m, a["zone"], vel, click, a["w"])
+                ctl.clicked(time.time())
+            rec.add(now, m, zone, vel, click, a["w"])
             # 게임 화면은 1초에 60번쯤 바뀜 → 그보다 자주 찍어 봐야 같은 화면이라 8ms 에 한 번까지만
             time.sleep(max(0.001, REEL_FRAME - (time.time() - t0)))
         self.log(f"미니게임이 {REEL_MAX:g}초 넘게 안 끝남 — 멈춘 걸로 보고 닫기", "y")
         self._rescue(dict(DEFAULTS, **(self.get_cfg() or {})), stop)
+
+
+class ReelControl:
+    """릴링 조작 (화면 읽기와 따로 떼어 둔 판단 부분 · 화면 없이도 시험할 수 있게)
+    step(시각, 내 위치, 구간, 바 폭) → (누를지, 쓴 내 위치, 쓴 구간, 속도) · 실제로 눌렀으면 clicked(시각)"""
+
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.hist = []              # 최근 내 위치 (시각, 위치) — 속도 계산용
+        self.vel = 0.0
+        self.odd = None             # 방금 튄 것처럼 보인 위치 (다음 화면과 비슷하면 진짜로 받아들임)
+        self.zone_ref = None        # (지금까지 본 구간 폭, 오른쪽 끝)
+        self.last_click = 0.0
+        self.rose = True            # 마지막 클릭 뒤 올라가기 시작한 게 보였는지
+
+    def clicked(self, t):
+        self.last_click, self.rose = t, False
+
+    def step(self, now, m, zone, w):
+        cfg, hist = self.cfg, self.hist
+        if m is not None:
+            # 한 화면만 튀는 값은 버림 (바로 전 두 값과 너무 멀면 무시) — 단, 튄 값이 두 번 연달아 비슷하게 나오면
+            # 진짜로 빨리 움직인 것이니 받아들임 (안 그러면 그 뒤 값을 전부 버려서 내 위치를 계속 못 봄)
+            jump = w * 0.25
+            if len(hist) >= 2 and abs(m - hist[-1][1]) > jump and abs(m - hist[-2][1]) > jump:
+                if self.odd is not None and abs(m - self.odd) <= jump * 0.5:
+                    hist[:] = [(now, m)]
+                    self.odd = None
+                else:
+                    self.odd, m = m, None
+            else:
+                self.odd = None
+                hist.append((now, m))
+                del hist[:-5]
+        if m is None and hist and now - hist[-1][0] < 0.1:
+            m = hist[-1][1] + self.vel * (now - hist[-1][0])   # 잠깐 못 찾으면 직전 위치 + 속도로 짐작 (0.1초까지만)
+        if len(hist) >= 3:
+            (t1, x1), (t2, x2) = hist[0], hist[-1]           # 최근 몇 화면의 기울기 (한 화면 차이보다 덜 흔들림)
+            if t2 > t1:
+                self.vel = self.vel * 0.5 + ((x2 - x1) / (t2 - t1)) * 0.5
+        vel = self.vel
+        if zone:
+            # 구간 기억: 막대가 겹친 부분이 막대 색처럼 읽히면 구간이 왼쪽부터 줄어든 것처럼 보임 → 오른쪽 끝이 그대로면
+            # 전에 본 폭으로 되돌림 (줄어든 구간을 쫓아 계속 눌러서 오른쪽으로 넘어가던 원인)
+            zw = zone[1] - zone[0]
+            ref = self.zone_ref
+            if ref and zw < ref[0] * 0.75 and abs(zone[1] - ref[1]) <= max(6, w * 0.03):
+                zone = (zone[1] - ref[0], zone[1])
+            else:
+                ref = (max(zw, ref[0]) if ref else zw, zone[1])
+            self.zone_ref = (ref[0], zone[1])
+        # 누르면 힘이 쌓일 수 있음 → 올라가는 중에 마구 누르면 오른쪽으로 튀어나감. 그래서
+        #  ① 누른 뒤엔 올라가기 시작하는 게 보일 때까지 다시 안 누름 (게임에 반영되기까지 몇 화면 걸림 · 최대 CLICK_SETTLE)
+        #  ② 올라가는 속도 제한: 목표에서 멀리 아래면 빨리 올라가도 되고 가까우면 천천히만 — 이미 그 이상으로 올라가는 중이면 안 누름
+        fast = False
+        if m is not None and zone and len(hist) >= 3:
+            target = zone[0] + (zone[1] - zone[0]) * cfg.get("target_pct", DEFAULTS["target_pct"]) / 100.0
+            allow = min(w * RISE_MAX, max(0.0, target - m) * RISE_GAIN)
+            fast = vel > max(w * 0.05, allow)
+        if self.last_click and not self.rose and len(hist) >= 3 and vel > w * 0.05 and hist[-1][0] > self.last_click:
+            self.rose = True
+        waiting = self.last_click and not self.rose and now - self.last_click < CLICK_SETTLE
+        click = (not waiting and not fast and (now - self.last_click) * 1000 >= cfg["click_gap_ms"]
+                 and reel_decision(m, zone, vel, cfg, w))
+        return bool(click), m, zone, vel
 
 
 class _ReelLog:
