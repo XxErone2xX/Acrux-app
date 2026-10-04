@@ -1,17 +1,17 @@
-## Acrux macro V1.9.0 업데이트
-- 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버) 추가
-  - 지금 켜져 있는 로블록스에서 레어 바이옴(Cyberspace · Glitched · Dreamspace)이 시작되면 바로 포션 사용
-  - 스나이핑으로 들어간 서버, 오토 팝핑 · 매크로 복귀가 도는 중에는 작동 안 함
-  - 포션 목록 · 켜진 바이옴은 오토 팝핑과 따로, 버튼 위치 · OCR · 딜레이는 오토 팝핑 설정을 같이 씀
-  - 시작 전 대기, 다 쓰고 인벤토리 닫기 설정 · 템플릿별 테스트 버튼
-  - 바이옴 감지에 바이옴 매크로 설정의 플레이어 이름이 필요함
-- 매크로 기능 설정 순서 변경: 레어 바이옴 자동 팝핑 → 자동 낚시 → 상인 자동 구매 → 포션 자동 제작 → 오토 메모리 매치
+## Acrux macro V1.10.0 업데이트
+- 메인 화면 시작 버튼을 기능별 버튼 3개로 나눔: 바이옴 매크로 / 오토 스나이핑 / 매크로
+  - 각자 따로 켜고 끔 · 켜지면 그 색으로 채워짐 · 버튼마다 지금 상태 표시
+  - 버튼 이름을 누르면 아래 설정 탭이 그 기능 탭으로 넘어감
+  - 매크로 버튼이 꺼져 있으면 매크로 탭 기능(레어 바이옴 자동 팝핑 등)이 돌지 않음 · 프로그램을 켤 때마다 꺼진 상태로 시작
+  - 바이옴 매크로 설정 카드의 켜기 스위치는 메인 버튼으로 옮김
+- 설정 탭에 Acrux 탭 추가: OCR 감지 방식(자동 · RapidOCR · 윈도우 OCR) · 언어 · 데이터 폴더 열기
+- 오른쪽 위 스나이핑 안정성 설정을 스나이프 탭으로 옮김
 
-## Acrux macro V1.9.0 Update
-- Added Macro tab · Rare biome auto popping (your server)
-  - Uses potions right away when a rare biome (Cyberspace · Glitched · Dreamspace) starts in the Roblox that is open now
-  - Does not run in servers joined by sniping, or while auto popping · macro return is running
-  - Potion lists · enabled biomes are separate from auto popping; button positions · OCR · delays are shared with auto popping settings
-  - Wait before start, close inventory when done · test button per template
-  - Biome detection needs the player name in Biome macro settings
-- New order in Macro feature settings: Rare biome auto popping → Auto fishing → Merchant auto buy → Potion auto craft → Auto Memory Match
+## Acrux macro V1.10.0 Update
+- Split the main Start button into 3 buttons: Biome macro / Auto sniping / Macro
+  - Each turns on and off separately · fills with its color when on · shows its current status
+  - Clicking a button's name switches the settings tab below to that feature
+  - Macro tab features (rare biome auto popping, etc.) only run while the Macro button is on · starts off every time the program opens
+  - Moved the on switch from the Biome macro settings card to the main button
+- Added an Acrux tab to settings: OCR detection (Auto · RapidOCR · Windows OCR) · Language · Open data folder
+- Moved Snipe stability from the top right into the Snipe tab

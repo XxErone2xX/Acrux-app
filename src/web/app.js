@@ -32,6 +32,7 @@ const ICONS = {
   shield: '<svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>',
   pin: '<svg viewBox="0 0 24 24"><path d="M12 21s-6-5.6-6-11a6 6 0 0112 0c0 5.4-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/></svg>',
   chart: '<svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M7 16v-5M12 16V6M17 16v-8"/></svg>',
+  gear: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>',
   globe: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c2.5 2.5 2.5 13.5 0 16M12 4c-2.5 2.5-2.5 13.5 0 16"/></svg>',
 };
 const icon = n => `<span class="ico">${ICONS[n] || ''}</span>`;
@@ -47,16 +48,18 @@ function addDeco(el) {
 
 // ---------------------------------------------------------------- 메뉴
 const MENU = [
-  { key: 'biome', tab: 'biome', icon: 'globe', color: 'var(--cyan)', title: '바이옴 매크로 설정', desc: '바이옴 알림 · 디스코드 웹후크', toggle: true },
+  { key: 'biome', tab: 'biome', icon: 'globe', color: 'var(--cyan)', title: '바이옴 매크로 설정', desc: '바이옴 알림 · 디스코드 웹후크' },
   { key: 'discord', tab: 'snipe', icon: 'chat', color: 'var(--accent)', title: '디스코드 감지 설정', desc: '감시할 서버·채널, 필터, 감지 기록' },
   { key: 'popping', tab: 'snipe', icon: 'bolt', color: 'var(--orange)', title: '오토 팝핑 매크로 설정', desc: '게임 접속 후 Play 버튼 자동 클릭' },
   { key: 'return', tab: 'snipe', icon: 'undo', color: 'var(--green)', title: '매크로 복귀 설정', desc: '바이옴이 끝나면 내 서버로 복귀' },
   { key: 'mfeat', tab: 'macro', icon: 'bolt', color: 'var(--yellow)', title: '매크로 기능 설정', desc: '내 서버에서 돌릴 기능 켜기 · 끄기' },
   { key: 'mpos', tab: 'macro', icon: 'pin', color: 'var(--red)', title: '매크로 기준 위치 설정', desc: '기능마다 이동할 기준 위치' },
   { key: 'mstats', tab: 'macro', icon: 'chart', color: 'var(--cyan)', title: '통계 보기', desc: '이번 실행 · 올타임 기록' },
+  { key: 'acrux', tab: 'acrux', icon: 'gear', color: '#7c6cf6', title: 'Acrux 설정', desc: 'OCR 감지 방식 · 언어 · 데이터 폴더',
+    grad: 'linear-gradient(135deg, #8fa0ff, #6c7bff 50%, #8b5cf6)' },
 ];
-// 설정 탭 — 끝없이 돌아감 (바이옴 → 스나이프 → 매크로 → 바이옴 …)
-const TABS = ['biome', 'snipe', 'macro'];
+// 설정 탭 — 끝없이 돌아감 (바이옴 → 스나이프 → 매크로 → Acrux → 바이옴 …)
+const TABS = ['biome', 'snipe', 'macro', 'acrux'];
 const TAB_SCALE = 1.65, TAB_GAP = 40;     // 지금 탭 확대 배율 · 옆 탭과 보이는 간격(px)
 let curTab = 'snipe';
 const wrapIdx = n => (n % TABS.length + TABS.length) % TABS.length;
@@ -99,6 +102,7 @@ function setTab(tab, animate = true, dir = 0) {
     b._r = r;
     clearTimeout(b._t);
     b.classList.toggle('on', r === 0);
+    b.classList.toggle('far', Math.abs(r) > 1);       // 탭이 4개: 반대편 탭 이름은 숨김
     if (animate && old !== undefined && Math.abs(r - old) > 1) {
       // 반대편으로 넘어가는 이름: 가운데를 가로지르지 않고 바깥으로 빠졌다가 → 반대쪽 바깥에서 들어옴
       b.classList.add('out');
@@ -160,7 +164,7 @@ function setupPage(m) {
 
 function buildMenu() {
   const menu = document.getElementById('menu');
-  for (const [sel, entry] of [['.log-open', LOG_ENTRY], ['.credit-open', CREDIT_ENTRY], ['.snipe-open', SNIPE_ENTRY]]) {
+  for (const [sel, entry] of [['.log-open', LOG_ENTRY], ['.credit-open', CREDIT_ENTRY]]) {
     const btn = document.querySelector(sel);
     setDeco(btn, entry);
     btn.querySelector('.head').innerHTML = headHTML(entry);
@@ -203,10 +207,11 @@ function buildMenu() {
     panels[t] = p;
   }
   document.querySelectorAll('.tab-name').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
-  for (const m of MENU) {
+  // 스나이핑 안정성 설정: 오른쪽 위에서 스나이프 탭 맨 아래로 옮김
+  for (const m of [...MENU, { ...SNIPE_ENTRY, tab: 'snipe', cls: 'snipe-open' }]) {
     const b = document.createElement('button');
-    b.className = 'menu-card deco';
-    b.style.setProperty('--deco', m.color);
+    b.className = 'menu-card deco' + (m.cls ? ' ' + m.cls : '');
+    setDeco(b, m);
     b.dataset.key = m.key;
     b.innerHTML = `<div class="head">${headHTML(m)}</div>` +
       (m.toggle ? `<label class="switch card-switch" title="바이옴 매크로 켜기/끄기"><input type="checkbox" data-toggle="${m.key}"><i></i></label>` : '') +
@@ -334,7 +339,8 @@ async function openPage(key) {
   page.classList.add('reveal');
   hideDeco();
   if (key === 'log') scrollLog(true);
-  if (key === 'mfeat') renderMpop();          // 플레이어 이름 · 버튼 위치가 바뀌었을 수 있음
+  if (key === 'mfeat') renderMpop();
+  if (key === 'acrux') refreshOcrInfo();          // 플레이어 이름 · 버튼 위치가 바뀌었을 수 있음
   shell.getAnimations().forEach(x => x.cancel());
   fly.getAnimations().forEach(x => x.cancel());
   shell.style.display = 'none';
@@ -454,9 +460,8 @@ function targetText(c) {
 }
 
 function renderSummary() {
-  const run = armed ? '작동 중' : '대기 — 시작 시 작동';
-  $('modeText').textContent = `${run} · ${targetText(config)}${config.enabled ? '' : ' · 감시 꺼짐'}`;
   $('targetSum').textContent = `감시 대상: ${targetText(config)}`;
+  syncMainTiles();
 }
 
 const FIELDS = [
@@ -705,14 +710,18 @@ function addLog(x) {
 }
 $('clearLog').addEventListener('click', () => { $('log').innerHTML = ''; });
 
-// ---------------------------------------------------------------- 시작 / 중지
+// ---------------------------------------------------------------- 시작 / 중지 (메인 화면 기능별 버튼 3개)
+// 바이옴 매크로 = 바이옴 매크로 설정의 켜기 · 오토 스나이핑 = 예전 시작 버튼(감지되면 접속) · 매크로 = 매크로 탭 기능 전체
 const runBtn = $('runBtn');
-function setRun(state) {
-  if (runBtn.dataset.state === state && $('runText').textContent) return;
+const tile = k => document.querySelector(`.main-tile[data-main="${k}"]`);
+function setTile(k, on, btnText) {
+  const t = tile(k);
+  t.classList.toggle('on', !!on);
+  t.querySelector('.mt-go').textContent = btnText || (on ? '끄기' : '시작');
+}
+function setRun(state) {                  // 오토 스나이핑 (state: idle / running)
   runBtn.dataset.state = state;
-  const [ic, text] = { idle: ['play', '시작'], running: ['stop', '중지'] }[state];
-  $('runIco').innerHTML = ICONS[ic];
-  $('runText').textContent = text;
+  setTile('snipe', state === 'running');
 }
 runBtn.addEventListener('click', async () => {
   const s = runBtn.dataset.state;
@@ -727,7 +736,40 @@ runBtn.addEventListener('click', async () => {
     setRun('running');
   }
   else { setRun('idle'); await api('stop'); }
+  renderSummary();
 });
+$('mgBiome').addEventListener('click', () => setBioEnabled(!bio().enabled));
+$('mgMacro').addEventListener('click', () => {
+  const on = !config.macro_on;
+  config.macro_on = on;
+  queueSave({ macro_on: on });
+  if (!on) api('mpop_stop');
+  syncMainTiles();
+  toast('매크로 ' + (on ? '켜짐' : '꺼짐'));
+});
+document.querySelectorAll('[data-tab-go]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tabGo, true)));
+
+// 켜진 매크로 탭 기능 수
+const macroFeatures = () => [mpop().enabled].filter(Boolean).length;
+let lastBio = null, lastMpop = null;
+function syncMainTiles() {
+  const bOn = !!bio().enabled;
+  setTile('biome', bOn);
+  const cur = lastBio && lastBio.current;
+  $('mtBiome').textContent = bOn ? `작동 중 · ${cur || '바이옴 확인 중'}`
+    : (bio().player ? '꺼짐' : '꺼짐 · 플레이어 이름 필요');
+  $('mtSnipe').textContent = armed ? `감시 중 · ${$('count').textContent}개 감지` : '꺼짐';
+  const mOn = !!config.macro_on, n = macroFeatures();
+  const sniping = !!(lastBio && lastBio.muted);
+  setTile('macro', mOn);
+  tile('macro').classList.toggle('wait', mOn && sniping);
+  $('mtMacro').textContent = !mOn ? (n ? `꺼짐 · 기능 ${n}개 켜짐` : '꺼짐')
+    : lastMpop && lastMpop.running ? (lastMpop.msg || '포션 사용 중')
+    : sniping ? '스나이핑 중이라 대기'
+    : n ? `작동 중 · 기능 ${n}개` : '켜진 기능 없음';
+  const on = [bOn && '바이옴 매크로', armed && '오토 스나이핑', mOn && '매크로'].filter(Boolean);
+  $('modeText').textContent = on.length ? `작동 중: ${on.join(' · ')}` : '모두 꺼짐 — 아래 버튼으로 켜기';
+}
 
 function setStatus([state, text]) {
   document.querySelectorAll('[data-status-dot]').forEach(d => { d.dataset.s = state; });
@@ -751,6 +793,8 @@ async function poll() {
     updateSteps(r.steps, r.pre);
     updateBiome(r.biome);
     updateMpop(r.mpop);
+    lastBio = r.biome; lastMpop = r.mpop;
+    syncMainTiles();
     r.events.forEach(addEventRow);
     const nm = JSON.stringify([r.names, r.channels]);
     if (nm !== lastNames) { lastNames = nm; config.names = r.names; config.channels = r.channels; renderLists(); }
@@ -1137,6 +1181,32 @@ document.querySelectorAll('[data-mpop-test]').forEach(b => b.addEventListener('c
 }));
 $('mpopStop').addEventListener('click', () => api('mpop_stop'));
 
+// ---------------------------------------------------------------- Acrux 설정 (OCR 감지 방식 · 일반)
+async function refreshOcrInfo() {
+  $('acOcrNow').textContent = '확인 중…';
+  try {
+    const r = await api('ocr_info');
+    $('acOcrNow').textContent = r.engine + (r.rapid ? '' : ' (RapidOCR 없음)');
+  } catch { $('acOcrNow').textContent = '-'; }
+}
+function fillAcrux() {
+  $('acOcr').value = config.ocr_engine || 'auto';
+  const sel = $('acLang');
+  sel.innerHTML = Object.entries(I18N.LANGS).map(([k, n]) => `<option value="${k}">${n}</option>`).join('');
+  sel.value = I18N.lang;
+  I18N.onChange(l => { sel.value = l; });
+  $('acVer').textContent = $('verText').textContent;
+}
+$('acOcr').addEventListener('change', e => {
+  config.ocr_engine = e.target.value;
+  queueSave({ ocr_engine: e.target.value });
+  setTimeout(refreshOcrInfo, 600);             // 저장된 뒤 다시 확인
+});
+$('acLang').addEventListener('change', e => setLang(e.target.value));
+$('acFolder').addEventListener('click', async () => {
+  try { await api('open_folder'); } catch { toast('폴더를 열 수 없음'); }
+});
+
 // ---------------------------------------------------------------- 스나이핑 안정성
 const snipe = () => (config.snipe ||= {});
 const saveSnipe = () => queueSave({ snipe: JSON.parse(JSON.stringify(snipe())) });
@@ -1521,6 +1591,7 @@ function syncBioToggles() {
   const on = !!bio().enabled;
   $('bioEnabled').checked = on;
   document.querySelectorAll('[data-toggle="biome"]').forEach(i => { i.checked = on; });
+  if (config) syncMainTiles();
 }
 function setBioEnabled(on) {
   if (on && !bio().player) {
@@ -1858,7 +1929,7 @@ const Tutorial = (() => {
              <p>이 설정으로 링크를 보고 <b>사람이 직접 누른 것처럼</b> 잠깐 기다렸다가 접속하게 할 수 있습니다.</p>
              <p class="dim">이 튜토리얼은 건너뛸 수 없습니다.</p>` },
     { id: 'card', title: '스나이핑 안정성 설정을 눌러주세요',
-      body: `<p>오른쪽 위의 강조된 <b>스나이핑 안정성 설정</b> 버튼을 직접 눌러주세요.</p>`,
+      body: `<p>스나이프 탭의 강조된 <b>스나이핑 안정성 설정</b> 버튼을 직접 눌러주세요.</p>`,
       target: () => document.querySelector('.snipe-open'), done: () => current === 'snipe' },
     { id: 'joinSide', ...secStep(snipePage, 'sn-join', '접속'), done: () => snSec('sn-join'), needs: 'card' },
     { title: '링크 감지 후 접속 딜레이',
@@ -1877,7 +1948,7 @@ const Tutorial = (() => {
       target: () => $('snRepeatRows'), input: true, needs: 'joinSide' },
     { id: 'done', title: '설정이 완료되었습니다',
       body: `<p>스나이핑 안정성 설정이 끝났습니다.</p>
-             <p>언제든 오른쪽 위 <b>스나이핑 안정성 설정</b>에서 바꿀 수 있습니다.</p>` },
+             <p>언제든 스나이프 탭의 <b>스나이핑 안정성 설정</b>에서 바꿀 수 있습니다.</p>` },
   ];
   TUTORIALS.push({ id: 'snipe', name: '스나이핑 안정성 설정', steps: SNIPE_STEPS, menu: 'snipe',
     needed: () => !(config.tutorials_done || []).includes('snipe') });
@@ -2157,6 +2228,7 @@ const Tutorial = (() => {
   fillSteps();
   fillBiome();
   fillMpop();
+  fillAcrux();
   renderSummary();
   setStatus(s.status);
   armed = !!s.armed;

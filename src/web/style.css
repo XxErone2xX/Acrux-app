@@ -611,7 +611,6 @@ body:not(.in-page) .lang.in-card { display: none; }
 .menu-card .card-switch input:checked + i::after { transform: translateX(22px); }
 
 /* ---------------- 오른쪽 위: 스나이핑 안정성 설정 (검정 + 빨강) ---------------- */
-.snipe-corner { position: absolute; top: 16px; right: 20px; }
 .snipe-open .head b { color: #fff; }
 .snipe-open .head .desc { color: #e5787b; }
 .range-pair { display: flex; align-items: center; gap: 8px; }
@@ -666,3 +665,24 @@ body:not(.in-page) .lang.in-card { display: none; }
 
 /* 메인: 설정 줄을 시작 버튼 쪽으로 조금 올림 */
 #main .col > .label { margin: 18px 0 2px; }
+
+/* ---------- 메인 화면 기능별 시작 버튼 (바이옴 매크로 / 오토 스나이핑 / 매크로) ---------- */
+.mains { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+.main-tile { --deco: var(--k); display: flex; flex-direction: column; background: var(--panel); transition: background .35s ease; }
+.main-tile.on { background: linear-gradient(180deg, color-mix(in srgb, var(--k) 22%, var(--panel)), var(--panel)); }
+.mt-name { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 16px 10px 12px; background: none; color: var(--fg); cursor: pointer; }
+.mt-name b { font-size: 15px; }
+.mt-st { font-size: 11px; color: var(--muted); min-height: 14px; text-align: center; }
+.main-tile.on .mt-st { color: color-mix(in srgb, var(--k) 70%, white); }
+.main-tile.on .mt-st::before { content: "● "; }
+.main-tile.wait .mt-st { color: var(--yellow); }
+.mt-go { margin: 0 12px 12px; height: 34px; font-weight: 700; font-size: 13px; color: var(--k); background: transparent;
+  border: 1px solid var(--k); transition: background .25s ease, color .25s ease, filter .2s ease; }
+.mt-go:hover { background: color-mix(in srgb, var(--k) 18%, transparent); }
+.main-tile.on .mt-go { background: var(--k); color: #111; }
+.main-tile.on .mt-go:hover { filter: brightness(1.1); }
+.mt-go:active { transform: scale(.98); }
+
+/* 설정 탭이 4개: 지금 탭 양옆만 보이고 반대편 하나는 숨김 */
+.tab-name.far { opacity: 0; pointer-events: none; }
+.ac-ocr-help { display: flex; flex-direction: column; gap: 6px; padding: 14px 18px; }
