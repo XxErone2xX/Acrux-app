@@ -1,17 +1,13 @@
-## Acrux macro V1.15.1 업데이트
-- 입질 후 미니게임으로 넘어갈 때 결과창 X 를 한 번 누르던 버그 수정
-  - 넘어가는 순간엔 버튼도 릴링 바도 안 보여서, 결과창 제목 자리에 보이는 하늘 · 배경을 결과창으로 잘못 보던 문제
-  - 이제 결과창은 릴링이 끝난 뒤에만 다룸
-- 낚은 뒤 결과창 닫는 방식 변경 (최대한 빠르게)
-  - 물고기를 낚은 게 확인되면 Fish 버튼이 다시 보일 때까지 결과창 X 를 0.1초마다 미리 눌러 둠 → 결과창이 뜨자마자 닫힘
-  - 결과(성공 / 쓰레기 / 실패)는 X 를 누르기 직전마다 제목 색으로 확인해서 기록
-  - 그래서 세부 설정의 '결과창 대기'는 없앰
+## Acrux macro V1.15.2 업데이트
+- 미니게임 중에 릴링 바를 못 찾아서 낚시가 끊기던 문제 수정
+  - 원인: 표시가 맨 왼쪽까지 떨어져 막대가 거의 비었고, 그 막대 색이 평소 청록보다 더 파란색이라 "릴링 바 없음"으로 봄 → 미니게임이 끝난 줄 알고 클릭을 멈춤
+  - 이제 릴링 바가 떠 있는지는 막대 색이 아니라 '색 있는 칸(막대 · 물고기 구간)'으로 판단 → 막대가 비어 있어도 구간이 보이면 계속 릴링
+  - 막대 색 범위를 청록 ~ 파랑으로 넓힘 (물고기 구간 색과는 겹치지 않게)
+  - 구간 위에 남은 시간 숫자가 겹쳐 있으면 구간이 둘로 잘려 보이던 문제도 수정
 
-## Acrux macro V1.15.1 Update
-- Fixed the result X being clicked once when a bite turns into the minigame
-  - During the switch neither the button nor the reel bar is visible, and the sky · background at the result title spot was mistaken for the result window
-  - The result window is now only handled after reeling ends
-- New way to close the result after a catch (as fast as possible)
-  - Once a catch is confirmed, it clicks the result X every 0.1 s until the Fish button is back → the result closes the moment it appears
-  - The result (success / junk / fail) is read from the title color right before each X click
-  - 'Result window wait' was removed from fine-tuning
+## Acrux macro V1.15.2 Update
+- Fixed fishing stopping mid-minigame because the reel bar wasn't found
+  - Cause: the marker had dropped to the far left so the fill was nearly empty, and that fill was a bluer shade than the usual teal, so it read as "no reel bar" → it thought the minigame ended and stopped clicking
+  - Whether the reel bar is showing is now judged by colored cells (fill or fish zone), not the fill color → it keeps reeling as long as the zone is visible, even with an empty fill
+  - Widened the fill color range from teal to blue (without overlapping fish zone colors)
+  - Also fixed the zone looking split in two when the countdown number overlaps it
