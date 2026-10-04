@@ -493,6 +493,17 @@ def is_foreground(hwnd):
     return IS_WIN and bool(hwnd) and user32.GetForegroundWindow() == hwnd
 
 
+def foreground():
+    """지금 맨 앞에 있는 창 (Acrux 화면으로 다시 돌아올 때 씀)"""
+    return user32.GetForegroundWindow() if IS_WIN else None
+
+
+def focus_back(hwnd):
+    """foreground() 로 기억해 둔 창(Acrux 화면)으로 돌아옴 · 로블록스였으면 그대로"""
+    if hwnd and hwnd != roblox_window_cached(5.0):
+        focus(hwnd)
+
+
 def focus(hwnd, wait=0.0):
     """로블록스 창을 맨 앞으로. 이미 앞에 있으면 아무것도 안 함. wait: 앞으로 가져왔을 때 화면이 바뀔 시간"""
     if not IS_WIN or not hwnd:
