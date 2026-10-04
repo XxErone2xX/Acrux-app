@@ -1344,7 +1344,7 @@ $('mfishCheck').addEventListener('click', async e => {
   try {
     const r = await api('mfish_check');
     if (r.error) return toast(r.error);
-    toast([r.button && `버튼: ${r.button}`, r.bar && `릴링 바: ${r.bar}`, r.title && `결과창: ${r.title}`].filter(Boolean).join(' · ') || '지정된 위치 없음');
+    toast([r.button && `버튼: ${r.button}`, r.bar && `릴링 바: ${r.bar}`, r.diamond && `◇: ${r.diamond}`, r.title && `결과창: ${r.title}`].filter(Boolean).join(' · ') || '지정된 위치 없음');
   } finally { b.disabled = false; }
 });
 

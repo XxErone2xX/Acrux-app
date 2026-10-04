@@ -678,6 +678,9 @@ class Bridge:
                     a = fishing.analyze_bar(fishing._np(bytes(img.bgra), img.width, img.height), top_in, bh)
                     out["bar"] = (f"보임 · 내 위치 {a['marker']:.0f} · 구간 {a['zone']}" if a["present"] and a["marker"] is not None
                                   else "보임" if a["present"] else "안 보임")
+                if mf.get("panel_region"):
+                    moved = self.fisher._diamond_moved(sct, rect, mf)
+                    out["diamond"] = "미니게임 자리" if moved else "대기 자리 (미니게임 아님)"
                 if mf.get("title_pos"):
                     t = fishing.classify_title(self.fisher._grab_box(sct, rect, mf["title_pos"], 0.12, 0.05))
                     out["title"] = {"success": "성공", "junk": "쓰레기", "fail": "실패"}.get(t, "안 보임")
