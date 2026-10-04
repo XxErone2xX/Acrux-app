@@ -1,7 +1,7 @@
-## Acrux macro V1.10.4 업데이트
-- 메인 버튼을 켤 때 색이 칸 밖으로 삐져나와 보이던 애니메이션 수정 (이제 칸 안에서만 아래에서 위로 차오름)
-- 튜토리얼이 다른 탭으로 넘어갈 때 다시 미끄러지는 애니메이션으로 넘어감 (강조 박스는 탭이 다 들어온 뒤 제자리를 잡음)
+## Acrux macro V1.10.5 업데이트
+- 프로그램을 켰을 때 설정 탭 이름(바이옴 · 스나이프 · 매크로 · Acrux)이 흐릿하게 보이던 문제 수정
+  - 작게 그린 글자를 확대하던 방식 → 크게 그린 글자를 줄이는 방식으로 바꿔서 항상 선명함 (위치 · 크기는 그대로)
 
-## Acrux macro V1.10.4 Update
-- Fixed the color spilling outside the tile while a main button turns on (it now fills up only inside the tile, bottom to top)
-- Tutorials switch settings tabs with the slide animation again (the highlight settles once the tab has slid in)
+## Acrux macro V1.10.5 Update
+- Fixed the settings tab names (Biome · Snipe · Macro · Acrux) looking blurry when the program opens
+  - Text used to be drawn small and scaled up → now drawn large and scaled down, so it stays sharp (same position and size)

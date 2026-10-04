@@ -639,13 +639,14 @@ body:not(.in-page) .lang.in-card { display: none; }
 /* ---------------- 메인 설정 탭: 바이옴 / 스나이프 / 매크로 (돌아가며) ---------------- */
 .tabs { position: relative; margin: -2px 0 8px; height: 30px; }
 .tab-track { position: absolute; inset: 0; }
-.tab-name { position: absolute; left: 50%; top: 50%; background: none; border: 0; padding: 0 2px; color: var(--muted);
-  font-size: 13px; font-weight: 700; white-space: nowrap; cursor: pointer; opacity: .75;
-  transform: translate(-50%, -50%) translateX(var(--x, 0px)) scale(1);
-  transition: color .3s, opacity .3s, transform .5s cubic-bezier(.2, .9, .25, 1); will-change: transform; }
+/* 글자는 큰 크기(13px × 1.65)로 그리고, 옆 탭만 줄여서 보여줌
+   (작게 그린 글자를 확대하면 흐려 보임 · 줄이는 건 선명함 · 글자 크기 대신 확대/축소라 위치가 흔들리지 않음) */
+.tab-name { position: absolute; left: 50%; top: 50%; background: none; border: 0; padding: 0 3px; color: var(--muted);
+  font-size: 21.45px; font-weight: 700; white-space: nowrap; cursor: pointer; opacity: .75;
+  transform: translate(-50%, -50%) translateX(var(--x, 0px)) scale(.606);
+  transition: color .3s, opacity .3s, transform .5s cubic-bezier(.2, .9, .25, 1); }
 .tab-name:hover { color: var(--fg); opacity: 1; }
-/* 글자 크기 대신 확대 → 위치가 흔들리지 않음 */
-.tab-name.on { color: var(--fg); opacity: 1; transform: translate(-50%, -50%) translateX(var(--x, 0px)) scale(1.65); }
+.tab-name.on { color: var(--fg); opacity: 1; transform: translate(-50%, -50%) translateX(var(--x, 0px)) scale(1); }
 .tab-name.out { opacity: 0; transition: color .3s, opacity .17s, transform .17s ease-in; }
 .tab-name.no-anim { transition: none !important; }
 .menu { display: grid; }

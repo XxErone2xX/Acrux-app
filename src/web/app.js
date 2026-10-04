@@ -93,8 +93,9 @@ function setTab(tab, animate = true, dir = 0) {
   // 이름 줄: 지금 탭은 가운데, 이전 탭은 왼쪽, 다음 탭은 오른쪽 (돌아가며)
   // 글자 길이가 달라도 보이는 간격이 양쪽 똑같게: 가운데 글자 끝에서 같은 거리만큼 떨어뜨림
   const onBtn = document.querySelector(`.tab-name[data-tab="${tab}"]`);
-  const half = onBtn.offsetWidth * TAB_SCALE / 2;
-  const posX = (b, r) => r === 0 ? 0 : Math.sign(r) * (half + TAB_GAP + b.offsetWidth / 2 + (Math.abs(r) > 1 ? 90 : 0));
+  // 글자는 큰 크기로 그려져 있음: 지금 탭은 그대로, 옆 탭은 1/배율로 줄어 보임
+  const half = onBtn.offsetWidth / 2;
+  const posX = (b, r) => r === 0 ? 0 : Math.sign(r) * (half + TAB_GAP + b.offsetWidth / TAB_SCALE / 2 + (Math.abs(r) > 1 ? 90 : 0));
   const setR = (b, r) => b.style.setProperty('--x', posX(b, r) + 'px');
   document.querySelectorAll('.tab-name').forEach(b => {
     const r = wrapIdx(TABS.indexOf(b.dataset.tab) - k + 1) - 1;      // -1 / 0 / 1
