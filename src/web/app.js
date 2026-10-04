@@ -344,6 +344,7 @@ async function openPage(key) {
   if (key === 'log') scrollLog(true);
   if (key === 'mfeat') renderMpop();
   if (key === 'acrux') refreshOcrInfo();          // 플레이어 이름 · 버튼 위치가 바뀌었을 수 있음
+  if (key === 'updates') loadChangelog();
   shell.getAnimations().forEach(x => x.cancel());
   fly.getAnimations().forEach(x => x.cancel());
   shell.style.display = 'none';
@@ -1334,7 +1335,7 @@ $('mfishCheck').addEventListener('click', async e => {
   } finally { b.disabled = false; }
 });
 
-// ---------------------------------------------------------------- Acrux 설정 · 업데이트 로그 (src/CHANGELOG.md)
+// ---------------------------------------------------------------- 업데이트 로그 (GitHub 릴리스 설명)
 // 한국어는 '업데이트' 부분, 그 외 언어는 영어 'Update' 부분을 보여줌 (노트는 한국어 + 영어로만 씀)
 let changelog = null;
 function mdList(md) {
@@ -1354,9 +1355,14 @@ function mdList(md) {
   return ul(root.kids);
 }
 function renderChangelog() {
-  const box = $('acLog');
-  if (!changelog) { box.innerHTML = `<div class="empty">${I18N.lang === 'ko' ? '불러오는 중…' : 'Loading…'}</div>`; return; }
-  const ko = I18N.lang === 'ko';
+  const box = $('acLog'), ko = I18N.lang === 'ko';
+  if (!changelog) { box.innerHTML = `<div class="empty">${ko ? 'GitHub 에서 불러오는 중…' : 'Loading from GitHub…'}</div>`; return; }
+  if (changelog.error) {
+    box.innerHTML = `<div class="empty">${ko ? '업데이트 로그를 못 불러옴 · 인터넷 연결 확인' : 'Could not load the update log · check your internet connection'}
+      <button class="btn mini" type="button" id="clRetry">${ko ? '다시 불러오기' : 'Retry'}</button></div>`;
+    $('clRetry').addEventListener('click', () => loadChangelog(true));
+    return;
+  }
   if (!changelog.entries.length) { box.innerHTML = `<div class="empty">${ko ? '업데이트 로그 없음' : 'No update log'}</div>`; return; }
   box.innerHTML = changelog.entries.map(e => `
     <div class="card cl-item${e.version === changelog.current ? ' now' : ''}">
@@ -1365,9 +1371,11 @@ function renderChangelog() {
       <div class="cl-body">${mdList((ko ? e.ko : e.en) || e.ko || e.en)}</div>
     </div>`).join('');
 }
-async function loadChangelog() {
-  renderChangelog();
-  try { changelog = await api('changelog'); } catch { changelog = { entries: [], current: '' }; }
+// 업데이트 로그 화면을 열 때마다 (서버가 10분 동안은 받아둔 걸 줌)
+async function loadChangelog(refresh = false) {
+  if (!changelog || changelog.error) { changelog = null; renderChangelog(); }
+  try { changelog = await api('changelog', refresh ? { refresh: true } : {}); }
+  catch (err) { changelog = { error: err.message }; }
   renderChangelog();
 }
 I18N.onChange(() => renderChangelog());
@@ -1387,7 +1395,6 @@ function fillAcrux() {
   sel.value = I18N.lang;
   I18N.onChange(l => { sel.value = l; });
   $('acVer').textContent = $('verText').textContent;
-  loadChangelog();
 }
 $('acOcr').addEventListener('change', e => {
   config.ocr_engine = e.target.value;
