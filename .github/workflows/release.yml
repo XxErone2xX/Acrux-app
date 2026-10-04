@@ -33,6 +33,15 @@ jobs:
           }
           "version=$v" >> $env:GITHUB_OUTPUT
 
+      # 업데이트 로그(src/CHANGELOG.md · Acrux 탭에 보임)에 이번 버전이 빠졌으면 릴리스하지 않음
+      - name: Check update log
+        shell: pwsh
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          if (-not (Select-String -Path src/CHANGELOG.md -Pattern "^# V$([regex]::Escape($v))( |$)" -Quiet)) {
+            throw "src/CHANGELOG.md 맨 위에 '# V$v · 날짜' + RELEASE_NOTES.md 내용을 추가하세요"
+          }
+
       - name: Install packages
         run: |
           python -m pip install --upgrade pip
