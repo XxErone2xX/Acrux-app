@@ -1257,54 +1257,63 @@ $('mfAllOff').addEventListener('click', () => setAllFeatures(false));
 
 // ---------------------------------------------------------------- 매크로 기준 위치 설정 (기능마다 따로)
 // feat: 설정 묶음 (mpop / mfish) · points: [키, 이름, 설명] · region: [키, 이름, 설명] · 저장은 서버(api)에서
+// tpl: 화면 비율 위치 템플릿 · windows: 창 영역(드래그) → 안쪽 위치를 서버가 계산 · points/regions: 하나씩 직접 지정
 const MPOS = {
-  mpop: { box: 'mposPop', points: POP_POS.map(([k, n, sub]) => [k, n, sub || '']),
-          region: ['ocr_region', 'OCR 영역', '검색 결과 아이템 이름·개수 (예: Warp Potion x23)'] },
-  mfish: { box: 'mposFish', points: MFISH_POS,
-           region: ['bar_region', '릴링 바 영역', '위쪽 바(파란 막대, Ready! 가 뜨는 바)만 딱 맞게 드래그 · ◇ 표시는 자동으로 찾음'] },
+  mpop: { box: 'mposPop', tpl: true, points: POP_POS.map(([k, n, sub]) => [k, n, sub || '']),
+          regions: [['ocr_region', 'OCR 영역', '검색 결과 아이템 이름·개수 (예: Warp Potion x23)']] },
+  mfish: { box: 'mposFish',
+           windows: [['panel_region', '낚시 창 영역', 'Fish 버튼이 보일 때 낚시 창을 흰 꺾쇠 테두리까지 드래그 → Fish 버튼과 릴링 바 위치 자동 계산'],
+                     ['result_region', '결과창 영역', '한 번 낚아서 결과창이 떠 있을 때 흰 꺾쇠 테두리까지 드래그 → 결과창 X 와 제목 위치 자동 계산']],
+           points: MFISH_POS,
+           regions: [['bar_region', '릴링 바 영역', '위쪽 바(파란 막대, Ready! 가 뜨는 바)만 딱 맞게 드래그 · ◇ 표시는 자동으로 찾음']] },
 };
 const MPOS_RATIOS = [['auto', '자동 (지금 창)'], ['16:9', '16:9'], ['16:10', '16:10'], ['21:9', '21:9'], ['32:9', '32:9'], ['4:3', '4:3'], ['5:4', '5:4']];
 let mposRatio = 'auto';
 function renderMpos(feat) {
   const d = MPOS[feat], c = featCfg(feat), box = $(d.box);
-  const [rk, rname, rsub] = d.region;
+  const regions = [...(d.windows || []), ...d.regions];
   const row = (k, name, sub, val, fmt, btn, attr) => `
     <div class="row"><span>${name}<small>${sub}</small></span>
       <span class="pos"><code class="${val ? '' : 'unset'}">${fmt(val)}</code>
       <button class="btn mini ghost" type="button" ${attr}="${k}">${btn}</button></span></div>`;
-  box.innerHTML = `
+  const fine = d.points.map(([k, name, sub]) => row(k, `${name} 위치`, sub, c[k], fmtPos, '위치 지정', 'data-mpos-pick')).join('') +
+    d.regions.map(([k, name, sub]) => row(k, name, sub, c[k], fmtReg, '드래그로 지정', 'data-mpos-region')).join('');
+  box.innerHTML = (d.tpl ? `
     <div class="row tpl-pick"><span>위치 템플릿<small>화면 비율에 맞는 기본 위치를 한 번에 채움 · 자동 = 지금 로블록스 창 크기로 계산 · 16:9 말고는 추정값이라 안 맞는 건 아래에서 직접 지정</small></span>
       <span class="pos"><select data-mpos-ratio>${MPOS_RATIOS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select>
-      <button class="btn mini" type="button" data-mpos-tpl>적용</button></span></div>` +
-    d.points.map(([k, name, sub]) => row(k, `${name} 위치`, sub, c[k], fmtPos, '위치 지정', 'data-mpos-pick')).join('') +
-    row(rk, rname, rsub, c[rk], fmtReg, '드래그로 지정', 'data-mpos-region');
-  const sel = box.querySelector('[data-mpos-ratio]');
-  sel.value = mposRatio;
-  sel.addEventListener('change', () => { mposRatio = sel.value; });
-  box.querySelector('[data-mpos-tpl]').addEventListener('click', async e => {
-    const b = e.currentTarget;
-    const set = [...d.points.map(x => x[0]), rk].some(k => c[k]);
-    if (set && !(b._armed > Date.now())) {             // 이미 지정한 게 있으면 한 번 더 눌러야 덮어씀
-      b._armed = Date.now() + 3000; b.textContent = '한 번 더 누르면 덮어쓰기';
-      setTimeout(() => { b.textContent = '적용'; b._armed = 0; }, 3000);
-      return;
-    }
-    const ratio = box.querySelector('[data-mpos-ratio]').value;
-    mposRatio = ratio;
-    const r = await api('mpos_template', { feat, ratio });
-    if (r.error) return toast(r.error);
-    Object.assign(c, r[feat]); mposChanged(feat);
-    toast(r.guess ? `${r.label} 템플릿 적용 · 추정값이라 [상태 확인] 으로 확인` : `${r.label} 템플릿 적용`);
-  });
+      <button class="btn mini" type="button" data-mpos-tpl>적용</button></span></div>` : '') +
+    (d.windows || []).map(([k, name, sub]) => row(k, name, sub, c[k], fmtReg, '드래그로 지정', 'data-mpos-region')).join('') +
+    (d.windows ? `<div class="row mpos-sub"><span>세부 위치<small>위 창 영역으로 자동 계산됨 · 조금 어긋나면 여기서 하나씩 직접 지정</small></span></div>` : '') + fine;
+  if (d.tpl) {
+    const sel = box.querySelector('[data-mpos-ratio]');
+    sel.value = mposRatio;
+    sel.addEventListener('change', () => { mposRatio = sel.value; });
+    box.querySelector('[data-mpos-tpl]').addEventListener('click', async e => {
+      const b = e.currentTarget;
+      const set = [...d.points, ...d.regions].some(([k]) => c[k]);
+      if (set && !(b._armed > Date.now())) {             // 이미 지정한 게 있으면 한 번 더 눌러야 덮어씀
+        b._armed = Date.now() + 3000; b.textContent = '한 번 더 누르면 덮어쓰기';
+        setTimeout(() => { b.textContent = '적용'; b._armed = 0; }, 3000);
+        return;
+      }
+      const ratio = sel.value;
+      mposRatio = ratio;
+      const r = await api('mpos_template', { feat, ratio });
+      if (r.error) return toast(r.error);
+      Object.assign(c, r[feat]); mposChanged(feat);
+      toast(r.guess ? `${r.label} 템플릿 적용 · 추정값이라 [상태 확인] 으로 확인` : `${r.label} 템플릿 적용`);
+    });
+  }
   box.querySelectorAll('[data-mpos-pick]').forEach(b => b.addEventListener('click', async () => {
     const k = b.dataset.mposPick, name = d.points.find(x => x[0] === k)[1];
     const r = await pickWith(b, `로블록스 화면에서 ${name} 클릭`, () => api('mpos_point', { feat, key: k }));
     if (r) { c[k] = r.pos; mposChanged(feat); toast(`${name} 위치 저장`); }
   }));
-  box.querySelector('[data-mpos-region]').addEventListener('click', async e => {
-    const r = await pickWith(e.currentTarget, `로블록스 화면에서 ${rname} 드래그`, () => api('mpos_region', { feat }));
-    if (r) { c[rk] = r.region; mposChanged(feat); toast(`${rname} 저장`); }
-  });
+  box.querySelectorAll('[data-mpos-region]').forEach(b => b.addEventListener('click', async () => {
+    const k = b.dataset.mposRegion, name = regions.find(x => x[0] === k)[1];
+    const r = await pickWith(b, `로블록스 화면에서 ${name} 드래그`, () => api('mpos_region', { feat, key: k }));
+    if (r) { Object.assign(c, r[feat] || { [k]: r.region }); mposChanged(feat); toast(`${name} 저장`); }
+  }));
 }
 // 위치는 서버가 이미 저장함 → 화면만 다시 그림
 function mposChanged(feat) {

@@ -119,6 +119,8 @@ MFISH_DEFAULT = {
     "bar_region": None,           # 릴링 바(위쪽 바) 영역 [x1, y1, x2, y2]
     "close_pos": None,            # 결과창 X
     "title_pos": None,            # 결과창 제목 (선택 · 색으로 성공/쓰레기/실패 구분)
+    "panel_region": None,         # 낚시 창 영역 → Fish 버튼 · 릴링 바 자동 계산
+    "result_region": None,        # 결과창 영역 → 결과창 X · 제목 자동 계산
     "bite_max": 60.0, "target_pct": 10, "lead_ms": 60, "click_ms": 25, "click_gap_ms": 45, "result_wait": 0.8, "cast_retry": 3,
 }
 POP_BIOMES = ("CYBERSPACE", "GLITCHED", "DREAMSPACE")
@@ -314,7 +316,8 @@ def normalize(raw):
     mf["enabled"] = bool(mf.get("enabled"))
     for k in ("fish_btn", "close_pos", "title_pos"):
         mf[k] = _ratio_list(mf.get(k), 2)
-    mf["bar_region"] = _ratio_list(mf.get("bar_region"), 4)
+    for k in ("bar_region", "panel_region", "result_region"):
+        mf[k] = _ratio_list(mf.get(k), 4)
     for k, lo, hi in (("bite_max", 5, 600), ("target_pct", 0, 90), ("lead_ms", 0, 300), ("click_ms", 5, 200), ("click_gap_ms", 10, 500),
                       ("result_wait", 0, 10), ("cast_retry", 1, 10)):
         try:
