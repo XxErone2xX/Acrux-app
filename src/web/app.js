@@ -1194,7 +1194,7 @@ const MFISH_TUNE = [['bite_max', '입질 최대 대기', '이 시간 동안 입�
   ['target_pct', '목표 위치', '구간 왼쪽 끝에서 구간 폭의 몇 % 지점까지 떨어지면 누를지 · 0 = 왼쪽 끝, 50 = 가운데 · 구간 왼쪽으로 자꾸 빠지면 늘리고, 오른쪽으로 넘어가면 줄임 (%)', 10, 0, 5],
   ['lead_ms', '미리 누르기', '떨어지는 속도를 보고 이만큼 미리 누름 · 구간을 자꾸 넘어가면 늘리고, 못 따라가면 줄임 (ms)', 60, 0, 10],
   ['click_gap_ms', '클릭 최소 간격', '릴링 중 클릭 사이 최소 간격 (ms)', 45, 10, 5],
-  ['result_wait', '결과창 대기', '릴링이 끝난 뒤 결과창 X 를 누르기까지 (초)', 0.8, 0, 0.1],
+  ['result_wait', '결과창 대기', '릴링이 끝난 뒤 결과창 X 를 누르기까지 (초)', 1.3, 0, 0.1],
   ['cast_retry', 'Fish 다시 누르기', 'Fish 를 눌러도 반응이 없으면 다시 누르는 횟수 · 넘으면 인벤토리 가득으로 봄', 3, 1, 1]];
 function renderMfish() {
   const m = mfish();
@@ -1209,6 +1209,10 @@ function renderMfish() {
   $('mfishTune').innerHTML = MFISH_TUNE.map(([k, name, sub, def, min, step]) => `
     <label class="row"><span>${name}<small>${sub} · 기본 ${def}</small></span>
       <input type="number" min="${min}" step="${step}" data-mfish-tune="${k}" value="${m[k] ?? def}"></label>`).join('');
+  $('mfishTune').insertAdjacentHTML('beforeend', `
+    <label class="row"><span>릴링 기록 저장<small>낚시가 불안정할 때 켜고 몇 번 낚은 뒤 데이터 폴더의 fishing_log.csv 를 보내주세요 (Acrux 설정 → 일반 → 폴더 열기)</small></span>
+      <span class="switch"><input type="checkbox" id="mfishDebug" ${m.debug_log ? 'checked' : ''}><i></i></span></label>`);
+  $('mfishDebug').addEventListener('change', e => { m.debug_log = e.target.checked; saveMfish(); });
   $('mfishTune').querySelectorAll('[data-mfish-tune]').forEach(i => i.addEventListener('input', () => {
     const n = parseFloat(i.value);
     if (Number.isFinite(n) && n >= parseFloat(i.min)) { m[i.dataset.mfishTune] = n; saveMfish(); }
