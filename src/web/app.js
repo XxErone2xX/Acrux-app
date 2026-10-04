@@ -73,8 +73,6 @@ function setTab(tab, animate = true, dir = 0) {
     dir = d === 1 ? 1 : -1;
   }
   const menu = $('menu');
-  // 애니메이션 없이 넘길 땐 칸도 미끄러지지 않고 바로 제자리 (튜토리얼이 바로 위치를 재야 함)
-  if (!animate) menu.querySelectorAll('.menu-tab').forEach(p => p.classList.add('no-anim'));
   menu.querySelectorAll('.menu-tab').forEach(p => {
     const on = p.dataset.tab === tab, was = p.classList.contains('on');
     if (on && !was && animate && dir) {
@@ -92,10 +90,6 @@ function setTab(tab, animate = true, dir = 0) {
     p.classList.toggle('on', on);
     if (on) p.classList.remove('left', 'right');
   });
-  if (!animate) {
-    void menu.offsetWidth;
-    menu.querySelectorAll('.menu-tab').forEach(p => p.classList.remove('no-anim'));
-  }
   // 이름 줄: 지금 탭은 가운데, 이전 탭은 왼쪽, 다음 탭은 오른쪽 (돌아가며)
   // 글자 길이가 달라도 보이는 간격이 양쪽 똑같게: 가운데 글자 끝에서 같은 거리만큼 떨어뜨림
   const onBtn = document.querySelector(`.tab-name[data-tab="${tab}"]`);
@@ -2072,7 +2066,8 @@ const Tutorial = (() => {
     moved = true;
     focusEl = s.target ? s.target() : null;
     const tabEl = focusEl?.closest('.menu-tab');
-    if (tabEl && !tabEl.classList.contains('on')) setTab(tabEl.dataset.tab, false);
+    // 탭이 미끄러져 들어오는 동안 강조 박스는 아래 follow 가 따라가며 제자리를 잡음
+    if (tabEl && !tabEl.classList.contains('on')) setTab(tabEl.dataset.tab);
     place(!first);
     requestAnimationFrame(() => card.classList.add('in'));
   }
