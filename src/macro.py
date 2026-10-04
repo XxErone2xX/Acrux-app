@@ -1044,6 +1044,36 @@ def ocr_region(region_ratio, item=False):
     return ocr_item_bgra(data, w, h) if item else ocr_bgra(data, w, h)
 
 
+# ---------------------------------------------------------------- 게임 알림 감지 (오른쪽에 뜨는 알림 카드 등)
+NOTICE_COLORS = {
+    # 알림 제목 색 — red: "Cannot Fish" 같은 빨간 알림 (제목 · 꺾쇠가 빨강)
+    "red": lambda r, g, b: (r > 170) & (r - g > 90) & (r - b > 70),
+}
+
+
+def notice_check(sct, rect, region, keywords, color="red", min_ratio=0.004):
+    """알림 영역(로블록스 창 비율 [x1, y1, x2, y2])에 keywords 중 하나가 쓰인 알림이 떠 있는지 → 읽은 글자 또는 None
+    1) 그 색(예: 빨간 제목) 칸이 영역의 min_ratio 이상인지 먼저 봄 (가벼움) → 2) 있으면 그때만 OCR 로 글자 확인
+    (빨간 바닥 같은 배경을 알림으로 착각하지 않게) · OCR 을 못 쓰면 색만으로 판단"""
+    import numpy as np
+    x1, y1 = to_screen(min(region[0], region[2]), min(region[1], region[3]), rect)
+    x2, y2 = to_screen(max(region[0], region[2]), max(region[1], region[3]), rect)
+    w, h = max(1, x2 - x1), max(1, y2 - y1)
+    img = sct.grab({"left": x1, "top": y1, "width": w, "height": h})
+    data = bytes(img.bgra)
+    px = np.frombuffer(data, np.uint8).reshape(img.height, img.width, 4).astype(np.int16)
+    b, g, r = px[..., 0], px[..., 1], px[..., 2]
+    hit = NOTICE_COLORS[color](r, g, b)
+    if hit.mean() < min_ratio:
+        return None
+    try:
+        text = ocr_bgra(data, img.width, img.height)
+    except Exception:
+        return "(OCR 없음 · 색으로 판단)"
+    low = " ".join(str(text).lower().split())
+    return text if any(k in low for k in keywords) else None
+
+
 def wait_for_roblox(timeout=90.0, stop=None):
     """로블록스 창이 뜰 때까지 기다림"""
     end = time.time() + timeout

@@ -122,6 +122,7 @@ MFISH_DEFAULT = {
     "panel_region": None,         # 낚시 대기 창 영역 → Fish 버튼 (· 미니게임 창이 없으면 릴링 바) 자동 계산
     "reel_region": None,          # 낚시 미니게임 창 영역 → 릴링 바 자동 계산 (대기 창보다 넓음)
     "result_region": None,        # 결과창 영역 → 결과창 X · 제목 자동 계산
+    "notice_region": None,        # 알림 영역 (오른쪽에 뜨는 알림 카드) — "Cannot Fish" 알림이 뜨면 인벤토리 가득
     "bite_max": 60.0, "target_pct": 0, "lead_ms": 0, "click_ms": 25, "click_gap_ms": 45, "cast_retry": 3,
     "debug_log": False,           # 릴링 기록(fishing_log.csv) 저장 — 문제 확인용
     "click_v3": False,            # 클릭 기준을 '구간 왼쪽 변 이하'(목표 0 · 미리 누르기 0)로 바꾼 것 적용했는지 (한 번만)
@@ -329,7 +330,7 @@ def normalize(raw):
         mf["click_v3"] = True
     for k in ("fish_btn", "close_pos", "title_pos"):
         mf[k] = _ratio_list(mf.get(k), 2)
-    for k in ("bar_region", "panel_region", "reel_region", "result_region"):
+    for k in ("bar_region", "panel_region", "reel_region", "result_region", "notice_region"):
         mf[k] = _ratio_list(mf.get(k), 4)
     for k, lo, hi in (("bite_max", 5, 600), ("target_pct", 0, 90), ("lead_ms", 0, 300), ("click_ms", 5, 200), ("click_gap_ms", 10, 500),
                       ("cast_retry", 1, 10)):
