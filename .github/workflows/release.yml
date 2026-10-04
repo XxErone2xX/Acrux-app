@@ -1,0 +1,91 @@
+# 릴리스 만들기: src/version.py 의 VERSION 을 올린 뒤
+#   GitHub → Actions → Release → Run workflow  (또는 태그 v<VERSION> 푸시)
+# → 윈도우에서 실행기(Acrux.exe) · 런타임 · 앱 코드를 빌드해서 v<VERSION> 릴리스로 올림
+# → 사용자들의 Acrux.exe 가 다음에 켤 때 자동으로 받아감
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      # 외부 액션은 태그가 아니라 커밋 번호로 고정 (태그가 바뀌어도 같은 코드만 실행)
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+
+      - name: Read version
+        id: ver
+        shell: pwsh
+        run: |
+          $v = (python -c "import sys; sys.path.insert(0, 'src'); import version; print(version.VERSION)").Trim()
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$v") {
+            throw "태그($env:GITHUB_REF_NAME)와 src/version.py 의 VERSION(v$v)이 다릅니다"
+          }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Install packages
+        run: |
+          python -m pip install --upgrade pip
+          # 버전 고정 (새로 올라온 버전이 몰래 섞여 들어가지 않게) — 올릴 때는 여기서 바꾸고 version.py 의 RUNTIME +1
+          pip install pyinstaller==6.22.3 websocket-client==1.9.2 mss==10.2.0 winrt-runtime==3.2.1 winrt-Windows.Media.Ocr==3.2.1 winrt-Windows.Graphics.Imaging==3.2.1 winrt-Windows.Storage.Streams==3.2.1 winrt-Windows.Foundation==3.2.1 winrt-Windows.Foundation.Collections==3.2.1 winrt-Windows.Globalization==3.2.1 rapidocr_onnxruntime==1.4.4 onnxruntime==1.30.0 zstandard==0.25.0
+
+      - name: Build runtime (AcruxHost)
+        run: pyinstaller --noconfirm --clean --onedir --windowed --name AcruxHost --icon launcher/icon.ico --collect-all rapidocr_onnxruntime --collect-binaries onnxruntime --collect-submodules winrt launcher/host.py
+
+      # 실행기(Acrux.exe) 고정: 실행기 버전(LAUNCHER_VERSION)이 그대로면 이전 릴리스의 Acrux.exe 를 그대로 다시 올림
+      # → 파일이 매번 바뀌지 않아서 백신·SmartScreen 평판이 쌓이고, 오탐 신고 결과도 계속 유지됨
+      - name: Reuse previous launcher
+        id: prev
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $lv = (python -c "import sys; sys.path.insert(0, 'launcher'); import launcher; print(launcher.LAUNCHER_VERSION)").Trim()
+          $reuse = 'false'
+          try {
+            gh release download --repo $env:GITHUB_REPOSITORY --pattern release.json --pattern Acrux.exe --dir prev
+            $info = Get-Content prev/release.json -Raw | ConvertFrom-Json
+            $hash = (Get-FileHash prev/Acrux.exe -Algorithm SHA256).Hash.ToLower()
+            if ("$($info.launcher)" -eq $lv -and $hash -eq "$($info.sha256.'Acrux.exe')".ToLower()) {
+              New-Item -ItemType Directory -Force dist | Out-Null
+              Copy-Item prev/Acrux.exe dist/Acrux.exe -Force
+              $reuse = 'true'
+              Write-Host "Reusing Acrux.exe from the previous release (launcher $lv, $hash)"
+            } else {
+              Write-Host "Launcher changed ($($info.launcher) -> $lv) - building a new Acrux.exe"
+            }
+          } catch {
+            Write-Host "No previous launcher to reuse: $_"
+          }
+          "reuse=$reuse" >> $env:GITHUB_OUTPUT
+          $global:LASTEXITCODE = 0
+
+      - name: Build launcher (Acrux.exe)
+        if: steps.prev.outputs.reuse != 'true'
+        run: pyinstaller --noconfirm --onefile --windowed --name Acrux --icon launcher/icon.ico launcher/launcher.py
+
+      - name: Package
+        run: python launcher/pack.py
+
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: Acrux macro V${{ steps.ver.outputs.version }}
+          make_latest: true
+          # 릴리스 설명 = 레포 맨 위의 RELEASE_NOTES.md (버전마다 한국어 + 영어로 바뀐 점 작성)
+          body_path: RELEASE_NOTES.md
+          files: |
+            dist/Acrux.exe
+            out/app.zip
+            out/runtime.zip
+            out/release.json

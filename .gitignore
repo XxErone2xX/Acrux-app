@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+build/
+dist/
+out/
+*.spec
+src/config.json
+src/config_t.json
+src/app.log
