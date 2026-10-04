@@ -105,12 +105,24 @@ def _colored(band):
     return ((mx - mn) > 50) & (mx > 90)
 
 
+def _left_ok(band):
+    """릴링 바 모양인지: 왼쪽 끝이 '어두운 바탕' 또는 '막대 색' (막대는 항상 왼쪽 끝부터 참) · 아니면 빈 칸이 조금은 있어야 함
+    낚시 창이 사라져서 뒤의 게임 화면(빨강 · 파랑 바닥 등)이 보일 때 그걸 릴링 바로 착각하지 않게"""
+    import numpy as np
+    n = max(3, int(band.shape[0] * 0.04))
+    head = np.median(band[:n], axis=0)
+    if head.max() < 45 or _is_fill(head):
+        return True
+    # 구간이 왼쪽 끝에 붙어 있으면 왼쪽 끝이 구간 색 → 이땐 어두운 바탕(빈 칸)이 어느 정도 있으면 바로 봄
+    return bool((band.max(axis=1) < 45).mean() >= 0.08)
+
+
 def bar_present(rgb):
     """바 가운데 줄 몇 개만 잡은 이미지 → 릴링 바가 떠 있는지 (입질 대기용 가벼운 확인)
-    막대가 거의 비어 있어도 물고기 구간은 항상 보이므로 '색 있는 칸'이 조금이라도 있으면 떠 있는 것"""
+    막대가 거의 비어 있어도 물고기 구간은 항상 보이므로 '색 있는 칸'이 조금이라도 있고, 왼쪽 끝이 바 모양이면 떠 있는 것"""
     import numpy as np
     band = np.median(rgb, axis=0)
-    return int(_colored(band).sum()) >= max(4, band.shape[0] * 0.03)
+    return int(_colored(band).sum()) >= max(4, band.shape[0] * 0.03) and _left_ok(band)
 
 
 def _is_fill(px):
@@ -130,7 +142,7 @@ def analyze_bar(rgb, bar_top, bar_h):
     y1 = max(y0 + 1, int(bar_top + bar_h * 0.65))
     band = np.median(rgb[y0:y1], axis=0)                # 바 가운데 줄 (글자 노이즈를 줄이려고 여러 줄의 중앙값)
     colored = _colored(band)
-    present = colored.sum() >= max(4, w * 0.03)
+    present = colored.sum() >= max(4, w * 0.03) and _left_ok(band)
     out = {"present": bool(present), "marker": None, "zone": None, "w": w}
     if not present:
         return out
@@ -218,6 +230,7 @@ class Fisher:
         self.stats = {"success": 0, "junk": 0, "fail": 0, "unknown": 0, "full": 0}
         self.hold_req = threading.Event()   # 다른 기능(레어 바이옴 팝핑 등)이 잠깐 자리를 달라고 함
         self.holding = threading.Event()    # 안전한 곳에서 멈춰 기다리는 중
+        self.diamond_ok = False             # 낚시 창 ◇ 가 미니게임 자리로 옮겨가는 걸 한 번이라도 봤는지 (◇ 위치가 맞음)
 
     # ---- 상태
     def running(self):
@@ -376,10 +389,13 @@ class Fisher:
             # 바와 ◇ 두 신호가 같이 맞아야 바로 미니게임으로 봄 (색이 잠깐 번쩍이는 화면을 착각하지 않게)
             moved = self._diamond_moved(sct, rect, cfg)
             if moved:
+                self.diamond_ok = True               # ◇ 위치가 맞는 게 확인됨 → 이제부턴 ◇ 를 믿음
                 return "reel"
+            if moved is False and self.diamond_ok:
+                return None                          # ◇ 가 맞는 걸 아는데 대기 자리 그대로 → 미니게임 아님 (뒤 배경 색 등)
             time.sleep(0.04)
             if self._bar_seen(sct, rect, cfg):
-                # 낚시 창 영역이 없으면 바만 두 번 보이면 인정 · 있는데 ◇ 가 안 맞으면 '아마도' → 3번 이어지면 인정
+                # 창 영역이 없으면 바만 두 번 보이면 인정 · 있는데 ◇ 가 아직 확인 안 됐으면 '아마도' → 3번 이어지면 인정
                 return "reel" if moved is None else "maybe"
         st = button_state(self._grab_box(sct, rect, cfg["fish_btn"]))
         if st == "fish":
@@ -537,6 +553,7 @@ class Fisher:
         gone_since = None
         ctl = ReelControl(cfg)
         start = time.time()
+        dia, dia_at, dia_seen, dia_off = None, 0.0, False, None   # ◇ 신호 · 마지막 확인 · 이번에 본 적 · 사라진 시각
         end = start + REEL_MAX
         hwnd, fg_at = macro.roblox_window_cached(), start
         while time.time() < end:
@@ -549,10 +566,21 @@ class Fisher:
             img = sct.grab(box)
             a = analyze_bar(_np(bytes(img.bgra), img.width, img.height), top_in, bh)
             now = time.time()
+            if now - dia_at >= 0.1:                  # ◇ 는 0.1초마다만 봄
+                dia_at = now
+                rect = macro.client_rect(hwnd) if hwnd else None
+                dia = self._diamond_moved(sct, rect, cfg) if rect else None
+                if dia:
+                    dia_seen, dia_off = True, None
+                    self.diamond_ok = True
+                elif dia is False and (dia_seen or self.diamond_ok):
+                    dia_off = dia_off or now
+            # ◇ 가 맞는 걸 아는데 0.5초 넘게 미니게임 자리에 없음 → 미니게임 끝 (바 자리에 뒤 배경 색이 보여도)
+            if dia_off and now - dia_off > 0.5:
+                return
             if not a["present"]:
                 # 바가 안 보여도 ◇ 가 미니게임 자리에 있으면 아직 미니게임 중 (잠깐 가려지거나 잘못 읽힌 화면)
-                rect = macro.client_rect(hwnd) if hwnd else None
-                if rect and self._diamond_moved(sct, rect, cfg):
+                if dia:
                     gone_since = None
                     time.sleep(0.01)
                     continue
