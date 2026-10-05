@@ -106,6 +106,13 @@ def key_tap(name, hold_ms=40):
     _send(_key_input(name, True))
 
 
+def key_down(name):
+    """키 누른 채로 두기 (key_up 으로 뗌)"""
+    if not IS_WIN:
+        return
+    _send(_key_input(name, False))
+
+
 def key_up(name):
     """키 떼기 (이동 키가 눌린 채 남지 않게)"""
     if not IS_WIN:

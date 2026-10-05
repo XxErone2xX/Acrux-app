@@ -1289,16 +1289,17 @@ $('mfAllOff').addEventListener('click', () => setAllFeatures(false));
 const MPOS = {
   base: { box: 'mposBase', tpl: true, link: true,
           points: [...POP_POS.map(([k, n, sub]) => [k, n, sub || '']),
-                   ['collection_pos', 'Collection 버튼', '왼쪽 메뉴의 Collection (책 모양) 버튼'],
-                   ['collection_close', 'Collection 닫기', 'Collection 창을 연 상태에서 닫기(X) 버튼']],
+                   ['chat_pos', '채팅 버튼', '왼쪽 위의 채팅 버튼'],
+                   ['collection_pos', '도감 버튼', '왼쪽 메뉴의 도감(Collection · 책 모양) 버튼'],
+                   ['collection_close', '도감 Exit', '도감을 연 상태에서 Exit(닫기) 버튼']],
           regions: [['ocr_region', 'OCR 영역', '검색 결과 아이템 이름·개수 (예: Warp Potion x23)'],
                     ['notice_region', '알림 영역', '오른쪽에 알림 카드가 뜨는 자리를 넉넉히 드래그 · 낚시의 Cannot Fish 등']],
           // 칸: [id, 이름, 설명, 들어갈 항목, 맨 위에 연동 · 템플릿 줄을 넣을지, 따로 그리는 부분(MPOS_CUSTOM)]
           tabs: [['inv', '인벤토리', '레어 바이옴 자동 팝핑 등 인벤토리를 쓰는 기능',
                   [...POP_POS.map(([k]) => k), 'ocr_region'], true],
                  ['notice', '알림', '게임 알림을 보는 기능 (자동 낚시 인벤토리 가득 등)', ['notice_region']],
-                 ['move', '이동 · 기준 장소', '리셋 → 카메라 정렬 → 줌으로 매번 같은 화면(기준 장소)을 만듦 · 기능마다 갈 장소는 그 기능 칸에서 지정 (Click to Move)',
-                  ['collection_pos', 'collection_close'], false, 'movebase']] },
+                 ['move', '이동 · 기준 장소', '리셋 → / · 채팅 · 도감 열고 닫기 · / · Enter → W → W+A → O 로 매번 같은 자리 · 같은 화면(기준 장소)을 만듦 · 기능마다 갈 장소는 그 기능 칸에서 지정 (Click to Move)',
+                  ['chat_pos', 'collection_pos', 'collection_close'], false, 'movebase']] },
   mfish: { box: 'mposFish',
            windows: [['panel_region', '낚시 대기 창 영역', 'Fish 버튼이 보일 때 낚시 창을 흰 꺾쇠 테두리까지 드래그 → Fish 버튼과 릴링 바 위치 자동 계산'],
                      ['reel_region', '낚시 미니게임 창 영역', '미니게임이 떠 있을 때 눌러서 흰 꺾쇠 테두리까지 드래그 → 릴링 바 위치 자동 계산'],
@@ -1376,9 +1377,10 @@ function renderMpos(feat) {
 // 기준 장소: 리셋 → Collection 열고 닫기(카메라 정렬) → 줌 · 장소: 지점 목록 [누를 곳, 걸린 시간]
 const move = () => (config.move ||= { places: [] });
 const saveMove = () => queueSave({ move: JSON.parse(JSON.stringify(move())) });
-const MOVE_SET = [['reset_wait', '리셋 후 대기', '리셋하고 다시 생길 때까지 (초)', 2.6, 0.5, 0.1],
-                  ['zoom_in', '줌 당기기', '휠 위로 몇 번 (끝까지 당김)', 80, 0, 1],
-                  ['zoom_out', '줌 밀기', '그다음 휠 아래로 몇 번 (항상 같은 거리)', 45, 0, 1],
+const MOVE_SET = [['reset_wait', '리셋 후 대기', 'Esc → R → Enter 로 리셋한 뒤 (초)', 3.5, 0.5, 0.1],
+                  ['w_time', 'W 누르기', 'W 만 누르는 시간 (초)', 0.85, 0, 0.05],
+                  ['wa_time', 'W + A 누르기', 'W 와 A 를 같이 누르는 시간 (초)', 8, 0, 0.5],
+                  ['o_time', 'O 누르기', '위에서 내려다보기 + 최대 줌 (초)', 2.5, 0, 0.1],
                   ['margin', '도착 여유', '잰 시간에 더 기다릴 시간 (초)', 0.3, 0, 0.1]];
 let lastMove = null;
 const fmtT = t => t == null ? '안 잼' : `${t}초`;
@@ -1394,7 +1396,7 @@ const MPOS_CUSTOM = {
   movebase(el) {
     const m = move(), st = lastMove || {}, busy = !!st.running;
     el.innerHTML = `
-      <div class="row"><span>기준 장소로 이동<small>리셋 → 카메라 정렬 → 줌 · 이미 기준 장소에 있고 카메라도 맞으면 지점의 [바로 …] 버튼을 쓰기</small></span>
+      <div class="row"><span>기준 장소로 이동<small>위 순서대로 테스트 · 이미 기준 장소에 있고 화면도 맞으면 지점의 [바로 …] 버튼을 쓰기</small></span>
         <span class="pos"><b class="move-state">${esc(busy ? (st.msg || '이동 중') : '대기')}</b>
         <button class="btn mini" type="button" data-move-base ${busy ? 'disabled' : ''}>기준 장소로 이동</button>
         <button class="btn mini ghost" type="button" data-move-stop ${busy ? '' : 'disabled'}>멈춤</button></span></div>` +
