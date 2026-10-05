@@ -1267,7 +1267,7 @@ const MPOS = {
           regions: [['ocr_region', 'OCR 영역', '검색 결과 아이템 이름·개수 (예: Warp Potion x23)']] },
   mfish: { box: 'mposFish',
            windows: [['panel_region', '낚시 대기 창 영역', 'Fish 버튼이 보일 때 낚시 창을 흰 꺾쇠 테두리까지 드래그 → Fish 버튼과 릴링 바 위치 자동 계산'],
-                     ['reel_region', '낚시 미니게임 창 영역', '누른 뒤 Fish 로 낚시 → 미니게임이 뜨면 화면이 멈춤 → 흰 꺾쇠 테두리까지 드래그'],
+                     ['reel_region', '낚시 미니게임 창 영역', '미니게임이 떠 있을 때 눌러서 흰 꺾쇠 테두리까지 드래그 → 릴링 바 위치 자동 계산'],
                      ['result_region', '결과창 영역', '한 번 낚아서 결과창이 떠 있을 때 흰 꺾쇠 테두리까지 드래그 → 결과창 X 와 제목 위치 자동 계산']],
            points: MFISH_POS,
            regions: [['bar_region', '릴링 바 영역', '위쪽 바(파란 막대, Ready! 가 뜨는 바)만 딱 맞게 드래그 · ◇ 표시는 자동으로 찾음'],
@@ -1317,8 +1317,7 @@ function renderMpos(feat) {
   }));
   box.querySelectorAll('[data-mpos-region]').forEach(b => b.addEventListener('click', async () => {
     const k = b.dataset.mposRegion, name = regions.find(x => x[0] === k)[1];
-    const msg = k === 'reel_region' ? '로블록스에서 Fish 를 눌러 미니게임을 띄우세요 · 뜨면 화면이 멈춤' : `로블록스 화면에서 ${name} 드래그`;
-    const r = await pickWith(b, msg, () => api('mpos_region', { feat, key: k }));
+    const r = await pickWith(b, `로블록스 화면에서 ${name} 드래그`, () => api('mpos_region', { feat, key: k }));
     if (r) { Object.assign(c, r[feat] || { [k]: r.region }); mposChanged(feat); toast(`${name} 저장`); }
   }));
 }
