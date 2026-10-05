@@ -64,6 +64,7 @@ DEFAULT_CONFIG = {
     "macro_on": False,        # 메인 화면 '매크로' 버튼 — 꺼져 있으면 매크로 탭 기능이 전부 안 돎 (켤 때마다 꺼진 상태로 시작)
     "mfish": {},              # 매크로 탭 · 자동 낚시 (아래 MFISH_DEFAULT)
     "mpop": {},               # 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버) (아래 MPOP_DEFAULT)
+    "base": {},               # 매크로 기준 위치 — 여러 기능이 같이 쓰는 위치 (아래 BASE_DEFAULT)
     "snipe": {}               # 스나이핑 안정성 설정 (아래 SNIPE_DEFAULT)
 }
 # 스나이핑 안정성: 최대한 사람이 직접 링크를 누르고 들어가는 것처럼
@@ -101,12 +102,18 @@ POP_DEFAULT = {
     "templates": {},
     "biomes_on": {},              # 팝핑 바이옴 설정 — 켜진 바이옴에서만 오토 팝핑 (기본 전부 켜짐)
 }
-MPOP_DEFAULT = {
-    # 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버) — 위치 · OCR 영역은 따로(매크로 기준 위치 설정), 딜레이 · 일치율은 오토 팝핑(pop) 설정을 같이 씀
-    "enabled": False,
+BASE_INV_KEYS = ("inventory_pos", "items_pos", "search_pos", "item_pos", "amount_pos", "use_pos")
+BASE_DEFAULT = {
+    # 매크로 기준 위치 — 한 기능에서만 쓰는 게 아닌 위치 (로블록스 창 기준 비율) · 이동 기능의 기준 위치도 여기에
+    # 인벤토리: Inventory · Items · Search 버튼, 아이템 칸, 수량 입력칸, Use 버튼, OCR 영역(검색 결과 아이템 이름 · 개수)
     "inventory_pos": None, "items_pos": None, "search_pos": None,
     "item_pos": None, "amount_pos": None, "use_pos": None,
-    "ocr_region": None,             # 켜짐: 지금 켜져 있는 로블록스(내 서버)에서 레어 바이옴이 감지되면 포션 사용
+    "ocr_region": None,
+    "notice_region": None,        # 알림 영역 (오른쪽에 뜨는 알림 카드 · 낚시의 "Cannot Fish" 등)
+}
+MPOP_DEFAULT = {
+    # 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버) — 위치 · OCR 영역은 매크로 기준 위치(base), 딜레이 · 일치율은 오토 팝핑(pop) 설정을 같이 씀
+    "enabled": False,             # 켜짐: 지금 켜져 있는 로블록스(내 서버)에서 레어 바이옴이 감지되면 포션 사용
     "start_delay": 1.0,           # 바이옴 감지 후 인벤토리를 열기까지 대기 (초)
     "close_inventory": True,      # 다 쓰고 Inventory 버튼을 한 번 더 눌러 닫기
     "templates": {},              # 바이옴별 포션 목록 (오토 팝핑과 따로)
@@ -122,7 +129,6 @@ MFISH_DEFAULT = {
     "panel_region": None,         # 낚시 대기 창 영역 → Fish 버튼 (· 미니게임 창이 없으면 릴링 바) 자동 계산
     "reel_region": None,          # 낚시 미니게임 창 영역 → 릴링 바 자동 계산 (대기 창보다 넓음)
     "result_region": None,        # 결과창 영역 → 결과창 X · 제목 자동 계산
-    "notice_region": None,        # 알림 영역 (오른쪽에 뜨는 알림 카드) — "Cannot Fish" 알림이 뜨면 인벤토리 가득
     "bite_max": 60.0, "target_pct": 0, "lead_ms": 0, "click_ms": 25, "click_gap_ms": 45, "cast_retry": 3,
     "debug_log": False,           # 릴링 기록(fishing_log.csv) 저장 — 문제 확인용
     "click_v3": False,            # 클릭 기준을 '구간 왼쪽 변 이하'(목표 0 · 미리 누르기 0)로 바꾼 것 적용했는지 (한 번만)
@@ -299,18 +305,33 @@ def normalize(raw):
     pop["delays"] = dl
     pop["templates"], pop["biomes_on"] = _norm_templates(pop)
     pop["seeded"] = True                    # 기본 템플릿은 한 번만 (지운 건 다시 안 채움)
+    pop["use_base"] = bool(pop.get("use_base"))   # 스나이프 오토 팝핑도 매크로 기준 위치를 씀
     d["pop"] = pop
+    # 매크로 기준 위치: 예전엔 레어 바이옴 자동 팝핑(mpop) · 자동 낚시(mfish)에 따로 있던 걸 한 번 옮겨 옴
+    old_mp = d.get("mpop") if isinstance(d.get("mpop"), dict) else {}
+    old_mf = d.get("mfish") if isinstance(d.get("mfish"), dict) else {}
+    base = dict(BASE_DEFAULT)
+    base.update(d.get("base") if isinstance(d.get("base"), dict) else {})
+    for k in (*BASE_INV_KEYS, "ocr_region"):
+        if not base.get(k) and old_mp.get(k):
+            base[k] = old_mp[k]
+    if not base.get("notice_region") and old_mf.get("notice_region"):
+        base["notice_region"] = old_mf["notice_region"]
+    for k in BASE_INV_KEYS:
+        base[k] = _ratio_list(base.get(k), 2)
+    for k in ("ocr_region", "notice_region"):
+        base[k] = _ratio_list(base.get(k), 4)
+    d["base"] = {k: base[k] for k in BASE_DEFAULT}
     mp = dict(MPOP_DEFAULT)
-    mp.update(d.get("mpop") if isinstance(d.get("mpop"), dict) else {})
+    mp.update(old_mp)
+    for k in (*BASE_INV_KEYS, "ocr_region"):
+        mp.pop(k, None)
     mp["enabled"] = bool(mp.get("enabled"))
     mp["close_inventory"] = bool(mp.get("close_inventory", True))
     try:
         mp["start_delay"] = min(60.0, max(0.0, float(mp.get("start_delay", 1.0))))
     except (TypeError, ValueError):
         mp["start_delay"] = 1.0
-    for k in ("inventory_pos", "items_pos", "search_pos", "item_pos", "amount_pos", "use_pos"):
-        mp[k] = _ratio_list(mp.get(k), 2)
-    mp["ocr_region"] = _ratio_list(mp.get("ocr_region"), 4)
     mp["templates"], mp["biomes_on"] = _norm_templates(mp)
     mp["seeded"] = True
     d["mpop"] = mp
@@ -330,7 +351,7 @@ def normalize(raw):
         mf["click_v3"] = True
     for k in ("fish_btn", "close_pos", "title_pos"):
         mf[k] = _ratio_list(mf.get(k), 2)
-    for k in ("bar_region", "panel_region", "reel_region", "result_region", "notice_region"):
+    for k in ("bar_region", "panel_region", "reel_region", "result_region"):
         mf[k] = _ratio_list(mf.get(k), 4)
     for k, lo, hi in (("bite_max", 5, 600), ("target_pct", 0, 90), ("lead_ms", 0, 300), ("click_ms", 5, 200), ("click_gap_ms", 10, 500),
                       ("cast_retry", 1, 10)):

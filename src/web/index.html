@@ -470,17 +470,16 @@
   </div>
   <div class="body">
     <nav class="side">
-      <button class="item deco" data-sec="mp-pop"><b>레어 바이옴 자동 팝핑</b><span>버튼 6개 · OCR 영역</span></button>
+      <button class="item deco" data-sec="mp-base"><b>기준 위치</b><span>여러 기능이 같이 쓰는 위치</span></button>
       <button class="item deco" data-sec="mp-fish"><b>자동 낚시</b><span>Fish 버튼 · 릴링 바 · 결과창</span></button>
-      <button class="item deco" data-sec="mp-base"><b>기준 위치</b><span>이동 기능의 출발점</span></button>
     </nav>
     <div class="content">
-      <div class="sec" data-sec="mp-pop">
-        <div class="sec-head"><h2>레어 바이옴 자동 팝핑</h2>
+      <div class="sec" data-sec="mp-base">
+        <div class="sec-head"><h2>기준 위치</h2>
           <button class="btn ghost" id="mposPopCopy">스나이프 탭 위치 가져오기</button>
           <button class="btn ghost" id="mposPopOcr">OCR 테스트</button></div>
-        <p class="hint">로블록스를 켜 두고 각 항목의 [위치 지정] → 로블록스 화면에서 클릭 (영역은 드래그) · 위치는 로블록스 창 기준이라 창 크기를 바꾸면 다시 지정</p>
-        <div class="card form" id="mposPop"></div>
+        <p class="hint">로블록스를 켜 두고 [위치 지정] → 로블록스 화면에서 클릭 (영역은 드래그) · 로블록스 창 기준이라 창 크기를 바꾸면 다시 지정</p>
+        <div class="card form" id="mposBase"></div>
       </div>
       <div class="sec" data-sec="mp-fish">
         <div class="sec-head"><h2>자동 낚시</h2>
@@ -489,7 +488,6 @@
         <p class="hint">Fish 버튼이 보일 때 [자동 보정] 을 누르면 한 마리 낚으면서 창 위치를 전부 맞춤 · 끝날 때까지 건드리지 말기 · F7 로 취소</p>
         <div class="card form" id="mposFish"></div>
       </div>
-      <div class="sec" data-sec="mp-base"><div class="sec-head"><h2>기준 위치</h2></div><div class="empty">준비 중</div></div>
     </div>
   </div>
 </section>

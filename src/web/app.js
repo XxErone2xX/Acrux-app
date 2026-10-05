@@ -54,7 +54,7 @@ const MENU = [
   { key: 'popping', tab: 'snipe', icon: 'bolt', color: 'var(--orange)', title: '오토 팝핑 매크로 설정', desc: '게임 접속 후 Play 버튼 자동 클릭' },
   { key: 'return', tab: 'snipe', icon: 'undo', color: 'var(--green)', title: '매크로 복귀 설정', desc: '바이옴이 끝나면 내 서버로 복귀' },
   { key: 'mfeat', tab: 'macro', icon: 'bolt', color: 'var(--yellow)', title: '매크로 기능 설정', desc: '내 서버에서 돌릴 기능 켜기 · 끄기' },
-  { key: 'mpos', tab: 'macro', icon: 'pin', color: 'var(--red)', title: '매크로 기준 위치 설정', desc: '기능마다 버튼 위치 · 영역 지정' },
+  { key: 'mpos', tab: 'macro', icon: 'pin', color: 'var(--red)', title: '매크로 기준 위치 설정', desc: '기준 위치 · 기능별 버튼 위치 · 영역 지정' },
   { key: 'mstats', tab: 'macro', icon: 'chart', color: 'var(--cyan)', title: '통계 보기', desc: '이번 실행 · 올타임 기록' },
   { key: 'acrux', tab: 'acrux', icon: 'gear', color: '#7c6cf6', title: 'Acrux 설정', desc: 'OCR 감지 방식 · 언어 · 데이터 폴더',
     grad: 'linear-gradient(135deg, #8fa0ff, #6c7bff 50%, #8b5cf6)' },
@@ -485,7 +485,7 @@ function fillFields() {
 }
 
 let pending = {}, saveTimer = null;
-const LOCAL_KEYS = ['play', 'biome', 'pop', 'ret', 'snipe', 'mpop', 'mfish'];
+const LOCAL_KEYS = ['play', 'biome', 'pop', 'ret', 'snipe', 'mpop', 'mfish', 'base'];
 function queueSave(patch) {
   Object.assign(pending, patch);
   // 팝핑·바이옴·매크로 탭 설정은 화면 쪽 객체가 원본 (폼이 그 객체를 직접 고치므로 복사본으로 바꾸면 이후 수정이 사라짐)
@@ -987,25 +987,38 @@ document.addEventListener('click', e => {
   applyPosTemplate(name);
 });
 
+// 스나이프 오토 팝핑이 실제로 쓰는 위치 (매크로 기준 위치와 연동이면 기준 위치)
+const popPos = () => {
+  const p = pop();
+  if (!p.use_base) return p;
+  const b = base(), o = { ...p };
+  for (const k of POP_POS_KEYS) o[k] = b[k];
+  return o;
+};
 function renderPopSet() {
   const box = $('popSetForm');
-  const p = pop();
-  box.innerHTML = tplRowHTML() + POP_POS.map(([k, name, sub]) => `
-    <div class="row"><span>${name} 위치<small>${sub ? sub + ' · ' : ''}직접 지정 필요</small></span>
-      <span class="pos"><code class="${p[k] ? '' : 'unset'}" data-code="${k}">${fmtPos(p[k])}</code>
-      <button class="btn mini ghost" type="button" data-pick="${k}">위치 지정</button></span></div>`).join('') + `
-    <div class="row"><span>OCR 영역<small>검색 결과 아이템 이름·개수 (예: Warp Potion x23)</small></span>
-      <span class="pos"><code class="${p.ocr_region ? '' : 'unset'}" id="popRegion">${fmtReg(p.ocr_region)}</code>
-      <button class="btn mini ghost" type="button" id="popRegionPick">드래그로 지정</button>
+  const p = pop(), linked = !!p.use_base, e = popPos();
+  const pick = (attr, k, label) => linked ? '' : `<button class="btn mini ghost" type="button" ${attr}${k ? `="${k}"` : ''}>${label}</button>`;
+  box.innerHTML = `
+    <label class="row"><span>매크로 기준 위치와 연동<small>켜면 매크로 탭 → 매크로 기준 위치 설정 → 기준 위치 의 인벤토리 위치 · OCR 영역을 씀 (위치는 거기서 바꿈)</small></span>
+      <span class="switch"><input type="checkbox" id="popLink" ${linked ? 'checked' : ''}><i></i></span></label>` +
+    (linked ? '' : tplRowHTML()) + POP_POS.map(([k, name, sub]) => `
+    <div class="row"><span>${name} 위치<small>${sub ? sub + ' · ' : ''}${linked ? '기준 위치와 같음' : '직접 지정 필요'}</small></span>
+      <span class="pos"><code class="${e[k] ? '' : 'unset'}" data-code="${k}">${fmtPos(e[k])}</code>
+      ${pick('data-pick', k, '위치 지정')}</span></div>`).join('') + `
+    <div class="row"><span>OCR 영역<small>검색 결과 아이템 이름·개수 (예: Warp Potion x23)${linked ? ' · 기준 위치와 같음' : ''}</small></span>
+      <span class="pos"><code class="${e.ocr_region ? '' : 'unset'}" id="popRegion">${fmtReg(e.ocr_region)}</code>
+      ${pick('id="popRegionPick"', '', '드래그로 지정')}
       <button class="btn mini ghost" type="button" id="popOcrTest">OCR 테스트</button></span></div>
     <label class="row"><span>이름 일치율 기준<small>OCR 이름과 포션 이름이 이 이상 같아야 사용 · 미만이면 1회 재검색 후 스킵 (%)</small></span>
       <input type="number" min="1" max="100" step="5" id="popThreshold" value="${p.match_threshold ?? 70}"></label>`;
+  $('popLink').addEventListener('change', ev => setPopLink(ev.target.checked));
   box.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', async () => {
     const k = b.dataset.pick, name = POP_POS.find(x => x[0] === k)[1];
     const r = await pickWith(b, `로블록스 화면에서 ${name} 클릭`, () => api('pop_pos', { key: k }));
     if (r) { pop()[k] = r.pos; renderPopSet(); savePop(); toast(`${name} 위치 저장`); Tutorial.refresh(); }
   }));
-  $('popRegionPick').addEventListener('click', async e => {
+  $('popRegionPick')?.addEventListener('click', async e => {
     const r = await pickWith(e.currentTarget, '로블록스 화면에서 드래그', () => api('pop_region'));
     if (r) { pop().ocr_region = r.region; renderPopSet(); savePop(); toast('OCR 영역 저장'); Tutorial.refresh(); }
   });
@@ -1126,19 +1139,20 @@ document.querySelectorAll('[data-pop-test]').forEach(b => b.addEventListener('cl
 // ---------------------------------------------------------------- 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버)
 // 포션 목록 · 켜진 바이옴 · 버튼 위치 · OCR 영역은 따로(mpop), 딜레이 · 일치율은 오토 팝핑(pop) 설정을 같이 씀
 const mpop = () => (config.mpop ||= {});
+const base = () => (config.base ||= {});         // 매크로 기준 위치 (인벤토리 위치 · OCR 영역 · 알림 영역 …)
 const saveMpop = () => queueSave({ mpop: JSON.parse(JSON.stringify(mpop())) });
 const POP_POS_KEYS = ['inventory_pos', 'items_pos', 'search_pos', 'item_pos', 'amount_pos', 'use_pos', 'ocr_region'];
 function renderMpop() {
   const m = mpop(), on = (m.biomes_on ||= {});
   const player = ((config.biome || {}).player || '').trim();
-  const posMiss = POP_POS_KEYS.filter(k => !m[k]).length;
+  const posMiss = POP_POS_KEYS.filter(k => !base()[k]).length;
   const label = { CYBERSPACE: 'Cyberspace', GLITCHED: 'Glitched', DREAMSPACE: 'Dreamspace' };
   $('mpopForm').innerHTML = `
     <label class="row"><span>켜기<small>켜져 있는 동안 레어 바이옴이 감지되면 아래 포션 목록대로 사용 (시작 버튼과 무관)</small></span>
       <span class="switch"><input type="checkbox" id="mpopOn" ${m.enabled ? 'checked' : ''}><i></i></span></label>
     <div class="row"><span>플레이어 이름<small>바이옴 감지에 필요 · 바이옴 매크로 설정 → 기본 설정에서 입력</small></span>
       <span class="${player ? '' : 'warn'}">${player ? esc(player) : '입력 안 됨 — 바이옴 감지 안 됨'}</span></div>
-    <div class="row"><span>버튼 위치 · OCR 영역<small>매크로 기준 위치 설정 → 레어 바이옴 자동 팝핑 에서 지정</small></span>
+    <div class="row"><span>버튼 위치 · OCR 영역<small>매크로 기준 위치 설정 → 기준 위치 에서 지정</small></span>
       <span class="${posMiss ? 'warn' : ''}">${posMiss ? `${posMiss}개 지정 안 됨` : '지정됨'}</span></div>
     <div class="row"><span>딜레이 · 이름 일치율<small>오토 팝핑 매크로 설정(스나이프 탭)에 지정한 것을 같이 씀</small></span><span>오토 팝핑과 같음</span></div>
     <label class="row"><span>시작 전 대기<small>바이옴 감지 후 인벤토리를 열기까지 (초) · 기본 1</small></span>
@@ -1233,7 +1247,7 @@ const MFEATS = [['mpop', '레어 바이옴 자동 팝핑', '내 서버에서 레
   ['mfish', '자동 낚시', '제자리 낚시 (판매와 이동은 다음 업데이트)'],
   [null, '상인 자동 구매', '준비 중'], [null, '포션 자동 제작', '준비 중'], [null, '오토 메모리 매치', '준비 중']];
 const FEAT_NAME = { mpop: '레어 바이옴 자동 팝핑', mfish: '자동 낚시' };
-const featCfg = k => ({ mpop, mfish })[k]();
+const featCfg = k => ({ mpop, mfish, base })[k]();
 function setFeature(k, on, quiet) {
   const c = featCfg(k);
   c.enabled = !!on;
@@ -1259,19 +1273,21 @@ function setAllFeatures(on) {
 $('mfAllOn').addEventListener('click', () => setAllFeatures(true));
 $('mfAllOff').addEventListener('click', () => setAllFeatures(false));
 
-// ---------------------------------------------------------------- 매크로 기준 위치 설정 (기능마다 따로)
-// feat: 설정 묶음 (mpop / mfish) · points: [키, 이름, 설명] · region: [키, 이름, 설명] · 저장은 서버(api)에서
-// tpl: 화면 비율 위치 템플릿 · windows: 창 영역(드래그) → 안쪽 위치를 서버가 계산 · points/regions: 하나씩 직접 지정
+// ---------------------------------------------------------------- 매크로 기준 위치 설정
+// feat: 설정 묶음 (base = 여러 기능이 같이 쓰는 기준 위치 / mfish = 자동 낚시만) · points: [키, 이름, 설명] · region: [키, 이름, 설명]
+// 저장은 서버(api)에서 · tpl: 화면 비율 위치 템플릿 · windows: 창 영역(드래그) → 안쪽 위치를 서버가 계산 · heads: 그 항목 앞의 소제목
 const MPOS = {
-  mpop: { box: 'mposPop', tpl: true, points: POP_POS.map(([k, n, sub]) => [k, n, sub || '']),
-          regions: [['ocr_region', 'OCR 영역', '검색 결과 아이템 이름·개수 (예: Warp Potion x23)']] },
+  base: { box: 'mposBase', tpl: true, link: true, points: POP_POS.map(([k, n, sub]) => [k, n, sub || '']),
+          regions: [['ocr_region', 'OCR 영역', '검색 결과 아이템 이름·개수 (예: Warp Potion x23)'],
+                    ['notice_region', '알림 영역', '오른쪽에 알림 카드가 뜨는 자리를 넉넉히 드래그 · 낚시의 Cannot Fish 등']],
+          heads: { inventory_pos: ['인벤토리', '레어 바이옴 자동 팝핑 등 인벤토리를 쓰는 기능'],
+                   notice_region: ['알림', '게임 알림을 보는 기능 (자동 낚시 인벤토리 가득 등)'] } },
   mfish: { box: 'mposFish',
            windows: [['panel_region', '낚시 대기 창 영역', 'Fish 버튼이 보일 때 낚시 창을 흰 꺾쇠 테두리까지 드래그 → Fish 버튼과 릴링 바 위치 자동 계산'],
                      ['reel_region', '낚시 미니게임 창 영역', '미니게임이 떠 있을 때 눌러서 흰 꺾쇠 테두리까지 드래그 → 릴링 바 위치 자동 계산'],
                      ['result_region', '결과창 영역', '한 번 낚아서 결과창이 떠 있을 때 흰 꺾쇠 테두리까지 드래그 → 결과창 X 와 제목 위치 자동 계산']],
            points: MFISH_POS,
-           regions: [['bar_region', '릴링 바 영역', '위쪽 바(파란 막대, Ready! 가 뜨는 바)만 딱 맞게 드래그 · ◇ 표시는 자동으로 찾음'],
-                     ['notice_region', '알림 영역', '오른쪽에 알림 카드가 뜨는 자리를 넉넉히 드래그 · Cannot Fish 알림이 뜨면 인벤토리 가득으로 봄']] },
+           regions: [['bar_region', '릴링 바 영역', '위쪽 바(파란 막대, Ready! 가 뜨는 바)만 딱 맞게 드래그 · ◇ 표시는 자동으로 찾음']] },
 };
 const MPOS_RATIOS = [['auto', '자동 (지금 창)'], ['16:9', '16:9'], ['16:10', '16:10'], ['21:9', '21:9'], ['32:9', '32:9'], ['4:3', '4:3'], ['5:4', '5:4']];
 let mposRatio = 'auto';
@@ -1282,14 +1298,19 @@ function renderMpos(feat) {
     <div class="row"><span>${name}<small>${sub}</small></span>
       <span class="pos"><code class="${val ? '' : 'unset'}">${fmt(val)}</code>
       <button class="btn mini ghost" type="button" ${attr}="${k}">${btn}</button></span></div>`;
-  const fine = d.points.map(([k, name, sub]) => row(k, `${name} 위치`, sub, c[k], fmtPos, '위치 지정', 'data-mpos-pick')).join('') +
-    d.regions.map(([k, name, sub]) => row(k, name, sub, c[k], fmtReg, '드래그로 지정', 'data-mpos-region')).join('');
-  box.innerHTML = (d.tpl ? `
+  const head = k => d.heads && d.heads[k] ? `<div class="row mpos-sub"><span>${d.heads[k][0]}<small>${d.heads[k][1]}</small></span></div>` : '';
+  const fine = d.points.map(([k, name, sub]) => head(k) + row(k, `${name} 위치`, sub, c[k], fmtPos, '위치 지정', 'data-mpos-pick')).join('') +
+    d.regions.map(([k, name, sub]) => head(k) + row(k, name, sub, c[k], fmtReg, '드래그로 지정', 'data-mpos-region')).join('');
+  const link = d.link ? `
+    <label class="row"><span>스나이프 오토 팝핑과 연동<small>켜면 스나이프 탭 오토 팝핑도 여기 인벤토리 위치 · OCR 영역을 씀 (따로 지정 안 해도 됨)</small></span>
+      <span class="switch"><input type="checkbox" data-mpos-link ${pop().use_base ? 'checked' : ''}><i></i></span></label>` : '';
+  box.innerHTML = link + (d.tpl ? `
     <div class="row tpl-pick"><span>위치 템플릿<small>화면 비율에 맞는 기본 위치를 한 번에 채움 · 자동 = 지금 로블록스 창 크기로 계산 · 16:9 말고는 추정값이라 안 맞는 건 아래에서 직접 지정</small></span>
       <span class="pos"><select data-mpos-ratio>${MPOS_RATIOS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select>
       <button class="btn mini" type="button" data-mpos-tpl>적용</button></span></div>` : '') +
     (d.windows || []).map(([k, name, sub]) => row(k, name, sub, c[k], fmtReg, '드래그로 지정', 'data-mpos-region')).join('') +
     (d.windows ? `<div class="row mpos-sub"><span>세부 위치<small>위 창 영역으로 자동 계산됨 · 조금 어긋나면 여기서 하나씩 직접 지정</small></span></div>` : '') + fine;
+  box.querySelector('[data-mpos-link]')?.addEventListener('change', e => setPopLink(e.target.checked));
   if (d.tpl) {
     const sel = box.querySelector('[data-mpos-ratio]');
     sel.value = mposRatio;
@@ -1324,12 +1345,19 @@ function renderMpos(feat) {
 // 위치는 서버가 이미 저장함 → 화면만 다시 그림
 function mposChanged(feat) {
   renderMpos(feat);
-  if (feat === 'mpop') renderMpop(); else renderMfish();
+  if (feat === 'base') { renderMpop(); renderPopSet(); } else renderMfish();
+}
+// 스나이프 탭 오토 팝핑 ↔ 기준 위치 연동 (양쪽 화면에서 같은 스위치)
+function setPopLink(on) {
+  pop().use_base = !!on; savePop();
+  renderMpos('base'); renderPopSet();
+  toast(on ? '스나이프 오토 팝핑이 기준 위치를 씀' : '스나이프 오토 팝핑은 따로 지정한 위치를 씀');
+  Tutorial.refresh();
 }
 $('mposPopCopy').addEventListener('click', async () => {
   const r = await api('mpos_copy_pop');
   if (r.error) return toast(r.error);
-  Object.assign(mpop(), r.mpop); mposChanged('mpop'); toast('스나이프 탭 오토 팝핑 위치를 가져옴');
+  Object.assign(base(), r.base); mposChanged('base'); toast('스나이프 탭 오토 팝핑 위치를 가져옴');
 });
 $('mposPopOcr').addEventListener('click', async e => {
   const b = e.currentTarget;
@@ -1924,9 +1952,10 @@ const Tutorial = (() => {
   const needsBiome = () => !(config.biome?.player) && !(config.tutorials_done || []).includes('biome');
   const popPage = () => $('page-popping');
   const popSec = sec => current === 'popping' && sectionIs(sec, popPage());
-  const popMissing = () => !config.play?.pos || !config.play?.skip_pos || !config.pop?.ocr_region ||
-    POP_POS.some(([k]) => !config.pop?.[k]);
-  const needsPop = () => popMissing() && !(config.tutorials_done || []).includes('popping');
+  const popMissing = () => !config.play?.pos || !config.play?.skip_pos || !popPos().ocr_region ||
+    POP_POS.some(([k]) => !popPos()[k]);
+  // 기준 위치와 연동이면 버튼 위치는 매크로 기준 위치에서 지정 (여기 튜토리얼로 안 띄움)
+  const needsPop = () => popMissing() && !config.pop?.use_base && !(config.tutorials_done || []).includes('popping');
 
   // 튜토리얼 목록 — 새 튜토리얼은 여기에 추가 (id 는 완료 기록용)
   const TUTORIALS = [];
@@ -2073,12 +2102,12 @@ const Tutorial = (() => {
       title: `${name} 위치를 지정해주세요`,
       body: `<p><b>위치 지정</b>을 누른 뒤 로블록스 화면에서 <b>${name}</b>${sub ? ` (${sub})` : ''}을 한 번 클릭해주세요.</p>
              <p class="dim">필수 항목입니다.</p>`,
-      target: pickRow(`[data-pick="${k}"]`), input: true, requires: () => !!pop()[k], done: () => !!pop()[k], needs: 'setSide',
+      target: pickRow(`[data-pick="${k}"]`), input: true, requires: () => !!popPos()[k], done: () => !!popPos()[k], needs: 'setSide',
       gif: { inventory_pos: 'inventory', items_pos: 'items', search_pos: 'search', item_pos: 'item', amount_pos: 'amount', use_pos: 'use' }[k] })),
     { title: 'OCR 영역을 지정해주세요',
       body: `<p><b>드래그로 지정</b>을 누른 뒤, 검색 결과 첫 칸의 <b>아이템 이름과 개수</b>(예: Warp Potion x23)가 들어가도록 드래그해주세요.</p>
              <p class="dim">필수 항목입니다. <b>OCR 테스트</b>로 제대로 읽히는지 확인할 수 있습니다.</p>`,
-      target: pickRow('#popRegionPick'), input: true, requires: () => !!pop().ocr_region, done: () => !!pop().ocr_region, needs: 'setSide', gif: 'ocr' },
+      target: pickRow('#popRegionPick'), input: true, requires: () => !!popPos().ocr_region, done: () => !!popPos().ocr_region, needs: 'setSide', gif: 'ocr' },
     // 팝핑 바이옴 설정 (선택)
     { id: 'bioSide', ...secStep(popPage, 'pop-biomes', '팝핑 바이옴 설정'),
       body: `<p>오토 팝핑을 할 바이옴을 고릅니다. 왼쪽 목록에서 강조된 <b>팝핑 바이옴 설정</b>을 눌러주세요.</p>
@@ -2472,7 +2501,7 @@ const Tutorial = (() => {
   fillMpop();
   renderMfish();
   renderMfAll();
-  renderMpos('mpop'); renderMpos('mfish');
+  renderMpos('base'); renderMpos('mfish');
   fillAcrux();
   renderSummary();
   setStatus(s.status);
