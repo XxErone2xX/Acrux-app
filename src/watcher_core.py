@@ -117,6 +117,8 @@ BASE_DEFAULT = {
     "collection_close": None,     # 도감 Exit 버튼
 }
 MOVE_FEATS = ("mfish", "mpop")    # 장소를 따로 둘 수 있는 기능 (매크로 기준 위치 설정의 각 기능 칸)
+# 기능마다 정해진 장소 (사용자가 만들거나 지우지 않음 · 지점 위치와 시간만 지정)
+MOVE_TEMPLATES = {"mfish": (("fish_spot", "낚시 장소"), ("sell_spot", "물고기 판매 장소"))}
 MOVE_DEFAULT = {
     # 기준 장소로 가기 (사용자가 정한 순서):
     #  Esc → R → Enter (리셋 · 0.5초 간격) → 3.5초 → / → 채팅 버튼 → 도감 버튼 → 도감 Exit → / → Enter (각 0.5초)
@@ -127,7 +129,7 @@ MOVE_DEFAULT = {
     "o_time": 2.5,                # O 누르기 (초) — 위에서 내려다보기 + 최대 줌
     "button": "right",            # 이동할 곳을 누를 마우스 버튼 (Click to Move)
     "margin": 0.3,                # 잰 시간에 더 기다릴 여유 (초)
-    # 장소: [{"name", "feat": 쓰는 기능, "points": [{"pos": [x, y] (기준 장소 화면에서 누를 곳), "time": 걸린 시간(초) 또는 None}]}]
+    # 장소: [{"name", "feat": 쓰는 기능, "key": 정해진 장소 이름표, "points": [{"pos": [x, y] (기준 장소 화면에서 누를 곳), "time": 걸린 시간(초) 또는 None}]}]
     # 지점이 여러 개면 앞 지점에 도착한 화면에서 다음 지점을 누름 (멀리 갈 때)
     "places": [],
 }
@@ -367,8 +369,23 @@ def normalize(raw):
                 t = None
             pts.append({"pos": _ratio_list(pt.get("pos"), 2), "time": t})
         feat = pl.get("feat") if pl.get("feat") in MOVE_FEATS else "mfish"     # 그 장소를 쓰는 기능 (예전 장소는 자동 낚시)
-        places.append({"name": str(pl.get("name") or "")[:40], "feat": feat, "points": pts or [{"pos": None, "time": None}]})
-    mv["places"] = places
+        places.append({"name": str(pl.get("name") or "")[:40], "feat": feat, "key": str(pl.get("key") or ""),
+                       "points": pts or [{"pos": None, "time": None}]})
+    # 정해진 장소(템플릿)가 있는 기능은 그 장소만 (이름은 템플릿대로 · 없으면 만듦)
+    # (순서는 그대로 둠 — 화면이 장소를 순서 번호로 가리킴)
+    out, seen = [], set()
+    for pl in places:
+        tpls = dict(MOVE_TEMPLATES.get(pl["feat"], ()))
+        if not tpls:
+            out.append(pl)
+        elif pl["key"] in tpls and (pl["feat"], pl["key"]) not in seen:
+            seen.add((pl["feat"], pl["key"]))
+            out.append(dict(pl, name=tpls[pl["key"]]))
+    for feat, tpls in MOVE_TEMPLATES.items():
+        for key, name in tpls:
+            if (feat, key) not in seen:
+                out.append({"name": name, "feat": feat, "key": key, "points": [{"pos": None, "time": None}]})
+    mv["places"] = out
     d["move"] = {k: mv[k] for k in MOVE_DEFAULT}
     d["move"]["v18"] = True
     mp = dict(MPOP_DEFAULT)

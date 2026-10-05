@@ -729,3 +729,4 @@ body:not(.in-page) .lang.in-card { display: none; }
 .mpos-card-head em.done { background: rgba(35, 165, 90, .18); color: var(--green); }
 .mpos-cards { gap: 22px; }
 .mpos-group > .mpos-desc { margin: 4px 0 8px; }
+.move-title { font-size: 15px; }

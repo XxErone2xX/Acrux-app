@@ -1317,7 +1317,7 @@ const MPOS = {
                    ['panel_region', 'reel_region', 'result_region']],
                   ['fine', '세부 위치', '창 영역으로 자동 계산됨 · 조금 어긋나면 여기서 하나씩 직접 지정',
                    ['fish_btn', 'close_pos', 'title_pos', 'bar_region']],
-                  ['move', '이동', '낚시하다 가야 하는 곳 (판매 등) · 기준 장소(통합 위치 → 이동 · 기준 장소)에서 출발', [], false, 'places:mfish']] },
+                  ['move', '이동', '낚시 장소 · 물고기 판매 장소 — 지점마다 누를 곳을 지정하고 시간을 재기 · 기준 장소(통합 위치 → 이동 · 기준 장소)에서 출발', [], false, 'places:mfish']] },
 };
 const MPOS_RATIOS = [['auto', '자동 (지금 창)'], ['16:9', '16:9'], ['16:10', '16:10'], ['21:9', '21:9'], ['32:9', '32:9'], ['4:3', '4:3'], ['5:4', '5:4']];
 let mposRatio = 'auto';
@@ -1391,6 +1391,7 @@ const MOVE_SET = [['reset_wait', '리셋 후 대기', 'Esc → R → Enter 로 �
                   ['margin', '도착 여유', '잰 시간에 더 기다릴 시간 (초)', 0.3, 0, 0.1]];
 let lastMove = null;
 const fmtT = t => t == null ? '안 잼' : `${t}초`;
+const MOVE_FIXED = ['mfish'];                            // 자동 낚시: 낚시 장소 · 물고기 판매 장소 (서버 MOVE_TEMPLATES)
 const moveCall = async (name, args, msg) => { const r = await api(name, args); toast(r.error || msg); return r; };
 // data-mpos-custom: 'movebase' (통합 위치 → 기준 장소) / 'places:기능' (그 기능이 가는 장소)
 function renderMoveCustom(el) {
@@ -1428,19 +1429,21 @@ const MPOS_CUSTOM = {
     const all = (m.places ||= []);
     const mine = all.map((pl, i) => [pl, i]).filter(([pl]) => (pl.feat || 'mfish') === feat);
     const meas = st.measuring && mine.some(([, i]) => i === st.measuring.place) ? st.measuring : null;
+    const fixed = MOVE_FIXED.includes(feat);              // 정해진 장소만 쓰는 기능 (장소를 만들거나 지우지 않음)
     el.innerHTML = `
       ${meas ? `<div class="row move-measure"><span>시간 재는 중<small>캐릭터가 도착하면 F6 을 누르거나 [도착] 을 누르기</small></span>
         <span class="pos"><b data-move-timer>0.0초</b><button class="btn mini" type="button" data-move-arrive>도착</button>
         <button class="btn mini ghost" type="button" data-move-stop>멈춤</button></span></div>` : ''}
       <div class="row"><span>장소<small>지점이 여러 개면 앞 지점에 도착한 화면에서 다음 지점을 누름 (멀리 갈 때)</small></span>
         <span class="pos">${busy && !meas ? `<b class="move-state">${esc(st.msg || '이동 중')}</b>` : ''}
-        <button class="btn mini" type="button" data-move-add-place>장소 추가</button></span></div>` +
+        ${fixed ? '' : '<button class="btn mini" type="button" data-move-add-place>장소 추가</button>'}</span></div>` +
       (mine.length ? '' : `<div class="row"><span><small>아직 장소 없음 — [장소 추가] 로 만들기</small></span></div>`) +
       mine.map(([pl, i]) => `
       <div class="move-place">
-        <div class="row"><span><input class="move-name" data-move-name="${i}" value="${esc(pl.name || '')}" placeholder="장소 이름 (예: Captain Flarg)" maxlength="40"></span>
+        <div class="row"><span>${pl.key ? `<b class="move-title">${esc(pl.name)}</b>` :
+          `<input class="move-name" data-move-name="${i}" value="${esc(pl.name || '')}" placeholder="장소 이름 (예: Captain Flarg)" maxlength="40">`}</span>
           <span class="pos"><button class="btn mini" type="button" data-move-go="${i}" ${busy ? 'disabled' : ''}>이 장소로 이동</button>
-          <button class="btn mini ghost" type="button" data-move-del-place="${i}">장소 삭제</button></span></div>` +
+          ${pl.key ? '' : `<button class="btn mini ghost" type="button" data-move-del-place="${i}">장소 삭제</button>`}</span></div>` +
         pl.points.map((pt, j) => `
         <div class="row move-point"><span>${j + 1}번 지점<small>누를 곳 ${fmtPos(pt.pos)} · 걸린 시간 <b class="${pt.time == null ? 'warn' : ''}">${fmtT(pt.time)}</b></small></span>
           <span class="pos">
@@ -1453,7 +1456,7 @@ const MPOS_CUSTOM = {
       </div>`).join('');
     el.querySelector('[data-move-arrive]')?.addEventListener('click', () => api('move_arrive'));
     el.querySelector('[data-move-stop]')?.addEventListener('click', () => api('move_stop'));
-    el.querySelector('[data-move-add-place]').addEventListener('click', () => {
+    el.querySelector('[data-move-add-place]')?.addEventListener('click', () => {
       all.push({ name: '', feat, points: [{ pos: null, time: null }] }); saveMove(); rerenderMove();
     });
     el.querySelectorAll('[data-move-name]').forEach(i => i.addEventListener('input', () => {

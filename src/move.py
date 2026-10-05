@@ -24,12 +24,13 @@ class Stopped(Exception):
 class Mover:
     LABEL = "이동"
 
-    def __init__(self, get_base, get_move, log, set_move_time=None, before=None, after=None):
+    def __init__(self, get_base, get_move, log, set_move_time=None, before=None, after=None, banner=None):
         self.get_base = get_base            # 통합 위치 (Collection 버튼 · 닫기 위치)
         self.get_move = get_move            # 이동 설정 (move)
         self.log = log
         self.set_move_time = set_move_time  # (장소, 지점, 초) → 잰 시간 저장
         self.before, self.after = before, after   # 자동 낚시 잠깐 멈춤 / 이어감
+        self.banner = banner                # 화면 위 안내 띠: banner('move' · 'measure' · None)
         self.stop_ev = threading.Event()
         self.arrive_ev = threading.Event()
         self.thread = None
@@ -73,6 +74,7 @@ class Mover:
             if self.before:
                 held = True
                 self.before()
+            self._banner("move")
             if job == "base":
                 self.go_base()
                 self.log("기준 장소 도착", "g")
@@ -91,11 +93,19 @@ class Mover:
             self.log(f"이동 오류: {e}", "n")
         finally:
             self._release_keys()
+            self._banner(None)
             self._set(msg="대기", measuring=None)
             if held and self.after:
                 self.after()
 
     # ---- 도우미
+    def _banner(self, kind):
+        if self.banner:
+            try:
+                self.banner(kind)
+            except Exception:
+                pass
+
     def _check(self):
         if self.stop_ev.is_set() or macro.key_down_now("f7"):
             self.stop_ev.set()
@@ -154,11 +164,19 @@ class Mover:
 
     # ---- 1. 기준 장소 (사용자가 정한 순서)
     def _hold(self, keys, sec):
-        """키들을 sec 초 동안 누르고 있다가 뗌 (멈추면 바로 뗌)"""
+        """키들을 sec 초 동안 누르고 있다가 뗌 (멈추면 바로 뗌)
+        진짜 키보드처럼 누르는 동안 '누름' 신호를 계속 다시 보냄 (약 30번/초) — 한 번만 보내면
+        누를 때마다 한 칸씩 움직이는 것(O 키 줌 · 화면 기울이기 등)은 한 칸만 움직이고 끝났음"""
         try:
             for k in keys:
                 macro.key_down(k)
-            self._wait(sec)
+            end = time.time() + max(0.0, float(sec))
+            while time.time() < end:
+                self._check()
+                time.sleep(min(0.033, max(0.0, end - time.time())))
+                if time.time() < end:
+                    for k in keys:
+                        macro.key_down(k)          # 자동 반복 (키보드를 꾹 누를 때와 같음)
         finally:
             for k in reversed(keys):
                 macro.key_up(k)
@@ -238,6 +256,7 @@ class Mover:
             self.go_base()
             self.walk(i, upto=j)
         self.arrive_ev.clear()
+        self._banner("measure")
         name = f"{pl['name'] or '장소'} · {j + 1}번 지점"
         self._click(pl["points"][j]["pos"], mv.get("button", "right"))
         t0 = time.time()

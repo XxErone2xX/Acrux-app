@@ -1,13 +1,13 @@
-## Acrux macro V1.22.4 업데이트
-- 위치 지정 창의 안내 바가 화면 위쪽(채팅 버튼 등)을 가리던 문제 수정 — 마우스가 위쪽으로 가면 안내 바가 아래로 비켜남
-- 설정이 비어 있는 등 조건이 안 맞아서 기능이 실행되지 않으면 로그뿐 아니라 **알림으로도** 뜸
-  - 이동을 시작하기 전에 필요한 위치 · 시간을 먼저 확인해서 바로 알려 줌
-- 채팅 버튼을 통합 위치의 **게임 버튼** 칸으로 옮김 (이동 외의 기능에서도 같이 씀)
-- 기준 장소로 이동은 리셋 → / · 채팅 · 도감 열고 닫기 · / · Enter → W → W+A → O 순서로 동작
+## Acrux macro V1.22.5 업데이트
+- 기준 장소로 이동에서 **O 키(화면 위로 · 최대 줌)가 안 먹던 문제** 수정
+  - 키를 누르고 있는 동안 진짜 키보드처럼 누름 신호를 계속 보냄 (W · A · O 모두)
+- 자동 낚시 이동에 **정해진 장소 2개**: 낚시 장소 · 물고기 판매 장소
+  - 장소는 만들거나 지우지 않고, 지점마다 누를 곳을 지정하고 시간만 재면 됨
+- 이동 · 시간 재기가 도는 동안 화면 위 가운데에 **건드리지 말라는 안내**가 뜸 (시간 잴 때는 도착하면 F6 안내)
 
-## Acrux macro V1.22.4 Update
-- Fixed the position picker's guide bar covering the top of the screen (chat button, etc.) — it moves to the bottom when the mouse goes near the top
-- When a feature doesn't run because a condition isn't met (missing settings, etc.), it now shows as a **notification** too, not only in the log
-  - Movement checks the required positions and times before starting and tells you right away
-- Moved the chat button to the **Game buttons** box in Shared positions (shared by features other than movement)
-- Go to base spot runs: reset → / · chat · open and close Collection · / · Enter → W → W+A → O
+## Acrux macro V1.22.5 Update
+- Fixed **the O key (look down · max zoom) not working** in Go to base spot
+  - While a key is held it now keeps sending key presses like a real keyboard (W · A · O)
+- Auto fishing movement now has **2 fixed places**: Fishing spot · Fish selling spot
+  - The places can't be added or deleted; just set where to click for each point and measure the time
+- While moving or timing, a **don't-touch notice** shows at the top center of the screen (while timing it says to press F6 on arrival)
