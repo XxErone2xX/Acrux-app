@@ -1600,9 +1600,11 @@ function mposChanged(feat) {
 // 스나이프 탭 오토 팝핑 ↔ 통합 위치 연동 (양쪽 화면에서 같은 스위치)
 function setPopLink(on) {
   pop().use_base = !!on; savePop();
-  renderMpos('base'); renderPopSet();
+  // 누른 스위치가 움직이는 걸 먼저 보여 주고 (바로 다시 그리면 스위치가 새로 생겨서 애니메이션이 안 보임) 끝나면 다시 그림
+  document.querySelectorAll('#popLink, [data-mpos-link]').forEach(i => { i.checked = !!on; });
+  clearTimeout(setPopLink.timer);
+  setPopLink.timer = setTimeout(() => { renderMpos('base'); renderPopSet(); Tutorial.refresh(); }, 230);
   toast(on ? '스나이프 오토 팝핑이 통합 위치를 씀' : '스나이프 오토 팝핑은 따로 지정한 위치를 씀');
-  Tutorial.refresh();
 }
 $('mposPopCopy').addEventListener('click', async () => {
   const r = await api('mpos_copy_pop');
