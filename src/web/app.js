@@ -1305,7 +1305,7 @@ const MPOS = {
                   [...POP_POS.map(([k]) => k), 'ocr_region'], true],
                  ['notice', '알림', '게임 알림을 보는 기능 (자동 낚시 인벤토리 가득 등)', ['notice_region']],
                  ['ui', '게임 버튼', '여러 기능이 같이 누르는 게임 화면 버튼', ['chat_pos']],
-                 ['move', '이동 · 기준 장소', '리셋 → / · 채팅 · 도감 열고 닫기 · / · Enter → W → W+A → O 로 매번 같은 자리 · 같은 화면(기준 장소)을 만듦 · 채팅 버튼은 위 게임 버튼 칸 · 기능마다 갈 장소는 그 기능 칸에서 지정 (Click to Move)',
+                 ['move', '이동 · 기준 장소', '리셋 → / · 채팅 · 도감 열고 닫기 · / · Enter → W → W+A → 우클릭 드래그(내려다보기) → O(줌) 로 매번 같은 자리 · 같은 화면(기준 장소)을 만듦 · 채팅 버튼은 위 게임 버튼 칸 · 기능마다 갈 장소는 그 기능 칸에서 지정 (Click to Move)',
                   ['collection_pos', 'collection_close'], false, 'movebase']] },
   mfish: { box: 'mposFish',
            windows: [['panel_region', '낚시 대기 창 영역', 'Fish 버튼이 보일 때 낚시 창을 흰 꺾쇠 테두리까지 드래그 → Fish 버튼과 릴링 바 위치 자동 계산'],
@@ -1387,7 +1387,8 @@ const saveMove = () => queueSave({ move: JSON.parse(JSON.stringify(move())) });
 const MOVE_SET = [['reset_wait', '리셋 후 대기', 'Esc → R → Enter 로 리셋한 뒤 (초)', 3.5, 0.5, 0.1],
                   ['w_time', 'W 누르기', 'W 만 누르는 시간 (초)', 0.85, 0, 0.05],
                   ['wa_time', 'W + A 누르기', 'W 와 A 를 같이 누르는 시간 (초)', 8, 0, 0.5],
-                  ['o_time', 'O 누르기', '위에서 내려다보기 + 최대 줌 (초)', 2.5, 0, 0.1],
+                  ['tilt_px', '화면 내려다보기', '우클릭을 누른 채 마우스를 아래로 끄는 거리 (px)', 800, 0, 50],
+                  ['o_time', 'O 누르기', '최대 줌 (초)', 2.5, 0, 0.1],
                   ['margin', '도착 여유', '잰 시간에 더 기다릴 시간 (초)', 0.3, 0, 0.1]];
 let lastMove = null;
 const fmtT = t => t == null ? '안 잼' : `${t}초`;

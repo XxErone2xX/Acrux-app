@@ -215,6 +215,24 @@ def mouse_click_here(button="left", hold_ms=25):
     _send(_mouse(up))
 
 
+def mouse_button(button="right", down=True):
+    """마우스 버튼 누르기 / 떼기 (드래그용)"""
+    if not IS_WIN:
+        return
+    if button == "right":
+        f = MOUSEEVENTF_RIGHTDOWN if down else MOUSEEVENTF_RIGHTUP
+    else:
+        f = MOUSEEVENTF_LEFTDOWN if down else MOUSEEVENTF_LEFTUP
+    _send(_mouse(f))
+
+
+def move_rel(dx, dy):
+    """마우스를 지금 자리에서 dx, dy 만큼 (게임 카메라 돌리기 — 우클릭 드래그 등)"""
+    if not IS_WIN:
+        return
+    _send(_mouse(MOUSEEVENTF_MOVE, int(dx), int(dy)))
+
+
 def scroll(amount):
     _send(_mouse(MOUSEEVENTF_WHEEL, data=ctypes.c_uint32(int(amount) * 120).value))
 

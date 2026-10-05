@@ -122,11 +122,12 @@ MOVE_TEMPLATES = {"mfish": (("fish_spot", "낚시 장소"), ("sell_spot", "물�
 MOVE_DEFAULT = {
     # 기준 장소로 가기 (사용자가 정한 순서):
     #  Esc → R → Enter (리셋 · 0.5초 간격) → 3.5초 → / → 채팅 버튼 → 도감 버튼 → 도감 Exit → / → Enter (각 0.5초)
-    #  → W 0.85초 → W+A 8초 → 0.5초 → O 2.5초 (위에서 내려다보기 + 최대 줌) → 갈 곳 우클릭
+    #  → W 0.85초 → W+A 8초 → 0.5초 → 우클릭 드래그(위에서 내려다보기) → O 2.5초 (최대 줌) → 갈 곳 우클릭
     "reset_wait": 3.5,            # 리셋 후 대기 (초)
     "w_time": 0.85,               # W 누르기 (초)
     "wa_time": 8.0,               # W + A 같이 누르기 (초)
-    "o_time": 2.5,                # O 누르기 (초) — 위에서 내려다보기 + 최대 줌
+    "tilt_px": 800,               # 우클릭을 누른 채 마우스를 아래로 끄는 거리 (px) — 위에서 내려다보기
+    "o_time": 2.5,                # O 누르기 (초) — 최대 줌
     "button": "right",            # 이동할 곳을 누를 마우스 버튼 (Click to Move)
     "margin": 0.3,                # 잰 시간에 더 기다릴 여유 (초)
     # 장소: [{"name", "feat": 쓰는 기능, "key": 정해진 장소 이름표, "points": [{"pos": [x, y] (기준 장소 화면에서 누를 곳), "time": 걸린 시간(초) 또는 None}]}]
@@ -349,7 +350,7 @@ def normalize(raw):
     if not mv.get("v18") and mv.get("reset_wait") == 2.6:      # 예전(FishSol 방식) 기본값이면 새 기본값으로 한 번
         mv["reset_wait"] = 3.5
     for k, lo, hi, cast in (("reset_wait", 0.5, 15, float), ("w_time", 0, 30, float), ("wa_time", 0, 60, float),
-                            ("o_time", 0, 15, float), ("margin", 0, 5, float)):
+                            ("o_time", 0, 15, float), ("tilt_px", 0, 5000, int), ("margin", 0, 5, float)):
         try:
             mv[k] = cast(min(hi, max(lo, float(mv.get(k, MOVE_DEFAULT[k])))))
         except (TypeError, ValueError):

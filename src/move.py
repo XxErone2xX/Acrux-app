@@ -3,7 +3,7 @@
 이동 — 기준 장소에서 화면의 한 점을 눌러(Click to Move) 원하는 장소로 걸어감
 외부 앱이라 게임 안 좌표를 모르므로, 매번 '같은 화면'을 만든 뒤 그 화면의 같은 점을 누름:
   1. 기준 장소: 리셋(Esc → R → Enter) → / · 채팅 · 도감 열고 닫기 · / · Enter (카메라 정렬)
-     → W 0.85초 → W+A 8초 (구석으로 걸어가 항상 같은 자리) → O 2.5초 (위에서 내려다보기 + 최대 줌)
+     → W 0.85초 → W+A 8초 (구석으로 걸어가 항상 같은 자리) → 우클릭 드래그(위에서 내려다보기) → O 2.5초 (최대 줌)
   2. 장소마다 지점 목록: [누를 곳, 걸리는 시간] — 지점이 여러 개면 앞 지점에 도착한 화면에서 다음 지점을 누름
   3. 걸리는 시간은 직접 잼: 누른 순간부터 사용자가 '도착'(F6 또는 화면의 버튼)을 누를 때까지
 """
@@ -140,6 +140,10 @@ class Mover:
                 macro.key_up(k)
             except Exception:
                 pass
+        try:
+            macro.mouse_button("right", False)      # 화면 돌리던 우클릭이 눌린 채 남지 않게
+        except Exception:
+            pass
 
     # ---- 미리 확인 (시작하기 전에 알림으로 알려 주려고)
     BASE_KEYS = (("chat_pos", "채팅 버튼"), ("collection_pos", "도감 버튼"), ("collection_close", "도감 Exit"))
@@ -181,9 +185,31 @@ class Mover:
             for k in reversed(keys):
                 macro.key_up(k)
 
+    def _tilt_down(self, px):
+        """화면을 위에서 아래로 내려다보게: 화면 가운데에서 우클릭을 누른 채 마우스를 아래로 끌기 (로블록스 카메라 돌리기)
+        한 번에 크게 옮기면 게임이 놓칠 수 있어서 20px 씩 나눠서 · 카메라는 끝까지 가면 멈추므로 넉넉히 끌어도 됨"""
+        if px <= 0:
+            return
+        rect = self._rect()
+        macro.move_to(rect[0] + rect[2] // 2, rect[1] + rect[3] // 2)
+        self._wait(0.1)
+        try:
+            macro.mouse_button("right", True)
+            self._wait(0.05)
+            done = 0
+            while done < px:
+                self._check()
+                step = min(20, px - done)
+                macro.move_rel(0, step)
+                done += step
+                time.sleep(0.01)
+            self._wait(0.05)
+        finally:
+            macro.mouse_button("right", False)
+
     def go_base(self):
         """Esc → R → Enter (리셋 · 0.5초 간격) → 3.5초 → / → 채팅 버튼 → 도감 버튼 → 도감 Exit → / → Enter (각 0.5초)
-        → W 0.85초 → W+A 8초 → 0.5초 → O 2.5초 (위에서 내려다보기 + 최대 줌)"""
+        → W 0.85초 → W+A 8초 → 0.5초 → 우클릭 드래그로 위에서 내려다보기 → O 2.5초 (최대 줌)"""
         b, mv = self.get_base() or {}, self.get_move() or {}
         miss = self.base_missing()
         if miss:
@@ -215,7 +241,10 @@ class Mover:
         self._hold(("w",), float(mv.get("w_time", 0.85)))
         self._hold(("w", "a"), float(mv.get("wa_time", 8.0)))
         self._wait(0.5)
-        self._set(msg="기준 장소로 이동 · 화면 (O)")
+        self._set(msg="기준 장소로 이동 · 화면 내려다보기 (우클릭 드래그)")
+        self._tilt_down(int(mv.get("tilt_px", 800)))
+        self._wait(0.2)
+        self._set(msg="기준 장소로 이동 · 최대 줌 (O)")
         self._hold(("o",), float(mv.get("o_time", 2.5)))
         self._wait(0.3)
 
