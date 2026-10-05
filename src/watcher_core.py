@@ -111,16 +111,20 @@ BASE_DEFAULT = {
     "item_pos": None, "amount_pos": None, "use_pos": None,
     "ocr_region": None,
     "notice_region": None,        # 알림 영역 (오른쪽에 뜨는 알림 카드 · 낚시의 "Cannot Fish" 등)
-    # 이동 · 카메라 정렬: 리셋 후 Collection 버튼을 열었다 닫으면 카메라가 캐릭터 뒤 기본 방향으로 돌아감 (FishSol 방식)
-    "collection_pos": None,       # 왼쪽 메뉴의 Collection 버튼
-    "collection_close": None,     # Collection 창의 닫기(X) 버튼
+    # 이동 · 기준 장소로 가기에서 누르는 버튼
+    "chat_pos": None,             # 채팅 버튼 (왼쪽 위)
+    "collection_pos": None,       # 도감 버튼 (왼쪽 메뉴의 Collection)
+    "collection_close": None,     # 도감 Exit 버튼
 }
 MOVE_FEATS = ("mfish", "mpop")    # 장소를 따로 둘 수 있는 기능 (매크로 기준 위치 설정의 각 기능 칸)
 MOVE_DEFAULT = {
-    # 기준 장소로 가기: 리셋(Esc → R → Enter) → 카메라 정렬(Collection 열고 닫기) → 줌(휠 끝까지 당긴 뒤 정해진 만큼 밀기)
-    "reset_wait": 2.6,            # 리셋 후 다시 생길 때까지 (초)
-    "zoom_in": 80,                # 휠 위로 (끝까지 당김)
-    "zoom_out": 45,               # 휠 아래로 (항상 같은 거리)
+    # 기준 장소로 가기 (사용자가 정한 순서):
+    #  Esc → R → Enter (리셋 · 0.5초 간격) → 3.5초 → / → 채팅 버튼 → 도감 버튼 → 도감 Exit → / → Enter (각 0.5초)
+    #  → W 0.85초 → W+A 8초 → 0.5초 → O 2.5초 (위에서 내려다보기 + 최대 줌) → 갈 곳 우클릭
+    "reset_wait": 3.5,            # 리셋 후 대기 (초)
+    "w_time": 0.85,               # W 누르기 (초)
+    "wa_time": 8.0,               # W + A 같이 누르기 (초)
+    "o_time": 2.5,                # O 누르기 (초) — 위에서 내려다보기 + 최대 줌
     "button": "right",            # 이동할 곳을 누를 마우스 버튼 (Click to Move)
     "margin": 0.3,                # 잰 시간에 더 기다릴 여유 (초)
     # 장소: [{"name", "feat": 쓰는 기능, "points": [{"pos": [x, y] (기준 장소 화면에서 누를 곳), "time": 걸린 시간(초) 또는 None}]}]
@@ -333,15 +337,17 @@ def normalize(raw):
             base[k] = old_mp[k]
     if not base.get("notice_region") and old_mf.get("notice_region"):
         base["notice_region"] = old_mf["notice_region"]
-    for k in (*BASE_INV_KEYS, "collection_pos", "collection_close"):
+    for k in (*BASE_INV_KEYS, "chat_pos", "collection_pos", "collection_close"):
         base[k] = _ratio_list(base.get(k), 2)
     for k in ("ocr_region", "notice_region"):
         base[k] = _ratio_list(base.get(k), 4)
     d["base"] = {k: base[k] for k in BASE_DEFAULT}
     mv = dict(MOVE_DEFAULT)
     mv.update(d.get("move") if isinstance(d.get("move"), dict) else {})
-    for k, lo, hi, cast in (("reset_wait", 0.5, 15, float), ("zoom_in", 0, 200, int), ("zoom_out", 0, 200, int),
-                            ("margin", 0, 5, float)):
+    if not mv.get("v18") and mv.get("reset_wait") == 2.6:      # 예전(FishSol 방식) 기본값이면 새 기본값으로 한 번
+        mv["reset_wait"] = 3.5
+    for k, lo, hi, cast in (("reset_wait", 0.5, 15, float), ("w_time", 0, 30, float), ("wa_time", 0, 60, float),
+                            ("o_time", 0, 15, float), ("margin", 0, 5, float)):
         try:
             mv[k] = cast(min(hi, max(lo, float(mv.get(k, MOVE_DEFAULT[k])))))
         except (TypeError, ValueError):
@@ -364,6 +370,7 @@ def normalize(raw):
         places.append({"name": str(pl.get("name") or "")[:40], "feat": feat, "points": pts or [{"pos": None, "time": None}]})
     mv["places"] = places
     d["move"] = {k: mv[k] for k in MOVE_DEFAULT}
+    d["move"]["v18"] = True
     mp = dict(MPOP_DEFAULT)
     mp.update(old_mp)
     for k in (*BASE_INV_KEYS, "ocr_region"):

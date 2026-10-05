@@ -2,8 +2,8 @@
 """
 이동 — 기준 장소에서 화면의 한 점을 눌러(Click to Move) 원하는 장소로 걸어감
 외부 앱이라 게임 안 좌표를 모르므로, 매번 '같은 화면'을 만든 뒤 그 화면의 같은 점을 누름:
-  1. 기준 장소: 리셋(Esc → R → Enter) → 다시 생기면 카메라 정렬(Collection 열고 닫기 = 캐릭터 뒤 기본 방향)
-     → 줌(휠을 끝까지 당긴 뒤 정해진 만큼 밀기 = 항상 같은 거리)   (FishSol 의 기준 장소 방식)
+  1. 기준 장소: 리셋(Esc → R → Enter) → / · 채팅 · 도감 열고 닫기 · / · Enter (카메라 정렬)
+     → W 0.85초 → W+A 8초 (구석으로 걸어가 항상 같은 자리) → O 2.5초 (위에서 내려다보기 + 최대 줌)
   2. 장소마다 지점 목록: [누를 곳, 걸리는 시간] — 지점이 여러 개면 앞 지점에 도착한 화면에서 다음 지점을 누름
   3. 걸리는 시간은 직접 잼: 누른 순간부터 사용자가 '도착'(F6 또는 화면의 버튼)을 누를 때까지
 """
@@ -14,7 +14,7 @@ import macro
 
 ARRIVE_KEY = "f6"        # 시간 잴 때 도착하면 누르는 키
 MEASURE_MAX = 180.0      # 시간 재기 최대 (초)
-MOVE_KEYS = ("w", "a", "s", "d", "space", "shift", "e")
+MOVE_KEYS = ("w", "a", "s", "d", "o", "space", "shift", "e")
 
 
 class Stopped(Exception):
@@ -75,7 +75,7 @@ class Mover:
                 self.before()
             if job == "base":
                 self.go_base()
-                self.log("기준 장소 도착 (리셋 · 카메라 정렬 · 줌 완료)", "g")
+                self.log("기준 장소 도착", "g")
             elif job == "place":
                 self.go_place(*args)
             elif job == "test":
@@ -131,37 +131,54 @@ class Mover:
             except Exception:
                 pass
 
-    # ---- 1. 기준 장소
+    # ---- 1. 기준 장소 (사용자가 정한 순서)
+    def _hold(self, keys, sec):
+        """키들을 sec 초 동안 누르고 있다가 뗌 (멈추면 바로 뗌)"""
+        try:
+            for k in keys:
+                macro.key_down(k)
+            self._wait(sec)
+        finally:
+            for k in reversed(keys):
+                macro.key_up(k)
+
     def go_base(self):
+        """Esc → R → Enter (리셋 · 0.5초 간격) → 3.5초 → / → 채팅 버튼 → 도감 버튼 → 도감 Exit → / → Enter (각 0.5초)
+        → W 0.85초 → W+A 8초 → 0.5초 → O 2.5초 (위에서 내려다보기 + 최대 줌)"""
         b, mv = self.get_base() or {}, self.get_move() or {}
-        if not b.get("collection_pos") or not b.get("collection_close"):
-            raise RuntimeError("통합 위치 → 이동 에서 Collection 버튼 · 닫기 위치를 먼저 지정")
+        miss = [n for k, n in (("chat_pos", "채팅 버튼"), ("collection_pos", "도감 버튼"), ("collection_close", "도감 Exit"))
+                if not b.get(k)]
+        if miss:
+            raise RuntimeError(f"통합 위치 → 이동 · 기준 장소 에서 먼저 지정: {', '.join(miss)}")
         self._set(msg="기준 장소로 이동 · 리셋")
         self._release_keys()
-        rect = self._rect()
+        self._rect()
         self._wait(0.2)
         macro.key_tap("esc")
         self._wait(0.5)
         macro.key_tap("r")
         self._wait(0.5)
         macro.key_tap("enter")
-        self._wait(float(mv.get("reset_wait", 2.6)))
-        self._set(msg="기준 장소로 이동 · 카메라 정렬")
-        self._click(b["collection_pos"])
-        self._wait(0.3)
-        self._click(b["collection_close"])
-        self._wait(0.3)
-        self._set(msg="기준 장소로 이동 · 줌")
-        rect = self._rect()
-        macro.move_to(rect[0] + rect[2] // 2, rect[1] + rect[3] // 2)      # 휠은 마우스가 게임 화면 위에 있어야 먹음
-        self._wait(0.1)
-        for _ in range(int(mv.get("zoom_in", 80))):
-            macro.scroll(1)
-            time.sleep(0.005)
+        self._wait(float(mv.get("reset_wait", 3.5)))
+        self._set(msg="기준 장소로 이동 · 카메라 정렬 (채팅 · 도감)")
+        macro.key_tap("/")
         self._wait(0.5)
-        for _ in range(int(mv.get("zoom_out", 45))):
-            macro.scroll(-1)
-            time.sleep(0.005)
+        self._click(b["chat_pos"])
+        self._wait(0.5)
+        self._click(b["collection_pos"])
+        self._wait(0.5)
+        self._click(b["collection_close"])
+        self._wait(0.5)
+        macro.key_tap("/")
+        self._wait(0.5)
+        macro.key_tap("enter")
+        self._set(msg="기준 장소로 이동 · 걷기 (W → W+A)")
+        self._rect()
+        self._hold(("w",), float(mv.get("w_time", 0.85)))
+        self._hold(("w", "a"), float(mv.get("wa_time", 8.0)))
+        self._wait(0.5)
+        self._set(msg="기준 장소로 이동 · 화면 (O)")
+        self._hold(("o",), float(mv.get("o_time", 2.5)))
         self._wait(0.3)
 
     # ---- 2. 장소로
