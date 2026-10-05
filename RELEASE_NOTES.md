@@ -1,7 +1,9 @@
-## Acrux macro V1.17.3 업데이트
-- '낚시 미니게임 창 영역' 지정 시 미니게임이 뜰 때까지 기다리던 기능 제거
-  - 이제 다른 위치 지정처럼 누르는 즉시 위치 지정 창이 뜸 (미니게임이 떠 있을 때 누르면 됨)
+## Acrux macro V1.17.4 업데이트
+- 자동 낚시: 릴링 바 영역이 몇 px 어긋나 있으면 바 속 남은 시간 숫자를 내 위치로 잘못 읽던 문제 수정 (보내주신 기록에서 확인)
+  - 미니게임마다 릴링 바의 회색 테두리 줄을 찾아 바의 실제 세로 위치로 자동 보정
+  - ◇ 로 읽은 위치가 막대 끝과 너무 다르면 막대 끝을 믿음
 
-## Acrux macro V1.17.3 Update
-- Removed waiting for the minigame when setting the 'Fishing minigame window area'
-  - The picker now opens right away like the other pickers (press it while the minigame is showing)
+## Acrux macro V1.17.4 Update
+- Auto fishing: fixed the countdown number inside the bar being read as the marker when the reel bar area was a few px off (found in your log)
+  - Each minigame now finds the bar's gray border lines and snaps to the bar's real vertical position
+  - If the ◇ position disagrees too much with the end of the fill, the fill end is trusted

@@ -134,6 +134,33 @@ def _is_fill(px):
     return (r < 100) & (g >= 80) & (b >= 140) & ((b - g) >= -15) & ((b - g) <= 85)
 
 
+def find_bar_rows(rgb, guess_top, bar_h):
+    """릴링 바 테두리로 바의 실제 세로 위치 찾기 → (바 안쪽 맨 윗줄, 바 안쪽 높이) 또는 None
+    바 위 · 아래엔 가로로 쭉 이어진 회색 테두리 줄이 있음 (위: 밝은 회색 · 아래: 밝거나 어두운 회색)
+    지정한 영역이 몇 px 어긋나면 바 위의 ◇ 찾는 칸에 바 속 숫자(흰 글자)가 들어가 내 위치로 잘못 읽혔음 → 매번 맞춤"""
+    import numpy as np
+    h = rgb.shape[0]
+    lo, hi = max(0, int(guess_top - bar_h)), min(h - 2, int(guess_top + bar_h))
+    best = None
+    for r in range(lo, hi):
+        row = rgb[r]
+        mx, mn, mean = row.max(axis=1), row.min(axis=1), row.mean(axis=1)
+        if (((mx - mn) < 28) & (mean > 95) & (mean < 185)).mean() >= 0.6:
+            if best is None or abs(r + 1 - guess_top) < abs(best + 1 - guess_top):
+                best = r
+    if best is None:
+        return None
+    top = best + 1
+    inner = bar_h
+    for r in range(top + 3, min(h, top + int(bar_h * 1.6))):  # 아래 테두리 (밝거나 어두운 회색 줄)
+        row = rgb[r]
+        mx, mn, mean = row.max(axis=1), row.min(axis=1), row.mean(axis=1)
+        if (((mx - mn) < 28) & (mean > 40) & (mean < 185)).mean() >= 0.6:
+            inner = r - top
+            break
+    return top, max(4, inner)
+
+
 def analyze_bar(rgb, bar_top, bar_h):
     """rgb: 릴링 바 + 그 위 ◇ 표시까지 잡은 이미지 / bar_top·bar_h: 그 안에서 바의 세로 위치
     → {"present", "marker", "zone": (시작, 끝) 또는 None, "w"} (x 는 이미지 안 픽셀)"""
@@ -190,13 +217,14 @@ def analyze_bar(rgb, bar_top, bar_h):
             seg = cnt[lo:hi]
             if seg.sum() >= 6:
                 out["marker"] = float((np.arange(lo, hi) * seg).sum() / seg.sum())
+    # 막대 끝으로 본 내 위치 (막대가 구간과 겹치면 겹친 부분은 구간 색으로 보여 막대가 구간 왼쪽 끝에서 끊김 → 그땐 모름)
+    end = max(0, fill_end)
+    z = out["zone"]
+    fill_pos = float(end) if (z is None or not (z[0] - 3 <= end <= z[1] + 2)) else None
     if out["marker"] is None:
-        # ◇ 를 못 찾았을 때: 막대 끝 = 내 위치 (막대가 비어 있으면 맨 왼쪽) · 단, 막대가 구간과 겹치면 겹친 부분은
-        # 구간 색(밝게)으로 보여서 막대가 구간 왼쪽 끝에서 끊김 → 그때는 내 위치를 알 수 없으니 None (안 누르고 다음 화면을 봄)
-        end = max(0, fill_end)
-        z = out["zone"]
-        if z is None or not (z[0] - 3 <= end <= z[1] + 2):
-            out["marker"] = float(end)
+        out["marker"] = fill_pos                         # ◇ 를 못 찾으면 막대 끝
+    elif fill_pos is not None and abs(out["marker"] - fill_pos) > max(12, w * 0.04):
+        out["marker"] = fill_pos                         # ◇ 가 막대 끝과 너무 다르면 ◇ 를 잘못 찾은 것 (바 속 숫자 등) → 막대 끝을 믿음
     return out
 
 
@@ -339,14 +367,14 @@ class Fisher:
         return {"left": x1, "top": y1 + int(bh * 0.35), "width": max(8, x2 - x1), "height": max(1, int(bh * 0.3))}
 
     def _bar_geom(self, rect, region):
-        """바 영역(비율) → 캡처할 화면 상자 (◇ 표시까지 위로 늘림) + 그 안의 바 위치"""
+        """바 영역(비율) → 캡처할 화면 상자 (◇ 표시까지 위로, 위치 보정용으로 아래로도 조금 늘림) + 그 안의 바 위치"""
         x1, y1 = macro.to_screen(min(region[0], region[2]), min(region[1], region[3]), rect)
         x2, y2 = macro.to_screen(max(region[0], region[2]), max(region[1], region[3]), rect)
         bh = max(4, y2 - y1)
         extra = int(bh * 1.8)
         box = {"left": x1, "top": max(rect[1], y1 - extra), "width": max(8, x2 - x1), "height": 0}
         top_in = y1 - box["top"]
-        box["height"] = top_in + bh
+        box["height"] = top_in + bh + int(bh * 0.8)
         return box, top_in, bh
 
     # ---- 메인 (상태 기계)
@@ -571,6 +599,7 @@ class Fisher:
         ctl = ReelControl(cfg)
         start = time.time()
         dia, dia_at, dia_seen, dia_off = None, 0.0, False, None   # ◇ 신호 · 마지막 확인 · 이번에 본 적 · 사라진 시각
+        fixed = False                                # 바 세로 위치를 테두리로 맞췄는지
         end = start + REEL_MAX
         hwnd, fg_at = macro.roblox_window_cached(), start
         while time.time() < end:
@@ -581,7 +610,15 @@ class Fisher:
                 if hwnd and not self.no_focus and not macro.is_foreground(hwnd):
                     macro.focus(hwnd)
             img = sct.grab(box)
-            a = analyze_bar(_np(bytes(img.bgra), img.width, img.height), top_in, bh)
+            rgb = _np(bytes(img.bgra), img.width, img.height)
+            if not fixed:                            # 처음 몇 화면 안에 테두리로 바 세로 위치를 맞춤 (이번 미니게임 동안 고정)
+                found = find_bar_rows(rgb, top_in, bh)
+                if found:
+                    fixed = True
+                    if abs(found[0] - top_in) > 1 or abs(found[1] - bh) > 2:
+                        self.log(f"릴링 바 위치 보정 ({found[0] - top_in:+d}px)", "d")
+                        top_in, bh = found
+            a = analyze_bar(rgb, top_in, bh)
             now = time.time()
             if now - dia_at >= 0.1:                  # ◇ 는 0.1초마다만 봄
                 dia_at = now
