@@ -160,6 +160,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); }
 .form { display: flex; flex-direction: column; }
 .form .row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .form .row:last-child { border-bottom: 0; }
+.mpos-card > [data-mpos-custom]:not(:last-child) > .row:last-child { border-bottom: 1px solid var(--line); }
 .form .row > span:first-child { display: flex; flex-direction: column; }
 .form .row small { font-size: 11px; margin-top: 2px; }
 .form .row input[type=number], .form .row select { width: 140px; }

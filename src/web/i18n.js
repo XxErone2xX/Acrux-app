@@ -325,6 +325,7 @@ const I18N = (() => {
     ['클릭 사이 추가 대기', 'Extra wait between clicks', 'クリック間の追加待機'],
     ['렉이 있으면 늘림 (초)', 'Raise it if the game lags (s)', 'ラグがあれば増やす（秒）'],
     ['상점 Buy · Sell 탭을 못 찾음', 'Shop Buy · Sell tabs not found', 'ショップの Buy・Sell タブが見つかりません'],
+    ['Fish 버튼이 보일 때 누르면 위치를 전부 맞춤', 'Press while the Fish button shows to set every position', 'Fishボタンが見えるときに押すと位置をすべて合わせます'],
     ['자동 낚시가 멈추지 않아 판매 테스트를 못 함', 'Auto fishing did not pause, so the sell test could not run', '自動釣りが止まらず売却テストができません'],
     ['판매 자동 보정', 'Sell calibration', '販売の自動補正'],
     ['보정 중… (다시 누르면 취소)', 'Calibrating… (press again to cancel)', '補正中…（もう一度押すとキャンセル）'],

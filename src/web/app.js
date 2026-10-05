@@ -1321,11 +1321,11 @@ const MPOS = {
            regions: [['bar_region', '릴링 바 영역', '위쪽 바만 딱 맞게 드래그'],
                      ['info_region', '물고기 정보 영역', '물고기를 눌렀을 때 왼쪽 이름 · Sells for 자리']],
            tabs: [['win', '창 영역', '창 테두리만 드래그하면 안쪽 위치는 자동 계산',
-                   ['panel_region', 'reel_region', 'result_region']],
+                   ['panel_region', 'reel_region', 'result_region'], false, '', 'fishauto'],
                   ['fine', '세부 위치', '창 영역으로 자동 계산됨 · 조금 어긋나면 여기서 하나씩 직접 지정',
                    ['fish_btn', 'close_pos', 'title_pos', 'bar_region']],
                   ['sell', '판매', '인벤토리가 가득 차면 물고기를 팔고 돌아옴',
-                   ['sell_fish_pos', 'first_fish_pos', 'sell_all_pos', 'confirm_sell_pos', 'shop_close_pos', 'info_region'], true, 'sell'],
+                   ['sell_fish_pos', 'first_fish_pos', 'sell_all_pos', 'confirm_sell_pos', 'shop_close_pos', 'info_region'], true, 'sell', 'sellauto'],
                   ['move', '이동', '매크로를 켜면 낚시 장소로, 가득 차면 판매 장소로 이동', [], false, 'places:mfish']] },
 };
 const MPOS_RATIOS = [['auto', '자동 (지금 창)'], ['16:9', '16:9'], ['16:10', '16:10'], ['21:9', '21:9'], ['32:9', '32:9'], ['4:3', '4:3'], ['5:4', '5:4']];
@@ -1348,13 +1348,13 @@ function renderMpos(feat) {
       <span class="pos"><select data-mpos-ratio>${MPOS_RATIOS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select>
       <button class="btn mini" type="button" data-mpos-tpl>적용</button></span></div>` : '';
   // 묶음마다 따로 칸(카드)으로 나눠서 보여 줌 · 제목 옆에 지정한 개수 / 전체 개수
-  box.innerHTML = d.tabs.map(([id, name, sub, keys, top, custom]) => {
+  box.innerHTML = d.tabs.map(([id, name, sub, keys, top, custom, pre]) => {
     const n = keys.filter(k => c[k]).length;
     return `
     <div class="mpos-group" data-mpos-group="${id}">
       <div class="mpos-card-head"><b>${name}</b>${keys.length ? `<em class="${n === keys.length ? 'done' : ''}">${n}/${keys.length}</em>` : ''}</div>
       <p class="mpos-desc">${sub}</p>
-      <div class="card form mpos-card">${top ? link + tpl : ''}${keys.map(k => items[k] || '').join('')}${custom ? `<div data-mpos-custom="${custom}"></div>` : ''}</div></div>`;
+      <div class="card form mpos-card">${pre ? `<div data-mpos-custom="${pre}"></div>` : ''}${top ? link + tpl : ''}${keys.map(k => items[k] || '').join('')}${custom ? `<div data-mpos-custom="${custom}"></div>` : ''}</div></div>`;
   }).join('');
   box.querySelectorAll('[data-mpos-custom]').forEach(renderMoveCustom);
   box.querySelector('[data-mpos-link]')?.addEventListener('change', e => setPopLink(e.target.checked));
@@ -1417,6 +1417,7 @@ function renderMoveCustom(el) {
   const [kind, feat] = el.dataset.mposCustom.split(':');
   if (kind === 'movebase') MPOS_CUSTOM.movebase(el);
   else if (kind === 'sell') MPOS_CUSTOM.sell(el);
+  else if (kind === 'fishauto' || kind === 'sellauto') MPOS_CUSTOM[kind](el);
   else MPOS_CUSTOM.places(el, feat);
 }
 function rerenderMove() { document.querySelectorAll('[data-mpos-custom]').forEach(renderMoveCustom); }
@@ -1424,23 +1425,27 @@ const SELL_SET = [['e_wait', 'E 누른 뒤 대기', '대화창이 뜰 때까지 
                   ['sell_delay', '클릭 사이 추가 대기', '렉이 있으면 늘림 (초)', 0.4, 0, 0.1],
                   ['sell_max', '판매 반복 최대', '클릭이 씹혀 끝없이 도는 것만 막음', 100, 1, 1]];
 let sellcalBusy = false;
+let autocalBusy = false;
+const autoRow = (name, sub, busy, label, attr) => `
+      <div class="row"><span>${name}<small>${sub}</small></span>
+        <span class="pos"><button class="btn mini ${busy ? 'waiting' : ''}" type="button" ${attr}>${busy ? '보정 중… (다시 누르면 취소)' : label}</button></span></div>`;
 const MPOS_CUSTOM = {
-  // 판매: [판매 자동 보정] + 대기 · 반복 설정 + [판매 테스트]
-  sell(el) {
-    const m = mfish(), st = lastMove || {}, busy = !!st.running;
-    el.innerHTML = `
-      <div class="row"><span>판매 자동 보정<small>누른 뒤 Captain Flarg 앞에서 E · 실제로 팔지는 않음</small></span>
-        <span class="pos"><button class="btn mini ${sellcalBusy ? 'waiting' : ''}" type="button" data-sell-auto>${sellcalBusy ? '보정 중… (다시 누르면 취소)' : '판매 자동 보정'}</button></span></div>` + SELL_SET.map(([k, name, sub, def, min, step]) => `
-      <label class="row"><span>${name}<small>${sub} · 기본 ${def}</small></span>
-        <input type="number" min="${min}" step="${step}" data-sell-set="${k}" value="${m[k] ?? def}"></label>`).join('') + `
-      <div class="row"><span>판매 테스트<small>기준 장소 → 물고기 판매 장소 → 판매 → 낚시 장소 · 정지: F7</small></span>
-        <span class="pos"><b class="move-state">${esc(busy ? (st.msg || '이동 중') : '대기')}</b>
-        <button class="btn mini" type="button" data-sell-test ${busy ? 'disabled' : ''}>판매 테스트</button>
-        <button class="btn mini ghost" type="button" data-move-stop ${busy ? '' : 'disabled'}>멈춤</button></span></div>`;
-    el.querySelectorAll('[data-sell-set]').forEach(i => i.addEventListener('input', () => {
-      const n = parseFloat(i.value);
-      if (!isNaN(n) && n >= 0) { m[i.dataset.sellSet] = n; saveMfish(); }
-    }));
+  // 자동 보정 (칸 맨 위): 낚시 창 · 판매 위치
+  fishauto(el) {
+    el.innerHTML = autoRow('자동 보정', 'Fish 버튼이 보일 때 누르면 위치를 전부 맞춤', autocalBusy, '자동 보정', 'data-fish-auto');
+    el.querySelector('[data-fish-auto]').addEventListener('click', async () => {
+      if (autocalBusy) { const r = await api('mfish_autocal'); return r.error && toast(r.error); }
+      autocalBusy = true; rerenderMove();
+      try {
+        const r = await api('mfish_autocal');
+        if (r.mfish) { Object.assign(mfish(), r.mfish); mposChanged('mfish'); }
+        toast(r.error || `자동 보정 완료: ${r.done}`);
+      } catch (err) { toast('자동 보정 실패: ' + err.message); }
+      finally { autocalBusy = false; rerenderMove(); }
+    });
+  },
+  sellauto(el) {
+    el.innerHTML = autoRow('판매 자동 보정', '누른 뒤 Captain Flarg 앞에서 E · 실제로 팔지는 않음', sellcalBusy, '판매 자동 보정', 'data-sell-auto');
     el.querySelector('[data-sell-auto]').addEventListener('click', async () => {
       if (sellcalBusy) { const r = await api('sell_autocal'); return r.error && toast(r.error); }
       sellcalBusy = true; rerenderMove();
@@ -1453,6 +1458,21 @@ const MPOS_CUSTOM = {
       } catch (err) { toast('판매 자동 보정 실패: ' + err.message); }
       finally { sellcalBusy = false; rerenderMove(); }
     });
+  },
+  // 판매: 대기 · 반복 설정 + [판매 테스트]
+  sell(el) {
+    const m = mfish(), st = lastMove || {}, busy = !!st.running;
+    el.innerHTML = SELL_SET.map(([k, name, sub, def, min, step]) => `
+      <label class="row"><span>${name}<small>${sub} · 기본 ${def}</small></span>
+        <input type="number" min="${min}" step="${step}" data-sell-set="${k}" value="${m[k] ?? def}"></label>`).join('') + `
+      <div class="row"><span>판매 테스트<small>기준 장소 → 물고기 판매 장소 → 판매 → 낚시 장소 · 정지: F7</small></span>
+        <span class="pos"><b class="move-state">${esc(busy ? (st.msg || '이동 중') : '대기')}</b>
+        <button class="btn mini" type="button" data-sell-test ${busy ? 'disabled' : ''}>판매 테스트</button>
+        <button class="btn mini ghost" type="button" data-move-stop ${busy ? '' : 'disabled'}>멈춤</button></span></div>`;
+    el.querySelectorAll('[data-sell-set]').forEach(i => i.addEventListener('input', () => {
+      const n = parseFloat(i.value);
+      if (!isNaN(n) && n >= 0) { m[i.dataset.sellSet] = n; saveMfish(); }
+    }));
     el.querySelector('[data-sell-test]').addEventListener('click', async () => {
       await flushSave();
       moveCall('sell_test', {}, '판매 테스트 시작 · 정지: F7');
@@ -1595,19 +1615,6 @@ $('mposPopOcr').addEventListener('click', async e => {
     else toast((r.text ? `이름: ${r.name || '-'} · 개수: ${r.count ?? '표시 없음(1개)'}` : '읽은 글자 없음') + ` · ${r.engine}`);
   } catch (err) { toast('OCR 오류: ' + err.message); }
   finally { b.disabled = false; }
-});
-// 자동 보정: 로블록스에서 Fish 를 직접 눌러 한 번 낚으면서 창 위치를 전부 잼 (오래 걸림) · 도는 중에 다시 누르면 취소
-let autocalBusy = false;
-$('mfishAuto').addEventListener('click', async e => {
-  const b = e.currentTarget;
-  if (autocalBusy) { const r = await api('mfish_autocal'); return r.error && toast(r.error); }
-  autocalBusy = true; b.classList.add('waiting'); b.textContent = '자동 보정 중… (다시 누르면 취소)';
-  try {
-    const r = await api('mfish_autocal');
-    if (r.mfish) { Object.assign(mfish(), r.mfish); mposChanged('mfish'); }
-    toast(r.error || `자동 보정 완료: ${r.done}`);
-  } catch (err) { toast('자동 보정 실패: ' + err.message); }
-  finally { autocalBusy = false; b.classList.remove('waiting'); b.textContent = '자동 보정'; }
 });
 $('mfishCheck').addEventListener('click', async e => {
   const b = e.currentTarget; b.disabled = true;
