@@ -1372,4 +1372,5 @@ elif __name__ == "__main__" and "--pick-point" in sys.argv:
     pick_region_to_file(sys.argv[sys.argv.index("--pick-point") + 1], "point")
 elif __name__ == "__main__" and "--banner" in sys.argv:
     _i = sys.argv.index("--banner")
-    show_banner(sys.argv[_i + 1] if len(sys.argv) > _i + 1 else "autocal")
+    _p = sys.argv[sys.argv.index("--progress") + 1] if "--progress" in sys.argv[:-1] else None
+    show_banner(sys.argv[_i + 1] if len(sys.argv) > _i + 1 else "autocal", progress=_p)
