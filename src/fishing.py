@@ -80,6 +80,11 @@ def button_state(rgb):
     """Fish/Exit 버튼 주변 픽셀 → 'fish'(파랑) / 'exit'(빨강) / None(둘 다 아님 · 다른 창이 가림)"""
     r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
     n = max(1, r.size)
+    # 진짜 버튼은 어두운 바탕에 색 글자 · 테두리만 있음 (어두운 칸 80% 이상) — 결과창이 떠서 낚시 창이 사라지면
+    # 그 자리 뒤의 게임 화면(파랑 · 빨강 줄무늬 계단 등 밝은 색)이 보이는데, 이걸 Fish/Exit 로 잘못 보고
+    # X 를 멈추거나 Fish 를 눌러 대다 '인벤토리 가득'으로 멈추던 문제 → 어두운 바탕이 아니면 버튼 아님
+    if float((rgb.max(axis=2) < 70).mean()) < 0.45:
+        return None
     blue = int(((b > 140) & (b > r + 45) & (b > g + 20)).sum())
     red = int(((r > 150) & (r > g + 60) & (r > b + 40)).sum())
     if max(blue, red) < n * 0.01:
@@ -279,25 +284,63 @@ def find_bar_rows(rgb, guess_top, bar_h):
     return top, max(4, inner), int(x0), int(x1)
 
 
-def analyze_bar(rgb, bar_top, bar_h):
+def _band(rgb, bar_top, bar_h):
+    import numpy as np
+    y0 = int(bar_top + bar_h * 0.35)
+    y1 = max(y0 + 1, int(bar_top + bar_h * 0.65))
+    return np.median(rgb[y0:y1], axis=0)                # 바 가운데 줄 (글자 노이즈를 줄이려고 여러 줄의 중앙값)
+
+
+def learn_fill(rgb, bar_top, bar_h):
+    """미니게임 시작 때 막대 색 배우기 → (r, g, b) 또는 None
+    막대는 항상 바 왼쪽 끝부터 차 있음 (시작할 땐 내 위치가 가운데쯤) → 왼쪽 15% 의 색이 막대 색
+    막대 색 범위(청록 ~ 파랑) 안이고 고르게 같은 색일 때만"""
+    import numpy as np
+    band = _band(rgb, bar_top, bar_h)
+    w = band.shape[0]
+    seg = band[max(1, int(w * 0.01)):max(3, int(w * 0.15))]
+    ok = _colored(seg) & _is_fill(seg)
+    if ok.mean() < 0.9:
+        return None
+    ref = np.median(seg[ok], axis=0)
+    if float(np.abs(seg[ok] - ref).max(axis=1).mean()) > 12:
+        return None
+    return tuple(int(v) for v in ref)
+
+
+def analyze_bar(rgb, bar_top, bar_h, fill_ref=None):
     """rgb: 릴링 바 + 그 위 ◇ 표시까지 잡은 이미지 / bar_top·bar_h: 그 안에서 바의 세로 위치
+    fill_ref: 이번 미니게임의 막대 색 (learn_fill) — 있으면 그 색만 막대로 봄
     → {"present", "marker", "zone": (시작, 끝) 또는 None, "w"} (x 는 이미지 안 픽셀)"""
     import numpy as np
     h, w = rgb.shape[:2]
-    y0 = int(bar_top + bar_h * 0.35)
-    y1 = max(y0 + 1, int(bar_top + bar_h * 0.65))
-    band = np.median(rgb[y0:y1], axis=0)                # 바 가운데 줄 (글자 노이즈를 줄이려고 여러 줄의 중앙값)
+    band = _band(rgb, bar_top, bar_h)
     colored = _colored(band)
     present = colored.sum() >= max(4, w * 0.03) and _left_ok(band)
     out = {"present": bool(present), "marker": None, "zone": None, "zones": [], "w": w}
     if not present:
         return out
-    fill = colored & _is_fill(band)
-    xs = np.where(fill)[0]
-    fill_end = int(xs.max()) if len(xs) else -1          # 막대 끝 (-1 = 비어 있음)
     mx, mn = band.max(axis=1), band.min(axis=1)
     texty = ((mx - mn) <= 50) & (mx > 90)               # 남은 시간 숫자 (흰 글자 · 글자 가장자리 회색)
-    zone = colored & ~fill
+    if fill_ref is not None:
+        # 이번 막대 색을 알면: 바 안에서 '막대 색도 · 빈 칸(어두움)도 · 숫자도 아닌 곳'이 전부 구간
+        # 막대와 구간이 겹친 곳은 두 색이 섞인 색이라 매번 다름 (청록 구간 → 밝은 하늘색 = 예전엔 막대로 읽힘,
+        # 갈색 구간 → 회갈색 = 예전엔 색이 없다고 빠짐) → 구간을 놓치거나 일부만 봐서 엉뚱하게 눌렀음
+        dist = np.abs(band - np.array(fill_ref, dtype=band.dtype)).max(axis=1)
+        lit = mx > 75                                    # 빈 칸(어두운 바탕)이 아님
+        fill = lit & (dist <= 22)
+        white = mn > 185                                 # 숫자 글자 + 테두리 (막대 · 구간이 어둡게 비친 색)
+        skip = white.copy()
+        for k in (1, 2):
+            skip[k:] |= white[:-k]
+            skip[:-k] |= white[k:]
+        zone = lit & ~fill & ~skip
+    else:
+        fill = colored & _is_fill(band)
+        zone = colored & ~fill
+        skip = texty
+    xs = np.where(fill)[0]
+    fill_end = int(xs.max()) if len(xs) else -1          # 막대 끝 (-1 = 비어 있음)
     # 물고기 구간: 가장 긴 덩어리 (위에 겹친 숫자 글자 · 4px 이하 틈은 이어 붙임)
     segs, cur, gap = [], None, 0
     for x in range(w):
@@ -306,7 +349,7 @@ def analyze_bar(rgb, bar_top, bar_h):
                 cur = [x, x]
             cur[1], gap = x, 0
         elif cur is not None:
-            if texty[x]:
+            if skip[x]:
                 continue                                  # 숫자 글자 위는 틈으로 안 셈 (글자 테두리의 어두운 칸만 셈)
             gap += 1
             if gap > 4:
@@ -350,7 +393,7 @@ def analyze_bar(rgb, bar_top, bar_h):
     # (숫자 테두리가 막대 끝을 몇 px 가려서 '구간보다 아래'로 잘못 보고 구간 한가운데서 클릭하던 문제)
     if fill_pos is not None and fill_end >= 0:
         after = slice(fill_end + 1, min(w, fill_end + 1 + max(8, int(w * 0.025))))
-        if colored[after].any() or texty[max(0, fill_end - 3):after.stop].any():
+        if (colored | zone)[after].any() or texty[max(0, fill_end - 3):after.stop].any():
             fill_pos = None
     if out["marker"] is None:
         # ◇ 를 못 찾으면 막대 끝 · 막대가 아예 없으면 맨 왼쪽 (구간이 왼쪽 끝에 붙어 있어도)
@@ -737,6 +780,7 @@ class Fisher:
         snap, snap_at, lost_at = None, 0.0, None     # 찾은 테두리 · 그 자리가 처음 나온 시각 · 맞춘 자리에서 바를 놓친 시각
         xs = box.get("_x", (0, box["width"]))       # 캡처 안에서 바의 가로 범위
         top0, bh0, xs0 = top_in, bh, xs             # 지정한 자리 (다시 맞출 때 기준)
+        fill_ref = None                              # 이번 미니게임의 막대 색 (learn_fill)
         grab_box = {k: v for k, v in box.items() if not k.startswith("_")}
         end = start + REEL_MAX
         hwnd, fg_at = macro.roblox_window_cached(), start
@@ -764,7 +808,9 @@ class Fisher:
                         top_in, bh, xs = nt, nh, (nx0 + 1, nx1)    # 테두리 안쪽만
                 else:
                     snap = None
-            a = analyze_bar(rgb[:, xs[0]:xs[1]], top_in, bh)
+            if fixed and fill_ref is None:           # 이번 미니게임의 막대 색 (바 위치를 맞춘 뒤 한 번)
+                fill_ref = learn_fill(rgb[:, xs[0]:xs[1]], top_in, bh)
+            a = analyze_bar(rgb[:, xs[0]:xs[1]], top_in, bh, fill_ref)
             if fixed and not a["present"]:           # 맞춘 자리에서 바가 계속 안 보임 → 지정한 자리로 돌아가 다시 맞춤
                 lost_at = lost_at or t0
                 if t0 - lost_at > 0.3:
