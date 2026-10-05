@@ -1312,7 +1312,6 @@ const MPOS = {
 };
 const MPOS_RATIOS = [['auto', '자동 (지금 창)'], ['16:9', '16:9'], ['16:10', '16:10'], ['21:9', '21:9'], ['32:9', '32:9'], ['4:3', '4:3'], ['5:4', '5:4']];
 let mposRatio = 'auto';
-const mposTab = {};                                // 위치 설정에서 고른 탭 (다시 그려도 그대로)
 function renderMpos(feat) {
   const d = MPOS[feat], c = featCfg(feat), box = $(d.box);
   const regions = [...(d.windows || []), ...d.regions];
@@ -1330,21 +1329,15 @@ function renderMpos(feat) {
     <div class="row tpl-pick"><span>위치 템플릿<small>화면 비율에 맞는 기본 위치를 한 번에 채움 · 자동 = 지금 로블록스 창 크기로 계산 · 16:9 말고는 추정값이라 안 맞는 건 아래에서 직접 지정</small></span>
       <span class="pos"><select data-mpos-ratio>${MPOS_RATIOS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select>
       <button class="btn mini" type="button" data-mpos-tpl>적용</button></span></div>` : '';
-  // 탭: 묶음마다 따로 보여 줌 (지정한 개수 / 전체 개수 표시)
-  const cur = d.tabs.some(t => t[0] === mposTab[feat]) ? mposTab[feat] : d.tabs[0][0];
-  box.innerHTML = `<div class="mpos-tabs" role="tablist">${d.tabs.map(([id, name, , keys]) => {
-      const n = keys.filter(k => c[k]).length;
-      return `<button type="button" class="mpos-tab${id === cur ? ' active' : ''}" data-mpos-tab="${id}">${name}<em class="${n === keys.length ? 'done' : ''}">${n}/${keys.length}</em></button>`;
-    }).join('')}</div>` +
-    d.tabs.map(([id, , sub, keys, top, custom]) => `
-    <div class="mpos-pane" data-mpos-pane="${id}"${id === cur ? '' : ' hidden'}>
-      <p class="mpos-desc">${sub}</p>${top ? link + tpl : ''}${keys.map(k => items[k] || '').join('')}${custom ? `<div data-mpos-custom="${custom}"></div>` : ''}</div>`).join('');
+  // 묶음마다 따로 칸(카드)으로 나눠서 보여 줌 · 제목 옆에 지정한 개수 / 전체 개수
+  box.innerHTML = d.tabs.map(([id, name, sub, keys, top, custom]) => {
+    const n = keys.filter(k => c[k]).length;
+    return `
+    <div class="card form mpos-card" data-mpos-group="${id}">
+      <div class="mpos-card-head"><b>${name}</b><em class="${n === keys.length ? 'done' : ''}">${n}/${keys.length}</em></div>
+      <p class="mpos-desc">${sub}</p>${top ? link + tpl : ''}${keys.map(k => items[k] || '').join('')}${custom ? `<div data-mpos-custom="${custom}"></div>` : ''}</div>`;
+  }).join('');
   box.querySelectorAll('[data-mpos-custom]').forEach(el => MPOS_CUSTOM[el.dataset.mposCustom](el));
-  box.querySelectorAll('[data-mpos-tab]').forEach(t => t.addEventListener('click', () => {
-    mposTab[feat] = t.dataset.mposTab;
-    box.querySelectorAll('[data-mpos-tab]').forEach(x => x.classList.toggle('active', x === t));
-    box.querySelectorAll('[data-mpos-pane]').forEach(p => { p.hidden = p.dataset.mposPane !== t.dataset.mposTab; });
-  }));
   box.querySelector('[data-mpos-link]')?.addEventListener('change', e => setPopLink(e.target.checked));
   if (d.tpl) {
     const sel = box.querySelector('[data-mpos-ratio]');

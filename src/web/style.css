@@ -710,16 +710,6 @@ body:not(.in-page) .lang.in-card { display: none; }
 .cl-body ul ul li { color: var(--muted); font-size: 12.5px; }
 .card.form .row.mpos-sub { padding-top: 18px; } .card.form .row.mpos-sub > span { font-weight: 600; }
 
-/* ---------- 매크로 기준 위치 설정 · 탭 (묶음마다 따로) ---------- */
-.mpos-tabs { display: flex; gap: 4px; margin: -6px -4px 6px; padding: 0 4px; border-bottom: 1px solid var(--line); }
-.mpos-tab { display: flex; align-items: center; gap: 8px; padding: 10px 16px 9px; border: 0; background: none; color: var(--muted);
-  font: inherit; font-weight: 600; font-size: 14px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
-  transition: color .15s, border-color .15s, background .15s; border-radius: 6px 6px 0 0; }
-.mpos-tab:hover { color: var(--fg); background: var(--hover); }
-.mpos-tab.active { color: var(--fg); border-bottom-color: var(--accent); }
-.mpos-tab em { font-style: normal; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--field); color: var(--muted); }
-.mpos-tab em.done { background: rgba(35, 165, 90, .18); color: var(--green); }
-.mpos-pane[hidden] { display: none; }
 .mpos-desc { margin: 10px 0 4px; color: var(--muted); font-size: 12.5px; }
 .sec-head .sec-btns { display: flex; gap: 8px; margin-left: auto; }
 /* 이동 탭 */
@@ -731,3 +721,10 @@ body:not(.in-page) .lang.in-card { display: none; }
 .move-measure { background: rgba(88, 101, 242, .12); border-radius: 8px; padding-left: 10px; padding-right: 10px; }
 .move-measure [data-move-timer] { font-variant-numeric: tabular-nums; min-width: 60px; display: inline-block; text-align: right; }
 .move-state { font-weight: 600; color: var(--muted); margin-right: 6px; }
+/* 매크로 기준 위치 설정 · 묶음마다 따로 칸 */
+.mpos-cards { display: flex; flex-direction: column; gap: 14px; }
+.mpos-card-head { display: flex; align-items: center; gap: 10px; }
+.mpos-card-head b { font-size: 16px; }
+.mpos-card-head em { font-style: normal; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--field); color: var(--muted); }
+.mpos-card-head em.done { background: rgba(35, 165, 90, .18); color: var(--green); }
+.mpos-card .mpos-desc { margin: 4px 0 6px; }
