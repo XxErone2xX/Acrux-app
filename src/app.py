@@ -667,7 +667,7 @@ class Bridge:
     MPOS_TEMPLATE = {
         "base": {"inventory_pos": [0.018, 0.474], "items_pos": [0.663, 0.312], "search_pos": [0.458, 0.34],
                  "item_pos": [0.443, 0.44], "amount_pos": [0.296, 0.534], "use_pos": [0.356, 0.535],
-                 "ocr_region": [0.415, 0.392, 0.469, 0.491],
+                 "ocr_region": [0.418, 0.399, 0.466, 0.484],
                  # 1080p 기준: 채팅 버튼 (112, 30) · 도감 버튼 (47, 467) · 도감 Exit (382, 126) — FishSol 에서 쓰는 자리
                  "chat_pos": [0.0582, 0.0278], "collection_pos": [0.0245, 0.4324], "collection_close": [0.199, 0.1167],
                  "dialog_pos": [0.3979, 0.763]},     # NPC 대화창 (Noteab 매크로 1080p 프리셋 · Apache 2.0)
@@ -1141,7 +1141,7 @@ class Bridge:
 
     # 화면 비율 — 로블록스 UI 는 화면 높이에 맞춰 커지고, 낚시 창 · 결과창 · 인벤토리 창은 가로 가운데 기준,
     # Inventory 버튼(왼쪽 메뉴)은 왼쪽 끝 기준이라고 보고 16:9 값을 바꿈 (16:9 가 아닌 비율은 추정값)
-    MPOS_RATIOS = {"16:9": 16 / 9, "16:10": 16 / 10, "21:9": 21 / 9, "32:9": 32 / 9, "4:3": 4 / 3, "5:4": 5 / 4}
+    MPOS_RATIOS = {"16:9": 16 / 9}           # 다른 비율은 추정값이라 불안정해서 뺌
     MPOS_LEFT = {"inventory_pos", "chat_pos", "collection_pos", "collection_close"}
 
     @classmethod
@@ -1161,14 +1161,7 @@ class Bridge:
         if feat not in self.MPOS_TEMPLATE:
             return {"error": "알 수 없는 항목"}
         ratio = str(p.get("ratio") or "16:9")
-        if ratio == "auto":                       # 지금 로블록스 창 크기로
-            hwnd = macro.roblox_window_cached(1.0)
-            rect = macro.client_rect(hwnd) if hwnd else None
-            if not rect or rect[3] <= 0:
-                return {"error": "로블록스 창 없음 — 화면 비율을 직접 고르세요"}
-            aspect = rect[2] / rect[3]
-            label = f"{rect[2]}x{rect[3]}"
-        elif ratio in self.MPOS_RATIOS:
+        if ratio in self.MPOS_RATIOS:
             aspect, label = self.MPOS_RATIOS[ratio], ratio
         else:
             return {"error": "알 수 없는 화면 비율"}

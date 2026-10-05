@@ -969,7 +969,7 @@ const POS_TEMPLATES = {
   '16:9': { pos: [0.139, 0.925], skip_pos: [0.5, 0.752],
             inventory_pos: [0.018, 0.474], items_pos: [0.663, 0.312], search_pos: [0.458, 0.34],
             item_pos: [0.443, 0.44], amount_pos: [0.296, 0.534], use_pos: [0.356, 0.535],
-            ocr_region: [0.415, 0.392, 0.469, 0.491] },
+            ocr_region: [0.418, 0.399, 0.466, 0.484] },
 };
 const tplRowHTML = () => `
   <div class="row tpl-pick"><span>위치 템플릿<small>화면 비율에 맞는 기본 위치를 한 번에 채움</small></span>
@@ -1332,8 +1332,8 @@ const MPOS = {
                    ['sell_fish_pos', 'first_fish_pos', 'sell_all_pos', 'confirm_sell_pos', 'shop_close_pos', 'info_region'], true, 'sell', 'sellauto'],
                   ['move', '이동', '매크로를 켜면 낚시 장소로, 가득 차면 판매 장소로 이동', [], false, 'places:mfish']] },
 };
-const MPOS_RATIOS = [['auto', '자동 (지금 창)'], ['16:9', '16:9'], ['16:10', '16:10'], ['21:9', '21:9'], ['32:9', '32:9'], ['4:3', '4:3'], ['5:4', '5:4']];
-let mposRatio = 'auto';
+const MPOS_RATIOS = [['16:9', '16:9']];                // 다른 비율은 추정값이라 불안정해서 뺌
+let mposRatio = '16:9';
 function renderMpos(feat) {
   const d = MPOS[feat], c = featCfg(feat), box = $(d.box);
   const regions = [...(d.windows || []), ...d.regions];
