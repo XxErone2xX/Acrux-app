@@ -2,6 +2,18 @@
 
 Acrux 가 켜져 있는 사람 수를 세는 작은 서버예요. Cloudflare Workers 무료 요금제로 돌아가요.
 
+## 올리는 방법 0 — 컨테이너 · VPS (파이썬만 있으면 됨)
+
+`server.py` 파일 하나만 올리고 실행하면 돼요. 설치할 라이브러리 없음 (파이썬 3.8 이상).
+
+```
+python server.py 8080        # 8080 포트로 실행 (PORT 환경 변수로도 지정 가능)
+```
+
+도커를 쓰면 이 폴더에서 `docker build -t acrux-online .` → `docker run -d --restart unless-stopped -p 8080:8080 acrux-online`
+
+밖에서 `http://<서버 주소>:8080/count` 를 열어서 `{"online": 0, "next": 300}` 이 뜨면 성공 · 그 주소(`/count` 빼고)를 앱의 `ONLINE_URL` 에 넣으면 됨
+
 ## 올리는 방법 A — 대시보드에서 (명령어 없음 · 추천)
 
 1. 왼쪽 메뉴 **Storage & databases → D1 SQL database → Create** → 이름 `acrux-online` → Create
