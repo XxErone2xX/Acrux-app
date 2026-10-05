@@ -1293,12 +1293,12 @@ const MPOS = {
                    ['collection_close', 'Collection 닫기', 'Collection 창을 연 상태에서 닫기(X) 버튼']],
           regions: [['ocr_region', 'OCR 영역', '검색 결과 아이템 이름·개수 (예: Warp Potion x23)'],
                     ['notice_region', '알림 영역', '오른쪽에 알림 카드가 뜨는 자리를 넉넉히 드래그 · 낚시의 Cannot Fish 등']],
-          // 탭: [id, 이름, 설명, 들어갈 항목, 맨 위에 연동 · 템플릿 줄을 넣을지]
+          // 칸: [id, 이름, 설명, 들어갈 항목, 맨 위에 연동 · 템플릿 줄을 넣을지, 따로 그리는 부분(MPOS_CUSTOM)]
           tabs: [['inv', '인벤토리', '레어 바이옴 자동 팝핑 등 인벤토리를 쓰는 기능',
                   [...POP_POS.map(([k]) => k), 'ocr_region'], true],
                  ['notice', '알림', '게임 알림을 보는 기능 (자동 낚시 인벤토리 가득 등)', ['notice_region']],
-                 ['move', '이동', '리셋 → 카메라 정렬 → 줌으로 매번 같은 화면(기준 장소)을 만든 뒤, 화면의 한 점을 눌러 장소로 걸어감 (Click to Move)',
-                  ['collection_pos', 'collection_close'], false, 'move']] },
+                 ['move', '이동 · 기준 장소', '리셋 → 카메라 정렬 → 줌으로 매번 같은 화면(기준 장소)을 만듦 · 기능마다 갈 장소는 그 기능 칸에서 지정 (Click to Move)',
+                  ['collection_pos', 'collection_close'], false, 'movebase']] },
   mfish: { box: 'mposFish',
            windows: [['panel_region', '낚시 대기 창 영역', 'Fish 버튼이 보일 때 낚시 창을 흰 꺾쇠 테두리까지 드래그 → Fish 버튼과 릴링 바 위치 자동 계산'],
                      ['reel_region', '낚시 미니게임 창 영역', '미니게임이 떠 있을 때 눌러서 흰 꺾쇠 테두리까지 드래그 → 릴링 바 위치 자동 계산'],
@@ -1308,7 +1308,8 @@ const MPOS = {
            tabs: [['win', '창 영역', '창 테두리만 드래그하면 안쪽 위치는 자동 계산 (자동 보정을 쓰면 전부 자동)',
                    ['panel_region', 'reel_region', 'result_region']],
                   ['fine', '세부 위치', '창 영역으로 자동 계산됨 · 조금 어긋나면 여기서 하나씩 직접 지정',
-                   ['fish_btn', 'close_pos', 'title_pos', 'bar_region']]] },
+                   ['fish_btn', 'close_pos', 'title_pos', 'bar_region']],
+                  ['move', '이동', '낚시하다 가야 하는 곳 (판매 등) · 기준 장소(통합 위치 → 이동 · 기준 장소)에서 출발', [], false, 'places:mfish']] },
 };
 const MPOS_RATIOS = [['auto', '자동 (지금 창)'], ['16:9', '16:9'], ['16:10', '16:10'], ['21:9', '21:9'], ['32:9', '32:9'], ['4:3', '4:3'], ['5:4', '5:4']];
 let mposRatio = 'auto';
@@ -1333,11 +1334,12 @@ function renderMpos(feat) {
   box.innerHTML = d.tabs.map(([id, name, sub, keys, top, custom]) => {
     const n = keys.filter(k => c[k]).length;
     return `
-    <div class="card form mpos-card" data-mpos-group="${id}">
-      <div class="mpos-card-head"><b>${name}</b><em class="${n === keys.length ? 'done' : ''}">${n}/${keys.length}</em></div>
-      <p class="mpos-desc">${sub}</p>${top ? link + tpl : ''}${keys.map(k => items[k] || '').join('')}${custom ? `<div data-mpos-custom="${custom}"></div>` : ''}</div>`;
+    <div class="mpos-group" data-mpos-group="${id}">
+      <div class="mpos-card-head"><b>${name}</b>${keys.length ? `<em class="${n === keys.length ? 'done' : ''}">${n}/${keys.length}</em>` : ''}</div>
+      <p class="mpos-desc">${sub}</p>
+      <div class="card form mpos-card">${top ? link + tpl : ''}${keys.map(k => items[k] || '').join('')}${custom ? `<div data-mpos-custom="${custom}"></div>` : ''}</div></div>`;
   }).join('');
-  box.querySelectorAll('[data-mpos-custom]').forEach(el => MPOS_CUSTOM[el.dataset.mposCustom](el));
+  box.querySelectorAll('[data-mpos-custom]').forEach(renderMoveCustom);
   box.querySelector('[data-mpos-link]')?.addEventListener('change', e => setPopLink(e.target.checked));
   if (d.tpl) {
     const sel = box.querySelector('[data-mpos-ratio]');
@@ -1379,13 +1381,20 @@ const MOVE_SET = [['reset_wait', '리셋 후 대기', '리셋하고 다시 생�
                   ['zoom_out', '줌 밀기', '그다음 휠 아래로 몇 번 (항상 같은 거리)', 45, 0, 1],
                   ['margin', '도착 여유', '잰 시간에 더 기다릴 시간 (초)', 0.3, 0, 0.1]];
 let lastMove = null;
+const fmtT = t => t == null ? '안 잼' : `${t}초`;
+const moveCall = async (name, args, msg) => { const r = await api(name, args); toast(r.error || msg); return r; };
+// data-mpos-custom: 'movebase' (통합 위치 → 기준 장소) / 'places:기능' (그 기능이 가는 장소)
+function renderMoveCustom(el) {
+  const [kind, feat] = el.dataset.mposCustom.split(':');
+  if (kind === 'movebase') MPOS_CUSTOM.movebase(el); else MPOS_CUSTOM.places(el, feat);
+}
+function rerenderMove() { document.querySelectorAll('[data-mpos-custom]').forEach(renderMoveCustom); }
 const MPOS_CUSTOM = {
-  move(el) {
+  // 기준 장소 (모든 기능이 같이 씀): 리셋 · 카메라 정렬 · 줌 설정 + [기준 장소로 이동]
+  movebase(el) {
     const m = move(), st = lastMove || {}, busy = !!st.running;
-    const meas = st.measuring;
-    const fmtT = t => t == null ? '안 잼' : `${t}초`;
     el.innerHTML = `
-      <div class="row mpos-sub"><span>기준 장소<small>리셋 → 카메라 정렬 → 줌 · 이미 기준 장소에 있고 카메라도 맞으면 지점의 [바로 …] 버튼을 쓰기</small></span>
+      <div class="row"><span>기준 장소로 이동<small>리셋 → 카메라 정렬 → 줌 · 이미 기준 장소에 있고 카메라도 맞으면 지점의 [바로 …] 버튼을 쓰기</small></span>
         <span class="pos"><b class="move-state">${esc(busy ? (st.msg || '이동 중') : '대기')}</b>
         <button class="btn mini" type="button" data-move-base ${busy ? 'disabled' : ''}>기준 장소로 이동</button>
         <button class="btn mini ghost" type="button" data-move-stop ${busy ? '' : 'disabled'}>멈춤</button></span></div>` +
@@ -1393,12 +1402,32 @@ const MPOS_CUSTOM = {
       <label class="row"><span>${name}<small>${sub} · 기본 ${def}</small></span>
         <input type="number" min="${min}" step="${step}" data-move-set="${k}" value="${m[k] ?? def}"></label>`).join('') + `
       <label class="row"><span>누를 버튼<small>장소를 누를 마우스 버튼 (Click to Move)</small></span>
-        <select data-move-btn><option value="right">우클릭</option><option value="left">좌클릭</option></select></label>
+        <select data-move-btn><option value="right">우클릭</option><option value="left">좌클릭</option></select></label>`;
+    const sel = el.querySelector('[data-move-btn]');
+    sel.value = m.button || 'right';
+    sel.addEventListener('change', () => { m.button = sel.value; saveMove(); });
+    el.querySelectorAll('[data-move-set]').forEach(i => i.addEventListener('input', () => {
+      const n = parseFloat(i.value);
+      if (!isNaN(n) && n >= 0) { m[i.dataset.moveSet] = n; saveMove(); }
+    }));
+    el.querySelector('[data-move-base]').addEventListener('click', () => moveCall('move_base', {}, '기준 장소로 이동 시작 · 정지: F7'));
+    el.querySelector('[data-move-stop]').addEventListener('click', () => api('move_stop'));
+  },
+  // 기능마다 가는 장소: 장소 → 지점 [누를 곳, 걸린 시간]
+  places(el, feat) {
+    const m = move(), st = lastMove || {}, busy = !!st.running;
+    const all = (m.places ||= []);
+    const mine = all.map((pl, i) => [pl, i]).filter(([pl]) => (pl.feat || 'mfish') === feat);
+    const meas = st.measuring && mine.some(([, i]) => i === st.measuring.place) ? st.measuring : null;
+    el.innerHTML = `
       ${meas ? `<div class="row move-measure"><span>시간 재는 중<small>캐릭터가 도착하면 F6 을 누르거나 [도착] 을 누르기</small></span>
-        <span class="pos"><b data-move-timer>0.0초</b><button class="btn mini" type="button" data-move-arrive>도착</button></span></div>` : ''}
-      <div class="row mpos-sub"><span>장소<small>지점이 여러 개면 앞 지점에 도착한 화면에서 다음 지점을 누름 (멀리 갈 때)</small></span>
-        <span class="pos"><button class="btn mini" type="button" data-move-add-place>장소 추가</button></span></div>` +
-      (m.places || []).map((pl, i) => `
+        <span class="pos"><b data-move-timer>0.0초</b><button class="btn mini" type="button" data-move-arrive>도착</button>
+        <button class="btn mini ghost" type="button" data-move-stop>멈춤</button></span></div>` : ''}
+      <div class="row"><span>장소<small>지점이 여러 개면 앞 지점에 도착한 화면에서 다음 지점을 누름 (멀리 갈 때)</small></span>
+        <span class="pos">${busy && !meas ? `<b class="move-state">${esc(st.msg || '이동 중')}</b>` : ''}
+        <button class="btn mini" type="button" data-move-add-place>장소 추가</button></span></div>` +
+      (mine.length ? '' : `<div class="row"><span><small>아직 장소 없음 — [장소 추가] 로 만들기</small></span></div>`) +
+      mine.map(([pl, i]) => `
       <div class="move-place">
         <div class="row"><span><input class="move-name" data-move-name="${i}" value="${esc(pl.name || '')}" placeholder="장소 이름 (예: Captain Flarg)" maxlength="40"></span>
           <span class="pos"><button class="btn mini" type="button" data-move-go="${i}" ${busy ? 'disabled' : ''}>이 장소로 이동</button>
@@ -1413,39 +1442,31 @@ const MPOS_CUSTOM = {
             ${pl.points.length > 1 ? `<button class="btn mini ghost" type="button" data-move-del-point="${i},${j}">삭제</button>` : ''}</span></div>`).join('') + `
         <div class="row"><span></span><span class="pos"><button class="btn mini ghost" type="button" data-move-add-point="${i}">지점 추가</button></span></div>
       </div>`).join('');
-    const sel = el.querySelector('[data-move-btn]');
-    sel.value = m.button || 'right';
-    sel.addEventListener('change', () => { m.button = sel.value; saveMove(); });
-    el.querySelectorAll('[data-move-set]').forEach(i => i.addEventListener('input', () => {
-      const n = parseFloat(i.value);
-      if (!isNaN(n) && n >= 0) { m[i.dataset.moveSet] = n; saveMove(); }
-    }));
-    const call = async (name, args, msg) => { const r = await api(name, args); toast(r.error || msg); return r; };
-    el.querySelector('[data-move-base]').addEventListener('click', () => call('move_base', {}, '기준 장소로 이동 시작 · 정지: F7'));
-    el.querySelector('[data-move-stop]').addEventListener('click', () => api('move_stop'));
     el.querySelector('[data-move-arrive]')?.addEventListener('click', () => api('move_arrive'));
+    el.querySelector('[data-move-stop]')?.addEventListener('click', () => api('move_stop'));
     el.querySelector('[data-move-add-place]').addEventListener('click', () => {
-      (m.places ||= []).push({ name: '', points: [{ pos: null, time: null }] }); saveMove(); MPOS_CUSTOM.move(el);
+      all.push({ name: '', feat, points: [{ pos: null, time: null }] }); saveMove(); rerenderMove();
     });
     el.querySelectorAll('[data-move-name]').forEach(i => i.addEventListener('input', () => {
-      m.places[+i.dataset.moveName].name = i.value; saveMove();
+      all[+i.dataset.moveName].name = i.value; saveMove();
     }));
     el.querySelectorAll('[data-move-del-place]').forEach(b => b.addEventListener('click', () => {
       if (!(b._armed > Date.now())) { b._armed = Date.now() + 3000; b.textContent = '한 번 더 누르면 삭제'; return; }
-      m.places.splice(+b.dataset.moveDelPlace, 1); saveMove(); MPOS_CUSTOM.move(el);
+      all.splice(+b.dataset.moveDelPlace, 1); saveMove(); rerenderMove();
     }));
     el.querySelectorAll('[data-move-add-point]').forEach(b => b.addEventListener('click', () => {
-      m.places[+b.dataset.moveAddPoint].points.push({ pos: null, time: null }); saveMove(); MPOS_CUSTOM.move(el);
+      all[+b.dataset.moveAddPoint].points.push({ pos: null, time: null }); saveMove(); rerenderMove();
     }));
     el.querySelectorAll('[data-move-del-point]').forEach(b => b.addEventListener('click', () => {
       const [i, j] = b.dataset.moveDelPoint.split(',').map(Number);
-      m.places[i].points.splice(j, 1); saveMove(); MPOS_CUSTOM.move(el);
+      all[i].points.splice(j, 1); saveMove(); rerenderMove();
     }));
     el.querySelectorAll('[data-move-go]').forEach(b => b.addEventListener('click', () =>
-      call('move_place', { place: +b.dataset.moveGo }, '장소로 이동 시작 · 정지: F7')));
-    el.querySelectorAll('[data-move-test]').forEach(b => b.addEventListener('click', () => {
+      moveCall('move_place', { place: +b.dataset.moveGo }, '장소로 이동 시작 · 정지: F7')));
+    el.querySelectorAll('[data-move-test]').forEach(b => b.addEventListener('click', async () => {
       const [i, j, fb] = b.dataset.moveTest.split(',').map(Number);
-      call('move_test', { place: i, point: j, from_base: !!fb },
+      await flushSave();
+      moveCall('move_test', { place: i, point: j, from_base: !!fb },
         fb ? '기준 장소로 간 뒤 지점을 누르고 시간 재기 · 도착하면 F6' : '지점을 누르고 시간 재기 · 도착하면 F6');
     }));
     el.querySelectorAll('[data-move-pick]').forEach(b => b.addEventListener('click', async () => {
@@ -1453,7 +1474,7 @@ const MPOS_CUSTOM = {
       await flushSave();
       const r = await pickWith(b, fb ? '기준 장소로 가는 중… 그다음 걸어갈 곳 클릭' : '로블록스 화면에서 걸어갈 곳 클릭',
         () => api('move_pick', { place: i, point: j, from_base: !!fb }));
-      if (r && r.move) { config.move = r.move; MPOS_CUSTOM.move(el); toast(`${j + 1}번 지점 저장 · 이제 [시간 재기]`); }
+      if (r && r.move) { config.move = r.move; rerenderMove(); toast(`${j + 1}번 지점 저장 · 이제 [시간 재기]`); }
     }));
   },
 };
@@ -1464,20 +1485,16 @@ setInterval(() => {
 }, 100);
 // 이동 상태 (poll) — 끝나면 서버가 저장한 시간을 다시 받아 옴
 function updateMove(st) {
-  const was = lastMove && lastMove.running, now = !!(st && st.running);
+  const was = !!(lastMove && lastMove.running), now = !!(st && st.running);
   const measChanged = !!(lastMove && lastMove.measuring) !== !!(st && st.measuring);
   lastMove = st;
-  const el = document.querySelector('[data-mpos-custom="move"]');
-  if (!el) return;
+  if (!document.querySelector('[data-mpos-custom]')) return;
   if (was !== now || measChanged) {
-    if (was && !now) api('move_get').then(r => { if (r.move) { config.move = r.move; MPOS_CUSTOM.move(el); } });
-    else MPOS_CUSTOM.move(el);
+    if (was && !now) api('move_get').then(r => { if (r.move) { config.move = r.move; rerenderMove(); } });
+    else rerenderMove();
     return;
   }
-  const s = el.querySelector('.move-state');
-  if (s) s.textContent = now ? (st.msg || '이동 중') : '대기';
-  const t = el.querySelector('[data-move-timer]');
-  if (t && st.measuring) t.textContent = `${(Date.now() / 1000 - st.measuring.since).toFixed(1)}초`;
+  document.querySelectorAll('.move-state').forEach(s => { s.textContent = now ? (st.msg || '이동 중') : '대기'; });
 }
 // 위치는 서버가 이미 저장함 → 화면만 다시 그림
 function mposChanged(feat) {

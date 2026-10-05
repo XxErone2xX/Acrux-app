@@ -115,6 +115,7 @@ BASE_DEFAULT = {
     "collection_pos": None,       # 왼쪽 메뉴의 Collection 버튼
     "collection_close": None,     # Collection 창의 닫기(X) 버튼
 }
+MOVE_FEATS = ("mfish", "mpop")    # 장소를 따로 둘 수 있는 기능 (매크로 기준 위치 설정의 각 기능 칸)
 MOVE_DEFAULT = {
     # 기준 장소로 가기: 리셋(Esc → R → Enter) → 카메라 정렬(Collection 열고 닫기) → 줌(휠 끝까지 당긴 뒤 정해진 만큼 밀기)
     "reset_wait": 2.6,            # 리셋 후 다시 생길 때까지 (초)
@@ -122,7 +123,7 @@ MOVE_DEFAULT = {
     "zoom_out": 45,               # 휠 아래로 (항상 같은 거리)
     "button": "right",            # 이동할 곳을 누를 마우스 버튼 (Click to Move)
     "margin": 0.3,                # 잰 시간에 더 기다릴 여유 (초)
-    # 장소: [{"name", "points": [{"pos": [x, y] (기준 장소 화면에서 누를 곳), "time": 걸린 시간(초) 또는 None}]}]
+    # 장소: [{"name", "feat": 쓰는 기능, "points": [{"pos": [x, y] (기준 장소 화면에서 누를 곳), "time": 걸린 시간(초) 또는 None}]}]
     # 지점이 여러 개면 앞 지점에 도착한 화면에서 다음 지점을 누름 (멀리 갈 때)
     "places": [],
 }
@@ -359,7 +360,8 @@ def normalize(raw):
             except (TypeError, ValueError):
                 t = None
             pts.append({"pos": _ratio_list(pt.get("pos"), 2), "time": t})
-        places.append({"name": str(pl.get("name") or "")[:40], "points": pts or [{"pos": None, "time": None}]})
+        feat = pl.get("feat") if pl.get("feat") in MOVE_FEATS else "mfish"     # 그 장소를 쓰는 기능 (예전 장소는 자동 낚시)
+        places.append({"name": str(pl.get("name") or "")[:40], "feat": feat, "points": pts or [{"pos": None, "time": None}]})
     mv["places"] = places
     d["move"] = {k: mv[k] for k in MOVE_DEFAULT}
     mp = dict(MPOP_DEFAULT)
