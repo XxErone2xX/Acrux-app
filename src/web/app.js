@@ -1263,7 +1263,7 @@ $('mfishStop').addEventListener('click', () => api('mfish_stop'));
 // ---------------------------------------------------------------- 매크로 기능 설정 · 기능 켜기 · 끄기
 // 준비 중인 기능은 자리만 (만들면 key 를 채움)
 const MFEATS = [['mpop', '레어 바이옴 자동 팝핑', '내 서버에서 레어 바이옴이 뜨면 포션 사용'],
-  ['mfish', '자동 낚시', '제자리 낚시 (판매와 이동은 다음 업데이트)'],
+  ['mfish', '자동 낚시', '낚시 장소로 가서 낚시 · 가득 차면 판매'],
   [null, '상인 자동 구매', '준비 중'], [null, '포션 자동 제작', '준비 중'], [null, '오토 메모리 매치', '준비 중']];
 const FEAT_NAME = { mpop: '레어 바이옴 자동 팝핑', mfish: '자동 낚시' };
 const featCfg = k => ({ mpop, mfish, base })[k]();
@@ -2462,7 +2462,9 @@ const Tutorial = (() => {
   let STEPS = tut.steps;
   const doneList = () => config.tutorials_done || [];
   const skipped = new Set();     // 이번 실행에서 스킵한 튜토리얼 (남은 개수에서 제외)
-  const remaining = () => TUTORIALS.filter(t => !doneList().includes(t.id) && !skipped.has(t.id)).length;
+  // 남은 튜토리얼: 지금 하는 것 + 아직 필요한 것만 (설정이 이미 돼 있어서 안 뜰 튜토리얼은 세지 않음)
+  const remaining = () => TUTORIALS.filter(t => !doneList().includes(t.id) && !skipped.has(t.id)
+    && (t === tut || t.needed())).length;
   function markDone(id) {
     if (!doneList().includes(id)) queueSave({ tutorials_done: [...doneList(), id] });
   }
