@@ -649,20 +649,36 @@ def pick_region_overlay(mode="region"):
     img = tk.PhotoImage(data=base64.b64encode(png))
     cv.create_image(0, 0, image=img, anchor="nw")
     cv.create_rectangle(0, 0, w, h, fill="black", stipple="gray50", outline="", tags="dim")
-    bar = cv.create_rectangle(0, 0, w, 34, fill="#1e1f22", outline="")
+    BAR = 34
+    cv.create_rectangle(0, 0, w, BAR, fill="#1e1f22", outline="", tags="guide")
     guide = _GUIDE.get(_LANG, _GUIDE["ko"])["point" if mode == "point" else "region"]
-    cv.create_text(w // 2, 17, text=guide, fill="#ffffff", font=(_UI_FONT.get(_LANG, "Malgun Gothic"), 11, "bold"))
-    state = {"x0": 0, "y0": 0}
+    cv.create_text(w // 2, BAR // 2, text=guide, fill="#ffffff", font=(_UI_FONT.get(_LANG, "Malgun Gothic"), 11, "bold"), tags="guide")
+    state = {"x0": 0, "y0": 0, "bar_top": True}
+
+    def on_bar(y):
+        return y < BAR if state["bar_top"] else y > h - BAR
+
+    def keep_bar_away(e):
+        """안내 바가 마우스 자리를 가리지 않게 — 위쪽(채팅 버튼 등)으로 가면 아래로, 아래쪽으로 가면 위로 옮김"""
+        if state["bar_top"] and e.y < BAR + 50:
+            cv.move("guide", 0, h - BAR)
+            state["bar_top"] = False
+        elif not state["bar_top"] and e.y > h - BAR - 50:
+            cv.move("guide", 0, -(h - BAR))
+            state["bar_top"] = True
+        cv.tag_raise("guide")
 
     if mode == "point":
         def motion(e):                       # 마우스를 따라다니는 십자선
+            keep_bar_away(e)
             cv.delete("cross")
-            cv.create_line(e.x, 34, e.x, h, fill="#e67e22", dash=(4, 3), tags="cross")
+            cv.create_line(e.x, 0, e.x, h, fill="#e67e22", dash=(4, 3), tags="cross")
             cv.create_line(0, e.y, w, e.y, fill="#e67e22", dash=(4, 3), tags="cross")
             cv.create_oval(e.x - 6, e.y - 6, e.x + 6, e.y + 6, outline="#e67e22", width=2, tags="cross")
+            cv.tag_raise("guide")
 
         def click(e):
-            if e.y < 34:
+            if on_bar(e.y):
                 return                       # 안내 바 위는 무시
             result.clear()
             result["x"] = round(max(0, min(w, e.x)) / w, 4)
@@ -684,6 +700,7 @@ def pick_region_overlay(mode="region"):
         cv.delete("sel")
 
     def drag(e):
+        keep_bar_away(e)
         cv.delete("sel")
         x0, y0 = state["x0"], state["y0"]
         cv.create_rectangle(x0, y0, e.x, e.y, outline="#e67e22", width=2, tags="sel")
@@ -700,6 +717,7 @@ def pick_region_overlay(mode="region"):
         result["region"] = [round(x1 / w, 4), round(y1 / h, 4), round(x2 / w, 4), round(y2 / h, 4)]
         root.destroy()
 
+    cv.bind("<Motion>", keep_bar_away)
     cv.bind("<ButtonPress-1>", press)
     cv.bind("<B1-Motion>", drag)
     cv.bind("<ButtonRelease-1>", release)

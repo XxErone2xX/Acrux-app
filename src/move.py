@@ -88,7 +88,7 @@ class Mover:
             self.log("이동 멈춤", "y")
         except Exception as e:
             self._set(error=str(e))
-            self.log(f"이동 오류: {e}", "r")
+            self.log(f"이동 오류: {e}", "n")
         finally:
             self._release_keys()
             self._set(msg="대기", measuring=None)
@@ -131,6 +131,27 @@ class Mover:
             except Exception:
                 pass
 
+    # ---- 미리 확인 (시작하기 전에 알림으로 알려 주려고)
+    BASE_KEYS = (("chat_pos", "채팅 버튼"), ("collection_pos", "도감 버튼"), ("collection_close", "도감 Exit"))
+
+    def base_missing(self):
+        b = self.get_base() or {}
+        miss = [n for k, n in self.BASE_KEYS if not b.get(k)]
+        return f"먼저 지정 필요: {', '.join(miss)} (매크로 기준 위치 설정)" if miss else None
+
+    def path_missing(self, i, upto=None):
+        """장소 i 의 지점들(upto 앞까지) 중 위치 · 시간이 없는 것 → 안내 글 또는 None"""
+        places = (self.get_move() or {}).get("places") or []
+        if not 0 <= i < len(places):
+            return "장소를 찾을 수 없음"
+        pl = places[i]
+        for n, pt in enumerate(pl["points"][:upto] if upto is not None else pl["points"], 1):
+            if not pt.get("pos"):
+                return f"{pl['name'] or '장소'} · {n}번 지점 위치가 없음"
+            if pt.get("time") is None:
+                return f"{pl['name'] or '장소'} · {n}번 지점 시간을 먼저 재야 함 (테스트)"
+        return None
+
     # ---- 1. 기준 장소 (사용자가 정한 순서)
     def _hold(self, keys, sec):
         """키들을 sec 초 동안 누르고 있다가 뗌 (멈추면 바로 뗌)"""
@@ -146,10 +167,9 @@ class Mover:
         """Esc → R → Enter (리셋 · 0.5초 간격) → 3.5초 → / → 채팅 버튼 → 도감 버튼 → 도감 Exit → / → Enter (각 0.5초)
         → W 0.85초 → W+A 8초 → 0.5초 → O 2.5초 (위에서 내려다보기 + 최대 줌)"""
         b, mv = self.get_base() or {}, self.get_move() or {}
-        miss = [n for k, n in (("chat_pos", "채팅 버튼"), ("collection_pos", "도감 버튼"), ("collection_close", "도감 Exit"))
-                if not b.get(k)]
+        miss = self.base_missing()
         if miss:
-            raise RuntimeError(f"통합 위치 → 이동 · 기준 장소 에서 먼저 지정: {', '.join(miss)}")
+            raise RuntimeError(miss)
         self._set(msg="기준 장소로 이동 · 리셋")
         self._release_keys()
         self._rect()

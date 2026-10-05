@@ -96,7 +96,7 @@ class PlayClicker:
         pos, skip = cfg.get("pos"), cfg.get("skip_pos")
         if not pos or not skip:
             miss = " · ".join(n for n, v in (("Play 버튼", pos), ("Click to skip 버튼", skip)) if not v)
-            self.log(f"{miss} 위치가 지정되지 않아 클릭 안 함 (오토 팝핑 매크로 설정에서 지정)", "y")
+            self.log(f"{miss} 위치가 지정되지 않아 클릭 안 함 (오토 팝핑 매크로 설정에서 지정)", "n")
             return
         targets = [("Play", pos), ("Click to skip", skip)]   # 번갈아 클릭
         interval = max(0.05, float(cfg.get("interval", 0.15)))
@@ -215,7 +215,7 @@ class Returner:
     def _run(self, reason, stop):
         link = ((self.get_cfg() or {}).get("ps_link") or "").strip()
         if not link:
-            self.log("매크로 복귀 안 함 — 복귀할 브섭 링크가 없음 (매크로 복귀 설정에서 입력)", "y")
+            self.log("매크로 복귀 안 함 — 복귀할 브섭 링크가 없음 (매크로 복귀 설정에서 입력)", "n")
             return
         try:
             self.log(f"매크로 복귀 시작{' (' + reason + ')' if reason else ''} — 로블록스 종료", "c")

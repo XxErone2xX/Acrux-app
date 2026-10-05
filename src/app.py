@@ -392,7 +392,7 @@ class Bridge:
                     miss = ", ".join(fishing.Fisher.missing(mf))
                     if warned != miss:
                         warned = miss
-                        self._on_log(f"자동 낚시 안 함 — 매크로 기준 위치 설정 필요: {miss}", "y")
+                        self._on_log(f"자동 낚시 안 함 — 매크로 기준 위치 설정 필요: {miss}", "n")
                 else:
                     warned = None
                 if ok and not self.fisher.running() and not self.mpop.running():
@@ -784,14 +784,18 @@ class Bridge:
         return i, j
 
     def api_move_base(self, _):
+        miss = self.mover.base_missing()
+        if miss:
+            return {"error": miss}
         if not self.mover.start("base"):
             return {"error": "이동이 이미 도는 중"}
         return {"ok": True}
 
     def api_move_place(self, p):
         i = int(p.get("place", -1))
-        if not 0 <= i < len(self.data.get("move", {}).get("places") or []):
-            return {"error": "장소를 찾을 수 없음"}
+        miss = self.mover.base_missing() or self.mover.path_missing(i)
+        if miss:
+            return {"error": miss}
         if not self.mover.start("place", i):
             return {"error": "이동이 이미 도는 중"}
         return {"ok": True}
@@ -803,6 +807,10 @@ class Bridge:
             return {"error": "지점을 찾을 수 없음"}
         if not self.data["move"]["places"][i]["points"][j].get("pos"):
             return {"error": "지점 위치를 먼저 지정"}
+        if p.get("from_base", True):
+            miss = self.mover.base_missing() or self.mover.path_missing(i, upto=j)
+            if miss:
+                return {"error": miss}
         if not self.mover.start("test", i, j, bool(p.get("from_base", True))):
             return {"error": "이동이 이미 도는 중"}
         return {"ok": True}
@@ -825,6 +833,9 @@ class Bridge:
         if i is None:
             return {"error": "지점을 찾을 수 없음"}
         if p.get("from_base"):
+            miss = self.mover.base_missing() or self.mover.path_missing(i, upto=j)
+            if miss:
+                return {"error": miss}
             if not self.mover.start("prep", i, j):
                 return {"error": "이동이 이미 도는 중"}
             self.mover.thread.join(180)
@@ -1127,7 +1138,7 @@ class Bridge:
     def api_start(self, _):
         miss = self.pop_missing()
         if miss:                                  # 오토 팝핑 설정을 안 하면 매크로를 켜지 않음
-            self._on_log(f"시작 안 됨 — 오토 팝핑 설정 필요: {', '.join(miss)}", "y")
+            self._on_log(f"시작 안 됨 — 오토 팝핑 설정 필요: {', '.join(miss)}", "n")
             return {"error": "오토 팝핑 설정 필요", "missing": miss}
         if not core.ARMED.is_set():
             core.ARMED.set()
