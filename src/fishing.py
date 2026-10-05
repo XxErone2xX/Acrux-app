@@ -201,12 +201,15 @@ def find_frames(rgb):
         return mask[max(0, y - k):y + k + 1, max(0, x - k):x + k + 1].any()
     frames = []
     for (x1, y1) in tl:
+        best = None                              # 이 왼쪽 위 모서리의 짝 중 가장 가까운 것 (더 아래 다른 UI 의 꺾쇠와 이어 붙이지 않게)
         for (x2, y2) in br:
             w, h = x2 - x1, y2 - y1
             if w < W * 0.1 or w > W * 0.5 or h < arm * 3:
                 continue
-            if near(tr, x2, y1) and near(bl, x1, y2):
-                frames.append(snap(x1, y1, x2, y2))
+            if (best is None or w * h < best[0]) and near(tr, x2, y1) and near(bl, x1, y2):
+                best = (w * h, x2, y2)
+        if best:
+            frames.append(snap(x1, y1, best[1], best[2]))
     # 같은 창이 여러 번 잡히면 하나로 (가장 큰 것)
     frames.sort(key=lambda f: -(f[2] - f[0]) * (f[3] - f[1]))
     out = []
@@ -717,7 +720,9 @@ class Fisher:
         start = time.time()
         dia, dia_at, dia_seen, dia_off = None, 0.0, False, None   # ◇ 신호 · 마지막 확인 · 이번에 본 적 · 사라진 시각
         fixed = False                                # 바 위치를 테두리로 맞췄는지
+        snap, snap_at, lost_at = None, 0.0, None     # 찾은 테두리 · 그 자리가 처음 나온 시각 · 맞춘 자리에서 바를 놓친 시각
         xs = box.get("_x", (0, box["width"]))       # 캡처 안에서 바의 가로 범위
+        top0, bh0, xs0 = top_in, bh, xs             # 지정한 자리 (다시 맞출 때 기준)
         grab_box = {k: v for k, v in box.items() if not k.startswith("_")}
         end = start + REEL_MAX
         hwnd, fg_at = macro.roblox_window_cached(), start
@@ -730,15 +735,29 @@ class Fisher:
                     macro.focus(hwnd)
             img = sct.grab(grab_box)
             rgb = _np(bytes(img.bgra), img.width, img.height)
-            if not fixed:                            # 처음 몇 화면 안에 테두리로 바 위치(세로 · 가로)를 맞춤 (이번 미니게임 동안 고정)
-                found = find_bar_rows(rgb, top_in, bh)
-                if found and found[3] - found[2] >= (xs[1] - xs[0]) * 0.7:
-                    fixed = True
-                    nt, nh, nx0, nx1 = found
-                    if abs(nt - top_in) > 1 or abs(nx0 - xs[0]) > 1 or abs(nx1 + 1 - xs[1]) > 1:
-                        self.log(f"릴링 바 위치 보정 (세로 {nt - top_in:+d}px · 왼쪽 {nx0 - xs[0]:+d}px · 오른쪽 {nx1 + 1 - xs[1]:+d}px)", "d")
-                    top_in, bh, xs = nt, nh, (nx0 + 1, nx1)    # 테두리 안쪽만
+            if not fixed:                            # 테두리로 바 위치(세로 · 가로)를 맞춤 (이번 미니게임 동안 고정)
+                found = find_bar_rows(rgb, top0, bh0)
+                if found and found[3] - found[2] >= (xs0[1] - xs0[0]) * 0.7 and bh0 * 0.6 <= found[1] <= bh0 * 1.5:
+                    # 미니게임 창은 아래에서 올라오며 열림 → 움직이는 중에 맞추면 엉뚱한 줄에 고정됨
+                    # 같은 자리가 0.15초 동안 이어져야(창이 멈춰야) 고정
+                    if not (snap and all(abs(p - q) <= 1 for p, q in zip(found, snap))):
+                        snap, snap_at = found, t0
+                    elif t0 - snap_at >= 0.15:
+                        fixed = True
+                        nt, nh, nx0, nx1 = found
+                        if abs(nt - top0) > 1 or abs(nx0 - xs0[0]) > 1 or abs(nx1 + 1 - xs0[1]) > 1:
+                            self.log(f"릴링 바 위치 보정 (세로 {nt - top0:+d}px · 왼쪽 {nx0 - xs0[0]:+d}px · 오른쪽 {nx1 + 1 - xs0[1]:+d}px)", "d")
+                        top_in, bh, xs = nt, nh, (nx0 + 1, nx1)    # 테두리 안쪽만
+                else:
+                    snap = None
             a = analyze_bar(rgb[:, xs[0]:xs[1]], top_in, bh)
+            if fixed and not a["present"]:           # 맞춘 자리에서 바가 계속 안 보임 → 지정한 자리로 돌아가 다시 맞춤
+                lost_at = lost_at or t0
+                if t0 - lost_at > 0.3:
+                    fixed, snap, lost_at = False, None, None
+                    top_in, bh, xs = top0, bh0, xs0
+            else:
+                lost_at = None
             now = time.time()
             if now - dia_at >= 0.1:                  # ◇ 는 0.1초마다만 봄
                 dia_at = now

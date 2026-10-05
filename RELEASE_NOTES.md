@@ -1,15 +1,13 @@
-## Acrux macro V1.19.0 업데이트
-- **자동 보정이 전부 자동**으로 바뀜 (매크로 기준 위치 설정 → 자동 낚시 → [자동 보정])
-  - Fish 버튼이 보일 때 한 번 누르면 Fish 를 직접 눌러 한 마리 낚으면서 대기 창 · 미니게임 창 · 결과창을 차례로 재고 X 로 닫음
-  - 도는 동안 로블록스 화면 위 가운데에 "자동 보정 중 · 건드리지 마세요" 안내가 뜸
-  - 끝나면 안내가 꺼지고 Acrux 화면으로 자동으로 돌아옴
-  - 버튼을 한 번 더 누르거나 F7 로 취소 (그때까지 잰 위치는 저장)
-  - 자동 낚시가 돌고 있으면 잠깐 멈췄다가 끝나면 이어감
+## Acrux macro V1.19.1 업데이트
+- 미니게임 창이 올라오는 동안 릴링 바 위치를 맞춰 버려서 **미니게임 내내 클릭을 안 하던 버그** 수정
+  - 바 위치는 창이 멈춘 뒤(같은 자리가 0.15초 이어질 때)에만 맞추고, 바 높이가 맞지 않는 줄은 무시
+  - 맞춘 자리에서 바가 계속 안 보이면 다시 맞춤
+- 자동 보정이 미니게임 창을 아래쪽 Roll 버튼 줄과 이어 붙여서 못 찾던 문제 수정
+- 자동 보정이 창이 열리는 애니메이션 중의 크기를 재지 않게 함 (두 번 연속 같은 자리일 때만 저장)
 
-## Acrux macro V1.19.0 Update
-- **Auto calibrate is now fully automatic** (Macro base position settings → Auto fishing → [Auto calibrate])
-  - Press it once while the Fish button shows; it clicks Fish itself, catches one fish, measures the waiting, minigame and result windows in turn, then closes the result with X
-  - While it runs, a "Calibrating · don't touch" notice shows at the top center of the Roblox screen
-  - When it finishes, the notice goes away and you're brought back to Acrux automatically
-  - Press the button again or F7 to cancel (positions measured so far are kept)
-  - If auto fishing is running, it pauses briefly and resumes afterwards
+## Acrux macro V1.19.1 Update
+- Fixed a bug where the reel bar was snapped while the minigame window was still sliding in, so **nothing was clicked for the whole minigame**
+  - The bar is snapped only once the window stops (same spot for 0.15 s), and lines with the wrong height are ignored
+  - If the bar keeps going missing at the snapped spot, it snaps again
+- Fixed auto calibrate joining the minigame window to the Roll button row below it and failing to find the window
+- Auto calibrate no longer measures a window mid-opening animation (saved only when two shots in a row agree)

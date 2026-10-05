@@ -637,6 +637,18 @@ class Bridge:
                     return [round(x1 / W, 4), round(y1 / H, 4), round(x2 / W, 4), round(y2 / H, 4)]
             return None
 
+        def settled(key, sec):
+            """창이 열리는 애니메이션(올라옴 · 커짐) 중이면 크기가 다름 → 연속 두 화면에서 같은 자리일 때만 씀"""
+            prev, end = None, time.time() + sec
+            while time.time() < end:
+                check()
+                cur = frame_of(shot()[1], key)
+                if cur and prev and all(abs(p - q) <= 0.002 for p, q in zip(cur, prev)):
+                    return cur
+                prev = cur
+                time.sleep(0.1)
+            return None
+
         def apply(key, region):
             with self.lock:
                 c = self.data.setdefault("mfish", {})
@@ -686,29 +698,17 @@ class Bridge:
             else:
                 click(mf["fish_btn"])                # 던진 걸 거둠 (Exit)
                 raise _AutocalStop("입질이 안 와서 미니게임 창은 못 잼 — 대기 창만 맞춤")
-            wait(0.4)
-            for _ in range(5):                       # 미니게임 창 (몇 번 찍어서 찾음)
-                rect, rgb = shot()
-                reel = frame_of(rgb, "reel_region")
-                if reel:
-                    apply("reel_region", reel)
-                    done.append("미니게임 창")
-                    break
-                wait(0.15)
+            reel = settled("reel_region", 3.0)       # 미니게임 창
+            if reel:
+                apply("reel_region", reel)
+                done.append("미니게임 창")
             else:
                 done.append("미니게임 창 (대기 창으로 계산)")
             # ③ 방금 잰 위치로 릴링해서 물고기를 잡음 → 결과창이 뜸
             cfg = dict(fishing.DEFAULTS, **self.data["mfish"])
             self.fisher._reel(sct, macro.client_rect(hwnd), cfg, self._autocal_stop)   # 취소 · F7 이면 Stopped
         mf = self.data["mfish"]
-        result = None
-        end = time.time() + 6
-        while time.time() < end and not result:
-            check()
-            rect, rgb = shot()
-            result = frame_of(rgb, "result_region")
-            if not result:
-                time.sleep(0.2)
+        result = settled("result_region", 6.0)
         if result:
             apply("result_region", result)
             done.append("결과창")
