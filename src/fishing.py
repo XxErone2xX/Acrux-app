@@ -234,6 +234,7 @@ class Fisher:
         self.hold_req = threading.Event()   # 다른 기능(레어 바이옴 팝핑 등)이 잠깐 자리를 달라고 함
         self.holding = threading.Event()    # 안전한 곳에서 멈춰 기다리는 중
         self.diamond_ok = False             # 낚시 창 ◇ 가 미니게임 자리로 옮겨가는 걸 한 번이라도 봤는지 (◇ 위치가 맞음)
+        self.no_focus = False               # 위치 지정 창이 떠 있는 동안: 로블록스를 앞으로 끌어오지 않음 (선택 창을 가리지 않게)
 
     # ---- 상태
     def running(self):
@@ -310,12 +311,15 @@ class Fisher:
             hwnd = macro.roblox_window_cached()
             rect = macro.client_rect(hwnd) if hwnd else None
             if rect and rect[2] > 50 and rect[3] > 50:
-                macro.focus(hwnd)
+                if not self.no_focus:
+                    macro.focus(hwnd)
                 return rect
             self._wait(0.5, stop)
         raise RuntimeError("로블록스 창을 찾을 수 없음")
 
     def _click_ratio(self, pos, stop):
+        while self.no_focus:                       # 위치 지정 창이 떠 있으면 끝날 때까지 안 누름 (드래그를 망치지 않게)
+            self._wait(0.1, stop)
         rect = self._rect(stop)
         x, y = macro.to_screen(pos[0], pos[1], rect)
         macro.click(x, y)
@@ -552,8 +556,9 @@ class Fisher:
     def _reel(self, sct, rect, cfg, stop):
         self._set(msg="릴링 중")
         box, top_in, bh = self._bar_geom(rect, cfg["bar_region"])
-        # 클릭 위치: 바 아래쪽 (게임 UI 버튼이 없는 곳 · 아무 데나 눌러도 릴링됨)
-        macro.move_to(box["left"] + box["width"] // 2, box["top"] + box["height"] + int(bh * 3))
+        # 클릭 위치: 바 아래쪽 (게임 UI 버튼이 없는 곳 · 아무 데나 눌러도 릴링됨) · 위치 지정 중이면 마우스를 안 옮김
+        if not self.no_focus:
+            macro.move_to(box["left"] + box["width"] // 2, box["top"] + box["height"] + int(bh * 3))
         rec = _ReelLog(cfg.get("debug_log"))
         try:
             with macro.fast_timing(priority=False):
@@ -573,7 +578,7 @@ class Fisher:
             self._check(stop)
             if t0 - fg_at > 0.5:                     # 다른 창이 로블록스를 가리면 화면을 잘못 읽음 → 0.5초마다 맨 앞인지 확인
                 fg_at = t0
-                if hwnd and not macro.is_foreground(hwnd):
+                if hwnd and not self.no_focus and not macro.is_foreground(hwnd):
                     macro.focus(hwnd)
             img = sct.grab(box)
             a = analyze_bar(_np(bytes(img.bgra), img.width, img.height), top_in, bh)
@@ -603,6 +608,8 @@ class Fisher:
                 continue
             gone_since = None
             click, m, zone, vel = ctl.step(now, a["marker"], a["zone"], a["w"], a["zones"])
+            if click and self.no_focus:
+                click = False                        # 위치 지정 창이 떠 있으면 안 누름 (마우스가 선택 창 위에 있음)
             if click:
                 macro.mouse_click_here(hold_ms=int(cfg["click_ms"]))
                 ctl.clicked(time.time())

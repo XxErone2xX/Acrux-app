@@ -623,6 +623,18 @@ class Bridge:
             while time.time() < end:
                 rect = macro.client_rect(hwnd)
                 if rect and self.fisher._bar_seen(sct, rect, mf):
+                    # 뜬 순간의 화면을 바로 찍어서 선택 창에 넘김 (선택 창이 뜨는 1~3초 사이 미니게임이 끝날 수 있음)
+                    try:
+                        import tempfile
+                        import mss
+                        import mss.tools
+                        shot_path = Path(tempfile.gettempdir()) / f"acrux_pickshot_{os.getpid()}.png"
+                        with mss.mss() as s:
+                            shot = s.grab({"left": rect[0], "top": rect[1], "width": rect[2], "height": rect[3]})
+                            mss.tools.to_png(shot.rgb, shot.size, output=str(shot_path))
+                        self._pick_shot = shot_path
+                    except Exception:
+                        self._pick_shot = None
                     return None
                 time.sleep(0.1)
         return f"{timeout}초 동안 미니게임이 안 뜸 — 다시 시도하세요"
@@ -762,13 +774,18 @@ class Bridge:
         --pick-region: 드래그로 영역 / --pick-point: 클릭 1번으로 위치 / --pick-file: 프로그램 고르기
         선택 창이 가끔 안 뜨고(로블록스 뒤에 숨는 등) 그대로 2분 넘게 기다리느라 다른 위치 지정도 막히던 문제 →
         창이 실제로 떴는지 신호(.shown 파일)를 받고, 6초 안에 안 뜨면 끄고 한 번 더 띄움 · 그래도 안 되면 바로 실패로 끝냄"""
-        for attempt in range(2):
-            r = self._pick_once(flag)
-            if r.get("error") != "__not_shown__":
-                return r
-            if attempt == 0:
-                self._on_log("위치 지정 창이 안 떠서 다시 띄움", "y")
-        return {"error": "위치 지정 창이 안 뜸 — 로블록스를 창 모드로 두고 다시 시도하세요"}
+        try:
+            for attempt in range(2):
+                r = self._pick_once(flag)
+                if r.get("error") != "__not_shown__":
+                    return r
+                if attempt == 0:
+                    self._on_log("위치 지정 창이 안 떠서 다시 띄움", "y")
+            return {"error": "위치 지정 창이 안 뜸 — 로블록스를 창 모드로 두고 다시 시도하세요"}
+        finally:
+            shot, self._pick_shot = getattr(self, "_pick_shot", None), None
+            if shot:
+                Path(shot).unlink(missing_ok=True)
 
     def _pick_once(self, flag):
         import tempfile
@@ -782,7 +799,11 @@ class Bridge:
         else:
             cmd = [sys.executable, str(Path(__file__).resolve().parent / "macro.py"), flag, str(out)]
         env = dict(os.environ, ACRUX_LANG=str(self.data.get("lang") or "ko"))   # 안내 글자 언어
+        shot = getattr(self, "_pick_shot", None)
+        if shot:
+            env["ACRUX_PICK_SHOT"] = str(shot)   # 미리 찍어 둔 화면으로 선택
         limit = 300 if flag == "--pick-file" else 150
+        self.fisher.no_focus = True             # 선택 창이 떠 있는 동안 자동 낚시가 로블록스를 앞으로 끌어오지 않게
         try:
             proc = subprocess.Popen(cmd, creationflags=NO_WINDOW, env=env)
             self._pick_proc = proc
@@ -806,6 +827,7 @@ class Bridge:
             return {"error": str(e)}
         finally:
             self._pick_proc, self._pick_cancelled = None, False
+            self.fisher.no_focus = False
             out.unlink(missing_ok=True)
             shown.unlink(missing_ok=True)
 
