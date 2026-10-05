@@ -2,7 +2,15 @@
 
 Acrux 가 켜져 있는 사람 수를 세는 작은 서버예요. Cloudflare Workers 무료 요금제로 돌아가요.
 
-## 올리는 방법 (한 번만)
+## 올리는 방법 A — 대시보드에서 (명령어 없음 · 추천)
+
+1. 왼쪽 메뉴 **Storage & databases → D1 SQL database → Create** → 이름 `acrux-online` → Create
+2. 왼쪽 메뉴 **Compute → Workers & Pages → Create → Start with Hello World** → 이름 `acrux-online` → Deploy
+3. 만든 Worker → **Settings → Bindings → Add → D1 database** → Variable name `DB` · 데이터베이스 `acrux-online` → Add Binding
+4. Worker 오른쪽 위 **Edit code** → 코드를 전부 지우고 `worker-dashboard.js` 내용을 붙여넣기 → Deploy
+5. 주소(`https://acrux-online.<이름>.workers.dev`) 뒤에 `/count` 를 붙여 브라우저로 열어서 `{"online":0,...}` 이 뜨면 성공
+
+## 올리는 방법 B — 명령어로 (Node.js 필요 · Durable Object 버전 `worker.js`)
 
 1. https://dash.cloudflare.com 에서 계정을 만들고 로그인
 2. 이 폴더(`server/online`)에서:
