@@ -1274,11 +1274,12 @@ def ocr_boxes(region_ratio=None):
     return out
 
 
-def ocr_region(region_ratio, item=False):
+def ocr_region(region_ratio, item=False, bring_front=True):
     """로블록스 창 기준 비율 영역 [x1, y1, x2, y2] 을 읽음 (먼저 로블록스 창을 맨 앞으로)
-    item=True: 아이템 칸(이름 + 오른쪽 아래 개수)으로 읽기"""
-    hwnd = roblox_window()
-    focus(hwnd, wait=0.25)
+    item=True: 아이템 칸(이름 + 오른쪽 아래 개수)으로 읽기 · bring_front=False: 이미 앞에 있을 때 (0.25초 아낌)"""
+    hwnd = roblox_window_cached(1.0) if not bring_front else roblox_window()
+    if bring_front:
+        focus(hwnd, wait=0.25)
     rect = client_rect(hwnd)
     if not rect:
         raise RuntimeError("로블록스 창을 찾을 수 없음")

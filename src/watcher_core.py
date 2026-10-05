@@ -161,8 +161,9 @@ MFISH_DEFAULT = {
     "confirm_sell_pos": None,     # 확인창의 Sell 버튼
     "shop_close_pos": None,       # 상점 닫기 X
     "info_region": None,          # 왼쪽 물고기 정보 (이름 · Sells for) — 비어 있으면 다 판 것
-    "e_wait": 1.5,                # E 누른 뒤 대화창이 뜰 때까지 (초)
-    "sell_delay": 0.4,            # 판매 클릭마다 더 기다릴 시간 (초)
+    "e_wait": 1.0,                # E 누른 뒤 대화창이 뜰 때까지 (초)
+    "sell_delay": 0.0,            # 판매 클릭마다 더 기다릴 시간 (초) — 렉이 있을 때만
+    "sell_v2": False,             # 판매를 빠르게 바꾼 것 적용했는지 (예전 기본값 0.4 → 0, 한 번만)
     "sell_max": 100,              # 판매 반복 최대 (클릭이 씹혀 끝없이 도는 것만 막음)
     "debug_log": False,           # 릴링 기록(fishing_log.csv) 저장 — 문제 확인용
     "click_v3": False,            # 클릭 기준을 '구간 왼쪽 변 이하'(목표 0 · 미리 누르기 0)로 바꾼 것 적용했는지 (한 번만)
@@ -440,6 +441,12 @@ def normalize(raw):
             mf[k] = min(hi, max(lo, float(mf.get(k, MFISH_DEFAULT[k]))))
         except (TypeError, ValueError):
             mf[k] = MFISH_DEFAULT[k]
+    if not mf.get("sell_v2"):
+        if mf.get("sell_delay") == 0.4:
+            mf["sell_delay"] = 0.0
+        if mf.get("e_wait") == 1.5:
+            mf["e_wait"] = 1.0
+        mf["sell_v2"] = True
     mf["cast_retry"] = int(mf["cast_retry"])
     mf["sell_max"] = int(mf["sell_max"])
     d["mfish"] = {k: mf[k] for k in MFISH_DEFAULT}
