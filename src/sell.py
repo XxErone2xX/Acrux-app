@@ -135,25 +135,26 @@ class Seller:
             mv._set(msg="판매 · 대화")
             macro.key_tap("e")
             mv._wait(float(cfg.get("e_wait", 1.5)))
+            d = float(cfg.get("sell_delay", 0.4))          # 클릭마다 더 기다릴 시간 (렉이 있으면 늘림)
             mv._click(cfg["dialog_pos"])
-            mv._wait(0.8)
+            mv._wait(1.0 + d)
             mv._click(cfg["sell_fish_pos"])
-            mv._wait(1.0)
+            mv._wait(1.5 + d)
             sold = 0
             for _ in range(int(cfg.get("sell_max", 100))):
                 mv._set(msg=f"판매 · 파는 중 ({sold}종류)")
                 mv._click(cfg["first_fish_pos"])
-                mv._wait(0.35)
+                mv._wait(0.6 + d)
                 if self._empty(cfg["info_region"]):
                     break
                 mv._click(cfg["sell_all_pos"])
-                mv._wait(0.5)
+                mv._wait(0.8 + d)
                 mv._click(cfg["confirm_sell_pos"])
-                mv._wait(0.8)
+                mv._wait(1.0 + d)
                 sold += 1
             self.log(f"물고기 판매 완료 ({sold}종류)", "g")
             mv._click(cfg["shop_close_pos"])
-            mv._wait(0.6)
+            mv._wait(0.8 + d)
             mv._set(msg="판매 · 낚시 장소로 돌아가는 중")
             mv.go_base()
             mv.walk(fish_i)
@@ -163,12 +164,9 @@ class Seller:
 
 # ---------------------------------------------------------------- 판매 자동 보정
 # 플레이어가 Captain Flarg 앞에서 E 를 직접 누르면: 대화창 → [Sell Fish] → Fishing Shop 을 글자(OCR)로 찾아 위치를 전부 맞춤
-# 상점 안의 칸 · X · 정보 영역은 글자가 없어서, 'Fishing Shop' 제목과 'Sell All' 버튼 사이 거리(= 상점 크기)로 계산
-# (상점 UI 는 크기만 바뀌고 모양은 같음 · 아래 값은 1080p 스크린샷에서 잰 것, 단위 = 제목 → Sell All 세로 거리)
-SHOP_GEOM = {"shop_close_pos": (1.6884, -0.0019),            # 오른쪽 위 X
-             "first_fish_pos": (0.5131, 0.2556),             # 목록 첫 칸 가운데
-             "confirm_sell_pos": (0.4571, 0.6623)}           # 확인창 초록 Sell
-SHOP_INFO = (-0.2015, 0.6698, 0.3489, 0.955)                 # 왼쪽 물고기 정보 (이름 · Weight · Sells for)
+# 상점은 창 크기에 따라 모양이 바뀜 (작은 창 = 좁고 긴 상점) → 비율 대신 상점 안 글자들을 기준으로 계산
+#   Buy · Sell 탭 = 오른쪽 목록의 왼쪽 · 오른쪽 끝 / 목록의 물고기 이름 = 칸 (이름은 칸 아래쪽)
+#   'Fishing Shop' 제목 = 왼쪽 끝 · X 줄 / Sell All = 왼쪽 정보 아래
 
 
 def _norm(text):
@@ -178,27 +176,77 @@ def _norm(text):
 
 def find_text(boxes, *keys, exact=False):
     """OCR 덩어리 [(글자, x, y, w, h)] 중 key 가 들어간 첫 덩어리
-    exact: 그 글자로 시작하는 짧은 덩어리만 ('Sell All' 이 확인창 문장 '...sell all of' 에 걸리지 않게)"""
+    exact: 그 글자로 시작하는 짧은 덩어리만 ('Sell All' 이 확인창 문장 '...sell all of' 에 걸리지 않게)
+    덩어리에 다른 글자가 같이 붙어 읽혔으면 (뒤에 깔린 'Player will ... rejoin' 등) key 부분의 가운데로 옮김"""
     ks = [_norm(k) for k in keys]
     for b in boxes:
         n = _norm(b[0])
-        if any((n.startswith(k) and len(n) <= len(k) + 2) if exact else k in n for k in ks):
-            return b
+        for k in ks:
+            if (n.startswith(k) and len(n) <= len(k) + 2) if exact else k in n:
+                return _sub_box(b, k) if len(n) > len(k) + 2 else b
     return None
 
 
-def shop_layout(title, sell_all, aspect):
-    """'Fishing Shop' 제목 · 'Sell All' 버튼 위치(비율) → 상점 안 위치들 (aspect = 창 너비 / 높이)"""
-    u = sell_all[2] - title[2]                               # 제목 → Sell All 세로 거리 (창 높이 비율)
-    if u <= 0.05:
-        raise RuntimeError("상점 크기를 못 잼")
-    ux = u / aspect                                          # 같은 길이를 창 너비 비율로
+def _sub_box(b, k):
+    """덩어리 글자 중 key 부분만의 가로 위치 (글자 수 비율로 어림)"""
+    text = str(b[0])
+    idx = [i for i, ch in enumerate(text) if "a" <= ch.lower() <= "z"]     # 영문 글자의 원래 자리
+    n = _norm(text)
+    i = n.find(k)
+    if i < 0 or not idx or len(text) < 2:
+        return b
+    a, z = idx[i], idx[i + len(k) - 1] + 1
+    left = b[1] - b[3] / 2
+    return (text[a:z], left + b[3] * (a + z) / 2 / len(text), b[2], b[3] * (z - a) / len(text), b[4])
 
-    def at(dx, dy):
-        return [round(min(1.0, max(0.0, title[1] + dx * ux)), 4), round(min(1.0, max(0.0, title[2] + dy * u)), 4)]
-    out = {k: at(*v) for k, v in SHOP_GEOM.items()}
-    a, b = at(SHOP_INFO[0], SHOP_INFO[1]), at(SHOP_INFO[2], SHOP_INFO[3])
-    out["info_region"] = a + b
+
+def _r(x, y):
+    return [round(min(1.0, max(0.0, x)), 4), round(min(1.0, max(0.0, y)), 4)]
+
+
+def dialog_point(boxes):
+    """대화창 가운데 — NPC 대화창은 화면 가운데에 뜸 · 세로는 이름 줄 ~ 대사 줄 (~ Click to skip) 사이
+    (작은 창에선 'Click to skip.' 글자가 너무 작아서 못 읽음 → 대사 줄 'Arrrr…' 로 찾음)"""
+    line = find_text(boxes, "orrr", "whotdoyou")
+    skip = find_text(boxes, "clicktoskip", "toskip")
+    ref = line or skip
+    if not ref:
+        return None
+    names = [b for b in boxes if "coptolnflorg" in _norm(b[0]) and b[2] < ref[2]]
+    ys = [ref[2]] + ([max(names, key=lambda b: b[2])[2]] if names else []) + ([skip[2]] if skip and line else [])
+    return _r(0.5, sum(ys) / len(ys))
+
+
+def shop_layout(boxes, title, sell_all, aspect):
+    """상점 글자들 → 상점 안 위치 (aspect = 창 너비 / 높이) · 못 재면 RuntimeError"""
+    buy = next((b for b in boxes if _norm(b[0]) == "buy" and b[2] > title[2]), None)
+    tab = next((b for b in boxes if _norm(b[0]) == "sell" and buy and abs(b[2] - buy[2]) < 0.03 and b[1] > buy[1]), None)
+    if not (buy and tab):
+        raise RuntimeError("상점 Buy · Sell 탭을 못 찾음")
+    half = (tab[1] - buy[1]) / 2
+    left, right = buy[1] - half, tab[1] + half                   # 오른쪽 목록의 왼쪽 · 오른쪽 끝
+    span = sell_all[2] - title[2]                                # 제목 → Sell All 세로 거리
+    out = {"shop_close_pos": _r(right - 0.85 * title[4] / aspect, title[2])}
+    # 첫 칸: 목록 안 물고기 이름 중 맨 위 줄 · 맨 왼쪽 열 (이름은 칸 아래쪽 → 줄 간격의 30% 위가 칸 가운데)
+    names = sorted((b for b in boxes if left < b[1] < right and buy[2] + 0.02 < b[2] < sell_all[2] + 0.05
+                    and len(_norm(b[0])) >= 3), key=lambda b: b[2])
+    if names:
+        top = names[0][2]
+        rows = sorted({round(b[2], 2) for b in names})
+        pitch = next((y - top for y in rows if y - top > names[0][4] * 1.5), None)
+        if pitch is None:                                        # 한 줄뿐 → 칸 가로 간격으로
+            xs = sorted(b[1] for b in names if abs(b[2] - top) < names[0][4])
+            pitch = (xs[1] - xs[0]) * aspect if len(xs) > 1 else names[0][4] * 3
+        col = min(b[1] for b in names)
+        out["first_fish_pos"] = _r(col, top - 0.3 * pitch)
+    else:                                                        # 물고기가 없음 → 목록 왼쪽 위에서 어림
+        w = (right - left) / 5
+        out["first_fish_pos"] = _r(left + w * 0.55, buy[2] + w * aspect * 0.8)
+    # 왼쪽 물고기 정보: 제목 왼쪽 끝 ~ 목록 왼쪽 끝 · Sell All 위쪽 (이름 · Weight · Sells for)
+    x1 = title[1] - title[3] / 2 - 0.005
+    out["info_region"] = _r(x1, sell_all[2] - 0.38 * span) + _r(left - 0.005, sell_all[2] - 0.035 * span)
+    # 확인창 Sell (확인창이 안 떴을 때만 씀): 상점 가운데에서 조금 왼쪽
+    out["confirm_sell_pos"] = _r((x1 + right) / 2 - 0.155 * (right - x1), title[2] + 0.66 * span)
     return out
 
 
@@ -212,15 +260,6 @@ def find_confirm(boxes):
         return None
     s = max(sells, key=lambda b: b[1])                       # Cancel 바로 왼쪽 (왼쪽 정보 아래 Sell 버튼 말고)
     return [round(s[1], 4), round(s[2], 4)], [round(cancel[1], 4), round(cancel[2], 4)]
-
-
-def find_close(boxes, title, guess, aspect):
-    """상점 오른쪽 위 X — OCR 이 X 를 읽었으면 그 자리, 아니면 계산한 자리"""
-    for b in boxes:
-        if b[0].strip() in ("X", "x", "×", "✕") and abs(b[2] - title[2]) < 0.04 and b[1] > title[1] \
-                and abs(b[1] - guess[0]) < 0.06:
-            return [round(b[1], 4), round(b[2], 4)]
-    return guess
 
 
 DIALOG_AREA = [0.0, 0.4, 1.0, 1.0]                           # 대화창 · 선택지가 뜨는 곳 (화면 아래쪽)
@@ -237,7 +276,7 @@ def autocal(ocr, click, wait, aspect, found, status, wait_dialog=120.0):
     end, dlg = time.time() + wait_dialog, None
     while time.time() < end:
         boxes = ocr(DIALOG_AREA)
-        dlg = find_text(boxes, "clicktoskip", "toskip")
+        dlg = dialog_point(boxes)
         if dlg or find_text(boxes, "sellfish"):
             break
         wait(0.4)
@@ -246,9 +285,9 @@ def autocal(ocr, click, wait, aspect, found, status, wait_dialog=120.0):
     status("대화창 찾음 — 이제 만지지 마세요")
     wait(0.6)                                                # 대화창이 다 뜰 때까지
     boxes = ocr(DIALOG_AREA)
-    dlg = find_text(boxes, "clicktoskip", "toskip") or dlg
+    dlg = dialog_point(boxes) or dlg
     if dlg:
-        found["dialog_pos"] = [round(dlg[1], 4), round(dlg[2], 4)]
+        found["dialog_pos"] = dlg
     # 2. 대화를 넘겨서 [Sell Fish]
     sf = find_text(boxes, "sellfish")
     for _ in range(5):
@@ -279,11 +318,11 @@ def autocal(ocr, click, wait, aspect, found, status, wait_dialog=120.0):
     wait(0.4)                                                # 여는 애니메이션이 끝난 뒤 한 번 더
     boxes = ocr(None)
     title, sa = find_text(boxes, "fishingshop") or title, find_text(boxes, "sellall", exact=True) or sa
-    geo = shop_layout(title, sa, aspect())
+    geo = shop_layout(boxes, title, sa, aspect())
     found["sell_all_pos"] = [round(sa[1], 4), round(sa[2], 4)]
     found["first_fish_pos"] = geo["first_fish_pos"]
     found["info_region"] = geo["info_region"]
-    found["shop_close_pos"] = find_close(boxes, title, geo["shop_close_pos"], aspect())
+    found["shop_close_pos"] = geo["shop_close_pos"]
     # 4. 확인 Sell: 첫 칸 → Sell All → 확인창에서 Sell 자리만 재고 Cancel (실제로 팔지는 않음)
     status("확인창 확인 중 (팔지는 않음)")
     click(found["first_fish_pos"])

@@ -1421,6 +1421,7 @@ function renderMoveCustom(el) {
 }
 function rerenderMove() { document.querySelectorAll('[data-mpos-custom]').forEach(renderMoveCustom); }
 const SELL_SET = [['e_wait', 'E 누른 뒤 대기', '대화창이 뜰 때까지 (초)', 1.5, 0.2, 0.1],
+                  ['sell_delay', '클릭 사이 추가 대기', '렉이 있으면 늘림 (초)', 0.4, 0, 0.1],
                   ['sell_max', '판매 반복 최대', '클릭이 씹혀 끝없이 도는 것만 막음', 100, 1, 1]];
 let sellcalBusy = false;
 const MPOS_CUSTOM = {
