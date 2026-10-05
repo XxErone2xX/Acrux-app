@@ -387,7 +387,7 @@ const I18N = (() => {
     ['버튼 위치 · 릴링 바 영역', 'Button positions · reel bar area', 'ボタン位置・リールバー範囲'],
     ['매크로 기준 위치 설정 → 자동 낚시 에서 지정', 'Set in Macro base position settings → Auto fishing', 'マクロ基準位置設定 → 自動釣りで指定'],
     ['내 서버에서 레어 바이옴이 뜨면 포션 사용', 'Uses potions when a rare biome starts in your server', '自分のサーバーでレアバイオームが来たらポーションを使用'],
-    ['제자리 낚시 (판매와 이동은 다음 업데이트)', 'Fishing in place (selling and movement in a later update)', 'その場で釣り（売却と移動は次のアップデート）'],
+    ['낚시 장소로 가서 낚시 · 가득 차면 판매', 'Fishes at the fishing spot · sells when full', '釣り場で釣り・満杯なら売却'],
     ['16:9 로블록스 창(1920x1080 전체 화면 등) 기준 위치를 한 번에 채움', 'Fills positions for a 16:9 Roblox window (e.g. 1920x1080 full screen) at once', '16:9のRobloxウィンドウ（1920x1080全画面など）基準の位置を一度に入力'],
     ['안 맞는 건 아래에서 직접 지정', 'set any that are off below', '合わないものは下で直接指定'],
     ['스나이프 탭 오토 팝핑 위치를 가져옴', 'Copied the auto popping positions from the Snipe tab', 'スナイプタブのオートポッピング位置を取り込みました'],
