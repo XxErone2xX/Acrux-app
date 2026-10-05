@@ -29,6 +29,7 @@ import popping
 import fishing
 import steps as stepmod
 import move
+import sell
 from version import VERSION
 
 
@@ -104,6 +105,9 @@ class Bridge:
         self.mover = move.Mover(lambda: self.data.get("base", {}), lambda: self.data.get("move", {}), self._on_log,
                                 set_move_time=self._set_move_time, before=lambda: self.fisher.hold(45),
                                 after=self.fisher.release, banner=self._move_banner)
+        # 판매: 자동 낚시 중 인벤토리가 가득 차면 물고기 판매 장소로 가서 팔고 낚시 장소로 돌아옴
+        self.seller = sell.Seller(self.mover, self._mfish_cfg, lambda: self.data.get("move", {}), self._on_log)
+        self.fisher.on_full = self._on_fish_full
         self.play = rejoin.PlayClicker(lambda: self.data.get("play", {}), self._on_log,
                                        on_ingame=self._on_ingame, on_fail=self._on_play_fail)
         # 매크로 복귀: 로블록스 전부 종료 → 1초 → 내 브섭 링크 → Play
@@ -586,8 +590,8 @@ class Bridge:
 
     # 매크로 기준 위치 설정 — 버튼 위치 · 영역 (feat: base = 여러 기능이 같이 쓰는 기준 위치 / mfish = 자동 낚시만)
     MPOS_POINTS = {"base": dict(popping.POS_KEYS, chat_pos="채팅 버튼", collection_pos="도감 버튼", collection_close="도감 Exit"),
-                   "mfish": dict(fishing.POS_KEYS)}
-    MPOS_REGIONS = {"base": ("ocr_region", "notice_region"), "mfish": ("panel_region", "reel_region", "result_region", "bar_region")}
+                   "mfish": dict(fishing.POS_KEYS, **{k: n for k, n in sell.SELL_KEYS if k != "info_region"})}
+    MPOS_REGIONS = {"base": ("ocr_region", "notice_region"), "mfish": ("panel_region", "reel_region", "result_region", "bar_region", "info_region")}
     # 16:9 위치 템플릿 (로블록스 창 기준 비율) — 스나이프 탭 오토 팝핑 16:9 템플릿과 같은 값
     # (자동 낚시는 템플릿 대신 낚시 창 · 결과창 영역으로 안쪽 위치를 계산 → fishing.WINDOW_KEYS)
     MPOS_TEMPLATE = {
@@ -596,6 +600,9 @@ class Bridge:
                  "ocr_region": [0.415, 0.392, 0.469, 0.491],
                  # 1080p 기준: 채팅 버튼 (112, 30) · 도감 버튼 (47, 467) · 도감 Exit (382, 126) — FishSol 에서 쓰는 자리
                  "chat_pos": [0.0582, 0.0278], "collection_pos": [0.0245, 0.4324], "collection_close": [0.199, 0.1167]},
+        # 판매 (Noteab 매크로의 1920x1080 위치 프리셋 · Apache 2.0) — Sell Fish 버튼 · 물고기 정보 영역은 직접 지정
+        "mfish": {"dialog_pos": [0.3979, 0.763], "first_fish_pos": [0.4349, 0.3778], "sell_all_pos": [0.3464, 0.7444],
+                  "confirm_sell_pos": [0.4141, 0.5731], "shop_close_pos": [0.7609, 0.2528]},
     }
 
     def _banner_proc(self, kind):
@@ -793,6 +800,47 @@ class Bridge:
         if not 0 <= i < len(places) or not 0 <= j < len(places[i].get("points") or []):
             return None, None
         return i, j
+
+    # ---------------- 판매 (자동 낚시 → 판매) ----------------
+    def _on_fish_full(self, stop):
+        """자동 낚시 스레드에서: 인벤토리 가득 → 판매 · 돌아오면 True (낚시 이어감) / 못 하면 False (낚시 멈춤)"""
+        m = self.seller.missing()
+        if m:
+            self._on_log(f"인벤토리 가득 — 판매 못 함: {m}", "n")
+            return False
+        try:
+            self.seller.run(stop)
+            return True
+        except move.Stopped:
+            if not stop.is_set():                  # 자동 낚시가 멈춘 게 아니면 F7 · 멈춤 버튼 → 매크로 끔
+                self._macro_user_stop()
+            raise fishing.Stopped()
+        except Exception as e:
+            self._on_log(f"판매 실패: {e}", "n")
+            return False
+
+    def api_sell_test(self, _):
+        """판매 테스트: 기준 장소 → 물고기 판매 장소 → 판매 → 낚시 장소 (자동 낚시는 잠깐 멈췄다가 이어감)"""
+        if self.mover.running():
+            return {"error": "이동이 이미 도는 중"}
+        m = self.seller.missing()
+        if m:
+            return {"error": m}
+
+        def run():
+            try:
+                if not self.fisher.hold(45):
+                    self._on_log("자동 낚시가 멈추지 않아 판매 테스트를 못 함", "n")
+                    return
+                self.seller.run()
+            except move.Stopped:
+                self._on_log("판매 멈춤", "y")
+            except Exception as e:
+                self._on_log(f"판매 실패: {e}", "n")
+            finally:
+                self.fisher.release()
+        threading.Thread(target=run, daemon=True).start()
+        return {"ok": True}
 
     def api_move_base(self, _):
         miss = self.mover.base_missing()

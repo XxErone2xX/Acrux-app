@@ -691,6 +691,7 @@ class Fisher:
                         self.log(f"알림 읽음: {' '.join(str(text).split())[:60]}", "d")
                         self._inventory_full(stop, tries + 1, notice=True)
                         cast_at, tries = None, 0
+                        progress_at = time.time()    # 판매하러 다녀온 시간은 '진행 안 됨'으로 안 셈
                         continue
                 if cast_at is None or now - cast_at > 1.5:
                     if cast_at is not None:          # 1.5초 지나도 Exit 로 안 바뀜 = 반응 없음
@@ -698,6 +699,7 @@ class Fisher:
                         if tries >= int(cfg["cast_retry"]):
                             self._inventory_full(stop, tries)
                             cast_at, tries = None, 0
+                            progress_at = time.time()
                             continue
                     self._set(msg="Fish 클릭" + (f" ({tries + 1}번째)" if tries else ""))
                     self._click_ratio(cfg["fish_btn"], stop)
@@ -726,8 +728,9 @@ class Fisher:
         self.log("인벤토리 가득 알림(Cannot Fish) — 낚시 인벤토리 가득" if notice
                  else f"Fish 를 {tries}번 눌러도 반응 없음 — 낚시 인벤토리 가득", "y")
         if self.on_full:
-            self.on_full()
-            return
+            self._set(msg="인벤토리 가득 — 판매하러 감")
+            if self.on_full(stop):          # 판매하고 낚시 장소로 돌아왔으면 이어서 낚시
+                return
         self._set(msg="인벤토리 가득 — 판매 필요")
         self.stop_ev.set()
         raise Stopped()

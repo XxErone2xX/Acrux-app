@@ -39,7 +39,8 @@ class Mover:
 
     # ---- 상태
     def running(self):
-        return bool(self.thread and self.thread.is_alive())
+        """이동이 도는 중 (이 스레드 · 또는 판매처럼 다른 곳에서 이동을 빌려 쓰는 중)"""
+        return bool(self.thread and self.thread.is_alive()) or bool(self.state.get("ext"))
 
     def snapshot(self):
         with self.lock:
