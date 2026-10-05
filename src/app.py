@@ -28,6 +28,7 @@ import rejoin
 import popping
 import fishing
 import steps as stepmod
+import move
 from version import VERSION
 
 
@@ -99,6 +100,10 @@ class Bridge:
         self.mpop = popping.MyServerPopper(lambda: self.data.get("pop", {}), self._mpop_cfg,
                                            self._on_log, before=lambda: self.fisher.hold(45),
                                            after=self.fisher.release)
+        # 이동: 기준 장소(리셋 · 카메라 정렬 · 줌) → 화면의 한 점을 눌러 장소로 걸어감 · 걸리는 시간은 직접 잼
+        self.mover = move.Mover(lambda: self.data.get("base", {}), lambda: self.data.get("move", {}), self._on_log,
+                                set_move_time=self._set_move_time, before=lambda: self.fisher.hold(45),
+                                after=self.fisher.release)
         self.play = rejoin.PlayClicker(lambda: self.data.get("play", {}), self._on_log,
                                        on_ingame=self._on_ingame, on_fail=self._on_play_fail)
         # 매크로 복귀: 로블록스 전부 종료 → 1초 → 내 브섭 링크 → Play
@@ -282,6 +287,7 @@ class Bridge:
         mfish = self.fisher.snapshot()
         st = self.steps.snapshot()
         pre = self.pre.snapshot()
+        mv = self.mover.snapshot()
         with self.lock:
             # 새로 생긴 것만 (번호가 늘어나는 순서로 쌓여 있어서 뒤에서부터 보다가 멈춤 — 0.3초마다 1000개를 다 훑지 않게)
             logs = []
@@ -299,6 +305,7 @@ class Bridge:
             return {"seq": self.seq, "logs": logs, "events": events, "status": list(self.status),
                     "running": self.running(), "armed": core.ARMED.is_set(),
                     "play": play, "pop": pop, "ret": ret, "mpop": mpop, "mfish": mfish, "steps": st, "pre": pre, "roblox": roblox,
+                    "move": mv,
                     "crash": {"left": max(0.0, self.crash["until"] - time.time())} if self.crash else None,
                     "biome": bio,
                     "count": self.handler.count, "names": self.data.get("names", {}),
@@ -350,6 +357,7 @@ class Bridge:
         다른 사람 서버로 들어가는 것이라, 그 접속 동안은 바이옴 웹후크를 보내지 않음"""
         self.pop.stop()
         self.mpop.stop()
+        self.mover.stop()
         self.fisher.stop()
         self.ret.stop()
         self.biome.mute_next_session()
@@ -577,14 +585,17 @@ class Bridge:
         return {"ok": True}
 
     # 매크로 기준 위치 설정 — 버튼 위치 · 영역 (feat: base = 여러 기능이 같이 쓰는 기준 위치 / mfish = 자동 낚시만)
-    MPOS_POINTS = {"base": dict(popping.POS_KEYS), "mfish": dict(fishing.POS_KEYS)}
+    MPOS_POINTS = {"base": dict(popping.POS_KEYS, collection_pos="Collection 버튼", collection_close="Collection 닫기"),
+                   "mfish": dict(fishing.POS_KEYS)}
     MPOS_REGIONS = {"base": ("ocr_region", "notice_region"), "mfish": ("panel_region", "reel_region", "result_region", "bar_region")}
     # 16:9 위치 템플릿 (로블록스 창 기준 비율) — 스나이프 탭 오토 팝핑 16:9 템플릿과 같은 값
     # (자동 낚시는 템플릿 대신 낚시 창 · 결과창 영역으로 안쪽 위치를 계산 → fishing.WINDOW_KEYS)
     MPOS_TEMPLATE = {
         "base": {"inventory_pos": [0.018, 0.474], "items_pos": [0.663, 0.312], "search_pos": [0.458, 0.34],
                  "item_pos": [0.443, 0.44], "amount_pos": [0.296, 0.534], "use_pos": [0.356, 0.535],
-                 "ocr_region": [0.415, 0.392, 0.469, 0.491]},
+                 "ocr_region": [0.415, 0.392, 0.469, 0.491],
+                 # FishSol 1080p: Collection 버튼 (47, 467) · 닫기 (382, 126)
+                 "collection_pos": [0.0245, 0.4324], "collection_close": [0.199, 0.1167]},
     }
 
     def api_mfish_autocal(self, _):
@@ -756,6 +767,79 @@ class Bridge:
         self._on_log(f"자동 보정 완료: {text}", "g")
         return {"mfish": self.data["mfish"], "done": text}
 
+    # ---------------- 이동 (통합 위치 → 이동) ----------------
+    def _set_move_time(self, i, j, sec):
+        with self.lock:
+            try:
+                self.data["move"]["places"][i]["points"][j]["time"] = sec
+            except (KeyError, IndexError, TypeError):
+                return
+        self._save()
+
+    def _move_point(self, p):
+        places = self.data.get("move", {}).get("places") or []
+        i, j = int(p.get("place", -1)), int(p.get("point", -1))
+        if not 0 <= i < len(places) or not 0 <= j < len(places[i].get("points") or []):
+            return None, None
+        return i, j
+
+    def api_move_base(self, _):
+        if not self.mover.start("base"):
+            return {"error": "이동이 이미 도는 중"}
+        return {"ok": True}
+
+    def api_move_place(self, p):
+        i = int(p.get("place", -1))
+        if not 0 <= i < len(self.data.get("move", {}).get("places") or []):
+            return {"error": "장소를 찾을 수 없음"}
+        if not self.mover.start("place", i):
+            return {"error": "이동이 이미 도는 중"}
+        return {"ok": True}
+
+    def api_move_test(self, p):
+        """지점까지 걸리는 시간 재기 — from_base: 기준 장소부터 (아니면 지금 자리에서 바로)"""
+        i, j = self._move_point(p)
+        if i is None:
+            return {"error": "지점을 찾을 수 없음"}
+        if not self.data["move"]["places"][i]["points"][j].get("pos"):
+            return {"error": "지점 위치를 먼저 지정"}
+        if not self.mover.start("test", i, j, bool(p.get("from_base", True))):
+            return {"error": "이동이 이미 도는 중"}
+        return {"ok": True}
+
+    def api_move_get(self, _):
+        return {"move": self.data.get("move", {})}
+
+    def api_move_arrive(self, _):
+        self.mover.arrive()
+        return {"ok": True}
+
+    def api_move_stop(self, _):
+        self.mover.stop()
+        return {"ok": True}
+
+    def api_move_pick(self, p):
+        """지점 위치 지정 — from_base: 매크로가 기준 장소(+ 앞 지점들)까지 간 뒤 / 아니면 지금 화면에서 바로
+        로블록스 화면에서 걸어갈 곳을 클릭 → 저장 (위치가 바뀌면 잰 시간은 지움)"""
+        i, j = self._move_point(p)
+        if i is None:
+            return {"error": "지점을 찾을 수 없음"}
+        if p.get("from_base"):
+            if not self.mover.start("prep", i, j):
+                return {"error": "이동이 이미 도는 중"}
+            self.mover.thread.join(180)
+            err = self.mover.snapshot().get("error")
+            if self.mover.running() or err or self.mover.stop_ev.is_set():
+                return {"error": err or "기준 장소로 못 감 (멈춤)"}
+        r = self._pick_overlay("--pick-point")
+        if r.get("error"):
+            return r
+        with self.lock:
+            pt = self.data["move"]["places"][i]["points"][j]
+            pt["pos"], pt["time"] = [round(r["x"], 4), round(r["y"], 4)], None
+        self._save()
+        return {"move": self.data["move"]}
+
     def api_mpos_point(self, p):
         feat, key = str(p.get("feat", "")), str(p.get("key", ""))
         if key not in self.MPOS_POINTS.get(feat, {}):
@@ -792,7 +876,7 @@ class Bridge:
     # 화면 비율 — 로블록스 UI 는 화면 높이에 맞춰 커지고, 낚시 창 · 결과창 · 인벤토리 창은 가로 가운데 기준,
     # Inventory 버튼(왼쪽 메뉴)은 왼쪽 끝 기준이라고 보고 16:9 값을 바꿈 (16:9 가 아닌 비율은 추정값)
     MPOS_RATIOS = {"16:9": 16 / 9, "16:10": 16 / 10, "21:9": 21 / 9, "32:9": 32 / 9, "4:3": 4 / 3, "5:4": 5 / 4}
-    MPOS_LEFT = {"inventory_pos"}
+    MPOS_LEFT = {"inventory_pos", "collection_pos", "collection_close"}
 
     @classmethod
     def _mpos_scaled(cls, feat, aspect):
