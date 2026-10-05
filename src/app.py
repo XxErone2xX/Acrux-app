@@ -573,10 +573,6 @@ class Bridge:
         key = str(p.get("key") or (keys[0] if keys else ""))
         if key not in keys:
             return {"error": "알 수 없는 항목"}
-        if feat == "mfish" and key == "reel_region":
-            err = self._wait_minigame(90)            # 미니게임은 몇 초만 떠 있음 → 뜰 때까지 기다렸다가 화면을 멈추고 드래그
-            if err:
-                return {"error": err}
         r = self._pick_overlay("--pick-region")
         if r.get("error"):
             return r
@@ -607,37 +603,6 @@ class Bridge:
         for key, v in cls.MPOS_TEMPLATE[feat].items():
             out[key] = ([fx(key, v[0]), v[1], fx(key, v[2]), v[3]] if len(v) == 4 else [fx(key, v[0]), v[1]])
         return out
-
-    def _wait_minigame(self, timeout):
-        """낚시 미니게임이 화면에 뜰 때까지 기다림 (릴링 바 자리에 색이 보이면) → 오류 문구 또는 None
-        릴링 바 자리는 대기 창 영역(또는 직접 지정한 릴링 바)으로 계산한 것을 씀"""
-        mf = self.data.get("mfish", {})
-        if not mf.get("bar_region"):
-            return "낚시 대기 창 영역을 먼저 지정하세요"
-        hwnd = macro.roblox_window_cached(1.0)
-        if not hwnd:
-            return "로블록스 창 없음"
-        macro.focus(hwnd, wait=0.2)               # 로블록스에서 바로 Fish 를 누를 수 있게
-        end = time.time() + timeout
-        with macro.ScreenGrabber() as sct:
-            while time.time() < end:
-                rect = macro.client_rect(hwnd)
-                if rect and self.fisher._bar_seen(sct, rect, mf):
-                    # 뜬 순간의 화면을 바로 찍어서 선택 창에 넘김 (선택 창이 뜨는 1~3초 사이 미니게임이 끝날 수 있음)
-                    try:
-                        import tempfile
-                        import mss
-                        import mss.tools
-                        shot_path = Path(tempfile.gettempdir()) / f"acrux_pickshot_{os.getpid()}.png"
-                        with mss.mss() as s:
-                            shot = s.grab({"left": rect[0], "top": rect[1], "width": rect[2], "height": rect[3]})
-                            mss.tools.to_png(shot.rgb, shot.size, output=str(shot_path))
-                        self._pick_shot = shot_path
-                    except Exception:
-                        self._pick_shot = None
-                    return None
-                time.sleep(0.1)
-        return f"{timeout}초 동안 미니게임이 안 뜸 — 다시 시도하세요"
 
     def api_mpos_template(self, p):
         feat = str(p.get("feat", ""))
@@ -774,18 +739,13 @@ class Bridge:
         --pick-region: 드래그로 영역 / --pick-point: 클릭 1번으로 위치 / --pick-file: 프로그램 고르기
         선택 창이 가끔 안 뜨고(로블록스 뒤에 숨는 등) 그대로 2분 넘게 기다리느라 다른 위치 지정도 막히던 문제 →
         창이 실제로 떴는지 신호(.shown 파일)를 받고, 6초 안에 안 뜨면 끄고 한 번 더 띄움 · 그래도 안 되면 바로 실패로 끝냄"""
-        try:
-            for attempt in range(2):
-                r = self._pick_once(flag)
-                if r.get("error") != "__not_shown__":
-                    return r
-                if attempt == 0:
-                    self._on_log("위치 지정 창이 안 떠서 다시 띄움", "y")
-            return {"error": "위치 지정 창이 안 뜸 — 로블록스를 창 모드로 두고 다시 시도하세요"}
-        finally:
-            shot, self._pick_shot = getattr(self, "_pick_shot", None), None
-            if shot:
-                Path(shot).unlink(missing_ok=True)
+        for attempt in range(2):
+            r = self._pick_once(flag)
+            if r.get("error") != "__not_shown__":
+                return r
+            if attempt == 0:
+                self._on_log("위치 지정 창이 안 떠서 다시 띄움", "y")
+        return {"error": "위치 지정 창이 안 뜸 — 로블록스를 창 모드로 두고 다시 시도하세요"}
 
     def _pick_once(self, flag):
         import tempfile
@@ -799,9 +759,6 @@ class Bridge:
         else:
             cmd = [sys.executable, str(Path(__file__).resolve().parent / "macro.py"), flag, str(out)]
         env = dict(os.environ, ACRUX_LANG=str(self.data.get("lang") or "ko"))   # 안내 글자 언어
-        shot = getattr(self, "_pick_shot", None)
-        if shot:
-            env["ACRUX_PICK_SHOT"] = str(shot)   # 미리 찍어 둔 화면으로 선택
         limit = 300 if flag == "--pick-file" else 150
         self.fisher.no_focus = True             # 선택 창이 떠 있는 동안 자동 낚시가 로블록스를 앞으로 끌어오지 않게
         try:
