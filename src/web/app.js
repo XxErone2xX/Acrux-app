@@ -1297,14 +1297,15 @@ const MPOS = {
           points: [...POP_POS.map(([k, n, sub]) => [k, n, sub || '']),
                    ['chat_pos', '채팅 버튼', '왼쪽 위의 채팅 버튼'],
                    ['collection_pos', '도감 버튼', '왼쪽 메뉴의 도감(Collection · 책 모양) 버튼'],
-                   ['collection_close', '도감 Exit', '도감을 연 상태에서 Exit(닫기) 버튼']],
+                   ['collection_close', '도감 Exit', '도감을 연 상태에서 Exit(닫기) 버튼'],
+                   ['dialog_pos', '대화창', 'NPC 와 대화할 때 눌러서 넘길 곳 (Click to skip.) · 판매 자동 보정으로도 맞춰짐']],
           regions: [['ocr_region', 'OCR 영역', '검색 결과 아이템 이름·개수 (예: Warp Potion x23)'],
                     ['notice_region', '알림 영역', '오른쪽에 알림 카드가 뜨는 자리를 넉넉히 드래그 · 낚시의 Cannot Fish 등']],
           // 칸: [id, 이름, 설명, 들어갈 항목, 맨 위에 연동 · 템플릿 줄을 넣을지, 따로 그리는 부분(MPOS_CUSTOM)]
           tabs: [['inv', '인벤토리', '레어 바이옴 자동 팝핑 등 인벤토리를 쓰는 기능',
                   [...POP_POS.map(([k]) => k), 'ocr_region'], true],
                  ['notice', '알림', '게임 알림을 보는 기능 (자동 낚시 인벤토리 가득 등)', ['notice_region']],
-                 ['ui', '게임 버튼', '여러 기능이 같이 누르는 게임 화면 버튼', ['chat_pos']],
+                 ['ui', '게임 버튼', '여러 기능이 같이 누르는 게임 화면 버튼', ['chat_pos', 'dialog_pos']],
                  ['move', '이동 · 기준 장소', '리셋 → / · 채팅 · 도감 열고 닫기 · / · Enter → W → W+A → 우클릭 드래그(내려다보기) → O(줌) 로 매번 같은 자리 · 같은 화면(기준 장소)을 만듦 · 채팅 버튼은 위 게임 버튼 칸 · 기능마다 갈 장소는 그 기능 칸에서 지정 (Click to Move)',
                   ['collection_pos', 'collection_close'], false, 'movebase']] },
   mfish: { box: 'mposFish', tpl: true,
@@ -1312,7 +1313,6 @@ const MPOS = {
                      ['reel_region', '낚시 미니게임 창 영역', '미니게임이 떠 있을 때 눌러서 흰 꺾쇠 테두리까지 드래그 → 릴링 바 위치 자동 계산'],
                      ['result_region', '결과창 영역', '한 번 낚아서 결과창이 떠 있을 때 흰 꺾쇠 테두리까지 드래그 → 결과창 X 와 제목 위치 자동 계산']],
            points: [...MFISH_POS,
-                    ['dialog_pos', '대화창', 'Captain Flarg 와 대화할 때 눌러서 넘길 곳'],
                     ['sell_fish_pos', 'Sell Fish 버튼', '대화 선택지 중 파란 [Sell Fish]'],
                     ['first_fish_pos', '첫 번째 물고기 칸', '상점 목록의 맨 앞 칸'],
                     ['sell_all_pos', 'Sell All 버튼', '왼쪽 물고기 정보 아래'],
@@ -1324,9 +1324,9 @@ const MPOS = {
                    ['panel_region', 'reel_region', 'result_region']],
                   ['fine', '세부 위치', '창 영역으로 자동 계산됨 · 조금 어긋나면 여기서 하나씩 직접 지정',
                    ['fish_btn', 'close_pos', 'title_pos', 'bar_region']],
-                  ['move', '이동', '낚시 장소 · 물고기 판매 장소 — 지점마다 누를 곳을 지정하고 시간을 재기 · 기준 장소(통합 위치 → 이동 · 기준 장소)에서 출발', [], false, 'places:mfish'],
-                  ['sell', '판매', '인벤토리가 가득 차면: 물고기 판매 장소 → E → 대화 넘기기 → Sell Fish → (첫 칸 → Sell All → 확인) 을 왼쪽 정보가 빌 때까지 → X → 낚시 장소',
-                   ['dialog_pos', 'sell_fish_pos', 'first_fish_pos', 'sell_all_pos', 'confirm_sell_pos', 'shop_close_pos', 'info_region'], true, 'sell']] },
+                  ['sell', '판매', '인벤토리가 가득 차면: 물고기 판매 장소 → 카메라 정렬(채팅 · 도감) → E → 대화 넘기기(통합 위치의 대화창) → Sell Fish → (첫 칸 → Sell All → 확인) 을 왼쪽 정보가 빌 때까지 → X → 낚시 장소 · [판매 자동 보정] 을 누르고 Captain Flarg 앞에서 E 를 누르면 위치를 전부 맞춤',
+                   ['sell_fish_pos', 'first_fish_pos', 'sell_all_pos', 'confirm_sell_pos', 'shop_close_pos', 'info_region'], true, 'sell'],
+                  ['move', '이동', '매크로를 켜면 먼저 낚시 장소로 감 · 인벤토리가 가득 차면 물고기 판매 장소로 · 지점마다 누를 곳을 지정하고 시간을 재기 · 기준 장소(통합 위치 → 이동 · 기준 장소)에서 출발', [], false, 'places:mfish']] },
 };
 const MPOS_RATIOS = [['auto', '자동 (지금 창)'], ['16:9', '16:9'], ['16:10', '16:10'], ['21:9', '21:9'], ['32:9', '32:9'], ['4:3', '4:3'], ['5:4', '5:4']];
 let mposRatio = 'auto';
@@ -1416,11 +1416,14 @@ function renderMoveCustom(el) {
 function rerenderMove() { document.querySelectorAll('[data-mpos-custom]').forEach(renderMoveCustom); }
 const SELL_SET = [['e_wait', 'E 누른 뒤 대기', '대화창이 뜰 때까지 (초)', 1.5, 0.2, 0.1],
                   ['sell_max', '판매 반복 최대', '클릭이 씹혀 끝없이 도는 것만 막음', 100, 1, 1]];
+let sellcalBusy = false;
 const MPOS_CUSTOM = {
-  // 판매: 대기 · 반복 설정 + [판매 테스트]
+  // 판매: [판매 자동 보정] + 대기 · 반복 설정 + [판매 테스트]
   sell(el) {
     const m = mfish(), st = lastMove || {}, busy = !!st.running;
-    el.innerHTML = SELL_SET.map(([k, name, sub, def, min, step]) => `
+    el.innerHTML = `
+      <div class="row"><span>판매 자동 보정<small>누른 뒤 Captain Flarg 앞에서 E 를 직접 누르면 대화창 · Sell Fish · 상점 위치를 글자로 찾아 전부 맞춤 · 확인창은 Cancel 로 닫아서 실제로 팔지는 않음 · 취소: F7</small></span>
+        <span class="pos"><button class="btn mini ${sellcalBusy ? 'waiting' : ''}" type="button" data-sell-auto>${sellcalBusy ? '보정 중… (다시 누르면 취소)' : '판매 자동 보정'}</button></span></div>` + SELL_SET.map(([k, name, sub, def, min, step]) => `
       <label class="row"><span>${name}<small>${sub} · 기본 ${def}</small></span>
         <input type="number" min="${min}" step="${step}" data-sell-set="${k}" value="${m[k] ?? def}"></label>`).join('') + `
       <div class="row"><span>판매 테스트<small>기준 장소 → 물고기 판매 장소 → 판매 → 낚시 장소 · 정지: F7</small></span>
@@ -1431,6 +1434,18 @@ const MPOS_CUSTOM = {
       const n = parseFloat(i.value);
       if (!isNaN(n) && n >= 0) { m[i.dataset.sellSet] = n; saveMfish(); }
     }));
+    el.querySelector('[data-sell-auto]').addEventListener('click', async () => {
+      if (sellcalBusy) { const r = await api('sell_autocal'); return r.error && toast(r.error); }
+      sellcalBusy = true; rerenderMove();
+      toast('Captain Flarg 앞에서 E 를 눌러 주세요');
+      try {
+        const r = await api('sell_autocal');
+        if (r.base) { config.base = r.base; mposChanged('base'); }
+        if (r.mfish) { Object.assign(mfish(), r.mfish); mposChanged('mfish'); }
+        toast(r.error || `판매 자동 보정 완료${r.notes?.length ? ' · ' + r.notes.join(' · ') : ''}`);
+      } catch (err) { toast('판매 자동 보정 실패: ' + err.message); }
+      finally { sellcalBusy = false; rerenderMove(); }
+    });
     el.querySelector('[data-sell-test]').addEventListener('click', async () => {
       await flushSave();
       moveCall('sell_test', {}, '판매 테스트 시작 · 정지: F7');
