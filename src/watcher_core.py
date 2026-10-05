@@ -162,6 +162,7 @@ MFISH_DEFAULT = {
     "shop_close_pos": None,       # 상점 닫기 X
     "info_region": None,          # 왼쪽 물고기 정보 (이름 · Sells for) — 비어 있으면 다 판 것
     "e_wait": 1.5,                # E 누른 뒤 대화창이 뜰 때까지 (초)
+    "sell_delay": 0.4,            # 판매 클릭마다 더 기다릴 시간 (초)
     "sell_max": 100,              # 판매 반복 최대 (클릭이 씹혀 끝없이 도는 것만 막음)
     "debug_log": False,           # 릴링 기록(fishing_log.csv) 저장 — 문제 확인용
     "click_v3": False,            # 클릭 기준을 '구간 왼쪽 변 이하'(목표 0 · 미리 누르기 0)로 바꾼 것 적용했는지 (한 번만)
@@ -434,7 +435,7 @@ def normalize(raw):
     for k in ("bar_region", "panel_region", "reel_region", "result_region", "info_region"):
         mf[k] = _ratio_list(mf.get(k), 4)
     for k, lo, hi in (("bite_max", 5, 600), ("target_pct", 0, 90), ("lead_ms", 0, 300), ("click_ms", 5, 200), ("click_gap_ms", 10, 500),
-                      ("cast_retry", 1, 10), ("e_wait", 0.2, 10), ("sell_max", 1, 300)):
+                      ("cast_retry", 1, 10), ("e_wait", 0.2, 10), ("sell_delay", 0, 5), ("sell_max", 1, 300)):
         try:
             mf[k] = min(hi, max(lo, float(mf.get(k, MFISH_DEFAULT[k]))))
         except (TypeError, ValueError):
