@@ -758,6 +758,11 @@ BANNER_TEXT = {
         "en": "Sell calibration · press E in front of Captain Flarg · hands off once the dialog opens (F7: cancel)",
         "ja": "販売の自動補正 · Captain Flarg の前で E を押してください · 会話が出たら手を離してください（F7: キャンセル）",
     },
+    "macro": {
+        "ko": "매크로 작동 중 · 마우스와 키보드를 건드리지 마세요 (F3: 매크로 끄기)",
+        "en": "Macro running · don't touch the mouse or keyboard (F3: turn the macro off)",
+        "ja": "マクロ動作中 · マウスとキーボードに触らないでください（F3: マクロをオフ）",
+    },
     "move": {
         "ko": "매크로 이동 중 · 마우스와 키보드를 건드리지 마세요 (F7: 정지)",
         "en": "Macro is moving · don't touch the mouse or keyboard (F7: stop)",
@@ -771,11 +776,28 @@ BANNER_TEXT = {
 }
 
 
-def show_banner(kind="autocal", seconds=240, progress=None):
+def _pid_alive(pid):
+    if IS_WIN:
+        h = ctypes.windll.kernel32.OpenProcess(0x100000, False, int(pid))     # SYNCHRONIZE
+        if not h:
+            return False
+        try:
+            return ctypes.windll.kernel32.WaitForSingleObject(h, 0) == 0x102    # WAIT_TIMEOUT = 아직 살아 있음
+        finally:
+            ctypes.windll.kernel32.CloseHandle(h)
+    try:
+        os.kill(int(pid), 0)
+        return True
+    except OSError:
+        return False
+
+
+def show_banner(kind="autocal", seconds=240, progress=None, parent=None):
     """화면 위 가운데에 안내 띠 — 클릭이 통과되고 포커스도 안 가져가서 로블록스 조작을 방해하지 않음
     (tkinter 라 별도 프로세스: macro.py --banner · 앱이 끝나면 끔 · 안 끄면 seconds 뒤 저절로 닫힘)
     게이지: 회색 띠가 왼쪽 → 오른쪽으로 파랗게 차오름 — progress 파일에 "목표(0~1) 걸리는 초" 를 쓰면
-    지금 값에서 목표까지 그 시간 동안 고르게 차오름 (파일이 없으면 다 찬 파란 띠)"""
+    지금 값에서 목표까지 그 시간 동안 고르게 차오름 (파일이 없으면 다 찬 파란 띠)
+    parent: 앱 프로세스 번호 — 앱이 꺼지면 같이 닫힘 (오래 떠 있는 매크로 작동 띠)"""
     import tkinter as tk
     texts = BANNER_TEXT.get(kind, BANNER_TEXT["autocal"])
     text = texts.get(_LANG, texts["ko"])
@@ -824,6 +846,10 @@ def show_banner(kind="autocal", seconds=240, progress=None):
             k = 1.0 if st["dur"] <= 0 else min(1.0, (time.time() - st["t0"]) / st["dur"])
             st["cur"] = st["from"] + (st["to"] - st["from"]) * k
         cv.coords(fill, 0, 0, int(w * st["cur"]), h)
+        st["n"] = st.get("n", 0) + 1
+        if parent and st["n"] % 20 == 0 and not _pid_alive(parent):
+            root.destroy()
+            return
         root.after(50, tick)
     tick()
     root.after(int(seconds * 1000), root.destroy)
@@ -1374,4 +1400,6 @@ elif __name__ == "__main__" and "--pick-point" in sys.argv:
 elif __name__ == "__main__" and "--banner" in sys.argv:
     _i = sys.argv.index("--banner")
     _p = sys.argv[sys.argv.index("--progress") + 1] if "--progress" in sys.argv[:-1] else None
-    show_banner(sys.argv[_i + 1] if len(sys.argv) > _i + 1 else "autocal", progress=_p)
+    _pp = sys.argv[sys.argv.index("--parent") + 1] if "--parent" in sys.argv[:-1] else None
+    show_banner(sys.argv[_i + 1] if len(sys.argv) > _i + 1 else "autocal", progress=_p, parent=_pp,
+                seconds=86400 if _pp else 240)

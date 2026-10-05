@@ -124,6 +124,7 @@ class Bridge:
                                    kill=core.kill_roblox, launch=core.open_link)
         self.biome.start()                  # 바이옴 변경 콜백이 위 실행기들을 쓰므로 맨 마지막에 시작
         threading.Thread(target=self._macro_loop, daemon=True).start()
+        threading.Thread(target=self._hotkey_loop, daemon=True).start()
 
     # 엔진 콜백 (작업 스레드에서 옴)
     def _next(self):
@@ -313,7 +314,7 @@ class Bridge:
             return {"seq": self.seq, "logs": logs, "events": events, "status": list(self.status),
                     "running": self.running(), "armed": core.ARMED.is_set(),
                     "play": play, "pop": pop, "ret": ret, "mpop": mpop, "mfish": mfish, "steps": st, "pre": pre, "roblox": roblox,
-                    "move": mv,
+                    "move": mv, "macro_on": bool(self.data.get("macro_on")),
                     "crash": {"left": max(0.0, self.crash["until"] - time.time())} if self.crash else None,
                     "biome": bio,
                     "count": self.handler.count, "names": self.data.get("names", {}),
@@ -409,6 +410,43 @@ class Bridge:
                     self.fisher.stop()
             except Exception as e:
                 write_crash(f"macro loop: {e}")
+
+    def _set_macro(self, on, why="F3"):
+        """매크로 버튼 켜기 · 끄기 (F3 · 화면 버튼과 같음)"""
+        with self.lock:
+            self.data["macro_on"] = bool(on)
+        self._save()
+        if not on:
+            self.mpop.stop()
+            self.fisher.stop()
+        self._on_log(f"{why} — 매크로 {'켜짐' if on else '꺼짐'}", "y" if not on else "g")
+
+    def _hotkey_loop(self):
+        """F3: 매크로 켜기 · 끄기 (어느 창에 있든) · 매크로 작동 중엔 화면 위에 '건드리지 마세요' 띠
+        (이동 · 자동 보정 띠가 떠 있을 땐 그 띠만)"""
+        was, banner, tick = False, None, 0
+        while True:
+            time.sleep(0.05)
+            try:
+                down = macro.key_down_now("f3")
+                if down and not was:
+                    self._set_macro(not self.data.get("macro_on"))
+                was = down
+                tick += 1
+                if tick % 4:
+                    continue
+                other = (getattr(self, "_mv_banner", None) is not None and self._mv_banner.poll() is None) \
+                    or getattr(self, "_autocal_running", False) or getattr(self, "_sellcal_running", False)
+                want = bool(self.data.get("macro_on")) and (self.fisher.running() or self.mpop.running()) and not other
+                alive = banner is not None and banner.poll() is None
+                if want and not alive:
+                    banner = self._banner_proc("macro")
+                elif not want and alive:
+                    banner.kill()
+                    banner = None
+            except Exception as e:
+                write_crash(f"hotkey loop: {e}")
+                time.sleep(1)
 
     def _macro_user_stop(self):
         """F7: 매크로 버튼을 끔 (자동 낚시 · 매크로 탭 기능 전부 멈춤)"""
@@ -623,10 +661,13 @@ class Bridge:
 
     def _banner_proc(self, kind):
         """화면 위 가운데 '건드리지 마세요' 안내 띠 (별도 프로세스 · 회색 → 파란 게이지) → Popen 또는 None
-        시간 재기 띠는 끝을 알 수 없어서 다 찬 상태로"""
-        self._banner_progress(1.0 if kind == "measure" else 0.0, 0)
+        시간 재기 띠는 끝을 알 수 없어서 다 찬 상태로 · 매크로 작동 띠는 게이지 없이 (앱이 꺼지면 같이 닫힘)"""
         env = dict(os.environ, ACRUX_LANG=str(self.data.get("lang") or "ko"))
-        args = ["--banner", kind, "--progress", str(self.BANNER_PROGRESS)]
+        if kind == "macro":
+            args = ["--banner", kind, "--parent", str(os.getpid())]
+        else:
+            self._banner_progress(1.0 if kind == "measure" else 0.0, 0)
+            args = ["--banner", kind, "--progress", str(self.BANNER_PROGRESS)]
         cmd = [sys.executable, *args] if getattr(sys, "frozen", False) else \
             [sys.executable, str(Path(__file__).resolve().parent / "macro.py"), *args]
         try:
@@ -1613,7 +1654,9 @@ if __name__ == "__main__":
     if "--banner" in sys.argv:               # 화면 위 안내 띠 (자동 보정 중 · 이동 중)
         _i = sys.argv.index("--banner")
         _p = sys.argv[sys.argv.index("--progress") + 1] if "--progress" in sys.argv else None
-        macro.show_banner(sys.argv[_i + 1] if len(sys.argv) > _i + 1 else "autocal", progress=_p)
+        _pp = sys.argv[sys.argv.index("--parent") + 1] if "--parent" in sys.argv else None
+        macro.show_banner(sys.argv[_i + 1] if len(sys.argv) > _i + 1 else "autocal", progress=_p, parent=_pp,
+                          seconds=86400 if _pp else 240)
         sys.exit(0)
     try:
         main()

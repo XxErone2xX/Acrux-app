@@ -755,9 +755,10 @@ runBtn.addEventListener('click', async () => {
   renderSummary();
 });
 $('mgBiome').addEventListener('click', () => setBioEnabled(!bio().enabled));
+let macroClickAt = 0;                        // 화면에서 누른 직후엔 서버 값으로 되돌리지 않음 (저장이 늦게 갈 수 있음)
 $('mgMacro').addEventListener('click', () => {
   const on = !config.macro_on;
-  config.macro_on = on;
+  config.macro_on = on; macroClickAt = Date.now();
   queueSave({ macro_on: on });
   if (!on) { api('mpop_stop'); api('mfish_stop'); }
   syncMainTiles();
@@ -777,7 +778,7 @@ function syncMainTiles() {
   $('mtSnipe').textContent = armed ? `감시 중 · ${$('count').textContent}개 감지` : '꺼짐';
   const mOn = !!config.macro_on, n = macroFeatures();
   const sniping = !!(lastBio && lastBio.muted);
-  setTile('macro', mOn);
+  setTile('macro', mOn, mOn ? '끄기 (F3)' : '시작 (F3)');
   tile('macro').classList.toggle('wait', mOn && sniping);
   $('mtMacro').textContent = !mOn ? (n ? `꺼짐 · 기능 ${n}개 켜짐` : '꺼짐')
     : lastMpop && lastMpop.running ? (lastMpop.msg || '포션 사용 중')
@@ -813,6 +814,8 @@ async function poll() {
     updateMfish(r.mfish);
     updateMove(r.move);
     lastBio = r.biome; lastMpop = r.mpop; lastMfish = r.mfish;
+    if (r.macro_on !== undefined && !!r.macro_on !== !!config.macro_on && Date.now() - macroClickAt > 2000)
+      config.macro_on = r.macro_on;            // F3 · F7 로 켜고 끈 것
     syncMainTiles();
     r.events.forEach(addEventRow);
     const nm = JSON.stringify([r.names, r.channels]);
