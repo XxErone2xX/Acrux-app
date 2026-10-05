@@ -1341,6 +1341,16 @@ $('mposPopOcr').addEventListener('click', async e => {
   } catch (err) { toast('OCR 오류: ' + err.message); }
   finally { b.disabled = false; }
 });
+$('mfishAuto').addEventListener('click', async e => {
+  const b = e.currentTarget;
+  b.disabled = true; b.classList.add('waiting');
+  try {
+    const r = await api('mfish_autocal');
+    if (r.error) return toast(r.error);
+    Object.assign(mfish(), r.mfish); mposChanged('mfish');
+    toast(`자동 보정 완료: ${r.done}`);
+  } finally { b.disabled = false; b.classList.remove('waiting'); }
+});
 $('mfishCheck').addEventListener('click', async e => {
   const b = e.currentTarget; b.disabled = true;
   try {
