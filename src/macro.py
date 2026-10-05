@@ -619,11 +619,15 @@ def pick_region_overlay(mode="region"):
     rect = client_rect(hwnd)
     if not rect or rect[2] < 10 or rect[3] < 10:
         return {"error": "로블록스 창을 찾을 수 없음"}
-    focus(hwnd, wait=0.35)                # 로블록스가 앞으로 나온 뒤 캡처
     left, top, w, h = rect
-    with mss.mss() as s:
-        shot = s.grab({"left": left, "top": top, "width": w, "height": h})
-        png = mss.tools.to_png(shot.rgb, shot.size)
+    pre = os.environ.get("ACRUX_PICK_SHOT")
+    if pre and Path(pre).exists():
+        png = Path(pre).read_bytes()      # 앱이 미리 찍어 둔 화면 (미니게임처럼 잠깐만 뜨는 화면 — 이 창이 뜨는 사이 사라질 수 있어서)
+    else:
+        focus(hwnd, wait=0.35)            # 로블록스가 앞으로 나온 뒤 캡처
+        with mss.mss() as s:
+            shot = s.grab({"left": left, "top": top, "width": w, "height": h})
+            png = mss.tools.to_png(shot.rgb, shot.size)
 
     result = {"error": "취소됨"}
     root = tk.Tk()
