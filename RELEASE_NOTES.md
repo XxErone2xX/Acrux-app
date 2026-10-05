@@ -1,9 +1,9 @@
-## Acrux macro V1.19.2 업데이트
-- 미니게임에서 구간이 **바 왼쪽 끝에 붙으면 클릭을 멈춰서** 진행도가 빠지고 실패하던 버그 수정
-  - 바 양 끝의 ◇ 표시를 테두리로 보고 지워 버려서 내 위치를 몰랐음 → 이제 끝에 있는 ◇ 도 읽고, 막대가 비어 있으면 맨 왼쪽으로 봄
-  - 그래서 구간이 왼쪽 끝에 있어도 계속 눌러서 구간 안에 머무름
+## Acrux macro V1.19.3 업데이트
+- 미니게임에서 내 위치가 **구간 한가운데인데 클릭해서 구간 오른쪽으로 넘어가던** 문제 수정
+  - 바 가운데 남은 시간 숫자의 테두리가 막대 끝을 몇 px 가려서, 막대가 구간 앞에서 끊긴 걸로 보고 "구간 아래"로 잘못 판단했음
+  - 이제 막대 끝 바로 뒤에 숫자나 구간 색이 있으면 막대 끝 대신 ◇ 표시를 믿음
 
-## Acrux macro V1.19.2 Update
-- Fixed a bug where the macro **stopped clicking once the zone reached the left end of the bar**, so progress drained and the catch failed
-  - The ◇ marker at the bar's ends was being erased as a border line, so the position was unknown; the marker at the ends is now read, and an empty fill counts as the far left
-  - It now keeps clicking and stays in the zone even when the zone sits at the left end
+## Acrux macro V1.19.3 Update
+- Fixed the minigame **clicking while the marker was in the middle of the zone**, pushing it past the right side
+  - The outline of the countdown digits hid a few pixels at the end of the fill, so the fill looked like it stopped before the zone and was read as "below the zone"
+  - When digits or zone color sit right after the end of the fill, the ◇ marker is now trusted instead of the fill end

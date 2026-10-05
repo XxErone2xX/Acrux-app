@@ -346,6 +346,12 @@ def analyze_bar(rgb, bar_top, bar_h):
     end = max(0, fill_end)
     z = out["zone"]
     fill_pos = float(end) if (z is None or not (z[0] - 3 <= end <= z[1] + 2)) else None
+    # 막대 끝 바로 뒤가 빈 바가 아니면(남은 시간 숫자 · 구간이 겹침) 막대 끝이 일찍 끊겨 보인 것일 수 있음 → 막대 끝은 안 믿음
+    # (숫자 테두리가 막대 끝을 몇 px 가려서 '구간보다 아래'로 잘못 보고 구간 한가운데서 클릭하던 문제)
+    if fill_pos is not None and fill_end >= 0:
+        after = slice(fill_end + 1, min(w, fill_end + 1 + max(8, int(w * 0.025))))
+        if colored[after].any() or texty[max(0, fill_end - 3):after.stop].any():
+            fill_pos = None
     if out["marker"] is None:
         # ◇ 를 못 찾으면 막대 끝 · 막대가 아예 없으면 맨 왼쪽 (구간이 왼쪽 끝에 붙어 있어도)
         out["marker"] = 0.0 if fill_end < 0 else fill_pos
