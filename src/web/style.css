@@ -722,3 +722,12 @@ body:not(.in-page) .lang.in-card { display: none; }
 .mpos-pane[hidden] { display: none; }
 .mpos-desc { margin: 10px 0 4px; color: var(--muted); font-size: 12.5px; }
 .sec-head .sec-btns { display: flex; gap: 8px; margin-left: auto; }
+/* 이동 탭 */
+.move-place { margin: 8px 0 4px; padding: 2px 12px 6px; background: var(--bg); border-radius: 8px; }
+.move-place .row:last-child { border-bottom: 0; }
+.move-name { width: 260px; }
+.move-point .pos { flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.move-point small b { font-weight: 600; color: var(--fg); } .move-point small b.warn { color: var(--yellow); }
+.move-measure { background: rgba(88, 101, 242, .12); border-radius: 8px; padding-left: 10px; padding-right: 10px; }
+.move-measure [data-move-timer] { font-variant-numeric: tabular-nums; min-width: 60px; display: inline-block; text-align: right; }
+.move-state { font-weight: 600; color: var(--muted); margin-right: 6px; }

@@ -106,6 +106,13 @@ def key_tap(name, hold_ms=40):
     _send(_key_input(name, True))
 
 
+def key_up(name):
+    """키 떼기 (이동 키가 눌린 채 남지 않게)"""
+    if not IS_WIN:
+        return
+    _send(_key_input(name, True))
+
+
 def key_combo(names, hold_ms=40):
     """여러 키 동시 입력 (Ctrl+L 등): 앞 키들을 차례로 누른 채 마지막 키 → 거꾸로 뗌"""
     if not IS_WIN:

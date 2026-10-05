@@ -65,6 +65,7 @@ DEFAULT_CONFIG = {
     "mfish": {},              # 매크로 탭 · 자동 낚시 (아래 MFISH_DEFAULT)
     "mpop": {},               # 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버) (아래 MPOP_DEFAULT)
     "base": {},               # 매크로 기준 위치 — 여러 기능이 같이 쓰는 위치 (아래 BASE_DEFAULT)
+    "move": {},               # 이동 — 기준 장소로 가는 방법 · 장소별 경로 (아래 MOVE_DEFAULT)
     "snipe": {}               # 스나이핑 안정성 설정 (아래 SNIPE_DEFAULT)
 }
 # 스나이핑 안정성: 최대한 사람이 직접 링크를 누르고 들어가는 것처럼
@@ -110,6 +111,20 @@ BASE_DEFAULT = {
     "item_pos": None, "amount_pos": None, "use_pos": None,
     "ocr_region": None,
     "notice_region": None,        # 알림 영역 (오른쪽에 뜨는 알림 카드 · 낚시의 "Cannot Fish" 등)
+    # 이동 · 카메라 정렬: 리셋 후 Collection 버튼을 열었다 닫으면 카메라가 캐릭터 뒤 기본 방향으로 돌아감 (FishSol 방식)
+    "collection_pos": None,       # 왼쪽 메뉴의 Collection 버튼
+    "collection_close": None,     # Collection 창의 닫기(X) 버튼
+}
+MOVE_DEFAULT = {
+    # 기준 장소로 가기: 리셋(Esc → R → Enter) → 카메라 정렬(Collection 열고 닫기) → 줌(휠 끝까지 당긴 뒤 정해진 만큼 밀기)
+    "reset_wait": 2.6,            # 리셋 후 다시 생길 때까지 (초)
+    "zoom_in": 80,                # 휠 위로 (끝까지 당김)
+    "zoom_out": 45,               # 휠 아래로 (항상 같은 거리)
+    "button": "right",            # 이동할 곳을 누를 마우스 버튼 (Click to Move)
+    "margin": 0.3,                # 잰 시간에 더 기다릴 여유 (초)
+    # 장소: [{"name", "points": [{"pos": [x, y] (기준 장소 화면에서 누를 곳), "time": 걸린 시간(초) 또는 None}]}]
+    # 지점이 여러 개면 앞 지점에 도착한 화면에서 다음 지점을 누름 (멀리 갈 때)
+    "places": [],
 }
 MPOP_DEFAULT = {
     # 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버) — 위치 · OCR 영역은 매크로 기준 위치(base), 딜레이 · 일치율은 오토 팝핑(pop) 설정을 같이 씀
@@ -317,11 +332,36 @@ def normalize(raw):
             base[k] = old_mp[k]
     if not base.get("notice_region") and old_mf.get("notice_region"):
         base["notice_region"] = old_mf["notice_region"]
-    for k in BASE_INV_KEYS:
+    for k in (*BASE_INV_KEYS, "collection_pos", "collection_close"):
         base[k] = _ratio_list(base.get(k), 2)
     for k in ("ocr_region", "notice_region"):
         base[k] = _ratio_list(base.get(k), 4)
     d["base"] = {k: base[k] for k in BASE_DEFAULT}
+    mv = dict(MOVE_DEFAULT)
+    mv.update(d.get("move") if isinstance(d.get("move"), dict) else {})
+    for k, lo, hi, cast in (("reset_wait", 0.5, 15, float), ("zoom_in", 0, 200, int), ("zoom_out", 0, 200, int),
+                            ("margin", 0, 5, float)):
+        try:
+            mv[k] = cast(min(hi, max(lo, float(mv.get(k, MOVE_DEFAULT[k])))))
+        except (TypeError, ValueError):
+            mv[k] = MOVE_DEFAULT[k]
+    mv["button"] = "left" if mv.get("button") == "left" else "right"
+    places = []
+    for pl in (mv.get("places") if isinstance(mv.get("places"), list) else [])[:30]:
+        if not isinstance(pl, dict):
+            continue
+        pts = []
+        for pt in (pl.get("points") if isinstance(pl.get("points"), list) else [])[:20]:
+            if not isinstance(pt, dict):
+                continue
+            try:
+                t = round(min(600.0, max(0.0, float(pt["time"]))), 2) if pt.get("time") is not None else None
+            except (TypeError, ValueError):
+                t = None
+            pts.append({"pos": _ratio_list(pt.get("pos"), 2), "time": t})
+        places.append({"name": str(pl.get("name") or "")[:40], "points": pts or [{"pos": None, "time": None}]})
+    mv["places"] = places
+    d["move"] = {k: mv[k] for k in MOVE_DEFAULT}
     mp = dict(MPOP_DEFAULT)
     mp.update(old_mp)
     for k in (*BASE_INV_KEYS, "ocr_region"):
