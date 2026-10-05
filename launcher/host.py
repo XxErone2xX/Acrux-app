@@ -11,25 +11,26 @@ import os
 import runpy
 import sys
 
-# ---- PyInstaller 가 런타임에 같이 넣도록 앱이 쓰는 모듈을 전부 불러둠 (앱 코드는 따로라 분석이 안 됨)
-import asyncio, base64, collections, ctypes, ctypes.wintypes, datetime, difflib, hashlib, html, http.client  # noqa
-import http.server, json, pathlib, queue, random, re, secrets, shlex, shutil, socket, ssl, string  # noqa
-import struct, subprocess, tempfile, threading, time, traceback, unicodedata, urllib.parse, urllib.request  # noqa
-import uuid, webbrowser, zipfile, logging, math, itertools, functools, io, glob, copy, csv, platform  # noqa
-import tkinter, tkinter.filedialog, tkinter.messagebox, tkinter.ttk  # noqa
-if os.name == "nt":
+# ---- PyInstaller 가 런타임에 같이 넣도록 앱이 쓰는 모듈을 전부 적어둠 (앱 코드는 따로라 분석이 안 됨)
+# 실제로 불러오지는 않음 — 예전엔 여기서 전부 불러와서 앱 · 위치 지정 창 · OCR 등 모든 프로세스가
+# 쓰지도 않는 OCR · 이미지 라이브러리를 메모리에 올렸음 (앱이 필요할 때 직접 불러옴)
+# (조건은 실행 중에만 알 수 있는 값이어야 함 — `if False:` 는 파이썬이 지워 버려서 PyInstaller 가 못 봄)
+if os.environ.get("ACRUX_HOST_ANALYZE") == "1":
+    import asyncio, base64, collections, ctypes, ctypes.wintypes, datetime, difflib, hashlib, html, http.client  # noqa
+    import http.server, json, pathlib, queue, random, re, secrets, shlex, shutil, socket, ssl, string  # noqa
+    import struct, subprocess, tempfile, threading, time, traceback, unicodedata, urllib.parse, urllib.request  # noqa
+    import uuid, webbrowser, zipfile, logging, math, itertools, functools, io, glob, copy, csv, platform  # noqa
+    import gc, zlib, importlib, importlib.util  # noqa
+    import tkinter, tkinter.filedialog, tkinter.messagebox, tkinter.ttk  # noqa
     import winreg, winsound  # noqa
-import websocket  # noqa
-import mss, mss.tools  # noqa
-import numpy  # noqa
-import cv2  # noqa
-import rapidocr_onnxruntime  # noqa
-import zstandard  # noqa  (디스코드 통신 압축 풀기)
-try:
+    import websocket  # noqa
+    import mss, mss.tools  # noqa
+    import numpy  # noqa
+    import cv2  # noqa
+    import rapidocr_onnxruntime  # noqa
+    import zstandard  # noqa  (디스코드 통신 압축 풀기)
     import winrt.windows.foundation, winrt.windows.foundation.collections, winrt.windows.globalization  # noqa
     import winrt.windows.graphics.imaging, winrt.windows.media.ocr, winrt.windows.storage.streams  # noqa
-except Exception:
-    pass
 
 
 def main():

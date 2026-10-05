@@ -164,6 +164,7 @@ class Popper:
             self.stop()
             self.thread.join(3)
         self.stop_ev = threading.Event()
+        macro.ocr_warmup()                     # 포션 이름을 읽기 전에 OCR 을 미리 띄워 둠
         self.thread = threading.Thread(target=self._run, args=(log_path, test_biome, self.stop_ev), daemon=True)
         self.thread.start()
         return True
@@ -387,6 +388,7 @@ class MyServerPopper(Popper):
             else:
                 return False                   # 이미 쓰는 중이면 겹쳐서 실행하지 않음
         self.stop_ev = threading.Event()
+        macro.ocr_warmup()                     # 포션 이름을 읽기 전에 OCR 을 미리 띄워 둠
         self.thread = threading.Thread(target=self._run_my, args=(biome_name, test, self.stop_ev), daemon=True)
         self.thread.start()
         return True
