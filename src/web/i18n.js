@@ -249,6 +249,10 @@ const I18N = (() => {
     ['기준 장소로 이동 · 걷기 (W → W+A)', 'Going to base spot · walking (W → W+A)', '基準地点へ移動・歩行（W → W+A）'],
     ['기준 장소로 이동 · 화면 (O)', 'Going to base spot · view (O)', '基準地点へ移動・画面（O）'],
     ['기준 장소 도착', 'At the base spot', '基準地点に到着'],
+    ['게임 버튼', 'Game buttons', 'ゲームボタン'],
+    ['여러 기능이 같이 누르는 게임 화면 버튼', 'In-game buttons pressed by several features', '複数の機能で押すゲーム画面のボタン'],
+    ['리셋 → / · 채팅 · 도감 열고 닫기 · / · Enter → W → W+A → O 로 매번 같은 자리 · 같은 화면(기준 장소)을 만듦 · 채팅 버튼은 위 게임 버튼 칸 · 기능마다 갈 장소는 그 기능 칸에서 지정 (Click to Move)', 'Reset → / · chat · open and close Collection · / · Enter → W → W+A → O to reach the same spot and view (base spot) every time · the chat button is in Game buttons above · each feature sets its own places in its section (Click to Move)', 'リセット → /・チャット・図鑑を開いて閉じる・/・Enter → W → W+A → O で毎回同じ場所・同じ画面（基準地点）を作る・チャットボタンは上のゲームボタン欄・機能ごとの行き先はその機能の欄で指定（Click to Move）'],
+    ['자동 낚시 안 함', 'Auto fishing skipped', '自動釣りしない'],
     ['여러 기능이 같이 쓰는 위치', 'Positions shared by several features', '複数の機能で共通の位置'],
     ['기준 위치 (여러 기능이 같이 씀)', 'Base positions (shared by several features)', '基準位置（複数の機能で共通）'],
     ['로블록스를 켜 두고 [위치 지정] → 로블록스 화면에서 클릭 (영역은 드래그) · 로블록스 창 기준이라 창 크기를 바꾸면 다시 지정', 'With Roblox open, press [Set position] → click in Roblox (drag for areas) · positions follow the Roblox window, so set them again if you resize it', 'Robloxを開いた状態で[位置指定] → Roblox画面でクリック（範囲はドラッグ）・Robloxウィンドウ基準なのでサイズを変えたら指定し直し'],
@@ -1087,6 +1091,7 @@ const I18N = (() => {
     [/^(.*) · (\d+)번 지점 시간을 먼저 재야 함 \(테스트\)$/, '$1 · measure point $2 time first (test)', '$1・先に$2番目の地点の時間を計る（テスト）'],
     [/^(.*) 도착$/, 'Arrived at $1', '$1 に到着'],
     [/^통합 위치 → 이동 · 기준 장소 에서 먼저 지정: (.+)$/, 'Set these first in Shared positions → Movement · base spot: $1', '統合位置 → 移動・基準地点 で先に指定: $1'],
+    [/^먼저 지정 필요: (.+) \(매크로 기준 위치 설정\)$/, 'Set these first: $1 (Macro base position settings)', '先に指定が必要: $1（マクロ基準位置設定）'],
     [/^이동 오류: (.+)$/, 'Movement error: $1', '移動エラー: $1'],
     [/^(\d+)초 안에 도착을 안 누름 — 시간 재기 취소$/, 'Arrival not pressed within $1 s — timing cancelled', '$1秒以内に到着が押されず — 計測取り消し'],
     // 매크로 탭 · 자동 낚시

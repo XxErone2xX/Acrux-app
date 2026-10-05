@@ -560,7 +560,7 @@ class Fisher:
         miss = self.missing(cfg0)
         try:
             if miss:
-                self.log(f"{self.LABEL} 안 함 — 설정 필요: {', '.join(miss)}", "y")
+                self.log(f"{self.LABEL} 안 함 — 설정 필요: {', '.join(miss)}", "n")
                 return
             self.log(f"{self.LABEL} 시작", "g")
             # 화면 캡처는 CAPTUREBLT 없이 (ScreenGrabber) · 우선순위는 그대로 두고 릴링 중에만 타이머를 1ms 로

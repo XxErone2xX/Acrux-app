@@ -316,7 +316,7 @@ class BiomeWatcher:
                     name = m.group(1).strip()
                     self.file_owner = "ok" if name.lower() == player.lower() else "other"
                     if self.file_owner == "other":
-                        _log(f"닉네임 불일치 — 로그의 닉네임 '{name}' ≠ 입력한 '{player}' · 감지 안 함", "y")
+                        _log(f"닉네임 불일치 — 로그의 닉네임 '{name}' ≠ 입력한 '{player}' · 감지 안 함", "n")
                     else:
                         _log(f"계정 확인됨: {name}", "d")
                     break

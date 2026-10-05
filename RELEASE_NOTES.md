@@ -1,15 +1,13 @@
-## Acrux macro V1.22.3 업데이트
-- **기준 장소로 이동**을 정해 준 순서 그대로 바꿈 (전에는 다른 매크로 방식으로 잘못 들어가 있었음)
-  1. Esc → R → Enter (리셋 · 0.5초 간격) → 3.5초 대기
-  2. / → 채팅 버튼 → 도감 버튼 → 도감 Exit → / → Enter (각 0.5초 간격)
-  3. W 0.85초 → W + A 8초 → 0.5초 대기
-  4. O 2.5초 (위에서 내려다보기 + 최대 줌) → 갈 곳 우클릭
-- 통합 위치 → 이동 · 기준 장소: 채팅 버튼 · 도감 버튼 · 도감 Exit 위치, 리셋 대기 · W · W+A · O 시간 조절
+## Acrux macro V1.22.4 업데이트
+- 위치 지정 창의 안내 바가 화면 위쪽(채팅 버튼 등)을 가리던 문제 수정 — 마우스가 위쪽으로 가면 안내 바가 아래로 비켜남
+- 설정이 비어 있는 등 조건이 안 맞아서 기능이 실행되지 않으면 로그뿐 아니라 **알림으로도** 뜸
+  - 이동을 시작하기 전에 필요한 위치 · 시간을 먼저 확인해서 바로 알려 줌
+- 채팅 버튼을 통합 위치의 **게임 버튼** 칸으로 옮김 (이동 외의 기능에서도 같이 씀)
+- 기준 장소로 이동은 리셋 → / · 채팅 · 도감 열고 닫기 · / · Enter → W → W+A → O 순서로 동작
 
-## Acrux macro V1.22.3 Update
-- **Go to base spot** now follows the exact steps you gave (it was mistakenly using another macro's method)
-  1. Esc → R → Enter (reset · 0.5 s apart) → wait 3.5 s
-  2. / → chat button → Collection button → Collection Exit → / → Enter (0.5 s apart)
-  3. W for 0.85 s → W + A for 8 s → wait 0.5 s
-  4. O for 2.5 s (look straight down + max zoom) → right-click the destination
-- Shared positions → Movement · base spot: chat button · Collection button · Collection Exit positions, and adjustable reset wait · W · W+A · O times
+## Acrux macro V1.22.4 Update
+- Fixed the position picker's guide bar covering the top of the screen (chat button, etc.) — it moves to the bottom when the mouse goes near the top
+- When a feature doesn't run because a condition isn't met (missing settings, etc.), it now shows as a **notification** too, not only in the log
+  - Movement checks the required positions and times before starting and tells you right away
+- Moved the chat button to the **Game buttons** box in Shared positions (shared by features other than movement)
+- Go to base spot runs: reset → / · chat · open and close Collection · / · Enter → W → W+A → O

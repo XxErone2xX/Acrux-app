@@ -226,7 +226,7 @@ class Popper:
         stopped = False
         try:
             if miss:
-                self.log(f"오토 팝핑 취소 — 설정 필요: {', '.join(miss)}", "y")
+                self.log(f"오토 팝핑 취소 — 설정 필요: {', '.join(miss)}", "n")
                 return
             with macro.fast_timing():
                 self._sequence(cfg, d, log_path, test_biome, stop)
@@ -398,7 +398,7 @@ class MyServerPopper(Popper):
         miss = self.missing(cfg)
         try:
             if miss:
-                self.log(f"{self.LABEL} 취소 — 매크로 기준 위치 설정 필요: {', '.join(miss)}", "y")
+                self.log(f"{self.LABEL} 취소 — 매크로 기준 위치 설정 필요: {', '.join(miss)}", "n")
                 return
             if self.before and not self.before():
                 self.log(f"{self.LABEL} — 자동 낚시가 자리를 비켜주지 않아 그냥 진행", "y")

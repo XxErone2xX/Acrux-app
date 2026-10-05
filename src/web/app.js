@@ -706,7 +706,13 @@ function scrollLog(force) {
   const l = $('log');
   if (force || l.scrollHeight - l.scrollTop - l.clientHeight < 40) l.scrollTop = l.scrollHeight;
 }
+// 'n' (알림) = 설정이 비어 있는 등 조건이 안 맞아서 안 한 것 → 로그에 노란색으로 + 알림(토스트)으로도 띄움 (켠 뒤 생긴 것만)
+const LOG_SINCE = Date.now() / 1000;
 function addLog(x) {
+  if (x.color === 'n') {
+    if (x.time >= LOG_SINCE - 1) toast(x.msg);
+    x = { ...x, color: 'y' };
+  }
   const l = $('log');
   const atEnd = l.scrollHeight - l.scrollTop - l.clientHeight < 40;
   const d = document.createElement('div');
@@ -1298,8 +1304,9 @@ const MPOS = {
           tabs: [['inv', '인벤토리', '레어 바이옴 자동 팝핑 등 인벤토리를 쓰는 기능',
                   [...POP_POS.map(([k]) => k), 'ocr_region'], true],
                  ['notice', '알림', '게임 알림을 보는 기능 (자동 낚시 인벤토리 가득 등)', ['notice_region']],
-                 ['move', '이동 · 기준 장소', '리셋 → / · 채팅 · 도감 열고 닫기 · / · Enter → W → W+A → O 로 매번 같은 자리 · 같은 화면(기준 장소)을 만듦 · 기능마다 갈 장소는 그 기능 칸에서 지정 (Click to Move)',
-                  ['chat_pos', 'collection_pos', 'collection_close'], false, 'movebase']] },
+                 ['ui', '게임 버튼', '여러 기능이 같이 누르는 게임 화면 버튼', ['chat_pos']],
+                 ['move', '이동 · 기준 장소', '리셋 → / · 채팅 · 도감 열고 닫기 · / · Enter → W → W+A → O 로 매번 같은 자리 · 같은 화면(기준 장소)을 만듦 · 채팅 버튼은 위 게임 버튼 칸 · 기능마다 갈 장소는 그 기능 칸에서 지정 (Click to Move)',
+                  ['collection_pos', 'collection_close'], false, 'movebase']] },
   mfish: { box: 'mposFish',
            windows: [['panel_region', '낚시 대기 창 영역', 'Fish 버튼이 보일 때 낚시 창을 흰 꺾쇠 테두리까지 드래그 → Fish 버튼과 릴링 바 위치 자동 계산'],
                      ['reel_region', '낚시 미니게임 창 영역', '미니게임이 떠 있을 때 눌러서 흰 꺾쇠 테두리까지 드래그 → 릴링 바 위치 자동 계산'],
