@@ -1,15 +1,15 @@
-## Acrux macro V1.21.0 업데이트
-- 매크로 기준 위치 설정 정리 (이동 기능 준비)
-  - **기준 위치**가 맨 위로 올라옴 — 한 기능에서만 쓰는 게 아닌 위치는 전부 여기에 모음
-  - 인벤토리 위치(Inventory · Items · Search 버튼, 아이템 칸, 수량 입력칸, Use 버튼) · OCR 영역 · 알림 영역을 기준 위치로 옮김
-  - 레어 바이옴 자동 팝핑 · 자동 낚시는 기준 위치를 같이 씀 (전에 지정한 위치는 자동으로 옮겨짐)
-  - 자동 낚시 칸에는 낚시에만 쓰는 창 영역 · 위치만 남음
-- 스나이프 오토 팝핑과 연동: 기준 위치 또는 스나이프 탭 오토 팝핑 설정에서 [연동] 을 켜면 스나이프 오토 팝핑도 기준 위치의 인벤토리 위치 · OCR 영역을 씀
+## Acrux macro V1.21.1 업데이트
+- 매크로 기준 위치 설정의 **기준 위치 → 통합 위치** 로 이름 바꿈
+- 보기 편하게 정리 — 묶음마다 **탭**으로 나눔
+  - 통합 위치: [인벤토리] [알림]
+  - 자동 낚시: [창 영역] [세부 위치]
+  - 탭마다 지정한 개수 / 전체 개수가 보이고, 다 지정하면 초록색
+- 위쪽 버튼(스나이프 탭 위치 가져오기 · OCR 테스트 · 상태 확인 · 자동 보정)을 오른쪽에 모음
 
-## Acrux macro V1.21.0 Update
-- Reorganized macro base position settings (getting ready for movement)
-  - **Base position** is now at the top, and every position that isn't used by just one feature lives there
-  - Inventory positions (Inventory · Items · Search buttons, item slot, amount box, Use button), the OCR area and the notification area moved to Base position
-  - Rare biome auto popping and auto fishing share the base positions (positions you set before are moved over automatically)
-  - The Auto fishing section keeps only the fishing-only window areas and positions
-- Link with Snipe auto popping: turn on [Link] in Base position or in the Snipe tab auto popping settings and Snipe auto popping also uses the base inventory positions and OCR area
+## Acrux macro V1.21.1 Update
+- Renamed **Base position → Shared positions** in macro base position settings
+- Easier to read — each group is now its own **tab**
+  - Shared positions: [Inventory] [Notifications]
+  - Auto fishing: [Window areas] [Detailed positions]
+  - Each tab shows how many positions are set out of the total, and turns green when all are set
+- The buttons at the top (Copy from Snipe tab · OCR test · Check status · Auto calibrate) are grouped on the right
