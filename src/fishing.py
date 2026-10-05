@@ -134,31 +134,146 @@ def _is_fill(px):
     return (r < 100) & (g >= 80) & (b >= 140) & ((b - g) >= -15) & ((b - g) <= 85)
 
 
+# ---------------------------------------------------------------- 자동 보정 (창 테두리 찾기)
+# 낚시 창들은 네 모서리에 흰 꺾쇠(ㄱ자)가 있음 → 그 꺾쇠로 창 테두리를 px 단위로 찾음 (사람이 드래그하면 몇 px 씩 어긋남)
+# 가로 : 세로 비율로 어떤 창인지 구분 — 1920x1080 기준 대기 창 437x144 (3.0) · 미니게임 창 498x142 (3.5) · 결과창 360x449 (0.8)
+WINDOW_SHAPES = {"panel_region": (2.7, 3.25), "reel_region": (3.3, 3.9), "result_region": (0.65, 0.95)}
+REEL_FROM_PANEL = 498 / 437          # 미니게임 창은 대기 창과 가운데 · 위아래가 같고 가로만 이만큼 넓음
+
+
+def _runs(mask, axis, reverse):
+    """각 칸에서 한 방향으로 이어진 True 칸 수"""
+    import numpy as np
+    out = np.zeros(mask.shape, np.int32)
+    n = mask.shape[axis]
+    idx = range(n - 1, -1, -1) if reverse else range(n)
+    prev = None
+    for i in idx:
+        cur = mask[:, i] if axis == 1 else mask[i, :]
+        val = (prev + 1) * cur if prev is not None else cur.astype(np.int32)
+        if axis == 1:
+            out[:, i] = val
+        else:
+            out[i, :] = val
+        prev = val
+    return out
+
+
+def find_frames(rgb):
+    """화면 → 흰 꺾쇠로 둘러싸인 창들 [(x1, y1, x2, y2), ...] (px · 바깥 모서리)
+    네 모서리 모두에 ㄱ자 꺾쇠(가로 · 세로 팔이 화면 폭의 0.4% 이상)가 있어야 창으로 봄 → 글자 · 아이콘은 걸러짐"""
+    import numpy as np
+    H, W = rgb.shape[:2]
+    mn, mx = rgb.min(axis=2), rgb.max(axis=2)
+    white0 = (mn > 215) & ((mx - mn) < 35)
+    white = white0
+    # 1px 두껍게 (꺾쇠 선이 압축 · 크기 변경 때문에 한 칸씩 지그재그로 끊긴 경우를 이어 줌) — 모서리 위치는 마지막에 원래 칸으로 맞춤
+    p = np.pad(white, 1)
+    white = p[1:-1, 1:-1] | p[:-2, 1:-1] | p[2:, 1:-1] | p[1:-1, :-2] | p[1:-1, 2:]
+    arm = max(6, int(W * 0.004))
+    r, l = _runs(white, 1, True), _runs(white, 1, False)
+    d, u = _runs(white, 0, True), _runs(white, 0, False)
+
+    def pts(cond):
+        ys, xs = np.where(cond)
+        return list(zip(xs.tolist(), ys.tolist()))
+    pad = np.pad(white, 1)
+    up_n, left_n = pad[:-2, 1:-1], pad[1:-1, :-2]
+    down_n, right_n = pad[2:, 1:-1], pad[1:-1, 2:]
+    tl = pts(white & (r >= arm) & (d >= arm) & ~up_n & ~left_n)
+    br = pts(white & (l >= arm) & (u >= arm) & ~down_n & ~right_n)
+    tr = white & (l >= arm) & (d >= arm)
+    bl = white & (r >= arm) & (u >= arm)
+
+    def snap(x1, y1, x2, y2):
+        """두껍게 한 만큼 밖으로 나간 모서리를 원래 흰 칸 끝으로 되돌림"""
+        a = white0[max(0, y1 - 1):y1 + 4, max(0, x1 - 1):x1 + 4]
+        b = white0[max(0, y2 - 3):y2 + 2, max(0, x2 - 3):x2 + 2]
+        if a.any():
+            ys, xs = np.where(a)
+            x1, y1 = max(0, x1 - 1) + int(xs.min()), max(0, y1 - 1) + int(ys.min())
+        if b.any():
+            ys, xs = np.where(b)
+            x2, y2 = max(0, x2 - 3) + int(xs.max()), max(0, y2 - 3) + int(ys.max())
+        return x1, y1, x2, y2
+
+    def near(mask, x, y, k=3):
+        return mask[max(0, y - k):y + k + 1, max(0, x - k):x + k + 1].any()
+    frames = []
+    for (x1, y1) in tl:
+        for (x2, y2) in br:
+            w, h = x2 - x1, y2 - y1
+            if w < W * 0.1 or w > W * 0.5 or h < arm * 3:
+                continue
+            if near(tr, x2, y1) and near(bl, x1, y2):
+                frames.append(snap(x1, y1, x2, y2))
+    # 같은 창이 여러 번 잡히면 하나로 (가장 큰 것)
+    frames.sort(key=lambda f: -(f[2] - f[0]) * (f[3] - f[1]))
+    out = []
+    for f in frames:
+        if all(abs(f[0] - g[0]) > 6 or abs(f[1] - g[1]) > 6 for g in out):
+            out.append(f)
+    return out
+
+
+def autocal(rgb):
+    """로블록스 창 화면 → 찾은 창 영역 {"panel_region" | "reel_region" | "result_region": [비율 x1, y1, x2, y2]}
+    대기 창만 보이면 미니게임 창은 대기 창으로 계산 (가운데 같고 가로만 넓음)"""
+    H, W = rgb.shape[:2]
+    found = {}
+    for (x1, y1, x2, y2) in find_frames(rgb):
+        ratio = (x2 - x1) / max(1, y2 - y1)
+        for key, (lo, hi) in WINDOW_SHAPES.items():
+            if lo <= ratio <= hi and key not in found:
+                found[key] = [round(x1 / W, 4), round(y1 / H, 4), round(x2 / W, 4), round(y2 / H, 4)]
+    if "panel_region" in found and "reel_region" not in found:
+        x1, y1, x2, y2 = found["panel_region"]
+        c, half = (x1 + x2) / 2, (x2 - x1) / 2 * REEL_FROM_PANEL
+        found["reel_region"] = [round(c - half, 4), y1, round(c + half, 4), y2]
+        found["_reel_derived"] = True
+    return found
+
+
 def find_bar_rows(rgb, guess_top, bar_h):
-    """릴링 바 테두리로 바의 실제 세로 위치 찾기 → (바 안쪽 맨 윗줄, 바 안쪽 높이) 또는 None
+    """릴링 바 테두리로 바의 실제 위치 찾기 → (바 안쪽 맨 윗줄, 바 안쪽 높이, 바 왼쪽 끝 x, 오른쪽 끝 x) 또는 None
     바 위 · 아래엔 가로로 쭉 이어진 회색 테두리 줄이 있음 (위: 밝은 회색 · 아래: 밝거나 어두운 회색)
     지정한 영역이 몇 px 어긋나면 바 위의 ◇ 찾는 칸에 바 속 숫자(흰 글자)가 들어가 내 위치로 잘못 읽혔음 → 매번 맞춤"""
     import numpy as np
     h = rgb.shape[0]
     lo, hi = max(0, int(guess_top - bar_h)), min(h - 2, int(guess_top + bar_h))
     best = None
-    for r in range(lo, hi):
-        row = rgb[r]
+    def edge(row, lo_mean, hi_mean):
+        # 테두리 줄은 반투명이라 막대 · 구간 위에선 그 색이 살짝 비침 → '밝고 · 색이 약한' 칸으로 봄
         mx, mn, mean = row.max(axis=1), row.min(axis=1), row.mean(axis=1)
-        if (((mx - mn) < 28) & (mean > 95) & (mean < 185)).mean() >= 0.6:
+        return ((mx - mn) < 42) & (mean > lo_mean) & (mean < hi_mean)
+    for r in range(lo, hi):
+        if edge(rgb[r], 90, 200).mean() >= 0.75:
             if best is None or abs(r + 1 - guess_top) < abs(best + 1 - guess_top):
                 best = r
     if best is None:
         return None
+    # 테두리 줄이 이어진 가로 범위 = 바의 실제 왼쪽 · 오른쪽 끝 (2px 이하 끊김은 이어 붙임)
+    g = edge(rgb[best], 90, 200)
+    runs, cur, gap = [], None, 0
+    for x in range(len(g)):
+        if g[x]:
+            cur = [x, x] if cur is None else [cur[0], x]
+            gap = 0
+        elif cur is not None:
+            gap += 1
+            if gap > 2:
+                runs.append(cur)
+                cur, gap = None, 0
+    if cur is not None:
+        runs.append(cur)
+    x0, x1 = max(runs, key=lambda r: r[1] - r[0]) if runs else (0, rgb.shape[1] - 1)
     top = best + 1
     inner = bar_h
     for r in range(top + 3, min(h, top + int(bar_h * 1.6))):  # 아래 테두리 (밝거나 어두운 회색 줄)
-        row = rgb[r]
-        mx, mn, mean = row.max(axis=1), row.min(axis=1), row.mean(axis=1)
-        if (((mx - mn) < 28) & (mean > 40) & (mean < 185)).mean() >= 0.6:
+        if edge(rgb[r], 40, 200).mean() >= 0.6:
             inner = r - top
             break
-    return top, max(4, inner)
+    return top, max(4, inner), int(x0), int(x1)
 
 
 def analyze_bar(rgb, bar_top, bar_h):
@@ -372,9 +487,11 @@ class Fisher:
         x2, y2 = macro.to_screen(max(region[0], region[2]), max(region[1], region[3]), rect)
         bh = max(4, y2 - y1)
         extra = int(bh * 1.8)
-        box = {"left": x1, "top": max(rect[1], y1 - extra), "width": max(8, x2 - x1), "height": 0}
+        side = max(4, int((x2 - x1) * 0.05))        # 좌우로도 조금 넓게 (테두리로 바 끝을 다시 찾을 수 있게)
+        box = {"left": x1 - side, "top": max(rect[1], y1 - extra), "width": max(8, x2 - x1) + side * 2, "height": 0}
         top_in = y1 - box["top"]
         box["height"] = top_in + bh + int(bh * 0.8)
+        box["_x"] = (side, side + max(8, x2 - x1))   # 그 안에서 지정한 바의 가로 범위
         return box, top_in, bh
 
     # ---- 메인 (상태 기계)
@@ -599,7 +716,9 @@ class Fisher:
         ctl = ReelControl(cfg)
         start = time.time()
         dia, dia_at, dia_seen, dia_off = None, 0.0, False, None   # ◇ 신호 · 마지막 확인 · 이번에 본 적 · 사라진 시각
-        fixed = False                                # 바 세로 위치를 테두리로 맞췄는지
+        fixed = False                                # 바 위치를 테두리로 맞췄는지
+        xs = box.get("_x", (0, box["width"]))       # 캡처 안에서 바의 가로 범위
+        grab_box = {k: v for k, v in box.items() if not k.startswith("_")}
         end = start + REEL_MAX
         hwnd, fg_at = macro.roblox_window_cached(), start
         while time.time() < end:
@@ -609,16 +728,17 @@ class Fisher:
                 fg_at = t0
                 if hwnd and not self.no_focus and not macro.is_foreground(hwnd):
                     macro.focus(hwnd)
-            img = sct.grab(box)
+            img = sct.grab(grab_box)
             rgb = _np(bytes(img.bgra), img.width, img.height)
-            if not fixed:                            # 처음 몇 화면 안에 테두리로 바 세로 위치를 맞춤 (이번 미니게임 동안 고정)
+            if not fixed:                            # 처음 몇 화면 안에 테두리로 바 위치(세로 · 가로)를 맞춤 (이번 미니게임 동안 고정)
                 found = find_bar_rows(rgb, top_in, bh)
-                if found:
+                if found and found[3] - found[2] >= (xs[1] - xs[0]) * 0.7:
                     fixed = True
-                    if abs(found[0] - top_in) > 1 or abs(found[1] - bh) > 2:
-                        self.log(f"릴링 바 위치 보정 ({found[0] - top_in:+d}px)", "d")
-                        top_in, bh = found
-            a = analyze_bar(rgb, top_in, bh)
+                    nt, nh, nx0, nx1 = found
+                    if abs(nt - top_in) > 1 or abs(nx0 - xs[0]) > 1 or abs(nx1 + 1 - xs[1]) > 1:
+                        self.log(f"릴링 바 위치 보정 (세로 {nt - top_in:+d}px · 왼쪽 {nx0 - xs[0]:+d}px · 오른쪽 {nx1 + 1 - xs[1]:+d}px)", "d")
+                    top_in, bh, xs = nt, nh, (nx0 + 1, nx1)    # 테두리 안쪽만
+            a = analyze_bar(rgb[:, xs[0]:xs[1]], top_in, bh)
             now = time.time()
             if now - dia_at >= 0.1:                  # ◇ 는 0.1초마다만 봄
                 dia_at = now

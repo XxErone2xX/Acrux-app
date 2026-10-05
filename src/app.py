@@ -554,6 +554,45 @@ class Bridge:
                  "ocr_region": [0.415, 0.392, 0.469, 0.491]},
     }
 
+    def api_mfish_autocal(self, _):
+        """자동 보정: 로블록스 화면에서 낚시 창들의 흰 꺾쇠 테두리를 찾아 위치를 전부 다시 계산 (사람이 드래그하면 몇 px 씩 어긋남)
+        낚시 대기 창(Fish 버튼)이 보일 때 누르면 대기 창 · 미니게임 창(대기 창으로 계산) · Fish 버튼 · 릴링 바 · ◇ 자리가 맞춰짐
+        결과창이나 미니게임 창이 떠 있으면 그것도 같이 맞춤"""
+        hwnd = macro.roblox_window_cached(1.0)
+        if not hwnd:
+            return {"error": "로블록스 창 없음"}
+        back = macro.foreground()
+        try:
+            macro.focus(hwnd, wait=0.35)
+            rect = macro.client_rect(hwnd)
+            if not rect:
+                return {"error": "로블록스 창 없음"}
+            import numpy as np
+            import mss
+            with mss.mss() as sct:
+                shot = sct.grab({"left": rect[0], "top": rect[1], "width": rect[2], "height": rect[3]})
+            rgb = np.frombuffer(shot.rgb, np.uint8).reshape(shot.height, shot.width, 3).astype(np.int16)
+            found = fishing.autocal(rgb)
+        except Exception as e:
+            return {"error": f"자동 보정 실패: {e}"}
+        finally:
+            macro.focus_back(back)
+        derived = found.pop("_reel_derived", False)
+        if not found:
+            return {"error": "낚시 창을 못 찾음 — 낚시 자리에서 Fish 버튼이 보일 때 눌러주세요"}
+        with self.lock:
+            c = self.data.setdefault("mfish", {})
+            for key in ("panel_region", "reel_region", "result_region"):     # 대기 창 → 미니게임 창 순서 (릴링 바는 미니게임 창 기준이 이김)
+                if key in found:
+                    c[key] = found[key]
+                    c.update(fishing.layout_from(found[key], fishing.WINDOW_KEYS[key]))
+        self._save()
+        names = {"panel_region": "대기 창", "reel_region": "미니게임 창" + (" (대기 창으로 계산)" if derived else ""),
+                 "result_region": "결과창"}
+        done = " · ".join(names[k] for k in ("panel_region", "reel_region", "result_region") if k in found)
+        self._on_log(f"자동 보정 완료: {done}", "g")
+        return {"mfish": self.data["mfish"], "done": done}
+
     def api_mpos_point(self, p):
         feat, key = str(p.get("feat", "")), str(p.get("key", ""))
         if key not in self.MPOS_POINTS.get(feat, {}):
@@ -677,8 +716,13 @@ class Bridge:
                     out["button"] = {"fish": "Fish (파랑)", "exit": "Exit (빨강)"}.get(st, "안 보임")
                 if mf.get("bar_region"):
                     box, top_in, bh = self.fisher._bar_geom(rect, mf["bar_region"])
+                    xs = box.pop("_x")
                     img = sct.grab(box)
-                    a = fishing.analyze_bar(fishing._np(bytes(img.bgra), img.width, img.height), top_in, bh)
+                    rgb = fishing._np(bytes(img.bgra), img.width, img.height)
+                    found = fishing.find_bar_rows(rgb, top_in, bh)
+                    if found:
+                        top_in, bh, xs = found[0], found[1], (found[2] + 1, found[3])
+                    a = fishing.analyze_bar(rgb[:, xs[0]:xs[1]], top_in, bh)
                     out["bar"] = (f"보임 · 내 위치 {a['marker']:.0f} · 구간 {a['zone']}" if a["present"] and a["marker"] is not None
                                   else "보임" if a["present"] else "안 보임")
                 if mf.get("panel_region"):
