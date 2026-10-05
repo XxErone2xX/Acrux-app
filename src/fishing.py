@@ -323,9 +323,11 @@ def analyze_bar(rgb, bar_top, bar_h):
     if bar_top >= 3:
         top = rgb[max(0, int(bar_top - bar_h * 1.7)):int(bar_top) - 1]
         cnt = (top.min(axis=2) > 185).sum(axis=0).astype(float)
-        edge = max(2, int(w * 0.03))
-        cnt[:edge] = 0                                   # 바 테두리 · 창 테두리(세로선)는 빼고
-        cnt[-edge:] = 0
+        # 바 테두리 · 창 테두리 같은 세로선은 빼고 (위아래로 거의 다 흰데 옆 칸은 비어 있는 줄)
+        # 예전엔 양 끝 3% 를 통째로 뺐는데, 구간이 바 왼쪽 끝에 붙으면 ◇ 도 거기 있어서 못 찾고 클릭을 멈췄음
+        rows = max(1, top.shape[0])
+        side = np.maximum(np.concatenate([[0, 0], cnt[:-2]]), np.concatenate([cnt[2:], [0, 0]]))
+        cnt[(cnt >= rows * 0.8) & (side < cnt * 0.3)] = 0
         if cnt.sum() >= 6:
             # ◇ 표시는 폭이 좁은 덩어리 → 가장 많이 모인 곳(표시 폭만큼) 기준으로 가중 평균
             k = max(5, int(w * 0.05))
@@ -335,12 +337,18 @@ def analyze_bar(rgb, bar_top, bar_h):
             seg = cnt[lo:hi]
             if seg.sum() >= 6:
                 out["marker"] = float((np.arange(lo, hi) * seg).sum() / seg.sum())
+                # ◇ 가 바 끝에 있으면 반쪽만 보여 가운데가 안쪽으로 밀림 → 끝에 닿아 있으면 끝으로
+                if cnt[:2].max() >= cnt.max() * 0.5:
+                    out["marker"] = 0.0
+                elif cnt[-2:].max() >= cnt.max() * 0.5:
+                    out["marker"] = float(w - 1)
     # 막대 끝으로 본 내 위치 (막대가 구간과 겹치면 겹친 부분은 구간 색으로 보여 막대가 구간 왼쪽 끝에서 끊김 → 그땐 모름)
     end = max(0, fill_end)
     z = out["zone"]
     fill_pos = float(end) if (z is None or not (z[0] - 3 <= end <= z[1] + 2)) else None
     if out["marker"] is None:
-        out["marker"] = fill_pos                         # ◇ 를 못 찾으면 막대 끝
+        # ◇ 를 못 찾으면 막대 끝 · 막대가 아예 없으면 맨 왼쪽 (구간이 왼쪽 끝에 붙어 있어도)
+        out["marker"] = 0.0 if fill_end < 0 else fill_pos
     elif fill_pos is not None and abs(out["marker"] - fill_pos) > max(12, w * 0.04):
         out["marker"] = fill_pos                         # ◇ 가 막대 끝과 너무 다르면 ◇ 를 잘못 찾은 것 (바 속 숫자 등) → 막대 끝을 믿음
     return out
