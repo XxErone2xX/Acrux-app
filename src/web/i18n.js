@@ -1202,6 +1202,7 @@ const I18N = (() => {
     [/^(F3|F7) — 매크로 켜짐$/, '$1 — macro on', '$1 — マクロオン'],
     [/^(F3|F7) — 매크로 꺼짐$/, '$1 — macro off', '$1 — マクロオフ'],
     [/^지금 (\d+)명 사용 중$/, '$1 using Acrux now', '現在 $1 人が使用中'],
+    [/^오토 팝핑 설정 필요: (.+)$/, 'Auto popping settings needed: $1', 'オートポッピングの設定が必要: $1'],
     [/^인벤토리 가득 — 판매 못 함: (.+)$/, 'Inventory full — cannot sell: $1', 'インベントリ満杯 — 売却できません: $1'],
     [/^판매 실패: (.+)$/, 'Selling failed: $1', '売却失敗: $1'],
     [/^물고기 정보 OCR 오류: (.+) — 판매를 여기서 끝냄$/, 'Fish info OCR error: $1 — selling ends here', '魚情報のOCRエラー: $1 — 売却をここで終了'],

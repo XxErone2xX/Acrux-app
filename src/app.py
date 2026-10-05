@@ -213,11 +213,10 @@ class Bridge:
 
     def _pop_cfg(self):
         """스나이프 탭 오토 팝핑 설정 — '매크로 기준 위치 사용'이 켜져 있으면 인벤토리 위치 · OCR 영역은 기준 위치로"""
-        pop = self.data.get("pop", {})
-        if not pop.get("use_base"):
-            return pop
-        b = self.data.get("base", {})
-        return dict(pop, **{k: b.get(k) for k in (*core.BASE_INV_KEYS, "ocr_region")})
+        pop, b = self.data.get("pop", {}), self.data.get("base", {})
+        first, other = (b, pop) if pop.get("use_base") else (pop, b)
+        # 고른 쪽에 비어 있으면 다른 쪽 값을 씀 (통합 위치에만 지정해 두고 연동을 안 켠 경우 등 — 같은 게임 화면 위치)
+        return dict(pop, **{k: first.get(k) or other.get(k) for k in (*core.BASE_INV_KEYS, "ocr_region")})
 
     def _mfish_cfg(self):
         """자동 낚시 설정 + 통합 위치의 알림 영역 · 대화창"""
@@ -316,7 +315,7 @@ class Bridge:
             return {"seq": self.seq, "logs": logs, "events": events, "status": list(self.status),
                     "running": self.running(), "armed": core.ARMED.is_set(),
                     "play": play, "pop": pop, "ret": ret, "mpop": mpop, "mfish": mfish, "steps": st, "pre": pre, "roblox": roblox,
-                    "move": mv, "macro_on": bool(self.data.get("macro_on")), "online": self.online,
+                    "move": mv, "macro_on": bool(self.data.get("macro_on")), "online": self.online, "online_on": bool(self.ONLINE_URL),
                     "crash": {"left": max(0.0, self.crash["until"] - time.time())} if self.crash else None,
                     "biome": bio,
                     "count": self.handler.count, "names": self.data.get("names", {}),

@@ -745,7 +745,7 @@ runBtn.addEventListener('click', async () => {
     const r = await api('start');
     if (r.error) {                          // 오토 팝핑 설정을 안 하면 시작 안 됨 → 설정 튜토리얼
       setRun('idle');
-      toast(`오토 팝핑 설정을 먼저 끝내야 시작 가능 (${r.missing.length}개 남음)`);
+      toast(`오토 팝핑 설정 필요: ${r.missing.join(', ')}`);
       if (!Tutorial.isOpen()) Tutorial.start('popping');
       return;
     }
@@ -815,6 +815,7 @@ async function poll() {
     updateMove(r.move);
     lastBio = r.biome; lastMpop = r.mpop; lastMfish = r.mfish;
     updateOnline(r.online);
+    $('acOnline').closest('.row').hidden = !r.online_on;   // 사용자 수 서버가 아직 없으면 스위치도 숨김
     if (r.macro_on !== undefined && !!r.macro_on !== !!config.macro_on && Date.now() - macroClickAt > 2000)
       config.macro_on = r.macro_on;            // F3 · F7 로 켜고 끈 것
     syncMainTiles();
@@ -1009,10 +1010,9 @@ document.addEventListener('click', e => {
 
 // 스나이프 오토 팝핑이 실제로 쓰는 위치 (통합 위치와 연동이면 통합 위치)
 const popPos = () => {
-  const p = pop();
-  if (!p.use_base) return p;
-  const b = base(), o = { ...p };
-  for (const k of POP_POS_KEYS) o[k] = b[k];
+  const p = pop(), b = base(), o = { ...p };
+  const [first, other] = p.use_base ? [b, p] : [p, b];
+  for (const k of POP_POS_KEYS) o[k] = first[k] || other[k];   // 고른 쪽에 비어 있으면 다른 쪽 값 (서버와 같게)
   return o;
 };
 function renderPopSet() {
@@ -2454,8 +2454,11 @@ const Tutorial = (() => {
       body: `<p>스나이핑 안정성 설정이 끝났습니다.</p>
              <p>언제든 스나이프 탭의 <b>스나이핑 안정성 설정</b>에서 바꿀 수 있습니다.</p>` },
   ];
+  // 스나이핑 안정성은 기본값이 있어서, 이미 하나라도 바꿨으면 설정한 것으로 봄 (튜토리얼을 안 거쳤어도)
+  const SNIPE_DEF = { delay_min: 2, delay_max: 4, direct: true, same_link_min: 10, cooldown_sec: 5 };
+  const snipeTouched = () => Object.entries(SNIPE_DEF).some(([k, v]) => config.snipe?.[k] !== undefined && config.snipe[k] !== v);
   TUTORIALS.push({ id: 'snipe', name: '스나이핑 안정성 설정', steps: SNIPE_STEPS, menu: 'snipe',
-    needed: () => !(config.tutorials_done || []).includes('snipe') });
+    needed: () => !(config.tutorials_done || []).includes('snipe') && !snipeTouched() });
 
   // 단계 참조(needs · skipTo)를 이름으로 쓸 수 있게 → 번호로 바꿈 (단계를 추가해도 번호가 안 꼬임)
   for (const t of TUTORIALS) {
