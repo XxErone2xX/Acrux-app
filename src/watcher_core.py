@@ -153,6 +153,16 @@ MFISH_DEFAULT = {
     "reel_region": None,          # 낚시 미니게임 창 영역 → 릴링 바 자동 계산 (대기 창보다 넓음)
     "result_region": None,        # 결과창 영역 → 결과창 X · 제목 자동 계산
     "bite_max": 60.0, "target_pct": 0, "lead_ms": 0, "click_ms": 25, "click_gap_ms": 45, "cast_retry": 3,
+    # 판매 (인벤토리가 가득 차면: 물고기 판매 장소 → E → 대화 넘기기 → Sell Fish → (첫 칸 → Sell All → 확인) 반복 → X → 낚시 장소)
+    "dialog_pos": None,           # 대화창 (눌러서 대화 넘기기)
+    "sell_fish_pos": None,        # 선택지 중 [Sell Fish] 버튼
+    "first_fish_pos": None,       # 상점 목록의 첫 번째 물고기 칸
+    "sell_all_pos": None,         # Sell All 버튼
+    "confirm_sell_pos": None,     # 확인창의 Sell 버튼
+    "shop_close_pos": None,       # 상점 닫기 X
+    "info_region": None,          # 왼쪽 물고기 정보 (이름 · Sells for) — 비어 있으면 다 판 것
+    "e_wait": 1.5,                # E 누른 뒤 대화창이 뜰 때까지 (초)
+    "sell_max": 100,              # 판매 반복 최대 (클릭이 씹혀 끝없이 도는 것만 막음)
     "debug_log": False,           # 릴링 기록(fishing_log.csv) 저장 — 문제 확인용
     "click_v3": False,            # 클릭 기준을 '구간 왼쪽 변 이하'(목표 0 · 미리 누르기 0)로 바꾼 것 적용했는지 (한 번만)
 }
@@ -416,17 +426,19 @@ def normalize(raw):
         except (TypeError, ValueError):
             pass
         mf["click_v3"] = True
-    for k in ("fish_btn", "close_pos", "title_pos"):
+    for k in ("fish_btn", "close_pos", "title_pos", "dialog_pos", "sell_fish_pos", "first_fish_pos", "sell_all_pos",
+              "confirm_sell_pos", "shop_close_pos"):
         mf[k] = _ratio_list(mf.get(k), 2)
-    for k in ("bar_region", "panel_region", "reel_region", "result_region"):
+    for k in ("bar_region", "panel_region", "reel_region", "result_region", "info_region"):
         mf[k] = _ratio_list(mf.get(k), 4)
     for k, lo, hi in (("bite_max", 5, 600), ("target_pct", 0, 90), ("lead_ms", 0, 300), ("click_ms", 5, 200), ("click_gap_ms", 10, 500),
-                      ("cast_retry", 1, 10)):
+                      ("cast_retry", 1, 10), ("e_wait", 0.2, 10), ("sell_max", 1, 300)):
         try:
             mf[k] = min(hi, max(lo, float(mf.get(k, MFISH_DEFAULT[k]))))
         except (TypeError, ValueError):
             mf[k] = MFISH_DEFAULT[k]
     mf["cast_retry"] = int(mf["cast_retry"])
+    mf["sell_max"] = int(mf["sell_max"])
     d["mfish"] = {k: mf[k] for k in MFISH_DEFAULT}
     if d.get("ocr_engine") not in ("auto", "rapid", "windows"):
         d["ocr_engine"] = "auto"

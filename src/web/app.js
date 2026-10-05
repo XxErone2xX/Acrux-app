@@ -1307,17 +1307,26 @@ const MPOS = {
                  ['ui', '게임 버튼', '여러 기능이 같이 누르는 게임 화면 버튼', ['chat_pos']],
                  ['move', '이동 · 기준 장소', '리셋 → / · 채팅 · 도감 열고 닫기 · / · Enter → W → W+A → 우클릭 드래그(내려다보기) → O(줌) 로 매번 같은 자리 · 같은 화면(기준 장소)을 만듦 · 채팅 버튼은 위 게임 버튼 칸 · 기능마다 갈 장소는 그 기능 칸에서 지정 (Click to Move)',
                   ['collection_pos', 'collection_close'], false, 'movebase']] },
-  mfish: { box: 'mposFish',
+  mfish: { box: 'mposFish', tpl: true,
            windows: [['panel_region', '낚시 대기 창 영역', 'Fish 버튼이 보일 때 낚시 창을 흰 꺾쇠 테두리까지 드래그 → Fish 버튼과 릴링 바 위치 자동 계산'],
                      ['reel_region', '낚시 미니게임 창 영역', '미니게임이 떠 있을 때 눌러서 흰 꺾쇠 테두리까지 드래그 → 릴링 바 위치 자동 계산'],
                      ['result_region', '결과창 영역', '한 번 낚아서 결과창이 떠 있을 때 흰 꺾쇠 테두리까지 드래그 → 결과창 X 와 제목 위치 자동 계산']],
-           points: MFISH_POS,
-           regions: [['bar_region', '릴링 바 영역', '위쪽 바(파란 막대, Ready! 가 뜨는 바)만 딱 맞게 드래그 · ◇ 표시는 자동으로 찾음']],
+           points: [...MFISH_POS,
+                    ['dialog_pos', '대화창', 'Captain Flarg 와 대화할 때 눌러서 넘길 곳'],
+                    ['sell_fish_pos', 'Sell Fish 버튼', '대화 선택지 중 파란 [Sell Fish]'],
+                    ['first_fish_pos', '첫 번째 물고기 칸', '상점 목록의 맨 앞 칸'],
+                    ['sell_all_pos', 'Sell All 버튼', '왼쪽 물고기 정보 아래'],
+                    ['confirm_sell_pos', '확인 Sell 버튼', '확인창의 초록 Sell'],
+                    ['shop_close_pos', '상점 닫기 X', '상점 오른쪽 위 X']],
+           regions: [['bar_region', '릴링 바 영역', '위쪽 바(파란 막대, Ready! 가 뜨는 바)만 딱 맞게 드래그 · ◇ 표시는 자동으로 찾음'],
+                     ['info_region', '물고기 정보 영역', '물고기를 눌렀을 때 왼쪽에 이름 · Sells for 가 뜨는 곳을 드래그 · 비어 있으면 다 판 것']],
            tabs: [['win', '창 영역', '창 테두리만 드래그하면 안쪽 위치는 자동 계산 (자동 보정을 쓰면 전부 자동)',
                    ['panel_region', 'reel_region', 'result_region']],
                   ['fine', '세부 위치', '창 영역으로 자동 계산됨 · 조금 어긋나면 여기서 하나씩 직접 지정',
                    ['fish_btn', 'close_pos', 'title_pos', 'bar_region']],
-                  ['move', '이동', '낚시 장소 · 물고기 판매 장소 — 지점마다 누를 곳을 지정하고 시간을 재기 · 기준 장소(통합 위치 → 이동 · 기준 장소)에서 출발', [], false, 'places:mfish']] },
+                  ['move', '이동', '낚시 장소 · 물고기 판매 장소 — 지점마다 누를 곳을 지정하고 시간을 재기 · 기준 장소(통합 위치 → 이동 · 기준 장소)에서 출발', [], false, 'places:mfish'],
+                  ['sell', '판매', '인벤토리가 가득 차면: 물고기 판매 장소 → E → 대화 넘기기 → Sell Fish → (첫 칸 → Sell All → 확인) 을 왼쪽 정보가 빌 때까지 → X → 낚시 장소',
+                   ['dialog_pos', 'sell_fish_pos', 'first_fish_pos', 'sell_all_pos', 'confirm_sell_pos', 'shop_close_pos', 'info_region'], true, 'sell']] },
 };
 const MPOS_RATIOS = [['auto', '자동 (지금 창)'], ['16:9', '16:9'], ['16:10', '16:10'], ['21:9', '21:9'], ['32:9', '32:9'], ['4:3', '4:3'], ['5:4', '5:4']];
 let mposRatio = 'auto';
@@ -1392,15 +1401,42 @@ const MOVE_SET = [['reset_wait', '리셋 후 대기', 'Esc → R → Enter 로 �
                   ['margin', '도착 여유', '잰 시간에 더 기다릴 시간 (초)', 0.3, 0, 0.1]];
 let lastMove = null;
 const fmtT = t => t == null ? '안 잼' : `${t}초`;
+// 장소의 지점이 전부 지정 · 측정되면 제목 옆에 총 걸리는 시간 (지점 시간의 합)
+const placeTotal = pl => pl.points.length && pl.points.every(pt => pt.pos && pt.time != null)
+  ? `<em class="move-total">총 ${Math.round(pl.points.reduce((a, pt) => a + pt.time, 0) * 100) / 100}초</em>` : '';
 const MOVE_FIXED = ['mfish'];                            // 자동 낚시: 낚시 장소 · 물고기 판매 장소 (서버 MOVE_TEMPLATES)
 const moveCall = async (name, args, msg) => { const r = await api(name, args); toast(r.error || msg); return r; };
 // data-mpos-custom: 'movebase' (통합 위치 → 기준 장소) / 'places:기능' (그 기능이 가는 장소)
 function renderMoveCustom(el) {
   const [kind, feat] = el.dataset.mposCustom.split(':');
-  if (kind === 'movebase') MPOS_CUSTOM.movebase(el); else MPOS_CUSTOM.places(el, feat);
+  if (kind === 'movebase') MPOS_CUSTOM.movebase(el);
+  else if (kind === 'sell') MPOS_CUSTOM.sell(el);
+  else MPOS_CUSTOM.places(el, feat);
 }
 function rerenderMove() { document.querySelectorAll('[data-mpos-custom]').forEach(renderMoveCustom); }
+const SELL_SET = [['e_wait', 'E 누른 뒤 대기', '대화창이 뜰 때까지 (초)', 1.5, 0.2, 0.1],
+                  ['sell_max', '판매 반복 최대', '클릭이 씹혀 끝없이 도는 것만 막음', 100, 1, 1]];
 const MPOS_CUSTOM = {
+  // 판매: 대기 · 반복 설정 + [판매 테스트]
+  sell(el) {
+    const m = mfish(), st = lastMove || {}, busy = !!st.running;
+    el.innerHTML = SELL_SET.map(([k, name, sub, def, min, step]) => `
+      <label class="row"><span>${name}<small>${sub} · 기본 ${def}</small></span>
+        <input type="number" min="${min}" step="${step}" data-sell-set="${k}" value="${m[k] ?? def}"></label>`).join('') + `
+      <div class="row"><span>판매 테스트<small>기준 장소 → 물고기 판매 장소 → 판매 → 낚시 장소 · 정지: F7</small></span>
+        <span class="pos"><b class="move-state">${esc(busy ? (st.msg || '이동 중') : '대기')}</b>
+        <button class="btn mini" type="button" data-sell-test ${busy ? 'disabled' : ''}>판매 테스트</button>
+        <button class="btn mini ghost" type="button" data-move-stop ${busy ? '' : 'disabled'}>멈춤</button></span></div>`;
+    el.querySelectorAll('[data-sell-set]').forEach(i => i.addEventListener('input', () => {
+      const n = parseFloat(i.value);
+      if (!isNaN(n) && n >= 0) { m[i.dataset.sellSet] = n; saveMfish(); }
+    }));
+    el.querySelector('[data-sell-test]').addEventListener('click', async () => {
+      await flushSave();
+      moveCall('sell_test', {}, '판매 테스트 시작 · 정지: F7');
+    });
+    el.querySelector('[data-move-stop]').addEventListener('click', () => api('move_stop'));
+  },
   // 기준 장소 (모든 기능이 같이 씀): 리셋 · 카메라 정렬 · 줌 설정 + [기준 장소로 이동]
   movebase(el) {
     const m = move(), st = lastMove || {}, busy = !!st.running;
@@ -1441,7 +1477,7 @@ const MPOS_CUSTOM = {
       (mine.length ? '' : `<div class="row"><span><small>아직 장소 없음 — [장소 추가] 로 만들기</small></span></div>`) +
       mine.map(([pl, i]) => `
       <div class="move-place">
-        <div class="row"><span>${pl.key ? `<b class="move-title">${esc(pl.name)}</b>` :
+        <div class="row"><span>${pl.key ? `<b class="move-title">${esc(pl.name)}</b>${placeTotal(pl)}` :
           `<input class="move-name" data-move-name="${i}" value="${esc(pl.name || '')}" placeholder="장소 이름 (예: Captain Flarg)" maxlength="40">`}</span>
           <span class="pos"><button class="btn mini" type="button" data-move-go="${i}" ${busy ? 'disabled' : ''}>이 장소로 이동</button>
           ${pl.key ? '' : `<button class="btn mini ghost" type="button" data-move-del-place="${i}">장소 삭제</button>`}</span></div>` +
@@ -1451,7 +1487,6 @@ const MPOS_CUSTOM = {
             <button class="btn mini ghost" type="button" data-move-pick="${i},${j},1" ${busy ? 'disabled' : ''}>기준 장소에서 지정</button>
             <button class="btn mini ghost" type="button" data-move-pick="${i},${j},0" ${busy ? 'disabled' : ''}>바로 지정</button>
             <button class="btn mini" type="button" data-move-test="${i},${j},1" ${busy || !pt.pos ? 'disabled' : ''}>시간 재기</button>
-            <button class="btn mini ghost" type="button" data-move-test="${i},${j},0" ${busy || !pt.pos ? 'disabled' : ''}>바로 재기</button>
             ${pl.points.length > 1 ? `<button class="btn mini ghost" type="button" data-move-del-point="${i},${j}">삭제</button>` : ''}</span></div>`).join('') + `
         <div class="row"><span></span><span class="pos"><button class="btn mini ghost" type="button" data-move-add-point="${i}">지점 추가</button></span></div>
       </div>`).join('');
