@@ -262,6 +262,7 @@ const I18N = (() => {
     ['최대 줌 (초)', 'max zoom (s)', '最大ズーム（秒）'],
     ['기준 장소로 이동 · 화면 내려다보기 (우클릭 드래그)', 'Going to base spot · look down (right-drag)', '基準地点へ移動・見下ろす（右ドラッグ）'],
     ['기준 장소로 이동 · 최대 줌 (O)', 'Going to base spot · max zoom (O)', '基準地点へ移動・最大ズーム（O）'],
+    ['기준 장소로 이동 · 내려다보기 + 최대 줌 (우클릭 드래그 + O)', 'Going to base spot · look down + max zoom (right-drag + O)', '基準地点へ移動・見下ろし + 最大ズーム（右ドラッグ + O）'],
     ['여러 기능이 같이 쓰는 위치', 'Positions shared by several features', '複数の機能で共通の位置'],
     ['기준 위치 (여러 기능이 같이 씀)', 'Base positions (shared by several features)', '基準位置（複数の機能で共通）'],
     ['로블록스를 켜 두고 [위치 지정] → 로블록스 화면에서 클릭 (영역은 드래그) · 로블록스 창 기준이라 창 크기를 바꾸면 다시 지정', 'With Roblox open, press [Set position] → click in Roblox (drag for areas) · positions follow the Roblox window, so set them again if you resize it', 'Robloxを開いた状態で[位置指定] → Roblox画面でクリック（範囲はドラッグ）・Robloxウィンドウ基準なのでサイズを変えたら指定し直し'],

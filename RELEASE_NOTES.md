@@ -1,9 +1,7 @@
-## Acrux macro V1.22.6 업데이트
-- 기준 장소로 이동: 화면을 **위에서 아래로 내려다보게 하는 것을 마우스로** 함
-  - 화면 가운데에서 우클릭을 누른 채 마우스를 아래로 끌어서 카메라를 돌림 → 그다음 O 키로 최대 줌
-  - 끄는 거리는 통합 위치 → 이동 · 기준 장소 → 화면 내려다보기 에서 조절 (기본 800px)
+## Acrux macro V1.22.7 업데이트
+- 기준 장소로 이동: **O 키(최대 줌)와 화면 내려다보기(우클릭 드래그)를 동시에** 진행
+  - O 키를 누르기 시작하는 순간 우클릭 드래그도 같이 시작 · O 는 설정한 시간(기본 2.5초) 동안 계속 누름
 
-## Acrux macro V1.22.6 Update
-- Go to base spot: **looking straight down is now done with the mouse**
-  - Holds right click at the screen center and drags the mouse down to turn the camera → then zooms out fully with the O key
-  - The drag distance is adjustable in Shared positions → Movement · base spot → Look down (default 800 px)
+## Acrux macro V1.22.7 Update
+- Go to base spot: **the O key (max zoom) and looking down (right-click drag) now run at the same time**
+  - The right-click drag starts the moment O is pressed · O stays held for the set time (default 2.5 s)
