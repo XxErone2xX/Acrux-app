@@ -103,7 +103,7 @@ class Bridge:
         # 이동: 기준 장소(리셋 · 카메라 정렬 · 줌) → 화면의 한 점을 눌러 장소로 걸어감 · 걸리는 시간은 직접 잼
         self.mover = move.Mover(lambda: self.data.get("base", {}), lambda: self.data.get("move", {}), self._on_log,
                                 set_move_time=self._set_move_time, before=lambda: self.fisher.hold(45),
-                                after=self.fisher.release)
+                                after=self.fisher.release, banner=self._move_banner)
         self.play = rejoin.PlayClicker(lambda: self.data.get("play", {}), self._on_log,
                                        on_ingame=self._on_ingame, on_fail=self._on_play_fail)
         # 매크로 복귀: 로블록스 전부 종료 → 1초 → 내 브섭 링크 → Play
@@ -598,6 +598,23 @@ class Bridge:
                  "chat_pos": [0.0582, 0.0278], "collection_pos": [0.0245, 0.4324], "collection_close": [0.199, 0.1167]},
     }
 
+    def _banner_proc(self, kind):
+        """화면 위 가운데 '건드리지 마세요' 안내 띠 (별도 프로세스) → Popen 또는 None"""
+        env = dict(os.environ, ACRUX_LANG=str(self.data.get("lang") or "ko"))
+        cmd = [sys.executable, "--banner", kind] if getattr(sys, "frozen", False) else \
+            [sys.executable, str(Path(__file__).resolve().parent / "macro.py"), "--banner", kind]
+        try:
+            return subprocess.Popen(cmd, creationflags=NO_WINDOW, env=env)
+        except Exception:
+            return None
+
+    def _move_banner(self, kind):
+        """이동 중 안내 띠 바꾸기 (kind: 'move' · 'measure' · None = 끔)"""
+        old = getattr(self, "_mv_banner", None)
+        if old is not None and old.poll() is None:
+            old.kill()
+        self._mv_banner = self._banner_proc(kind) if kind else None
+
     def api_mfish_autocal(self, _):
         """자동 보정 (전부 자동): 화면 위에 '건드리지 마세요' 띠를 띄우고
         ① 대기 창(Fish 버튼) 테두리 → ② Fish 를 직접 눌러 입질 → 미니게임 창 테두리 → ③ (릴링은 안 함) 결과창 테두리 → X
@@ -615,13 +632,7 @@ class Bridge:
         try:
             if not self.fisher.hold(45):             # 자동 낚시 중이면 안전한 곳(Fish 버튼)에서 잠깐 멈춤
                 return {"error": "자동 낚시가 멈추지 않음 — 낚시를 끄고 다시 눌러주세요"}
-            env = dict(os.environ, ACRUX_LANG=str(self.data.get("lang") or "ko"))
-            cmd = [sys.executable, "--banner"] if getattr(sys, "frozen", False) else \
-                [sys.executable, str(Path(__file__).resolve().parent / "macro.py"), "--banner"]
-            try:
-                banner = subprocess.Popen(cmd, creationflags=NO_WINDOW, env=env)
-            except Exception:
-                banner = None
+            banner = self._banner_proc("autocal")
             result = self._autocal_run(hwnd)
         except (_AutocalStop, fishing.Stopped) as e:
             result = {"error": str(e) or "자동 보정 취소됨"}
@@ -1424,8 +1435,9 @@ if __name__ == "__main__":
     if "--pick-point" in sys.argv:           # 클릭 위치 지정 창
         macro.pick_region_to_file(sys.argv[sys.argv.index("--pick-point") + 1], "point")
         sys.exit(0)
-    if "--banner" in sys.argv:               # 화면 위 안내 띠 (자동 보정 중)
-        macro.show_banner()
+    if "--banner" in sys.argv:               # 화면 위 안내 띠 (자동 보정 중 · 이동 중)
+        _i = sys.argv.index("--banner")
+        macro.show_banner(sys.argv[_i + 1] if len(sys.argv) > _i + 1 else "autocal")
         sys.exit(0)
     try:
         main()

@@ -730,17 +730,30 @@ def pick_region_overlay(mode="region"):
 
 # ---------------------------------------------------------------- 안내 띠 (자동 보정 중 등)
 BANNER_TEXT = {
-    "ko": "자동 보정 중 · 마우스와 키보드를 건드리지 마세요 (F7: 취소)",
-    "en": "Auto calibrating · don't touch the mouse or keyboard (F7: cancel)",
-    "ja": "自動補正中 · マウスとキーボードに触らないでください（F7: キャンセル）",
+    "autocal": {
+        "ko": "자동 보정 중 · 마우스와 키보드를 건드리지 마세요 (F7: 취소)",
+        "en": "Auto calibrating · don't touch the mouse or keyboard (F7: cancel)",
+        "ja": "自動補正中 · マウスとキーボードに触らないでください（F7: キャンセル）",
+    },
+    "move": {
+        "ko": "매크로 이동 중 · 마우스와 키보드를 건드리지 마세요 (F7: 정지)",
+        "en": "Macro is moving · don't touch the mouse or keyboard (F7: stop)",
+        "ja": "マクロ移動中 · マウスとキーボードに触らないでください（F7: 停止）",
+    },
+    "measure": {
+        "ko": "시간 재는 중 · 도착하면 F6 · 그 밖엔 건드리지 마세요 (F7: 정지)",
+        "en": "Timing · press F6 on arrival · don't touch anything else (F7: stop)",
+        "ja": "時間計測中 · 到着したらF6 · それ以外は触らないでください（F7: 停止）",
+    },
 }
 
 
-def show_banner(seconds=240):
+def show_banner(kind="autocal", seconds=240):
     """화면 위 가운데에 안내 띠 — 클릭이 통과되고 포커스도 안 가져가서 로블록스 조작을 방해하지 않음
     (tkinter 라 별도 프로세스: macro.py --banner · 앱이 끝나면 끔 · 안 끄면 seconds 뒤 저절로 닫힘)"""
     import tkinter as tk
-    text = BANNER_TEXT.get(_LANG, BANNER_TEXT["ko"])
+    texts = BANNER_TEXT.get(kind, BANNER_TEXT["autocal"])
+    text = texts.get(_LANG, texts["ko"])
     root = tk.Tk()
     root.overrideredirect(True)
     root.attributes("-topmost", True)
@@ -1227,4 +1240,5 @@ elif __name__ == "__main__" and "--pick-region" in sys.argv:
 elif __name__ == "__main__" and "--pick-point" in sys.argv:
     pick_region_to_file(sys.argv[sys.argv.index("--pick-point") + 1], "point")
 elif __name__ == "__main__" and "--banner" in sys.argv:
-    show_banner()
+    _i = sys.argv.index("--banner")
+    show_banner(sys.argv[_i + 1] if len(sys.argv) > _i + 1 else "autocal")
