@@ -1143,9 +1143,9 @@ class Bridge:
 
     def api_ocr_info(self, _):
         """Acrux 설정 · OCR 감지 방식: 지금 쓰는 엔진 · RapidOCR 설치 여부"""
-        rapid = macro.rapid_available()
+        rapid = macro.rapid_engine() is not None
         return {"engine": macro.ocr_engine_name(), "rapid": rapid, "mode": macro.OCR_MODE["mode"],
-                "rapid_error": None if rapid else macro.rapid_error()}
+                "rapid_error": None if rapid else macro._RAPID.get("failed")}
 
     def api_open_folder(self, _):
         os.startfile(str(core.DATA_BASE))      # 설정·로그가 있는 폴더
@@ -1247,8 +1247,8 @@ def main():
     url = f"http://127.0.0.1:{port}/#{TOKEN}"
 
     BRIDGE.start_engine()                 # 앱 켜자마자 디스코드 연결 + 감지
-    # OCR 엔진은 미리 안 불러둠 (메모리를 많이 먹음) — 쓸 때 OCR 프로세스를 띄우고 오토 팝핑이 시작되면 미리 띄움
-    BRIDGE._on_log(f"OCR 엔진: {macro.ocr_engine_name()}", "d")
+    # OCR 엔진은 미리 불러둠 (첫 OCR 이 느리지 않게)
+    threading.Thread(target=lambda: BRIDGE._on_log(f"OCR 엔진: {macro.ocr_engine_name()}", "d"), daemon=True).start()
     if BRIDGE.data.get("autostart"):      # '바로 작동' 설정이면 시작 버튼까지 눌린 상태로
         BRIDGE.api_start({})
 
@@ -1313,9 +1313,6 @@ if __name__ == "__main__":
         sys.exit(0)
     if "--banner" in sys.argv:               # 화면 위 안내 띠 (자동 보정 중)
         macro.show_banner()
-        sys.exit(0)
-    if "--ocr-worker" in sys.argv:           # OCR 프로세스 (쓸 때만 띄움)
-        macro.ocr_worker_main()
         sys.exit(0)
     try:
         main()

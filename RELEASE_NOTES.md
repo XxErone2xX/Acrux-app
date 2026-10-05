@@ -1,17 +1,17 @@
-## Acrux macro V1.20.0 업데이트
-- **메모리 사용량 크게 줄임** (기능은 그대로)
-  - OCR(RapidOCR)을 켤 때 미리 불러두지 않고, 읽을 때만 따로 띄웠다가 한동안 안 쓰면 꺼서 메모리를 돌려줌
-  - 레어 바이옴 포션 사용이 시작되면 OCR 을 미리 띄워 둬서 이름 읽기가 늦어지지 않음
-  - 런타임이 쓰지도 않는 OCR · 이미지 라이브러리를 모든 프로세스에 미리 올리던 것 제거 → 위치 지정 창도 더 빨리 뜸
-  - 디스코드 감지: 쓰지 않는 이벤트(온라인 상태 등)는 해석하지 않고, 서버 목록은 이름 · ID 만 읽음 → 디스코드 연결 때 메모리가 튀지 않음
-  - 화면(Edge)의 업데이트 확인 · 동기화 · 여분 프로세스 등 필요 없는 백그라운드 작업 끔
-- 이번 업데이트는 런타임이 바뀌어서 처음 켤 때 한 번 더 받음
+## Acrux macro V1.20.1 업데이트
+- OCR 을 예전 방식으로 되돌림 (켤 때 미리 불러둠)
+- **결과창에서 X 를 안 누르고 멈추던 버그** 수정
+  - 결과창이 뜨면 낚시 창이 사라지는데, 그 자리 뒤의 파랑 · 빨강 줄무늬 계단 같은 배경을 Fish/Exit 버튼으로 잘못 봤음
+  - 그래서 X 를 멈추거나, Fish 를 계속 누르다 '인벤토리 가득'으로 낚시가 멈췄음 → 이제 어두운 바탕의 진짜 버튼만 버튼으로 봄
+- **미니게임 구간을 놓쳐서 엉뚱하게 누르던 문제** 수정 (청록 · 갈색 구간 물고기)
+  - 미니게임마다 막대 색을 배워서, 바 안에서 막대 색도 빈 칸도 숫자도 아닌 곳을 전부 구간으로 봄
+  - 막대와 겹친 부분(밝은 하늘색 · 회갈색)도 구간으로 읽어서 구간 오른쪽으로 넘어가게 누르지 않음
 
-## Acrux macro V1.20.0 Update
-- **Much lower memory use** (features unchanged)
-  - OCR (RapidOCR) is no longer preloaded at startup; it runs in a separate process only when reading and is closed after a while unused, returning its memory
-  - When rare-biome potion use starts, OCR is warmed up in advance so name reading is not delayed
-  - The runtime no longer loads unused OCR and image libraries into every process, so position pickers also open faster
-  - Discord detection: unused events (presence etc.) are no longer parsed, and the server list only keeps names and IDs, so connecting to Discord no longer spikes memory
-  - Unneeded background work in the UI (Edge), such as update checks, sync and spare processes, is turned off
-- This update changes the runtime, so it is downloaded once more on first launch
+## Acrux macro V1.20.1 Update
+- OCR is back to the previous behavior (preloaded at startup)
+- Fixed **the result window not being closed with X**
+  - When the result window opens the fishing panel disappears, and scenery behind the Fish button spot (like blue/red striped stairs) was read as the Fish/Exit button
+  - That stopped the X clicks, or kept clicking Fish until fishing stopped as "inventory full"; only a real button on a dark background counts now
+- Fixed **the minigame losing the zone and clicking at the wrong time** (teal or brown zones)
+  - The fill color is learned each minigame, and everything in the bar that is not the fill, the empty background or the digits is read as the zone
+  - The part overlapped by the fill (light cyan, grayish brown) now counts as zone, so it no longer clicks the marker past the zone
