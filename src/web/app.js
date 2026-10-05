@@ -778,7 +778,7 @@ function syncMainTiles() {
   $('mtSnipe').textContent = armed ? `감시 중 · ${$('count').textContent}개 감지` : '꺼짐';
   const mOn = !!config.macro_on, n = macroFeatures();
   const sniping = !!(lastBio && lastBio.muted);
-  setTile('macro', mOn, mOn ? '끄기 (F3)' : '시작 (F3)');
+  setTile('macro', mOn, mOn ? '끄기 · F3' : '시작 · F3');
   tile('macro').classList.toggle('wait', mOn && sniping);
   $('mtMacro').textContent = !mOn ? (n ? `꺼짐 · 기능 ${n}개 켜짐` : '꺼짐')
     : lastMpop && lastMpop.running ? (lastMpop.msg || '포션 사용 중')
