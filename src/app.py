@@ -91,12 +91,12 @@ class Bridge:
                                         lambda: bool(self.data.get("biome", {}).get("enabled")),
                                         on_change=self._on_biome_change)
         # 오토 팝핑: Play 버튼 자동 클릭
-        self.pop = popping.Popper(lambda: self.data.get("pop", {}), self._on_log, on_end=self._on_pop_end)
+        self.pop = popping.Popper(self._pop_cfg, self._on_log, on_end=self._on_pop_end)
         # 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버)
         # 매크로 탭 · 자동 낚시 (제자리 낚시) — 매크로 버튼 + 켜기가 켜져 있는 동안 계속
-        self.fisher = fishing.Fisher(lambda: self.data.get("mfish", {}), self._on_log,
+        self.fisher = fishing.Fisher(self._mfish_cfg, self._on_log,
                                      on_user_stop=self._macro_user_stop)
-        self.mpop = popping.MyServerPopper(lambda: self.data.get("pop", {}), lambda: self.data.get("mpop", {}),
+        self.mpop = popping.MyServerPopper(lambda: self.data.get("pop", {}), self._mpop_cfg,
                                            self._on_log, before=lambda: self.fisher.hold(45),
                                            after=self.fisher.release)
         self.play = rejoin.PlayClicker(lambda: self.data.get("play", {}), self._on_log,
@@ -190,6 +190,24 @@ class Bridge:
         return bool(self.thread and self.thread.is_alive())
 
     # ---------------- API ----------------
+    # ---- 기능별 설정 + 매크로 기준 위치 (여러 기능이 같이 쓰는 위치는 base 에 하나만 저장)
+    def _mpop_cfg(self):
+        """레어 바이옴 자동 팝핑 (내 서버) 설정 + 기준 위치의 인벤토리 위치 · OCR 영역"""
+        b = self.data.get("base", {})
+        return dict(self.data.get("mpop", {}), **{k: b.get(k) for k in (*core.BASE_INV_KEYS, "ocr_region")})
+
+    def _pop_cfg(self):
+        """스나이프 탭 오토 팝핑 설정 — '매크로 기준 위치 사용'이 켜져 있으면 인벤토리 위치 · OCR 영역은 기준 위치로"""
+        pop = self.data.get("pop", {})
+        if not pop.get("use_base"):
+            return pop
+        b = self.data.get("base", {})
+        return dict(pop, **{k: b.get(k) for k in (*core.BASE_INV_KEYS, "ocr_region")})
+
+    def _mfish_cfg(self):
+        """자동 낚시 설정 + 기준 위치의 알림 영역"""
+        return dict(self.data.get("mfish", {}), notice_region=self.data.get("base", {}).get("notice_region"))
+
     def api_state(self, _):
         with self.lock:
             return {"config": self.data, "running": self.running(), "armed": core.ARMED.is_set(),
@@ -494,7 +512,7 @@ class Bridge:
         return {"region": r["region"]}
 
     def api_pop_ocr_test(self, p):
-        region = self.data.get("pop", {}).get("ocr_region")
+        region = self._pop_cfg().get("ocr_region")
         if not region:
             return {"error": "OCR 영역 먼저 지정"}
         back = macro.foreground()
@@ -549,7 +567,7 @@ class Bridge:
 
     def api_mpop_test(self, p):
         b = str(p.get("biome", "")).upper()
-        miss = popping.Popper.missing(self.data.get("mpop", {}))
+        miss = popping.Popper.missing(self._mpop_cfg())
         if miss:
             return {"error": "매크로 기준 위치 설정 필요: " + ", ".join(miss)}
         if not [i for i in ((self.data.get("mpop", {}).get("templates") or {}).get(b) or {}).get("items", [])
@@ -558,13 +576,13 @@ class Bridge:
         self.mpop.start(b, test=True)
         return {"ok": True}
 
-    # 매크로 기준 위치 설정 — 기능마다 따로 저장하는 버튼 위치 · 영역 (feat: mpop / mfish)
-    MPOS_POINTS = {"mpop": dict(popping.POS_KEYS), "mfish": dict(fishing.POS_KEYS)}
-    MPOS_REGIONS = {"mpop": ("ocr_region",), "mfish": ("panel_region", "reel_region", "result_region", "bar_region", "notice_region")}
+    # 매크로 기준 위치 설정 — 버튼 위치 · 영역 (feat: base = 여러 기능이 같이 쓰는 기준 위치 / mfish = 자동 낚시만)
+    MPOS_POINTS = {"base": dict(popping.POS_KEYS), "mfish": dict(fishing.POS_KEYS)}
+    MPOS_REGIONS = {"base": ("ocr_region", "notice_region"), "mfish": ("panel_region", "reel_region", "result_region", "bar_region")}
     # 16:9 위치 템플릿 (로블록스 창 기준 비율) — 스나이프 탭 오토 팝핑 16:9 템플릿과 같은 값
     # (자동 낚시는 템플릿 대신 낚시 창 · 결과창 영역으로 안쪽 위치를 계산 → fishing.WINDOW_KEYS)
     MPOS_TEMPLATE = {
-        "mpop": {"inventory_pos": [0.018, 0.474], "items_pos": [0.663, 0.312], "search_pos": [0.458, 0.34],
+        "base": {"inventory_pos": [0.018, 0.474], "items_pos": [0.663, 0.312], "search_pos": [0.458, 0.34],
                  "item_pos": [0.443, 0.44], "amount_pos": [0.296, 0.534], "use_pos": [0.356, 0.535],
                  "ocr_region": [0.415, 0.392, 0.469, 0.491]},
     }
@@ -811,21 +829,21 @@ class Bridge:
         return {feat: self.data[feat], "label": label, "guess": abs(aspect - 16 / 9) > 0.02}
 
     def api_mpos_copy_pop(self, _):
-        """레어 바이옴 자동 팝핑 위치 ← 스나이프 탭 오토 팝핑에 지정한 위치 그대로 복사"""
+        """기준 위치(인벤토리) ← 스나이프 탭 오토 팝핑에 지정한 위치 그대로 복사"""
         src = self.data.get("pop", {})
-        keys = (*self.MPOS_POINTS["mpop"], "ocr_region")
+        keys = (*self.MPOS_POINTS["base"], "ocr_region")
         if not any(src.get(k) for k in keys):
             return {"error": "스나이프 탭 오토 팝핑에 지정된 위치 없음"}
         with self.lock:
-            mp = self.data.setdefault("mpop", {})
+            b = self.data.setdefault("base", {})
             for k in keys:
                 if src.get(k):
-                    mp[k] = json.loads(json.dumps(src[k]))
+                    b[k] = json.loads(json.dumps(src[k]))
         self._save()
-        return {"mpop": self.data["mpop"]}
+        return {"base": self.data["base"]}
 
     def api_mpop_ocr_test(self, _):
-        region = self.data.get("mpop", {}).get("ocr_region")
+        region = self.data.get("base", {}).get("ocr_region")
         if not region:
             return {"error": "OCR 영역 먼저 지정"}
         back = macro.foreground()
@@ -843,7 +861,7 @@ class Bridge:
 
     def api_mfish_check(self, _):
         """상태 확인: 지금 화면에서 Fish 버튼 색 · 릴링 바 · 결과창 제목을 읽어서 알려줌"""
-        mf = self.data.get("mfish", {})
+        mf = self._mfish_cfg()
         hwnd = macro.roblox_window_cached(1.0)
         if not hwnd:
             return {"error": "로블록스 창 없음"}
@@ -1020,7 +1038,7 @@ class Bridge:
         """오토 팝핑 필수 설정 중 비어 있는 것 (Play / Click to skip 위치 + 버튼 6개 + OCR 영역)"""
         pl = self.data.get("play", {})
         miss = [n for k, n in (("pos", "Play 버튼"), ("skip_pos", "Click to skip 버튼")) if not pl.get(k)]
-        return miss + popping.Popper.missing(self.data.get("pop", {}))
+        return miss + popping.Popper.missing(self._pop_cfg())
 
     def api_start(self, _):
         miss = self.pop_missing()
