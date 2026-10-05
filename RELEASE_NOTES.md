@@ -1,13 +1,15 @@
-## Acrux macro V1.18.0 업데이트
-- 자동 낚시 **자동 보정** 추가 (매크로 기준 위치 설정 → 자동 낚시 → [자동 보정])
-  - 낚시 자리에서 Fish 버튼이 보일 때 한 번 누르면, 창 네 모서리의 흰 꺾쇠를 찾아 위치를 px 단위로 전부 맞춤
-  - 대기 창 · Fish 버튼 · ◇ 자리 · 미니게임 창(대기 창으로 계산) · 릴링 바가 한 번에 맞춰짐
-  - 결과창이나 미니게임 창이 떠 있을 때 누르면 그것도 직접 맞춤
-- 미니게임마다 릴링 바 테두리를 찾아 바의 위아래뿐 아니라 **좌우 끝도** 자동으로 맞춤 (지정이 몇 px 어긋나도 괜찮음)
+## Acrux macro V1.19.0 업데이트
+- **자동 보정이 전부 자동**으로 바뀜 (매크로 기준 위치 설정 → 자동 낚시 → [자동 보정])
+  - Fish 버튼이 보일 때 한 번 누르면 Fish 를 직접 눌러 한 마리 낚으면서 대기 창 · 미니게임 창 · 결과창을 차례로 재고 X 로 닫음
+  - 도는 동안 로블록스 화면 위 가운데에 "자동 보정 중 · 건드리지 마세요" 안내가 뜸
+  - 끝나면 안내가 꺼지고 Acrux 화면으로 자동으로 돌아옴
+  - 버튼을 한 번 더 누르거나 F7 로 취소 (그때까지 잰 위치는 저장)
+  - 자동 낚시가 돌고 있으면 잠깐 멈췄다가 끝나면 이어감
 
-## Acrux macro V1.18.0 Update
-- Added **Auto calibrate** for auto fishing (Macro base position settings → Auto fishing → [Auto calibrate])
-  - Press it once at your fishing spot while the Fish button shows; it finds the white corner brackets of the windows and sets every position to the pixel
-  - Sets the waiting window · Fish button · ◇ spots · minigame window (calculated from the waiting window) · reel bar in one go
-  - If the result window or minigame window is showing when you press it, those are measured directly too
-- Every minigame now snaps the reel bar to its border lines, both top/bottom and **left/right** (small offsets in the setup no longer matter)
+## Acrux macro V1.19.0 Update
+- **Auto calibrate is now fully automatic** (Macro base position settings → Auto fishing → [Auto calibrate])
+  - Press it once while the Fish button shows; it clicks Fish itself, catches one fish, measures the waiting, minigame and result windows in turn, then closes the result with X
+  - While it runs, a "Calibrating · don't touch" notice shows at the top center of the Roblox screen
+  - When it finishes, the notice goes away and you're brought back to Acrux automatically
+  - Press the button again or F7 to cancel (positions measured so far are kept)
+  - If auto fishing is running, it pauses briefly and resumes afterwards

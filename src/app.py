@@ -30,6 +30,10 @@ import fishing
 import steps as stepmod
 from version import VERSION
 
+
+class _AutocalStop(Exception):
+    """자동 보정을 멈춤 (취소 · 더 진행할 수 없음) — 그때까지 잰 위치는 저장됨"""
+
 APP_NAME = "AcruxMacro"
 if getattr(sys, "frozen", False):
     WEB_DIR = Path(getattr(sys, "_MEIPASS", core.BASE)) / "web"
@@ -555,43 +559,173 @@ class Bridge:
     }
 
     def api_mfish_autocal(self, _):
-        """자동 보정: 로블록스 화면에서 낚시 창들의 흰 꺾쇠 테두리를 찾아 위치를 전부 다시 계산 (사람이 드래그하면 몇 px 씩 어긋남)
-        낚시 대기 창(Fish 버튼)이 보일 때 누르면 대기 창 · 미니게임 창(대기 창으로 계산) · Fish 버튼 · 릴링 바 · ◇ 자리가 맞춰짐
-        결과창이나 미니게임 창이 떠 있으면 그것도 같이 맞춤"""
+        """자동 보정 (전부 자동): 화면 위에 '건드리지 마세요' 띠를 띄우고
+        ① 대기 창(Fish 버튼) 테두리 → ② Fish 를 직접 눌러 입질 → 미니게임 창 테두리 → ③ (릴링은 안 함) 결과창 테두리 → X
+        를 차례로 재서 위치를 전부 맞춘 뒤 띠를 끄고 Acrux 화면으로 돌아옴 · F7 이나 버튼을 한 번 더 누르면 취소
+        자동 낚시가 돌고 있으면 잠깐 멈췄다가 끝나면 이어감"""
+        if getattr(self, "_autocal_running", False):
+            self._autocal_stop.set()                 # 진행 중에 다시 누르면 취소
+            return {"error": "자동 보정 취소 중"}
         hwnd = macro.roblox_window_cached(1.0)
         if not hwnd:
             return {"error": "로블록스 창 없음"}
+        self._autocal_running, self._autocal_stop = True, threading.Event()
         back = macro.foreground()
+        banner = None
         try:
-            macro.focus(hwnd, wait=0.35)
+            if not self.fisher.hold(45):             # 자동 낚시 중이면 안전한 곳(Fish 버튼)에서 잠깐 멈춤
+                return {"error": "자동 낚시가 멈추지 않음 — 낚시를 끄고 다시 눌러주세요"}
+            env = dict(os.environ, ACRUX_LANG=str(self.data.get("lang") or "ko"))
+            cmd = [sys.executable, "--banner"] if getattr(sys, "frozen", False) else \
+                [sys.executable, str(Path(__file__).resolve().parent / "macro.py"), "--banner"]
+            try:
+                banner = subprocess.Popen(cmd, creationflags=NO_WINDOW, env=env)
+            except Exception:
+                banner = None
+            result = self._autocal_run(hwnd)
+        except (_AutocalStop, fishing.Stopped) as e:
+            result = {"error": str(e) or "자동 보정 취소됨"}
+        except Exception as e:
+            result = {"error": f"자동 보정 실패: {e}"}
+        finally:
+            if banner and banner.poll() is None:
+                banner.kill()
+            self.fisher.release()
+            if not self.fisher.running():
+                self.fisher._set(msg="대기")
+            self._autocal_running = False
+            macro.focus_back(back)                   # 끝나면 Acrux 화면으로
+        if result.get("error") and self.data.get("mfish"):
+            self._save()                             # 멈추기 전까지 잰 위치는 저장
+            result["mfish"] = self.data["mfish"]
+            self._on_log(result["error"], "y")
+        return result
+
+    def _autocal_run(self, hwnd):
+        import numpy as np
+        import mss
+
+        def check():
+            if self._autocal_stop.is_set() or macro.key_down_now("f7"):
+                raise _AutocalStop("자동 보정 취소됨")
+
+        def wait(sec):
+            end = time.time() + sec
+            while time.time() < end:
+                check()
+                time.sleep(0.05)
+
+        def shot():
             rect = macro.client_rect(hwnd)
             if not rect:
-                return {"error": "로블록스 창 없음"}
-            import numpy as np
-            import mss
-            with mss.mss() as sct:
-                shot = sct.grab({"left": rect[0], "top": rect[1], "width": rect[2], "height": rect[3]})
-            rgb = np.frombuffer(shot.rgb, np.uint8).reshape(shot.height, shot.width, 3).astype(np.int16)
-            found = fishing.autocal(rgb)
-        except Exception as e:
-            return {"error": f"자동 보정 실패: {e}"}
-        finally:
-            macro.focus_back(back)
-        derived = found.pop("_reel_derived", False)
-        if not found:
-            return {"error": "낚시 창을 못 찾음 — 낚시 자리에서 Fish 버튼이 보일 때 눌러주세요"}
-        with self.lock:
-            c = self.data.setdefault("mfish", {})
-            for key in ("panel_region", "reel_region", "result_region"):     # 대기 창 → 미니게임 창 순서 (릴링 바는 미니게임 창 기준이 이김)
-                if key in found:
-                    c[key] = found[key]
-                    c.update(fishing.layout_from(found[key], fishing.WINDOW_KEYS[key]))
+                raise _AutocalStop("로블록스 창 없음")
+            with mss.mss() as m:
+                g = m.grab({"left": rect[0], "top": rect[1], "width": rect[2], "height": rect[3]})
+            return rect, np.frombuffer(g.rgb, np.uint8).reshape(g.height, g.width, 3).astype(np.int16)
+
+        def click(pos):
+            rect = macro.client_rect(hwnd)
+            macro.focus(hwnd)
+            x, y = macro.to_screen(pos[0], pos[1], rect)
+            macro.click(x, y)
+
+        def frame_of(rgb, key):
+            W, H = rgb.shape[1], rgb.shape[0]
+            lo, hi = fishing.WINDOW_SHAPES[key]
+            for (x1, y1, x2, y2) in fishing.find_frames(rgb):
+                if lo <= (x2 - x1) / max(1, y2 - y1) <= hi:
+                    return [round(x1 / W, 4), round(y1 / H, 4), round(x2 / W, 4), round(y2 / H, 4)]
+            return None
+
+        def apply(key, region):
+            with self.lock:
+                c = self.data.setdefault("mfish", {})
+                c[key] = region
+                c.update(fishing.layout_from(region, fishing.WINDOW_KEYS[key]))
+
+        macro.focus(hwnd, wait=0.4)
+        done = []
+        # ① 대기 창 (Fish 버튼이 보여야 함)
+        rect, rgb = shot()
+        panel = frame_of(rgb, "panel_region")
+        if not panel:
+            raise _AutocalStop("낚시 창을 못 찾음 — 낚시 자리에서 Fish 버튼이 보일 때 눌러주세요")
+        apply("panel_region", panel)
+        x1, y1, x2, y2 = panel                       # 미니게임 창은 우선 대기 창으로 계산 (아래에서 실제로 재면 바뀜)
+        c0, half = (x1 + x2) / 2, (x2 - x1) / 2 * fishing.REEL_FROM_PANEL
+        apply("reel_region", [round(c0 - half, 4), y1, round(c0 + half, 4), y2])
+        done.append("대기 창")
+        mf = self.data["mfish"]
+        # ② Fish 를 눌러 입질 → 미니게임 창
+        with macro.ScreenGrabber() as sct:
+            def biting():
+                rect = macro.client_rect(hwnd)
+                return self.fisher._bar_seen(sct, rect, mf) or self.fisher._diamond_moved(sct, rect, mf)
+
+            def cast():                              # Fish → Exit 로 바뀜 (또는 그새 입질이 옴)
+                end = time.time() + 1.5
+                while time.time() < end:
+                    check()
+                    if fishing.button_state(self.fisher._grab_box(sct, macro.client_rect(hwnd), mf["fish_btn"])) == "exit" \
+                            or biting():
+                        return True
+                    time.sleep(0.1)
+                return False
+            for _ in range(3):                       # 최대 3번 눌러 봄
+                click(mf["fish_btn"])
+                if cast():
+                    break
+            else:
+                raise _AutocalStop("Fish 를 눌러도 반응 없음 (인벤토리 가득?) — 대기 창만 맞춤")
+            end = time.time() + float(mf.get("bite_max", 60)) + 10
+            while time.time() < end:                 # 입질 기다림 (미니게임 창이 뜰 때까지)
+                check()
+                if biting():
+                    break
+                time.sleep(0.1)
+            else:
+                click(mf["fish_btn"])                # 던진 걸 거둠 (Exit)
+                raise _AutocalStop("입질이 안 와서 미니게임 창은 못 잼 — 대기 창만 맞춤")
+            wait(0.4)
+            for _ in range(5):                       # 미니게임 창 (몇 번 찍어서 찾음)
+                rect, rgb = shot()
+                reel = frame_of(rgb, "reel_region")
+                if reel:
+                    apply("reel_region", reel)
+                    done.append("미니게임 창")
+                    break
+                wait(0.15)
+            else:
+                done.append("미니게임 창 (대기 창으로 계산)")
+            # ③ 방금 잰 위치로 릴링해서 물고기를 잡음 → 결과창이 뜸
+            cfg = dict(fishing.DEFAULTS, **self.data["mfish"])
+            self.fisher._reel(sct, macro.client_rect(hwnd), cfg, self._autocal_stop)   # 취소 · F7 이면 Stopped
+        mf = self.data["mfish"]
+        result = None
+        end = time.time() + 6
+        while time.time() < end and not result:
+            check()
+            rect, rgb = shot()
+            result = frame_of(rgb, "result_region")
+            if not result:
+                time.sleep(0.2)
+        if result:
+            apply("result_region", result)
+            done.append("결과창")
+        mf = self.data["mfish"]
+        # 결과창 닫기 (Fish 버튼이 다시 보일 때까지 X)
+        if mf.get("close_pos"):
+            with macro.ScreenGrabber() as sct:
+                for _ in range(30):
+                    check()
+                    if fishing.button_state(self.fisher._grab_box(sct, macro.client_rect(hwnd), mf["fish_btn"])) == "fish":
+                        break
+                    click(mf["close_pos"])
+                    wait(0.2)
         self._save()
-        names = {"panel_region": "대기 창", "reel_region": "미니게임 창" + (" (대기 창으로 계산)" if derived else ""),
-                 "result_region": "결과창"}
-        done = " · ".join(names[k] for k in ("panel_region", "reel_region", "result_region") if k in found)
-        self._on_log(f"자동 보정 완료: {done}", "g")
-        return {"mfish": self.data["mfish"], "done": done}
+        text = " · ".join(done)
+        self._on_log(f"자동 보정 완료: {text}", "g")
+        return {"mfish": self.data["mfish"], "done": text}
 
     def api_mpos_point(self, p):
         feat, key = str(p.get("feat", "")), str(p.get("key", ""))
@@ -1161,6 +1295,9 @@ if __name__ == "__main__":
         sys.exit(0)
     if "--pick-point" in sys.argv:           # 클릭 위치 지정 창
         macro.pick_region_to_file(sys.argv[sys.argv.index("--pick-point") + 1], "point")
+        sys.exit(0)
+    if "--banner" in sys.argv:               # 화면 위 안내 띠 (자동 보정 중)
+        macro.show_banner()
         sys.exit(0)
     try:
         main()
