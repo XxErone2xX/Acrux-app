@@ -696,6 +696,48 @@ def pick_region_overlay(mode="region"):
     return result
 
 
+# ---------------------------------------------------------------- 안내 띠 (자동 보정 중 등)
+BANNER_TEXT = {
+    "ko": "자동 보정 중 · 마우스와 키보드를 건드리지 마세요 (F7: 취소)",
+    "en": "Auto calibrating · don't touch the mouse or keyboard (F7: cancel)",
+    "ja": "自動補正中 · マウスとキーボードに触らないでください（F7: キャンセル）",
+}
+
+
+def show_banner(seconds=240):
+    """화면 위 가운데에 안내 띠 — 클릭이 통과되고 포커스도 안 가져가서 로블록스 조작을 방해하지 않음
+    (tkinter 라 별도 프로세스: macro.py --banner · 앱이 끝나면 끔 · 안 끄면 seconds 뒤 저절로 닫힘)"""
+    import tkinter as tk
+    text = BANNER_TEXT.get(_LANG, BANNER_TEXT["ko"])
+    root = tk.Tk()
+    root.overrideredirect(True)
+    root.attributes("-topmost", True)
+    try:
+        root.attributes("-alpha", 0.92)
+    except Exception:
+        pass
+    lab = tk.Label(root, text=text, fg="#ffffff", bg="#5865f2", padx=22, pady=10,
+                   font=(_UI_FONT.get(_LANG, "Malgun Gothic"), 12, "bold"))
+    lab.pack()
+    root.update_idletasks()
+    w, h = root.winfo_reqwidth(), root.winfo_reqheight()
+    sw = root.winfo_screenwidth()
+    rect = client_rect(roblox_window()) if IS_WIN else None
+    cx, top = (rect[0] + rect[2] // 2, rect[1] + 8) if rect else (sw // 2, 8)
+    root.geometry(f"{w}x{h}+{cx - w // 2}+{top}")
+    if IS_WIN:
+        try:
+            root.update()
+            hwnd = user32.GetAncestor(root.winfo_id(), 2) or root.winfo_id()
+            ex = user32.GetWindowLongW(hwnd, -20)
+            # 겹친 창 · 클릭 통과 · 포커스 안 가져감 · 작업 표시줄에 안 보임
+            user32.SetWindowLongW(hwnd, -20, ex | 0x80000 | 0x20 | 0x8000000 | 0x80)
+        except Exception:
+            pass
+    root.after(int(seconds * 1000), root.destroy)
+    root.mainloop()
+
+
 # ---------------------------------------------------------------- 화면 캡처 / OCR
 SHOT_DIR = None
 
@@ -1152,3 +1194,5 @@ elif __name__ == "__main__" and "--pick-region" in sys.argv:
     pick_region_to_file(sys.argv[sys.argv.index("--pick-region") + 1])
 elif __name__ == "__main__" and "--pick-point" in sys.argv:
     pick_region_to_file(sys.argv[sys.argv.index("--pick-point") + 1], "point")
+elif __name__ == "__main__" and "--banner" in sys.argv:
+    show_banner()

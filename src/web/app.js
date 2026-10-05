@@ -1341,15 +1341,18 @@ $('mposPopOcr').addEventListener('click', async e => {
   } catch (err) { toast('OCR 오류: ' + err.message); }
   finally { b.disabled = false; }
 });
+// 자동 보정: 로블록스에서 Fish 를 직접 눌러 한 번 낚으면서 창 위치를 전부 잼 (오래 걸림) · 도는 중에 다시 누르면 취소
+let autocalBusy = false;
 $('mfishAuto').addEventListener('click', async e => {
   const b = e.currentTarget;
-  b.disabled = true; b.classList.add('waiting');
+  if (autocalBusy) { const r = await api('mfish_autocal'); return r.error && toast(r.error); }
+  autocalBusy = true; b.classList.add('waiting'); b.textContent = '자동 보정 중… (다시 누르면 취소)';
   try {
     const r = await api('mfish_autocal');
-    if (r.error) return toast(r.error);
-    Object.assign(mfish(), r.mfish); mposChanged('mfish');
-    toast(`자동 보정 완료: ${r.done}`);
-  } finally { b.disabled = false; b.classList.remove('waiting'); }
+    if (r.mfish) { Object.assign(mfish(), r.mfish); mposChanged('mfish'); }
+    toast(r.error || `자동 보정 완료: ${r.done}`);
+  } catch (err) { toast('자동 보정 실패: ' + err.message); }
+  finally { autocalBusy = false; b.classList.remove('waiting'); b.textContent = '자동 보정'; }
 });
 $('mfishCheck').addEventListener('click', async e => {
   const b = e.currentTarget; b.disabled = true;
