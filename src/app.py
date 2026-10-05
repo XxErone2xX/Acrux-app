@@ -265,8 +265,19 @@ class Bridge:
         st = self.steps.snapshot()
         pre = self.pre.snapshot()
         with self.lock:
-            logs = [{"seq": s, "time": t, "msg": m, "color": c} for s, t, m, c in self.logs if s > since]
-            events = [dict(e, seq=s) for s, e in self.events if s > since]
+            # 새로 생긴 것만 (번호가 늘어나는 순서로 쌓여 있어서 뒤에서부터 보다가 멈춤 — 0.3초마다 1000개를 다 훑지 않게)
+            logs = []
+            for s, t, m, c in reversed(self.logs):
+                if s <= since:
+                    break
+                logs.append({"seq": s, "time": t, "msg": m, "color": c})
+            logs.reverse()
+            events = []
+            for s, e in reversed(self.events):
+                if s <= since:
+                    break
+                events.append(dict(e, seq=s))
+            events.reverse()
             return {"seq": self.seq, "logs": logs, "events": events, "status": list(self.status),
                     "running": self.running(), "armed": core.ARMED.is_set(),
                     "play": play, "pop": pop, "ret": ret, "mpop": mpop, "mfish": mfish, "steps": st, "pre": pre, "roblox": roblox,
@@ -1132,9 +1143,9 @@ class Bridge:
 
     def api_ocr_info(self, _):
         """Acrux 설정 · OCR 감지 방식: 지금 쓰는 엔진 · RapidOCR 설치 여부"""
-        rapid = macro.rapid_engine() is not None
+        rapid = macro.rapid_available()
         return {"engine": macro.ocr_engine_name(), "rapid": rapid, "mode": macro.OCR_MODE["mode"],
-                "rapid_error": None if rapid else macro._RAPID.get("failed")}
+                "rapid_error": None if rapid else macro.rapid_error()}
 
     def api_open_folder(self, _):
         os.startfile(str(core.DATA_BASE))      # 설정·로그가 있는 폴더
@@ -1236,8 +1247,8 @@ def main():
     url = f"http://127.0.0.1:{port}/#{TOKEN}"
 
     BRIDGE.start_engine()                 # 앱 켜자마자 디스코드 연결 + 감지
-    # OCR 엔진은 미리 불러둠 (첫 OCR 이 느리지 않게)
-    threading.Thread(target=lambda: BRIDGE._on_log(f"OCR 엔진: {macro.ocr_engine_name()}", "d"), daemon=True).start()
+    # OCR 엔진은 미리 안 불러둠 (메모리를 많이 먹음) — 쓸 때 OCR 프로세스를 띄우고 오토 팝핑이 시작되면 미리 띄움
+    BRIDGE._on_log(f"OCR 엔진: {macro.ocr_engine_name()}", "d")
     if BRIDGE.data.get("autostart"):      # '바로 작동' 설정이면 시작 버튼까지 눌린 상태로
         BRIDGE.api_start({})
 
@@ -1245,9 +1256,13 @@ def main():
     proc = None
     if edge:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
+        # 화면은 이 PC 안의 페이지 하나뿐 → 업데이트 확인 · 동기화 · 미리 띄워 두는 여분 프로세스 등 쓸데없는 일은 끔 (메모리 절약)
         proc = subprocess.Popen([str(edge), f"--app={url}", f"--user-data-dir={DATA_DIR / 'ui'}",
                                  f"--window-size={WIN_W},{WIN_H}", "--no-first-run", "--no-default-browser-check",
-                                 "--disable-features=Translate,msEdgeSidebarV2", "--disable-extensions"])
+                                 "--disable-features=Translate,msEdgeSidebarV2,SpareRendererForSitePerProcess",
+                                 "--disable-extensions", "--disable-background-networking", "--disable-component-update",
+                                 "--disable-sync", "--disable-default-apps", "--no-pings", "--disable-breakpad",
+                                 "--disable-domain-reliability", "--js-flags=--optimize-for-size"])
     else:
         import webbrowser
         webbrowser.open(url)
@@ -1298,6 +1313,9 @@ if __name__ == "__main__":
         sys.exit(0)
     if "--banner" in sys.argv:               # 화면 위 안내 띠 (자동 보정 중)
         macro.show_banner()
+        sys.exit(0)
+    if "--ocr-worker" in sys.argv:           # OCR 프로세스 (쓸 때만 띄움)
+        macro.ocr_worker_main()
         sys.exit(0)
     try:
         main()

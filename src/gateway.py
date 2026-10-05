@@ -11,6 +11,7 @@
 """
 import base64
 import json
+import re
 import struct
 import zlib
 from urllib.parse import urlparse, parse_qs
@@ -132,6 +133,149 @@ def _term(d, i):
     raise ETFError(f"unknown etf tag {tag}")
 
 
+# ---- 필요한 부분만 해석 (메모리 · CPU 절약)
+# READY 는 내가 들어간 모든 서버의 멤버 · 역할 · 이모지 등이 통째로 들어 있어서 (서버가 많으면 수십 MB)
+# 전부 파이썬 객체로 만들면 순간 메모리가 크게 튐 → 서버 · 채널 이름에 쓰는 칸만 만들고 나머지는 건너뜀
+def _skip(d, i):
+    """값 하나를 만들지 않고 건너뜀 → 다음 위치"""
+    tag = d[i]
+    i += 1
+    if tag == 97:
+        return i + 1
+    if tag == 98:
+        return i + 4
+    if tag == 70:
+        return i + 8
+    if tag == 99:
+        return i + 31
+    if tag in (100, 118, 107):
+        return i + 2 + struct.unpack(">H", d[i:i + 2])[0]
+    if tag in (115, 119):
+        return i + 1 + d[i]
+    if tag in (104, 105):
+        if tag == 104:
+            n, i = d[i], i + 1
+        else:
+            n, i = struct.unpack(">I", d[i:i + 4])[0], i + 4
+        for _ in range(n):
+            i = _skip(d, i)
+        return i
+    if tag == 106:
+        return i
+    if tag == 108:
+        n = struct.unpack(">I", d[i:i + 4])[0]
+        i += 4
+        for _ in range(n):
+            i = _skip(d, i)
+        return i + 1 if d[i] == 106 else _skip(d, i)
+    if tag == 109:
+        return i + 4 + struct.unpack(">I", d[i:i + 4])[0]
+    if tag == 110:
+        return i + 2 + d[i]
+    if tag == 111:
+        return i + 5 + struct.unpack(">I", d[i:i + 4])[0]
+    if tag == 116:
+        n = struct.unpack(">I", d[i:i + 4])[0]
+        i += 4
+        for _ in range(n * 2):
+            i = _skip(d, i)
+        return i
+    if tag == 77:
+        return i + 5 + struct.unpack(">I", d[i:i + 4])[0]
+    raise ETFError(f"unknown etf tag {tag}")
+
+
+def _pick(d, i, spec):
+    """spec 대로 필요한 칸만 해석: True = 통째로 / dict = 그 키만 (값은 다시 spec) / [spec] = 목록의 각 항목"""
+    if spec is True:
+        return _term(d, i)
+    tag = d[i]
+    if isinstance(spec, dict) and tag == 116:
+        n = struct.unpack(">I", d[i + 1:i + 5])[0]
+        i += 5
+        out = {}
+        for _ in range(n):
+            k, i = _term(d, i)
+            if isinstance(k, list):
+                k = str(k)
+            sub = spec.get(k) if isinstance(k, str) else None
+            if sub is None:
+                i = _skip(d, i)
+            else:
+                out[k], i = _pick(d, i, sub)
+        return out, i
+    if isinstance(spec, list) and tag == 108:
+        n = struct.unpack(">I", d[i + 1:i + 5])[0]
+        i += 5
+        out = []
+        for _ in range(n):
+            v, i = _pick(d, i, spec[0])
+            out.append(v)
+        return out, (i + 1 if d[i] == 106 else _skip(d, i))
+    return _term(d, i)                 # 예상과 다른 모양이면 그냥 통째로
+
+
+_CHANNEL = {"id": True, "name": True, "guild_id": True, "parent_id": True, "type": True}
+_GUILD = {"id": True, "name": True, "properties": {"name": True}, "channels": [_CHANNEL], "threads": [_CHANNEL]}
+# 이벤트별로 해석할 칸 — 여기 없는 이벤트는 내용(d)을 아예 안 만듦 (링크 처리 · 이름 기억에 안 씀)
+EVENT_SPECS = {
+    "MESSAGE_CREATE": True, "MESSAGE_UPDATE": True,
+    "READY": {"guilds": [_GUILD]},
+    "GUILD_CREATE": _GUILD, "GUILD_UPDATE": _GUILD,
+    "CHANNEL_CREATE": _CHANNEL, "CHANNEL_UPDATE": _CHANNEL,
+    "THREAD_CREATE": _CHANNEL, "THREAD_UPDATE": _CHANNEL,
+    "THREAD_LIST_SYNC": {"guild_id": True, "threads": [_CHANNEL]},
+}
+_JSON_KEEP = {"t", "s", "op", "d", "guilds", "id", "name", "properties", "channels", "threads", "guild_id",
+              "parent_id", "type"}
+
+
+def etf_event(data):
+    """ETF 게이트웨이 메시지 → {"op", "t", "s", "d"} — d 는 EVENT_SPECS 대로 필요한 칸만 (없는 이벤트는 d 없음)"""
+    data = memoryview(data)
+    if not len(data) or data[0] != 131:
+        raise ETFError("not etf")
+    if data[1] == 80:
+        size = struct.unpack(">I", data[2:6])[0]
+        data = memoryview(b"\x83" + zlib.decompress(bytes(data[6:]))[:size])
+    if data[1] != 116:
+        val, _ = _term(data, 1)
+        return val
+    n = struct.unpack(">I", data[2:6])[0]
+    i, out, d_at = 6, {}, None
+    for _ in range(n):
+        k, i = _term(data, i)
+        if k == "d":
+            d_at, i = i, _skip(data, i)
+        else:
+            out[k], i = _term(data, i)
+    spec = EVENT_SPECS.get(out.get("t"))
+    if spec is True and b"roblox" not in bytes(data).lower():
+        spec = None                      # 메시지인데 링크(roblox)가 없음 → 해석 안 함 (예전과 같음)
+    if d_at is not None and spec is not None:
+        out["d"], _ = _pick(data, d_at, spec)
+    return out
+
+
+def json_event(data):
+    """JSON 게이트웨이 메시지 → etf_event 와 같은 모양 · 맨 앞 "t" 로 이벤트를 먼저 보고 필요 없는 건 해석 안 함
+    (디스코드는 {"t":…, "s":…, "op":…, "d":…} 순서로 보냄 — 아니면 None = 예전처럼 통째로 해석)"""
+    head = bytes(data[:96]) if isinstance(data, (bytes, bytearray, memoryview)) else data[:96].encode()
+    m = re.match(rb'\s*\{\s*"t"\s*:\s*(?:null|"([A-Z0-9_]+)")', head)
+    if not m:
+        return None
+    t = m.group(1).decode() if m.group(1) else None
+    spec = EVENT_SPECS.get(t)
+    if spec is True and b"roblox" not in (data.lower() if isinstance(data, (bytes, bytearray)) else data.encode().lower()):
+        spec = None                      # 메시지인데 링크(roblox)가 없음 → 해석 안 함 (예전과 같음)
+    if spec is None:
+        return {"t": t, "op": 0 if t else None}     # 해석 안 함 (t 가 없으면 이벤트가 아닌 신호 — HELLO · 하트비트 등)
+    if spec is True:
+        return json.loads(data)
+    # 이름용 이벤트: 만들어지는 객체마다 필요한 키만 남김 (멤버 목록 등은 만들자마자 버려짐)
+    return json.loads(data, object_hook=lambda o: {k: v for k, v in o.items() if k in _JSON_KEEP})
+
+
 # ---------------------------------------------------------------- 한 웹소켓 연결
 class _Stream:
     def __init__(self, url):
@@ -172,6 +316,12 @@ class _Stream:
         if self.compress == "zstd-stream":
             return self.z.decompress(raw)
         return raw
+
+    def event(self, data):
+        """필요한 칸만 해석 (못 하면 None → decode 로 통째로)"""
+        if self.encoding == "etf":
+            return etf_event(data)
+        return json_event(data)
 
     def decode(self, data):
         if self.encoding == "etf":
@@ -228,16 +378,22 @@ class Gateway:
             return []
         if not data:
             return []
-        # 가볍게: 링크(roblox)도 없고 이름 관련 이벤트도 아니면 해석 안 함
-        low = data.lower() if isinstance(data, (bytes, bytearray)) else data.encode().lower()
-        if b"roblox" not in low and not any(n in data for n in NAME_EVENTS):
-            return []
         try:
-            msg = s.decode(data)
+            msg = s.event(data)
         except Exception as e:
             self.errors += 1
             self.last_error = f"{type(e).__name__}: {e}"
             return []
+        if msg is None:                  # 이벤트 이름을 먼저 못 봄 → 예전처럼: 링크도 이름 이벤트도 아니면 해석 안 함
+            low = data.lower() if isinstance(data, (bytes, bytearray)) else data.encode().lower()
+            if b"roblox" not in low and not any(n in data for n in NAME_EVENTS):
+                return []
+            try:
+                msg = s.decode(data)
+            except Exception as e:
+                self.errors += 1
+                self.last_error = f"{type(e).__name__}: {e}"
+                return []
         if not isinstance(msg, dict) or msg.get("op") != 0:
             return []
         t, d = msg.get("t"), msg.get("d")

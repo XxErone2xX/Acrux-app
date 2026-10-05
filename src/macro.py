@@ -4,7 +4,7 @@
 - 키 입력 / 마우스: 윈도우 SendInput (로블록스가 받도록 하드웨어 스캔코드 방식)
 - 좌표: 로블록스 창 안쪽(클라이언트 영역) 기준 비율(0~1) → 창 크기·위치가 바뀌어도 그대로 동작
 - 화면 캡처: mss
-- OCR: 윈도우 내장 OCR (Windows.Media.Ocr, winrt 패키지)
+- OCR: RapidOCR (따로 띄운 OCR 프로세스) · 없으면 윈도우 내장 OCR (Windows.Media.Ocr, winrt 패키지)
 윈도우 전용 기능은 다른 OS 에서 불러와도 import 는 되도록 감싸둠 (테스트용)
 """
 import ctypes
@@ -970,12 +970,15 @@ def _ocr_worker(data, w, h):
 
 
 # ---- RapidOCR (PaddleOCR 모델을 onnxruntime 으로 실행) — 윈도우 OCR 보다 훨씬 정확, 게임 글자(테두리·배경색)에 강함
+# 메모리: RapidOCR(모델 + onnxruntime + OpenCV)는 한 번 쓰면 100MB 가까이 계속 붙잡고 있음 → 앱 안에서 안 돌리고
+# 필요할 때만 작은 OCR 프로세스(_OcrProc)를 띄워 거기서 읽고, 한동안 안 쓰면 끔 (끄면 메모리가 전부 돌아감)
+# OCR 프로세스를 못 쓰면 예전처럼 앱 안에서 RapidOCR 를 불러 씀 (그것도 안 되면 윈도우 OCR)
 _RAPID = {"engine": None, "failed": None}
 _RAPID_LOCK = threading.Lock()
 
 
 def rapid_engine():
-    """설치돼 있으면 RapidOCR 엔진 (처음 한 번만 불러옴), 없으면 None"""
+    """앱 안에서 쓰는 RapidOCR 엔진 (OCR 프로세스를 못 쓸 때만 · 처음 한 번만 불러옴), 없으면 None"""
     with _RAPID_LOCK:
         if _RAPID["engine"] is None and _RAPID["failed"] is None:
             try:
@@ -986,6 +989,232 @@ def rapid_engine():
         return _RAPID["engine"]
 
 
+_RAPID_SPEC = {}
+
+
+def _rapid_installed():
+    """RapidOCR 가 설치돼 있는지 (불러오지 않고 확인)"""
+    if "ok" not in _RAPID_SPEC:
+        try:
+            import importlib.util
+            _RAPID_SPEC["ok"] = importlib.util.find_spec("rapidocr_onnxruntime") is not None
+        except Exception:
+            _RAPID_SPEC["ok"] = False
+    return _RAPID_SPEC["ok"]
+
+
+class _OcrDown(Exception):
+    """OCR 프로세스가 안 뜨거나 죽음 (OCR 자체의 오류와 구분)"""
+
+
+class _OcrProc:
+    """RapidOCR 를 돌리는 작은 프로세스 (app.py/macro.py --ocr-worker) — 쓸 때 띄우고 IDLE 초 동안 안 쓰면 끔
+    주고받기: [4바이트 길이 + json] (+ 화면 조각 바이트)"""
+    IDLE = 90.0
+    START_TIMEOUT = 40.0
+
+    def __init__(self):
+        self.p = None
+        self.lock = threading.Lock()
+        self.last = 0.0
+        self.broken = None               # 띄울 수 없는 이유 (그 뒤로는 앱 안에서 읽음)
+        self.reaper = None
+
+    def alive(self):
+        return self.p is not None and self.p.poll() is None
+
+    def _cmd(self):
+        if getattr(sys, "frozen", False):            # 한 파일 exe 로 묶은 경우: app.py 가 --ocr-worker 를 받음
+            return [sys.executable, "--ocr-worker"]
+        return [sys.executable, str(Path(__file__).resolve()), "--ocr-worker"]
+
+    def _kill(self):
+        p, self.p = self.p, None
+        if p is not None:
+            try:
+                p.kill()
+            except Exception:
+                pass
+            for f in (p.stdin, p.stdout):
+                try:
+                    f.close()
+                except Exception:
+                    pass
+            try:
+                p.wait(2)
+            except Exception:
+                pass
+
+    def _read(self, n):
+        data = self.p.stdout.read(n)
+        if data is None or len(data) != n:
+            raise _OcrDown("OCR 프로세스 응답 끊김")
+        return data
+
+    def _recv(self, timeout):
+        p = self.p
+        timer = threading.Timer(timeout, lambda: p.kill())    # 응답이 너무 늦으면 끔 → read 가 끊겨서 빠져나옴
+        timer.daemon = True
+        timer.start()
+        try:
+            import json as _json
+            import struct
+            n = struct.unpack("<I", self._read(4))[0]
+            return _json.loads(self._read(n).decode("utf-8"))
+        except _OcrDown:
+            raise
+        except Exception as e:
+            raise _OcrDown(f"OCR 프로세스 응답 오류: {e}")
+        finally:
+            timer.cancel()
+
+    def _start(self):
+        import subprocess
+        try:
+            self.p = subprocess.Popen(self._cmd(), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                      stderr=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        except Exception as e:
+            self.p = None
+            raise _OcrDown(f"OCR 프로세스를 띄울 수 없음: {e}")
+        try:
+            hello = self._recv(self.START_TIMEOUT)
+        except _OcrDown:
+            self._kill()
+            raise
+        if not hello.get("ready"):
+            self._kill()
+            raise _OcrDown(hello.get("err") or "OCR 프로세스 준비 실패")
+        self.last = time.time()
+        if self.reaper is None or not self.reaper.is_alive():
+            self.reaper = threading.Thread(target=self._reap, daemon=True)
+            self.reaper.start()
+
+    def _reap(self):
+        """한동안 안 쓰면 OCR 프로세스를 끔"""
+        while True:
+            time.sleep(5)
+            if not self.alive():
+                return
+            if time.time() - self.last > self.IDLE and self.lock.acquire(blocking=False):
+                try:
+                    if time.time() - self.last > self.IDLE:
+                        self._kill()
+                        return
+                finally:
+                    self.lock.release()
+
+    def warm(self):
+        """곧 OCR 을 쓸 것 같을 때 미리 띄워 둠 (첫 OCR 이 늦지 않게)"""
+        with self.lock:
+            if self.broken is None and not self.alive():
+                try:
+                    self._start()
+                except _OcrDown as e:
+                    self.broken = str(e)
+            self.last = time.time()
+
+    def run(self, op, data, w, h, timeout):
+        import json as _json
+        import struct
+        with self.lock:
+            if self.broken is not None:
+                raise _OcrDown(self.broken)
+            if not self.alive():
+                try:
+                    self._start()
+                except _OcrDown as e:
+                    self.broken = str(e)
+                    raise
+            try:
+                head = _json.dumps({"op": op, "w": int(w), "h": int(h), "n": len(data)}).encode("utf-8")
+                self.p.stdin.write(struct.pack("<I", len(head)) + head)
+                self.p.stdin.write(data)
+                self.p.stdin.flush()
+                res = self._recv(timeout)
+            except _OcrDown:
+                self._kill()
+                raise
+            except Exception as e:
+                self._kill()
+                raise _OcrDown(f"OCR 프로세스 통신 오류: {e}")
+            self.last = time.time()
+        if "err" in res:
+            raise RuntimeError(res["err"])
+        return res.get("ok")
+
+
+_OCR = _OcrProc()
+
+
+def _read_exact(fd, n):
+    buf = bytearray()
+    while len(buf) < n:
+        chunk = os.read(fd, n - len(buf))
+        if not chunk:
+            raise EOFError
+        buf += chunk
+    return bytes(buf)
+
+
+def ocr_worker_main():
+    """--ocr-worker: 앱이 보낸 화면 조각을 RapidOCR 로 읽어서 돌려줌 (앱이 꺼지거나 입력이 끊기면 끝)"""
+    import json as _json
+    import struct
+    out = os.dup(1)
+    try:
+        os.dup2(2, 1)                        # 라이브러리가 print 해도 주고받는 통로를 망치지 않게
+    except OSError:
+        pass
+
+    def send(obj):
+        b = _json.dumps(obj, ensure_ascii=False).encode("utf-8")
+        b = struct.pack("<I", len(b)) + b
+        while b:
+            b = b[os.write(out, b):]
+    try:
+        from rapidocr_onnxruntime import RapidOCR
+        eng = RapidOCR()
+    except Exception as e:
+        send({"err": str(e) or type(e).__name__})
+        return
+    send({"ready": True})
+    while True:
+        try:
+            head = _json.loads(_read_exact(0, struct.unpack("<I", _read_exact(0, 4))[0]).decode("utf-8"))
+            data = _read_exact(0, int(head["n"]))
+        except (EOFError, OSError, ValueError):
+            return
+        try:
+            if head.get("op") == "count":
+                send({"ok": _rapid_count(eng, data, head["w"], head["h"])})
+            else:
+                send({"ok": _rapid_worker(eng, data, head["w"], head["h"])})
+        except Exception as e:
+            send({"err": str(e) or type(e).__name__})
+
+
+def _rapid_read(op, data, w, h):
+    """RapidOCR 로 읽기: OCR 프로세스에서 (안 되면 앱 안에서) — op: text = 전체 글자 / count = 오른쪽 아래 개수
+    RapidOCR 를 아예 못 쓰면 None"""
+    for _ in range(2):                       # 도중에 죽었으면 한 번 다시 띄워 봄
+        if _OCR.broken is not None:
+            break
+        try:
+            return _OCR.run(op, data, w, h, OCR_TIMEOUT)
+        except _OcrDown:
+            continue
+    eng = rapid_engine()
+    if eng is None:
+        return None
+    return _rapid_count(eng, data, w, h) if op == "count" else _rapid_worker(eng, data, w, h)
+
+
+def ocr_warmup():
+    """곧 OCR 을 쓸 때 (오토 팝핑 시작 등) OCR 프로세스를 미리 띄움 — 뒤에서 함"""
+    if OCR_MODE["mode"] != "windows" and _rapid_installed() and _OCR.broken is None and not _OCR.alive():
+        threading.Thread(target=_OCR.warm, daemon=True).start()
+
+
 # OCR 감지 방식 (Acrux 설정): auto = RapidOCR 가 있으면 RapidOCR, 없으면 윈도우 OCR / rapid / windows
 OCR_MODE = {"mode": "auto"}
 
@@ -994,15 +1223,26 @@ def set_ocr_mode(mode):
     OCR_MODE["mode"] = mode if mode in ("auto", "rapid", "windows") else "auto"
 
 
-def ocr_engine():
-    """지금 쓸 RapidOCR 엔진 (윈도우 OCR 을 쓸 거면 None) — RapidOCR 를 골랐어도 설치가 안 돼 있으면 윈도우 OCR"""
-    if OCR_MODE["mode"] == "windows":
-        return None
-    return rapid_engine()
+def rapid_available():
+    """RapidOCR 를 쓸 수 있는지 (설치돼 있고, OCR 프로세스 · 앱 안 둘 다 실패한 적 없음)"""
+    if not _rapid_installed():
+        return False
+    return not (_OCR.broken is not None and _RAPID["failed"] is not None)
+
+
+def rapid_error():
+    if not _rapid_installed():
+        return "rapidocr_onnxruntime 없음"
+    return _RAPID["failed"] if _OCR.broken is not None else None
+
+
+def _use_rapid():
+    """지금 RapidOCR 로 읽을지 (윈도우 OCR 을 골랐거나 RapidOCR 를 못 쓰면 윈도우 OCR)"""
+    return OCR_MODE["mode"] != "windows" and rapid_available()
 
 
 def ocr_engine_name():
-    return "RapidOCR" if ocr_engine() else "윈도우 OCR"
+    return "RapidOCR" if _use_rapid() else "윈도우 OCR"
 
 
 def _rapid_worker(eng, data, w, h):
@@ -1061,10 +1301,9 @@ def ocr_item_bgra(data, w, h):
     """아이템 칸 읽기: 이름 + 개수. 전체를 읽고, 개수를 못 찾으면 오른쪽 아래만 따로 다시 읽음"""
     import re
     text = ocr_bgra(data, w, h)
-    eng = ocr_engine()
-    if eng is not None and not re.search(r"[x×X]\s*[0-9]", text or ""):
+    if _use_rapid() and not re.search(r"[x×X]\s*[0-9]", text or ""):
         try:
-            cnt = _rapid_count(eng, data, w, h)
+            cnt = _rapid_read("count", data, w, h)
         except Exception:
             cnt = None
         if cnt:
@@ -1081,10 +1320,11 @@ def ocr_bgra(data, w, h):
 
     def run():
         try:
-            eng = ocr_engine()
-            if eng is not None:
-                box["text"] = _rapid_worker(eng, data, w, h)
-                return
+            if _use_rapid():
+                text = _rapid_read("text", data, w, h)
+                if text is not None:
+                    box["text"] = text
+                    return
             box["text"] = _ocr_worker(data, w, h)
         except BaseException as e:
             box["err"] = e
@@ -1196,3 +1436,5 @@ elif __name__ == "__main__" and "--pick-point" in sys.argv:
     pick_region_to_file(sys.argv[sys.argv.index("--pick-point") + 1], "point")
 elif __name__ == "__main__" and "--banner" in sys.argv:
     show_banner()
+elif __name__ == "__main__" and "--ocr-worker" in sys.argv:
+    ocr_worker_main()
