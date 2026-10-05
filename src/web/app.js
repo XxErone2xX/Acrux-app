@@ -844,7 +844,7 @@ for (const [id, key, min] of [['playWait', 'load_wait', 0], ['playInterval', 'in
 let picking = false;
 for (const [which, d] of Object.entries(PICKS)) {
   $(d.btn).addEventListener('click', async () => {
-    if (picking) return;
+    if (picking) { api('pick_cancel'); return; }
     picking = true;
     const b = $(d.btn);
     b.textContent = `로블록스 화면에서 ${d.name} 클릭`; b.classList.add('waiting');
@@ -929,7 +929,7 @@ const fmtPos = p => p ? `${pct(p[0])}, ${pct(p[1])}` : '지정 안 됨';
 const fmtReg = r => r ? `${pct(r[0])}, ${pct(r[1])} → ${pct(r[2])}, ${pct(r[3])}` : '지정 안 됨';
 
 async function pickWith(btn, label, call) {
-  if (picking) return null;
+  if (picking) { api('pick_cancel'); return null; }   // 지정 중에 다시 누르면 취소 (창이 안 떠서 멈춘 경우에도 풀림)
   picking = true;
   const old = I18N.source(btn);
   btn.textContent = label; btn.classList.add('waiting');
