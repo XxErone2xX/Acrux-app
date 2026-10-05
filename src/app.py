@@ -13,6 +13,7 @@ import os
 import re
 import secrets
 import subprocess
+import tempfile
 import sys
 import threading
 import time
@@ -104,7 +105,8 @@ class Bridge:
         # 이동: 기준 장소(리셋 · 카메라 정렬 · 줌) → 화면의 한 점을 눌러 장소로 걸어감 · 걸리는 시간은 직접 잼
         self.mover = move.Mover(lambda: self.data.get("base", {}), lambda: self.data.get("move", {}), self._on_log,
                                 set_move_time=self._set_move_time, before=lambda: self.fisher.hold(45),
-                                after=self.fisher.release, banner=self._move_banner)
+                                after=self.fisher.release, banner=self._move_banner,
+                                progress=self._banner_progress)
         # 판매: 자동 낚시 중 인벤토리가 가득 차면 물고기 판매 장소로 가서 팔고 낚시 장소로 돌아옴
         self.seller = sell.Seller(self.mover, self._mfish_cfg, lambda: self.data.get("move", {}), self._on_log)
         self.fisher.on_full = self._on_fish_full
@@ -608,11 +610,25 @@ class Bridge:
                   "confirm_sell_pos": [0.4141, 0.5731], "shop_close_pos": [0.7609, 0.2528]},
     }
 
+    BANNER_PROGRESS = Path(tempfile.gettempdir()) / f"acrux_banner_{os.getpid()}.txt"
+
+    def _banner_progress(self, to, sec=0.3):
+        """안내 띠 게이지: 지금 값에서 to(0~1) 까지 sec 초 동안 차오름"""
+        try:
+            tmp = self.BANNER_PROGRESS.with_suffix(".tmp")
+            tmp.write_text(f"{min(1.0, max(0.0, to)):.4f} {max(0.0, sec):.2f}", encoding="utf-8")
+            os.replace(tmp, self.BANNER_PROGRESS)
+        except OSError:
+            pass
+
     def _banner_proc(self, kind):
-        """화면 위 가운데 '건드리지 마세요' 안내 띠 (별도 프로세스) → Popen 또는 None"""
+        """화면 위 가운데 '건드리지 마세요' 안내 띠 (별도 프로세스 · 회색 → 파란 게이지) → Popen 또는 None
+        시간 재기 띠는 끝을 알 수 없어서 다 찬 상태로"""
+        self._banner_progress(1.0 if kind == "measure" else 0.0, 0)
         env = dict(os.environ, ACRUX_LANG=str(self.data.get("lang") or "ko"))
-        cmd = [sys.executable, "--banner", kind] if getattr(sys, "frozen", False) else \
-            [sys.executable, str(Path(__file__).resolve().parent / "macro.py"), "--banner", kind]
+        args = ["--banner", kind, "--progress", str(self.BANNER_PROGRESS)]
+        cmd = [sys.executable, *args] if getattr(sys, "frozen", False) else \
+            [sys.executable, str(Path(__file__).resolve().parent / "macro.py"), *args]
         try:
             return subprocess.Popen(cmd, creationflags=NO_WINDOW, env=env)
         except Exception:
@@ -718,6 +734,8 @@ class Bridge:
 
         macro.focus(hwnd, wait=0.4)
         done = []
+        prog = self._banner_progress
+        prog(0.15, 1.0)
         # ① 대기 창 (Fish 버튼이 보여야 함)
         rect, rgb = shot()
         panel = frame_of(rgb, "panel_region")
@@ -728,6 +746,7 @@ class Bridge:
         c0, half = (x1 + x2) / 2, (x2 - x1) / 2 * fishing.REEL_FROM_PANEL
         apply("reel_region", [round(c0 - half, 4), y1, round(c0 + half, 4), y2])
         done.append("대기 창")
+        prog(0.2, 0.3)
         mf = self.data["mfish"]
         # ② Fish 를 눌러 입질 → 미니게임 창
         with macro.ScreenGrabber() as sct:
@@ -750,6 +769,7 @@ class Bridge:
                     break
             else:
                 raise _AutocalStop("Fish 를 눌러도 반응 없음 (인벤토리 가득?) — 대기 창만 맞춤")
+            prog(0.55, 25)                           # 입질은 언제 올지 몰라서 천천히
             end = time.time() + float(mf.get("bite_max", 60)) + 10
             while time.time() < end:                 # 입질 기다림 (미니게임 창이 뜰 때까지)
                 check()
@@ -759,6 +779,7 @@ class Bridge:
             else:
                 click(mf["fish_btn"])                # 던진 걸 거둠 (Exit)
                 raise _AutocalStop("입질이 안 와서 미니게임 창은 못 잼 — 대기 창만 맞춤")
+            prog(0.6, 0.3)
             reel = settled("reel_region", 3.0)       # 미니게임 창
             if reel:
                 apply("reel_region", reel)
@@ -767,8 +788,10 @@ class Bridge:
                 done.append("미니게임 창 (대기 창으로 계산)")
             # ③ 방금 잰 위치로 릴링해서 물고기를 잡음 → 결과창이 뜸
             cfg = dict(fishing.DEFAULTS, **self.data["mfish"])
+            prog(0.85, 12)
             self.fisher._reel(sct, macro.client_rect(hwnd), cfg, self._autocal_stop)   # 취소 · F7 이면 Stopped
         mf = self.data["mfish"]
+        prog(0.9, 0.3)
         result = settled("result_region", 6.0)
         if result:
             apply("result_region", result)
@@ -784,6 +807,7 @@ class Bridge:
                     click(mf["close_pos"])
                     wait(0.2)
         self._save()
+        prog(1.0, 0.2)
         text = " · ".join(done)
         self._on_log(f"자동 보정 완료: {text}", "g")
         return {"mfish": self.data["mfish"], "done": text}
@@ -883,6 +907,10 @@ class Bridge:
             self._on_log(f"판매 자동 보정 · {msg}", "c")
             if msg.startswith("대화창 찾음"):
                 set_banner("autocal")               # 이제부턴 매크로가 누름 → '건드리지 마세요'
+                self._banner_progress(0.2, 2.0)
+            step = {"상점 여는 중": (0.5, 4.0), "확인창 확인 중 (팔지는 않음)": (0.8, 3.0), "상점 닫는 중": (0.95, 1.0)}.get(msg)
+            if step:
+                self._banner_progress(*step)
 
         try:
             if not self.fisher.hold(45):
@@ -1584,7 +1612,8 @@ if __name__ == "__main__":
         sys.exit(0)
     if "--banner" in sys.argv:               # 화면 위 안내 띠 (자동 보정 중 · 이동 중)
         _i = sys.argv.index("--banner")
-        macro.show_banner(sys.argv[_i + 1] if len(sys.argv) > _i + 1 else "autocal")
+        _p = sys.argv[sys.argv.index("--progress") + 1] if "--progress" in sys.argv else None
+        macro.show_banner(sys.argv[_i + 1] if len(sys.argv) > _i + 1 else "autocal", progress=_p)
         sys.exit(0)
     try:
         main()

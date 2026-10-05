@@ -24,13 +24,15 @@ class Stopped(Exception):
 class Mover:
     LABEL = "이동"
 
-    def __init__(self, get_base, get_move, log, set_move_time=None, before=None, after=None, banner=None):
+    def __init__(self, get_base, get_move, log, set_move_time=None, before=None, after=None, banner=None, progress=None):
         self.get_base = get_base            # 통합 위치 (Collection 버튼 · 닫기 위치)
         self.get_move = get_move            # 이동 설정 (move)
         self.log = log
         self.set_move_time = set_move_time  # (장소, 지점, 초) → 잰 시간 저장
         self.before, self.after = before, after   # 자동 낚시 잠깐 멈춤 / 이어감
         self.banner = banner                # 화면 위 안내 띠: banner('move' · 'measure' · None)
+        self.progress = progress            # 안내 띠 게이지: progress(목표 0~1, 걸리는 초)
+        self._plan, self._acc = 0.0, 0.0    # 이번 이동 전체 예상 시간 · 지금까지 지난 예상 시간
         self.stop_ev = threading.Event()
         self.arrive_ev = threading.Event()
         self.thread = None
@@ -75,6 +77,14 @@ class Mover:
             if self.before:
                 held = True
                 self.before()
+            if job == "base":
+                self.plan(self.base_time())
+            elif job == "place":
+                self.plan(self.base_time() + self.place_time(args[0]))
+            elif job in ("test", "prep") and (job == "prep" or (args[2] if len(args) > 2 else True)):
+                self.plan(self.base_time() + self.place_time(args[0], upto=args[1]))
+            else:
+                self.plan(0)
             self._banner("move")
             if job == "base":
                 self.go_base()
@@ -98,6 +108,36 @@ class Mover:
             self._set(msg="대기", measuring=None)
             if held and self.after:
                 self.after()
+
+    # ---- 게이지 (안내 띠가 예상 시간에 맞춰 차오름)
+    def base_time(self):
+        """기준 장소까지 예상 시간 (go_base 순서 · 화면의 총 시간과 같은 계산)"""
+        m = self.get_move() or {}
+        return 4.9 + float(m.get("reset_wait", 3.5)) + float(m.get("w_time", 0.85)) + float(m.get("wa_time", 8.0)) \
+            + max(float(m.get("o_time", 2.5)), float(m.get("tilt_px", 800)) / 20 * 0.015)
+
+    def place_time(self, i, upto=None):
+        m = self.get_move() or {}
+        try:
+            pts = self._place(i)["points"]
+        except RuntimeError:
+            return 0.0
+        pts = pts[:upto] if upto is not None else pts
+        return sum(float(pt.get("time") or 0) + float(m.get("margin", 0.3)) for pt in pts)
+
+    def plan(self, total):
+        """이번 이동 전체 예상 시간 (0 = 게이지 안 씀)"""
+        self._plan, self._acc = float(total), 0.0
+
+    def _advance(self, sec, cap=1.0):
+        """다음 sec 초 동안 게이지를 그만큼 채움"""
+        if self._plan <= 0 or not self.progress:
+            return
+        self._acc += sec
+        try:
+            self.progress(min(cap, self._acc / self._plan), sec)
+        except Exception:
+            pass
 
     # ---- 도우미
     def _banner(self, kind):
@@ -273,6 +313,7 @@ class Mover:
         if miss:
             raise RuntimeError(miss)
         self._set(msg="기준 장소로 이동 · 리셋")
+        self._advance(self.base_time())
         self._release_keys()
         self._rect()
         self._wait(0.2)
@@ -310,6 +351,7 @@ class Mover:
             if pt.get("time") is None:
                 raise RuntimeError(f"{pl['name'] or '장소'} · {n}번 지점 시간을 먼저 재야 함 (테스트)")
             self._set(msg=f"{pl['name'] or '장소'} 가는 중 ({n}/{len(pl['points'])})")
+            self._advance(float(pt["time"]) + float(mv.get("margin", 0.3)))
             self._click(pt["pos"], mv.get("button", "right"))
             self._wait(float(pt["time"]) + float(mv.get("margin", 0.3)))
 

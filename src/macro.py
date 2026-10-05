@@ -771,9 +771,11 @@ BANNER_TEXT = {
 }
 
 
-def show_banner(kind="autocal", seconds=240):
+def show_banner(kind="autocal", seconds=240, progress=None):
     """화면 위 가운데에 안내 띠 — 클릭이 통과되고 포커스도 안 가져가서 로블록스 조작을 방해하지 않음
-    (tkinter 라 별도 프로세스: macro.py --banner · 앱이 끝나면 끔 · 안 끄면 seconds 뒤 저절로 닫힘)"""
+    (tkinter 라 별도 프로세스: macro.py --banner · 앱이 끝나면 끔 · 안 끄면 seconds 뒤 저절로 닫힘)
+    게이지: 회색 띠가 왼쪽 → 오른쪽으로 파랗게 차오름 — progress 파일에 "목표(0~1) 걸리는 초" 를 쓰면
+    지금 값에서 목표까지 그 시간 동안 고르게 차오름 (파일이 없으면 다 찬 파란 띠)"""
     import tkinter as tk
     texts = BANNER_TEXT.get(kind, BANNER_TEXT["autocal"])
     text = texts.get(_LANG, texts["ko"])
@@ -784,11 +786,14 @@ def show_banner(kind="autocal", seconds=240):
         root.attributes("-alpha", 0.92)
     except Exception:
         pass
-    lab = tk.Label(root, text=text, fg="#ffffff", bg="#5865f2", padx=22, pady=10,
-                   font=(_UI_FONT.get(_LANG, "Malgun Gothic"), 12, "bold"))
-    lab.pack()
-    root.update_idletasks()
-    w, h = root.winfo_reqwidth(), root.winfo_reqheight()
+    font = (_UI_FONT.get(_LANG, "Malgun Gothic"), 12, "bold")
+    probe = tk.Label(root, text=text, font=font, padx=22, pady=10)
+    w, h = probe.winfo_reqwidth(), probe.winfo_reqheight()
+    probe.destroy()
+    cv = tk.Canvas(root, width=w, height=h, highlightthickness=0, bd=0, bg="#4f545c")
+    cv.pack()
+    fill = cv.create_rectangle(0, 0, 0, h, width=0, fill="#5865f2")
+    cv.create_text(w // 2, h // 2, text=text, fill="#ffffff", font=font)
     sw = root.winfo_screenwidth()
     rect = client_rect(roblox_window()) if IS_WIN else None
     cx, top = (rect[0] + rect[2] // 2, rect[1] + 8) if rect else (sw // 2, 8)
@@ -802,6 +807,25 @@ def show_banner(kind="autocal", seconds=240):
             user32.SetWindowLongW(hwnd, -20, ex | 0x80000 | 0x20 | 0x8000000 | 0x80)
         except Exception:
             pass
+    st = {"cur": 1.0 if not progress else 0.0, "from": 0.0, "to": 1.0 if not progress else 0.0,
+          "t0": 0.0, "dur": 0.0, "mtime": None}
+
+    def tick():
+        if progress:
+            try:
+                m = os.path.getmtime(progress)
+                if m != st["mtime"]:
+                    st["mtime"] = m
+                    with open(progress, encoding="utf-8") as f:
+                        to, dur = (float(v) for v in f.read().split()[:2])
+                    st.update({"from": st["cur"], "to": min(1.0, max(0.0, to)), "t0": time.time(), "dur": max(0.0, dur)})
+            except (OSError, ValueError):
+                pass
+            k = 1.0 if st["dur"] <= 0 else min(1.0, (time.time() - st["t0"]) / st["dur"])
+            st["cur"] = st["from"] + (st["to"] - st["from"]) * k
+        cv.coords(fill, 0, 0, int(w * st["cur"]), h)
+        root.after(50, tick)
+    tick()
     root.after(int(seconds * 1000), root.destroy)
     root.mainloop()
 

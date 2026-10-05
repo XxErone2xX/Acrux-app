@@ -1,11 +1,9 @@
-## Acrux macro V1.24.2 업데이트
-- 판매 자동 보정: 창 크기가 작아 상점 모양이 바뀌어도 첫 칸 · 상점 닫기 X · 물고기 정보 영역을 맞게 찾음
-- 판매 자동 보정: 대화창은 가운데를 누름 · Sell Fish 뒤에 다른 글자가 겹쳐도 버튼 가운데를 누름
-- 판매 클릭 사이 대기를 늘림 · 판매 칸에 **클릭 사이 추가 대기** 설정 추가 (기본 0.4초, 렉이 있으면 늘리기)
-- 창 크기를 바꿨다면 [판매 자동 보정] 을 한 번 다시 실행
+## Acrux macro V1.25.0 업데이트
+- 자동 보정 · 이동 중 화면 위에 뜨는 "건드리지 마세요" 띠가 **게이지**로 바뀜 (회색에서 왼쪽 → 오른쪽으로 파랗게 차오름)
+  - 이동 · 판매는 설정한 시간으로 계산한 진행도 · 자동 보정은 단계별 진행도
+- 자동 보정 · 판매 자동 보정 버튼을 각 칸의 맨 위로 옮김 (자동 보정은 창 영역 칸 안으로)
 
-## Acrux macro V1.24.2 Update
-- Sell calibration: finds the first slot, shop close X and fish info area correctly even when a small window changes the shop layout
-- Sell calibration: clicks the middle of the dialog · clicks the middle of Sell Fish even when other text overlaps it
-- Longer waits between sell clicks · added an **Extra wait between clicks** setting to Selling (default 0.4 s, raise it if the game lags)
-- If you changed the window size, run [Sell calibration] once again
+## Acrux macro V1.25.0 Update
+- The "don't touch" banner shown during auto calibration and movement is now a **progress gauge** (fills blue from left to right over gray)
+  - Movement and selling show progress based on the set times · auto calibration shows progress by step
+- Moved the Auto calibrate and Sell calibration buttons to the top of their boxes (Auto calibrate is now inside the Window areas box)
