@@ -967,7 +967,7 @@ const POS_TEMPLATES = {
             ocr_region: [0.415, 0.392, 0.469, 0.491] },
 };
 const tplRowHTML = () => `
-  <div class="row tpl-pick"><span>위치 템플릿<small>Play/Click to skip, 버튼 위치, OCR 영역을 한 번에 채움 · 로블록스 화면 비율에 맞는 것 선택</small></span>
+  <div class="row tpl-pick"><span>위치 템플릿<small>화면 비율에 맞는 기본 위치를 한 번에 채움</small></span>
     <span class="pos"><select data-pos-tpl>${Object.keys(POS_TEMPLATES).map(k => `<option value="${k}">${k}</option>`).join('')}</select>
     <button class="btn mini" type="button" data-pos-apply>적용</button></span></div>`;
 function applyPosTemplate(name) {
@@ -1016,7 +1016,7 @@ function renderPopSet() {
   const p = pop(), linked = !!p.use_base, e = popPos();
   const pick = (attr, k, label) => linked ? '' : `<button class="btn mini ghost" type="button" ${attr}${k ? `="${k}"` : ''}>${label}</button>`;
   box.innerHTML = `
-    <label class="row"><span>매크로 통합 위치와 연동<small>켜면 매크로 탭 → 매크로 기준 위치 설정 → 통합 위치 의 인벤토리 위치 · OCR 영역을 씀 (위치는 거기서 바꿈)</small></span>
+    <label class="row"><span>매크로 통합 위치와 연동<small>켜면 통합 위치의 인벤토리 위치 · OCR 영역을 씀</small></span>
       <span class="switch"><input type="checkbox" id="popLink" ${linked ? 'checked' : ''}><i></i></span></label>` +
     (linked ? '' : tplRowHTML()) + POP_POS.map(([k, name, sub]) => `
     <div class="row"><span>${name} 위치<small>${sub ? sub + ' · ' : ''}${linked ? '통합 위치와 같음' : '직접 지정 필요'}</small></span>
@@ -1026,7 +1026,7 @@ function renderPopSet() {
       <span class="pos"><code class="${e.ocr_region ? '' : 'unset'}" id="popRegion">${fmtReg(e.ocr_region)}</code>
       ${pick('id="popRegionPick"', '', '드래그로 지정')}
       <button class="btn mini ghost" type="button" id="popOcrTest">OCR 테스트</button></span></div>
-    <label class="row"><span>이름 일치율 기준<small>OCR 이름과 포션 이름이 이 이상 같아야 사용 · 미만이면 1회 재검색 후 스킵 (%)</small></span>
+    <label class="row"><span>이름 일치율 기준<small>이 이상 같아야 사용 · 아니면 다시 검색 후 건너뜀 (%)</small></span>
       <input type="number" min="1" max="100" step="5" id="popThreshold" value="${p.match_threshold ?? 70}"></label>`;
   $('popLink').addEventListener('change', ev => setPopLink(ev.target.checked));
   box.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', async () => {
@@ -1164,7 +1164,7 @@ function renderMpop() {
   const posMiss = POP_POS_KEYS.filter(k => !base()[k]).length;
   const label = { CYBERSPACE: 'Cyberspace', GLITCHED: 'Glitched', DREAMSPACE: 'Dreamspace' };
   $('mpopForm').innerHTML = `
-    <label class="row"><span>켜기<small>켜져 있는 동안 레어 바이옴이 감지되면 아래 포션 목록대로 사용 (시작 버튼과 무관)</small></span>
+    <label class="row"><span>켜기<small>레어 바이옴이 감지되면 아래 포션 목록대로 사용</small></span>
       <span class="switch"><input type="checkbox" id="mpopOn" ${m.enabled ? 'checked' : ''}><i></i></span></label>
     <div class="row"><span>플레이어 이름<small>바이옴 감지에 필요 · 바이옴 매크로 설정 → 기본 설정에서 입력</small></span>
       <span class="${player ? '' : 'warn'}">${player ? esc(player) : '입력 안 됨 — 바이옴 감지 안 됨'}</span></div>
@@ -1221,15 +1221,15 @@ const MFISH_POS = [['fish_btn', 'Fish 버튼', 'Fish / Exit 버튼 가운데 (�
   ['title_pos', '결과창 제목', '선택 · 제목 색으로 성공 / 쓰레기 / 실패 구분']];
 const MFISH_REQ = ['fish_btn', 'bar_region', 'close_pos'];
 const MFISH_TUNE = [['bite_max', '입질 최대 대기', '이 시간 동안 입질이 없으면 Exit 후 다시 던짐 (초)', 60, 5, 1],
-  ['target_pct', '목표 위치', '내 위치가 구간 왼쪽 변에서 구간 폭의 몇 % 지점 이하로 내려오면 누를지 · 0 = 딱 왼쪽 변, 50 = 가운데 · 구간 왼쪽으로 자꾸 빠지면 늘림 (%)', 0, 0, 5],
-  ['lead_ms', '미리 누르기', '떨어지는 속도를 보고 이만큼 미리 누름 · 0 = 지금 위치 그대로 · 누르는 게 늦어 구간 왼쪽으로 빠지면 조금 늘림 (ms)', 0, 0, 10],
+  ['target_pct', '목표 위치', '구간 왼쪽 변에서 몇 % 지점에서 누를지 · 0 = 왼쪽 변, 50 = 가운데 (%)', 0, 0, 5],
+  ['lead_ms', '미리 누르기', '이만큼 미리 누름 · 늦게 눌리면 조금 늘림 (ms)', 0, 0, 10],
   ['click_gap_ms', '클릭 최소 간격', '릴링 중 클릭 사이 최소 간격 (ms)', 45, 10, 5],
-  ['cast_retry', 'Fish 다시 누르기', 'Fish 를 눌러도 반응이 없으면 다시 누르는 횟수 · 넘으면 인벤토리 가득으로 봄', 3, 1, 1]];
+  ['cast_retry', 'Fish 다시 누르기', '반응이 없을 때 다시 누르는 횟수 · 넘으면 인벤토리 가득', 3, 1, 1]];
 function renderMfish() {
   const m = mfish();
   const posMiss = MFISH_REQ.filter(k => !m[k]).length;
   $('mfishForm').innerHTML = `
-    <label class="row"><span>켜기<small>매크로 버튼이 켜져 있는 동안 계속 낚시 · 레어 바이옴이 뜨면 잠깐 멈추고 팝핑 후 이어감</small></span>
+    <label class="row"><span>켜기<small>매크로가 켜져 있는 동안 계속 낚시</small></span>
       <span class="switch"><input type="checkbox" id="mfishOn" ${m.enabled ? 'checked' : ''}><i></i></span></label>
     <div class="row"><span>버튼 위치 · 릴링 바 영역<small>매크로 기준 위치 설정 → 자동 낚시 에서 지정</small></span>
       <span class="${posMiss ? 'warn' : ''}">${posMiss ? `${posMiss}개 지정 안 됨` : '지정됨'}</span></div>
@@ -1239,7 +1239,7 @@ function renderMfish() {
     <label class="row"><span>${name}<small>${sub} · 기본 ${def}</small></span>
       <input type="number" min="${min}" step="${step}" data-mfish-tune="${k}" value="${m[k] ?? def}"></label>`).join('');
   $('mfishTune').insertAdjacentHTML('beforeend', `
-    <label class="row"><span>릴링 기록 저장<small>낚시가 불안정할 때 켜고 몇 번 낚은 뒤 데이터 폴더의 fishing_log.csv 를 보내주세요 (Acrux 설정 → 일반 → 폴더 열기)</small></span>
+    <label class="row"><span>릴링 기록 저장<small>문제 확인용 기록 (데이터 폴더의 fishing_log.csv)</small></span>
       <span class="switch"><input type="checkbox" id="mfishDebug" ${m.debug_log ? 'checked' : ''}><i></i></span></label>`);
   $('mfishDebug').addEventListener('change', e => { m.debug_log = e.target.checked; saveMfish(); });
   $('mfishTune').querySelectorAll('[data-mfish-tune]').forEach(i => i.addEventListener('input', () => {
@@ -1298,35 +1298,35 @@ const MPOS = {
                    ['chat_pos', '채팅 버튼', '왼쪽 위의 채팅 버튼'],
                    ['collection_pos', '도감 버튼', '왼쪽 메뉴의 도감(Collection · 책 모양) 버튼'],
                    ['collection_close', '도감 Exit', '도감을 연 상태에서 Exit(닫기) 버튼'],
-                   ['dialog_pos', '대화창', 'NPC 와 대화할 때 눌러서 넘길 곳 (Click to skip.) · 판매 자동 보정으로도 맞춰짐']],
+                   ['dialog_pos', '대화창', 'NPC 대화를 넘길 곳 (Click to skip.)']],
           regions: [['ocr_region', 'OCR 영역', '검색 결과 아이템 이름·개수 (예: Warp Potion x23)'],
-                    ['notice_region', '알림 영역', '오른쪽에 알림 카드가 뜨는 자리를 넉넉히 드래그 · 낚시의 Cannot Fish 등']],
+                    ['notice_region', '알림 영역', '오른쪽 알림 카드 자리를 넉넉히 드래그']],
           // 칸: [id, 이름, 설명, 들어갈 항목, 맨 위에 연동 · 템플릿 줄을 넣을지, 따로 그리는 부분(MPOS_CUSTOM)]
           tabs: [['inv', '인벤토리', '레어 바이옴 자동 팝핑 등 인벤토리를 쓰는 기능',
                   [...POP_POS.map(([k]) => k), 'ocr_region'], true],
                  ['notice', '알림', '게임 알림을 보는 기능 (자동 낚시 인벤토리 가득 등)', ['notice_region']],
                  ['ui', '게임 버튼', '여러 기능이 같이 누르는 게임 화면 버튼', ['chat_pos', 'dialog_pos']],
-                 ['move', '이동 · 기준 장소', '리셋 → / · 채팅 · 도감 열고 닫기 · / · Enter → W → W+A → 우클릭 드래그(내려다보기) → O(줌) 로 매번 같은 자리 · 같은 화면(기준 장소)을 만듦 · 채팅 버튼은 위 게임 버튼 칸 · 기능마다 갈 장소는 그 기능 칸에서 지정 (Click to Move)',
+                 ['move', '이동 · 기준 장소', '모든 이동의 출발점 (리셋 → 카메라 정렬 → 걷기 → 줌)',
                   ['collection_pos', 'collection_close'], false, 'movebase']] },
   mfish: { box: 'mposFish', tpl: true,
-           windows: [['panel_region', '낚시 대기 창 영역', 'Fish 버튼이 보일 때 낚시 창을 흰 꺾쇠 테두리까지 드래그 → Fish 버튼과 릴링 바 위치 자동 계산'],
-                     ['reel_region', '낚시 미니게임 창 영역', '미니게임이 떠 있을 때 눌러서 흰 꺾쇠 테두리까지 드래그 → 릴링 바 위치 자동 계산'],
-                     ['result_region', '결과창 영역', '한 번 낚아서 결과창이 떠 있을 때 흰 꺾쇠 테두리까지 드래그 → 결과창 X 와 제목 위치 자동 계산']],
+           windows: [['panel_region', '낚시 대기 창 영역', 'Fish 버튼이 보일 때 창 테두리까지 드래그'],
+                     ['reel_region', '낚시 미니게임 창 영역', '미니게임 중에 창 테두리까지 드래그'],
+                     ['result_region', '결과창 영역', '결과창이 떠 있을 때 창 테두리까지 드래그']],
            points: [...MFISH_POS,
                     ['sell_fish_pos', 'Sell Fish 버튼', '대화 선택지 중 파란 [Sell Fish]'],
                     ['first_fish_pos', '첫 번째 물고기 칸', '상점 목록의 맨 앞 칸'],
                     ['sell_all_pos', 'Sell All 버튼', '왼쪽 물고기 정보 아래'],
                     ['confirm_sell_pos', '확인 Sell 버튼', '확인창의 초록 Sell'],
                     ['shop_close_pos', '상점 닫기 X', '상점 오른쪽 위 X']],
-           regions: [['bar_region', '릴링 바 영역', '위쪽 바(파란 막대, Ready! 가 뜨는 바)만 딱 맞게 드래그 · ◇ 표시는 자동으로 찾음'],
-                     ['info_region', '물고기 정보 영역', '물고기를 눌렀을 때 왼쪽에 이름 · Sells for 가 뜨는 곳을 드래그 · 비어 있으면 다 판 것']],
-           tabs: [['win', '창 영역', '창 테두리만 드래그하면 안쪽 위치는 자동 계산 (자동 보정을 쓰면 전부 자동)',
+           regions: [['bar_region', '릴링 바 영역', '위쪽 바만 딱 맞게 드래그'],
+                     ['info_region', '물고기 정보 영역', '물고기를 눌렀을 때 왼쪽 이름 · Sells for 자리']],
+           tabs: [['win', '창 영역', '창 테두리만 드래그하면 안쪽 위치는 자동 계산',
                    ['panel_region', 'reel_region', 'result_region']],
                   ['fine', '세부 위치', '창 영역으로 자동 계산됨 · 조금 어긋나면 여기서 하나씩 직접 지정',
                    ['fish_btn', 'close_pos', 'title_pos', 'bar_region']],
-                  ['sell', '판매', '인벤토리가 가득 차면: 물고기 판매 장소 → 카메라 정렬(채팅 · 도감) → E → 대화 넘기기(통합 위치의 대화창) → Sell Fish → (첫 칸 → Sell All → 확인) 을 왼쪽 정보가 빌 때까지 → X → 낚시 장소 · [판매 자동 보정] 을 누르고 Captain Flarg 앞에서 E 를 누르면 위치를 전부 맞춤',
+                  ['sell', '판매', '인벤토리가 가득 차면 물고기를 팔고 돌아옴',
                    ['sell_fish_pos', 'first_fish_pos', 'sell_all_pos', 'confirm_sell_pos', 'shop_close_pos', 'info_region'], true, 'sell'],
-                  ['move', '이동', '매크로를 켜면 먼저 낚시 장소로 감 · 인벤토리가 가득 차면 물고기 판매 장소로 · 지점마다 누를 곳을 지정하고 시간을 재기 · 기준 장소(통합 위치 → 이동 · 기준 장소)에서 출발', [], false, 'places:mfish']] },
+                  ['move', '이동', '매크로를 켜면 낚시 장소로, 가득 차면 판매 장소로 이동', [], false, 'places:mfish']] },
 };
 const MPOS_RATIOS = [['auto', '자동 (지금 창)'], ['16:9', '16:9'], ['16:10', '16:10'], ['21:9', '21:9'], ['32:9', '32:9'], ['4:3', '4:3'], ['5:4', '5:4']];
 let mposRatio = 'auto';
@@ -1341,10 +1341,10 @@ function renderMpos(feat) {
   d.points.forEach(([k, name, sub]) => { items[k] = row(k, `${name} 위치`, sub, c[k], fmtPos, '위치 지정', 'data-mpos-pick'); });
   regions.forEach(([k, name, sub]) => { items[k] = row(k, name, sub, c[k], fmtReg, '드래그로 지정', 'data-mpos-region'); });
   const link = d.link ? `
-    <label class="row"><span>스나이프 오토 팝핑과 연동<small>켜면 스나이프 탭 오토 팝핑도 여기 인벤토리 위치 · OCR 영역을 씀 (따로 지정 안 해도 됨)</small></span>
+    <label class="row"><span>스나이프 오토 팝핑과 연동<small>켜면 스나이프 오토 팝핑도 이 위치를 씀</small></span>
       <span class="switch"><input type="checkbox" data-mpos-link ${pop().use_base ? 'checked' : ''}><i></i></span></label>` : '';
   const tpl = d.tpl ? `
-    <div class="row tpl-pick"><span>위치 템플릿<small>화면 비율에 맞는 기본 위치를 한 번에 채움 · 자동 = 지금 로블록스 창 크기로 계산 · 16:9 말고는 추정값이라 안 맞는 건 아래에서 직접 지정</small></span>
+    <div class="row tpl-pick"><span>위치 템플릿<small>화면 비율에 맞는 기본 위치를 한 번에 채움</small></span>
       <span class="pos"><select data-mpos-ratio>${MPOS_RATIOS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select>
       <button class="btn mini" type="button" data-mpos-tpl>적용</button></span></div>` : '';
   // 묶음마다 따로 칸(카드)으로 나눠서 보여 줌 · 제목 옆에 지정한 개수 / 전체 개수
@@ -1401,9 +1401,15 @@ const MOVE_SET = [['reset_wait', '리셋 후 대기', 'Esc → R → Enter 로 �
                   ['margin', '도착 여유', '잰 시간에 더 기다릴 시간 (초)', 0.3, 0, 0.1]];
 let lastMove = null;
 const fmtT = t => t == null ? '안 잼' : `${t}초`;
-// 장소의 지점이 전부 지정 · 측정되면 제목 옆에 총 걸리는 시간 (지점 시간의 합)
-const placeTotal = pl => pl.points.length && pl.points.every(pt => pt.pos && pt.time != null)
-  ? `<em class="move-total">총 ${Math.round(pl.points.reduce((a, pt) => a + pt.time, 0) * 100) / 100}초</em>` : '';
+// 장소의 지점이 전부 지정 · 측정되면 제목 옆에 총 걸리는 시간 — Esc(리셋)부터 도착까지 전부
+// 기준 장소 (서버 move.go_base 순서): 0.2 + Esc·R 1.0 + 리셋 대기 + 카메라 정렬 2.8 + W + W+A + 0.5 + 내려다보기·줌 + 0.4
+const baseTime = m => 4.9 + (m.reset_wait ?? 3.5) + (m.w_time ?? 0.85) + (m.wa_time ?? 8)
+  + Math.max(m.o_time ?? 2.5, (m.tilt_px ?? 800) / 20 * 0.015);
+const placeTotal = pl => {
+  if (!pl.points.length || !pl.points.every(pt => pt.pos && pt.time != null)) return '';
+  const m = move(), t = baseTime(m) + pl.points.reduce((a, pt) => a + pt.time + (m.margin ?? 0.3), 0);
+  return `<em class="move-total">총 ${Math.round(t * 10) / 10}초</em>`;
+};
 const MOVE_FIXED = ['mfish'];                            // 자동 낚시: 낚시 장소 · 물고기 판매 장소 (서버 MOVE_TEMPLATES)
 const moveCall = async (name, args, msg) => { const r = await api(name, args); toast(r.error || msg); return r; };
 // data-mpos-custom: 'movebase' (통합 위치 → 기준 장소) / 'places:기능' (그 기능이 가는 장소)
@@ -1422,7 +1428,7 @@ const MPOS_CUSTOM = {
   sell(el) {
     const m = mfish(), st = lastMove || {}, busy = !!st.running;
     el.innerHTML = `
-      <div class="row"><span>판매 자동 보정<small>누른 뒤 Captain Flarg 앞에서 E 를 직접 누르면 대화창 · Sell Fish · 상점 위치를 글자로 찾아 전부 맞춤 · 확인창은 Cancel 로 닫아서 실제로 팔지는 않음 · 취소: F7</small></span>
+      <div class="row"><span>판매 자동 보정<small>누른 뒤 Captain Flarg 앞에서 E · 실제로 팔지는 않음</small></span>
         <span class="pos"><button class="btn mini ${sellcalBusy ? 'waiting' : ''}" type="button" data-sell-auto>${sellcalBusy ? '보정 중… (다시 누르면 취소)' : '판매 자동 보정'}</button></span></div>` + SELL_SET.map(([k, name, sub, def, min, step]) => `
       <label class="row"><span>${name}<small>${sub} · 기본 ${def}</small></span>
         <input type="number" min="${min}" step="${step}" data-sell-set="${k}" value="${m[k] ?? def}"></label>`).join('') + `
@@ -1456,7 +1462,7 @@ const MPOS_CUSTOM = {
   movebase(el) {
     const m = move(), st = lastMove || {}, busy = !!st.running;
     el.innerHTML = `
-      <div class="row"><span>기준 장소로 이동<small>위 순서대로 테스트 · 이미 기준 장소에 있고 화면도 맞으면 지점의 [바로 …] 버튼을 쓰기</small></span>
+      <div class="row"><span>기준 장소로 이동<small>위 순서대로 테스트</small></span>
         <span class="pos"><b class="move-state">${esc(busy ? (st.msg || '이동 중') : '대기')}</b>
         <button class="btn mini" type="button" data-move-base ${busy ? 'disabled' : ''}>기준 장소로 이동</button>
         <button class="btn mini ghost" type="button" data-move-stop ${busy ? '' : 'disabled'}>멈춤</button></span></div>` +
@@ -1470,7 +1476,10 @@ const MPOS_CUSTOM = {
     sel.addEventListener('change', () => { m.button = sel.value; saveMove(); });
     el.querySelectorAll('[data-move-set]').forEach(i => i.addEventListener('input', () => {
       const n = parseFloat(i.value);
-      if (!isNaN(n) && n >= 0) { m[i.dataset.moveSet] = n; saveMove(); }
+      if (!isNaN(n) && n >= 0) {
+        m[i.dataset.moveSet] = n; saveMove();
+        document.querySelectorAll('[data-mpos-custom^="places"]').forEach(renderMoveCustom);   // 총 시간 다시 계산
+      }
     }));
     el.querySelector('[data-move-base]').addEventListener('click', () => moveCall('move_base', {}, '기준 장소로 이동 시작 · 정지: F7'));
     el.querySelector('[data-move-stop]').addEventListener('click', () => api('move_stop'));
@@ -1486,13 +1495,13 @@ const MPOS_CUSTOM = {
       ${meas ? `<div class="row move-measure"><span>시간 재는 중<small>캐릭터가 도착하면 F6 을 누르거나 [도착] 을 누르기</small></span>
         <span class="pos"><b data-move-timer>0.0초</b><button class="btn mini" type="button" data-move-arrive>도착</button>
         <button class="btn mini ghost" type="button" data-move-stop>멈춤</button></span></div>` : ''}
-      <div class="row"><span>장소<small>지점이 여러 개면 앞 지점에 도착한 화면에서 다음 지점을 누름 (멀리 갈 때)</small></span>
+      <div class="row"><span>장소<small>멀리 갈 때는 지점을 여러 개로</small></span>
         <span class="pos">${busy && !meas ? `<b class="move-state">${esc(st.msg || '이동 중')}</b>` : ''}
         ${fixed ? '' : '<button class="btn mini" type="button" data-move-add-place>장소 추가</button>'}</span></div>` +
       (mine.length ? '' : `<div class="row"><span><small>아직 장소 없음 — [장소 추가] 로 만들기</small></span></div>`) +
       mine.map(([pl, i]) => `
       <div class="move-place">
-        <div class="row"><span>${pl.key ? `<b class="move-title">${esc(pl.name)}</b>${placeTotal(pl)}` :
+        <div class="row"><span>${pl.key ? `<span class="move-head"><b class="move-title">${esc(pl.name)}</b>${placeTotal(pl)}</span>` :
           `<input class="move-name" data-move-name="${i}" value="${esc(pl.name || '')}" placeholder="장소 이름 (예: Captain Flarg)" maxlength="40">`}</span>
           <span class="pos"><button class="btn mini" type="button" data-move-go="${i}" ${busy ? 'disabled' : ''}>이 장소로 이동</button>
           ${pl.key ? '' : `<button class="btn mini ghost" type="button" data-move-del-place="${i}">장소 삭제</button>`}</span></div>` +

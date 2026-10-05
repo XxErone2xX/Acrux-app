@@ -730,4 +730,5 @@ body:not(.in-page) .lang.in-card { display: none; }
 .mpos-cards { gap: 22px; }
 .mpos-group > .mpos-desc { margin: 4px 0 8px; }
 .move-title { font-size: 15px; }
+.move-head { display: flex; align-items: center; flex-direction: row; }
 .move-total { font-style: normal; font-size: 12px; font-weight: 600; margin-left: 10px; padding: 2px 9px; border-radius: 999px; background: rgba(35, 165, 90, .18); color: var(--green); }

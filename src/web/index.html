@@ -209,13 +209,13 @@
         <div class="card note">
           <h3>바이옴 인식 상태</h3>
           <p id="bioStatus">-</p>
-          <p class="dim-line">로블록스 로그 파일로 인식 · 화면 인식(OCR) 불필요 · 바이옴 매크로 토글이 켜져 있을 때만 알림 전송 (시작 버튼과 무관) · 프로그램을 켜면 항상 꺼진 상태로 시작</p>
+          <p class="dim-line">로블록스 로그로 바이옴을 감지해 알림 전송</p>
         </div>
       </div>
 
       <div class="sec" data-sec="bio-mention">
         <div class="sec-head"><h2>멘션 설정</h2></div>
-        <p class="hint">바이옴이 시작될 때 함께 멘션 · 역할 ID 는 디스코드에서 역할 우클릭 → ID 복사하기 (개발자 모드 필요)</p>
+        <p class="hint">바이옴이 시작될 때 함께 멘션 · 역할 우클릭 → ID 복사 (개발자 모드)</p>
         <div class="card mention-list" id="mentionList"></div>
       </div>
 
@@ -334,7 +334,7 @@
       <div class="sec" data-sec="ret-set">
         <div class="sec-head"><h2>복귀 설정</h2><button class="btn ghost mini" id="retTutorialBtn">튜토리얼 보기</button></div>
         <div class="card form">
-          <label class="row col-row"><span>내 브섭 링크<small>바이옴이 끝나거나 오토 팝핑이 어떤 이유로든 끝나면 → 로블록스 전부 종료 → 1초 → 이 링크로 접속 → Play</small></span>
+          <label class="row col-row"><span>내 브섭 링크<small>오토 팝핑이 끝나면 이 링크로 다시 접속</small></span>
             <input id="retLink" placeholder="https://www.roblox.com/share?code=...&type=Server" spellcheck="false"></label>
           <div class="row"><span>바이옴 매크로 설정의 브섭 링크 사용<small>바이옴 매크로 설정 → 기본 설정에 입력한 링크를 가져옴</small></span>
             <button class="btn ghost mini" type="button" id="retFromBiome">가져오기</button></div>
@@ -395,9 +395,9 @@
       <div class="sec" data-sec="sn-join">
         <div class="sec-head"><h2>접속</h2><button class="btn ghost mini" id="snTutorialBtn">튜토리얼 보기</button></div>
         <div class="card form">
-          <div class="row" id="snDelayRow"><span>링크 감지 후 접속 딜레이<small>링크를 보고 직접 누르는 것처럼, 최소 ~ 최대 사이에서 매번 다르게 기다린 뒤 접속 (초) · 기본 2 ~ 4</small></span>
+          <div class="row" id="snDelayRow"><span>링크 감지 후 접속 딜레이<small>최소 ~ 최대 사이에서 매번 다르게 기다린 뒤 접속 (초) · 기본 2 ~ 4</small></span>
             <span class="range-pair"><input type="number" min="0" max="60" step="0.5" id="snDelayMin"><i>~</i><input type="number" min="0" max="120" step="0.5" id="snDelayMax"></span></div>
-          <label class="row" id="snDirectRow"><span>로블록스 바로 실행<small>켜짐: 로블록스를 바로 실행 (가장 빠름) · 꺼짐: 웹브라우저로 링크를 열어서 접속 (사람이 링크를 누른 것과 같은 방법)</small></span>
+          <label class="row" id="snDirectRow"><span>로블록스 바로 실행<small>켜짐: 로블록스 바로 실행 · 꺼짐: 브라우저로 열기</small></span>
             <span class="switch"><input type="checkbox" id="snDirect"><i></i></span></label>
           <div id="snRepeatRows">
             <label class="row"><span>같은 서버 다시 안 들어가기<small>같은 서버 링크는 이 시간 동안 한 번만 접속 (분) · 0 = 끔 · 기본 10</small></span>
@@ -431,14 +431,14 @@
         <div class="sec-head"><h2>기능 켜기 · 끄기</h2>
           <button class="btn ghost" id="mfAllOff">전부 끄기</button>
           <button class="btn" id="mfAllOn">전부 켜기</button></div>
-        <p class="hint">켜 둔 기능만 메인 화면의 매크로 버튼을 켰을 때 동작 · 위치는 매크로 기준 위치 설정에서 지정</p>
+        <p class="hint">켜 둔 기능만 매크로 버튼을 켰을 때 동작</p>
         <div class="card form" id="mfAllForm"></div>
       </div>
       <div class="sec" data-sec="mf-pop">
         <div class="sec-head"><h2>레어 바이옴 자동 팝핑</h2>
           <span class="status-mini mpop-status"><span class="dot" id="mpopDot"></span><span id="mpopState">대기</span></span>
           <button class="btn ghost" id="mpopStop">정지</button></div>
-        <p class="hint">지금 켜져 있는 로블록스(내 서버)에서 레어 바이옴이 시작되면 바로 포션 사용 · 스나이핑으로 들어간 서버에선 안 함 · 정지: F7</p>
+        <p class="hint">내 서버에서 레어 바이옴이 시작되면 포션 사용 · 정지: F7</p>
         <div class="card form" id="mpopForm"></div>
         <div class="sec-head mpop-tpl-head"><h3>Cyberspace</h3><button class="btn ghost" data-mpop-default="CYBERSPACE">기본 템플릿으로</button><button class="btn" data-mpop-test="CYBERSPACE">이 템플릿 테스트</button></div>
         <div class="card form tpl" data-mtpl="CYBERSPACE"></div>
@@ -451,7 +451,7 @@
         <div class="sec-head"><h2>자동 낚시</h2>
           <span class="status-mini mpop-status"><span class="dot" id="mfishDot"></span><span id="mfishState">대기</span></span>
           <button class="btn ghost" id="mfishStop">정지</button></div>
-        <p class="hint">매크로 버튼과 아래 켜기가 켜져 있으면, 지금 켜진 로블록스(내 서버)의 낚시 자리에서 계속 낚시 · 정지: F7 (매크로 꺼짐)</p>
+        <p class="hint">매크로가 켜져 있는 동안 계속 낚시 · 정지: F7</p>
         <div class="card form" id="mfishForm"></div>
         <div class="sec-head mpop-tpl-head"><h3>세부 설정</h3></div>
         <div class="card form" id="mfishTune"></div>
@@ -478,14 +478,14 @@
         <div class="sec-head"><h2>통합 위치</h2>
           <span class="sec-btns"><button class="btn ghost" id="mposPopCopy">스나이프 탭 위치 가져오기</button>
           <button class="btn ghost" id="mposPopOcr">OCR 테스트</button></span></div>
-        <p class="hint">로블록스를 켜 두고 [위치 지정] → 로블록스 화면에서 클릭 (영역은 드래그) · 로블록스 창 기준이라 창 크기를 바꾸면 다시 지정</p>
+        <p class="hint">[위치 지정] 후 로블록스 화면에서 클릭 (영역은 드래그)</p>
         <div class="mpos-cards" id="mposBase"></div>
       </div>
       <div class="sec" data-sec="mp-fish">
         <div class="sec-head"><h2>자동 낚시</h2>
           <span class="sec-btns"><button class="btn ghost" id="mfishCheck">상태 확인</button>
           <button class="btn" id="mfishAuto">자동 보정</button></span></div>
-        <p class="hint">Fish 버튼이 보일 때 [자동 보정] 을 누르면 한 마리 낚으면서 창 위치를 전부 맞춤 · 끝날 때까지 건드리지 말기 · F7 로 취소</p>
+        <p class="hint">Fish 버튼이 보일 때 [자동 보정] 을 누르면 위치를 전부 맞춤</p>
         <div class="mpos-cards" id="mposFish"></div>
       </div>
     </div>
