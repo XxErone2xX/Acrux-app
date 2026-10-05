@@ -1701,9 +1701,8 @@ $('acOcr').addEventListener('change', e => {
 $('acLang').addEventListener('change', e => setLang(e.target.value));
 // 사용자 수 (지금 Acrux 를 켜 둔 사람) · 집계 참여 스위치
 function updateOnline(n) {
-  const el = $('onlineText');
-  el.hidden = n == null;
-  if (n != null) el.querySelector('span').textContent = `지금 ${n}명 사용 중`;
+  $('nowActiveN').textContent = n == null ? '--' : n;
+  $('nowActive').classList.toggle('live', n != null);
 }
 $('acOnline').addEventListener('change', e => { config.online_share = e.target.checked; queueSave({ online_share: e.target.checked }); });
 $('acFolder').addEventListener('click', async () => {
