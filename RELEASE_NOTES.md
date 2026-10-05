@@ -1,17 +1,17 @@
-## Acrux macro V1.23.0 업데이트
-- **자동 낚시 물고기 판매 추가** (매크로 기준 위치 설정 → 자동 낚시 → 판매)
-  - 인벤토리가 가득 차면 (Fish 를 3번 눌러도 반응 없음 · Cannot Fish 알림): 기준 장소 → 물고기 판매 장소 → E → 대화 넘기기 → Sell Fish
-  - 첫 칸 → Sell All → 확인 Sell 을 왼쪽 물고기 정보가 빌 때까지 반복 (최대 100번) → X 로 닫기 → 낚시 장소로 돌아가서 낚시 이어감
-  - 대화창 · 첫 칸 · Sell All · 확인 Sell · 상점 닫기 위치는 위치 템플릿으로 채울 수 있음 (Noteab 매크로의 1920x1080 위치 값) · Sell Fish 버튼과 물고기 정보 영역은 직접 지정
-  - [판매 테스트] 로 한 번 돌려 볼 수 있음 · 판매 설정이 비어 있으면 알림으로 알려 주고 낚시를 멈춤
-- 이동 장소: 지점 위치와 시간을 전부 지정하면 장소 이름 옆에 **총 걸리는 시간**이 뜸
-- 이동 장소의 [바로 재기] 버튼 없앰 (시간 재기는 기준 장소부터)
+## Acrux macro V1.24.0 업데이트
+- **판매 자동 보정 추가** (매크로 기준 위치 설정 → 자동 낚시 → 판매 → [판매 자동 보정])
+  - 버튼을 누른 뒤 Captain Flarg 앞에서 E 를 직접 누르면, 대화창 · Sell Fish · 상점(첫 칸 · Sell All · 확인 Sell · 닫기 X · 물고기 정보 영역) 위치를 글자로 찾아 전부 맞춤
+  - 확인창은 Cancel 로 닫아서 실제로 팔지는 않음 · 대화창이 뜬 뒤에는 마우스 · 키보드를 건드리지 않기 · 취소: F7
+- 매크로를 켜면 (자동 낚시가 시작될 때) **먼저 낚시 장소로 이동**한 뒤 낚시 · 낚시 장소가 아직 설정 안 됐으면 알림을 띄우고 지금 자리에서 낚시
+- 판매할 때 E 를 누르기 전에 **카메라를 먼저 맞춤** (기준 장소로 갈 때처럼 / → 채팅 → 도감 열고 닫기 → / → Enter)
+- **대화창 위치를 통합 위치 → 게임 버튼으로 옮김** (여러 기능이 같이 씀 · 예전에 지정한 위치는 그대로 옮겨짐)
+- 자동 낚시 칸에서 이동 칸을 맨 아래로 옮김
 
-## Acrux macro V1.23.0 Update
-- **Added fish selling to auto fishing** (Macro base position settings → Auto fishing → Selling)
-  - When the inventory is full (Fish doesn't respond after 3 clicks · Cannot Fish notice): base spot → fish selling spot → E → skip dialog → Sell Fish
-  - First slot → Sell All → confirm Sell repeats until the fish info on the left is empty (max 100) → close with X → back to the fishing spot and fishing resumes
-  - Dialog · first slot · Sell All · confirm Sell · shop close positions can be filled by the position template (1920x1080 values from the Noteab macro) · set the Sell Fish button and fish info area yourself
-  - [Sell test] runs it once · if selling settings are missing, a notification says so and fishing stops
-- Movement places: once every point's position and time are set, the **total time** shows next to the place name
-- Removed the [Measure now] button from movement places (time measuring starts from the base spot)
+## Acrux macro V1.24.0 Update
+- **Added sell calibration** (Macro base position settings → Auto fishing → Selling → [Sell calibration])
+  - After pressing it, press E yourself in front of Captain Flarg — the dialog, Sell Fish and shop positions (first slot · Sell All · confirm Sell · close X · fish info area) are found by their text and set
+  - The confirm window is closed with Cancel, so nothing is sold · don't touch the mouse or keyboard once the dialog opens · cancel: F7
+- Turning the macro on (when auto fishing starts) now **goes to the fishing spot first**, then fishes · if the fishing spot isn't set yet, a notification shows and it fishes where you are
+- When selling, the **camera is aligned before pressing E** (same as going to the base spot: / → chat → open and close the collection → / → Enter)
+- **Moved the Dialog box position to Shared positions → Game buttons** (shared by several features · a previously set position carries over)
+- Moved the Movement box to the bottom of the Auto fishing section

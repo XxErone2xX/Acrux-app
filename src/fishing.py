@@ -428,6 +428,7 @@ class Fisher:
         self.get_cfg = get_cfg              # () -> mfish 설정
         self.log = log
         self.on_full = on_full              # 인벤토리 가득 (판매 단계에서 연결)
+        self.on_start = None                # 낚시를 시작할 때 (낚시 장소로 이동)
         self.on_user_stop = on_user_stop    # F7 로 멈춤
         self.stop_ev = threading.Event()
         self.thread = None
@@ -563,6 +564,10 @@ class Fisher:
                 self.log(f"{self.LABEL} 안 함 — 설정 필요: {', '.join(miss)}", "n")
                 return
             self.log(f"{self.LABEL} 시작", "g")
+            if self.on_start:
+                self._set(msg="낚시 장소로 가는 중")
+                self.on_start(stop)
+                self._check(stop)
             # 화면 캡처는 CAPTUREBLT 없이 (ScreenGrabber) · 우선순위는 그대로 두고 릴링 중에만 타이머를 1ms 로
             with macro.ScreenGrabber() as sct:
                 self._loop(sct, stop)

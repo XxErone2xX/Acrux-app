@@ -108,6 +108,7 @@ class Bridge:
         # 판매: 자동 낚시 중 인벤토리가 가득 차면 물고기 판매 장소로 가서 팔고 낚시 장소로 돌아옴
         self.seller = sell.Seller(self.mover, self._mfish_cfg, lambda: self.data.get("move", {}), self._on_log)
         self.fisher.on_full = self._on_fish_full
+        self.fisher.on_start = self._on_fish_start
         self.play = rejoin.PlayClicker(lambda: self.data.get("play", {}), self._on_log,
                                        on_ingame=self._on_ingame, on_fail=self._on_play_fail)
         # 매크로 복귀: 로블록스 전부 종료 → 1초 → 내 브섭 링크 → Play
@@ -214,8 +215,9 @@ class Bridge:
         return dict(pop, **{k: b.get(k) for k in (*core.BASE_INV_KEYS, "ocr_region")})
 
     def _mfish_cfg(self):
-        """자동 낚시 설정 + 기준 위치의 알림 영역"""
-        return dict(self.data.get("mfish", {}), notice_region=self.data.get("base", {}).get("notice_region"))
+        """자동 낚시 설정 + 통합 위치의 알림 영역 · 대화창"""
+        b = self.data.get("base", {})
+        return dict(self.data.get("mfish", {}), notice_region=b.get("notice_region"), dialog_pos=b.get("dialog_pos"))
 
     def api_state(self, _):
         with self.lock:
@@ -399,7 +401,7 @@ class Bridge:
                         self._on_log(f"자동 낚시 안 함 — 매크로 기준 위치 설정 필요: {miss}", "n")
                 else:
                     warned = None
-                if ok and not self.fisher.running() and not self.mpop.running():
+                if ok and not self.fisher.running() and not self.mpop.running() and not self.mover.running():
                     self.fisher.start()
                 elif not ok and self.fisher.running():
                     self.fisher.stop()
@@ -589,7 +591,7 @@ class Bridge:
         return {"ok": True}
 
     # 매크로 기준 위치 설정 — 버튼 위치 · 영역 (feat: base = 여러 기능이 같이 쓰는 기준 위치 / mfish = 자동 낚시만)
-    MPOS_POINTS = {"base": dict(popping.POS_KEYS, chat_pos="채팅 버튼", collection_pos="도감 버튼", collection_close="도감 Exit"),
+    MPOS_POINTS = {"base": dict(popping.POS_KEYS, chat_pos="채팅 버튼", collection_pos="도감 버튼", collection_close="도감 Exit", dialog_pos="대화창"),
                    "mfish": dict(fishing.POS_KEYS, **{k: n for k, n in sell.SELL_KEYS if k != "info_region"})}
     MPOS_REGIONS = {"base": ("ocr_region", "notice_region"), "mfish": ("panel_region", "reel_region", "result_region", "bar_region", "info_region")}
     # 16:9 위치 템플릿 (로블록스 창 기준 비율) — 스나이프 탭 오토 팝핑 16:9 템플릿과 같은 값
@@ -599,9 +601,10 @@ class Bridge:
                  "item_pos": [0.443, 0.44], "amount_pos": [0.296, 0.534], "use_pos": [0.356, 0.535],
                  "ocr_region": [0.415, 0.392, 0.469, 0.491],
                  # 1080p 기준: 채팅 버튼 (112, 30) · 도감 버튼 (47, 467) · 도감 Exit (382, 126) — FishSol 에서 쓰는 자리
-                 "chat_pos": [0.0582, 0.0278], "collection_pos": [0.0245, 0.4324], "collection_close": [0.199, 0.1167]},
+                 "chat_pos": [0.0582, 0.0278], "collection_pos": [0.0245, 0.4324], "collection_close": [0.199, 0.1167],
+                 "dialog_pos": [0.3979, 0.763]},     # NPC 대화창 (Noteab 매크로 1080p 프리셋 · Apache 2.0)
         # 판매 (Noteab 매크로의 1920x1080 위치 프리셋 · Apache 2.0) — Sell Fish 버튼 · 물고기 정보 영역은 직접 지정
-        "mfish": {"dialog_pos": [0.3979, 0.763], "first_fish_pos": [0.4349, 0.3778], "sell_all_pos": [0.3464, 0.7444],
+        "mfish": {"first_fish_pos": [0.4349, 0.3778], "sell_all_pos": [0.3464, 0.7444],
                   "confirm_sell_pos": [0.4141, 0.5731], "shop_close_pos": [0.7609, 0.2528]},
     }
 
@@ -802,6 +805,22 @@ class Bridge:
         return i, j
 
     # ---------------- 판매 (자동 낚시 → 판매) ----------------
+    def _on_fish_start(self, stop):
+        """자동 낚시 스레드에서 (낚시를 시작할 때마다): 기준 장소 → 낚시 장소로 이동
+        낚시 장소가 아직 설정 안 됐거나 이동이 실패하면 알림만 띄우고 지금 자리에서 낚시"""
+        m = self.seller.fish_missing()
+        if m:
+            self._on_log(f"낚시 장소로 이동 안 함 — {m} · 지금 자리에서 낚시", "n")
+            return
+        try:
+            self.seller.go_fish(stop)
+        except move.Stopped:
+            if not stop.is_set():                  # 자동 낚시가 멈춘 게 아니면 F7 · 멈춤 버튼 → 매크로 끔
+                self._macro_user_stop()
+            raise fishing.Stopped()
+        except Exception as e:
+            self._on_log(f"낚시 장소로 이동 실패: {e} · 지금 자리에서 낚시", "n")
+
     def _on_fish_full(self, stop):
         """자동 낚시 스레드에서: 인벤토리 가득 → 판매 · 돌아오면 True (낚시 이어감) / 못 하면 False (낚시 멈춤)"""
         m = self.seller.missing()
@@ -818,6 +837,86 @@ class Bridge:
         except Exception as e:
             self._on_log(f"판매 실패: {e}", "n")
             return False
+
+    def api_sell_autocal(self, _):
+        """판매 자동 보정: 플레이어가 Captain Flarg 앞에서 E 를 누르면 대화창 → [Sell Fish] → 상점을 글자(OCR)로 찾아
+        대화창(통합 위치) · Sell Fish · 첫 칸 · Sell All · 확인 Sell · 상점 X · 물고기 정보 영역을 맞춤 (실제로 팔지는 않음)
+        F7 이나 버튼을 한 번 더 누르면 취소 · 자동 낚시가 돌고 있으면 잠깐 멈췄다가 이어감"""
+        if getattr(self, "_sellcal_running", False):
+            self._sellcal_stop.set()
+            return {"error": "판매 자동 보정 취소 중"}
+        if self.mover.running():
+            return {"error": "이동이 도는 중"}
+        hwnd = macro.roblox_window_cached(1.0)
+        if not hwnd:
+            return {"error": "로블록스 창 없음"}
+        self._sellcal_running, self._sellcal_stop = True, threading.Event()
+        stop, back, found, banner = self._sellcal_stop, macro.foreground(), {}, [None]
+
+        def set_banner(kind):
+            if banner[0] is not None and banner[0].poll() is None:
+                banner[0].kill()
+            banner[0] = self._banner_proc(kind) if kind else None
+
+        def wait(sec):
+            end = time.time() + sec
+            while True:
+                if stop.is_set() or macro.key_down_now("f7"):
+                    raise _AutocalStop("판매 자동 보정 취소됨")
+                if time.time() >= end:
+                    return
+                time.sleep(0.03)
+
+        def click(pos):
+            h = macro.roblox_window_cached(1.0)
+            rect = macro.client_rect(h) if h else None
+            if not rect:
+                raise _AutocalStop("로블록스 창 없음")
+            macro.focus(h)
+            macro.click(*macro.to_screen(pos[0], pos[1], rect))
+
+        def aspect():
+            rect = macro.client_rect(macro.roblox_window_cached(1.0))
+            return rect[2] / max(1, rect[3])
+
+        def status(msg):
+            self._on_log(f"판매 자동 보정 · {msg}", "c")
+            if msg.startswith("대화창 찾음"):
+                set_banner("autocal")               # 이제부턴 매크로가 누름 → '건드리지 마세요'
+
+        try:
+            if not self.fisher.hold(45):
+                return {"error": "자동 낚시가 멈추지 않음 — 낚시를 끄고 다시 눌러주세요"}
+            set_banner("sellcal")
+            macro.focus(hwnd, wait=0.3)
+            notes = sell.autocal(lambda r: macro.ocr_boxes(r), click, wait, aspect, found, status)
+            error = None
+        except _AutocalStop as e:
+            error, notes = str(e), []
+        except Exception as e:
+            error, notes = f"판매 자동 보정 실패: {e}", []
+        finally:
+            set_banner(None)
+            self.fisher.release()
+            self._sellcal_running = False
+            macro.focus_back(back)
+        if found:                                    # 멈추기 전까지 찾은 위치는 저장
+            with self.lock:
+                b, mf = self.data.setdefault("base", {}), self.data.setdefault("mfish", {})
+                for k, v in found.items():
+                    (b if k == "dialog_pos" else mf)[k] = v
+            self._save()
+        names = dict(self.MPOS_POINTS["base"], **self.MPOS_POINTS["mfish"], info_region="물고기 정보 영역")
+        done = ", ".join(names.get(k, k) for k in found)
+        res = {"base": self.data.get("base"), "mfish": self.data.get("mfish"), "found": list(found)}
+        if error:
+            self._on_log(error + (f" (찾은 것: {done})" if done else ""), "n")
+            res["error"] = error
+        else:
+            self._on_log(f"판매 자동 보정 완료: {done}" + (" · " + " · ".join(notes) if notes else ""), "g")
+            res["done"] = done
+            res["notes"] = notes
+        return res
 
     def api_sell_test(self, _):
         """판매 테스트: 기준 장소 → 물고기 판매 장소 → 판매 → 낚시 장소 (자동 낚시는 잠깐 멈췄다가 이어감)"""

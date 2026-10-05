@@ -244,10 +244,31 @@ class Mover:
         finally:
             macro.mouse_button("right", False)
 
+    def align_camera(self):
+        """/ → 채팅 버튼 → 도감 버튼 → 도감 Exit → / → Enter (각 0.5초) — 도감을 열고 닫으면 카메라가 캐릭터 뒤로 맞춰짐
+        (채팅창이 도감 Exit 를 가릴 때가 있어서 앞뒤로 채팅 버튼을 눌러 채팅창을 접었다 폄)"""
+        b = self.get_base() or {}
+        miss = [n for k, n in self.BASE_KEYS if not b.get(k)]
+        if miss:
+            raise RuntimeError(f"통합 위치 지정 필요: {', '.join(miss)}")
+        self._rect()
+        macro.key_tap("/")
+        self._wait(0.5)
+        self._click(b["chat_pos"])
+        self._wait(0.5)
+        self._click(b["collection_pos"])
+        self._wait(0.5)
+        self._click(b["collection_close"])
+        self._wait(0.5)
+        macro.key_tap("/")
+        self._wait(0.5)
+        macro.key_tap("enter")
+        self._wait(0.3)
+
     def go_base(self):
         """Esc → R → Enter (리셋 · 0.5초 간격) → 3.5초 → / → 채팅 버튼 → 도감 버튼 → 도감 Exit → / → Enter (각 0.5초)
         → W 0.85초 → W+A 8초 → 0.5초 → O 2.5초 (최대 줌) 누르는 동안 동시에 우클릭 드래그로 위에서 내려다보기"""
-        b, mv = self.get_base() or {}, self.get_move() or {}
+        mv = self.get_move() or {}
         miss = self.base_missing()
         if miss:
             raise RuntimeError(miss)
@@ -262,17 +283,7 @@ class Mover:
         macro.key_tap("enter")
         self._wait(float(mv.get("reset_wait", 3.5)))
         self._set(msg="기준 장소로 이동 · 카메라 정렬 (채팅 · 도감)")
-        macro.key_tap("/")
-        self._wait(0.5)
-        self._click(b["chat_pos"])
-        self._wait(0.5)
-        self._click(b["collection_pos"])
-        self._wait(0.5)
-        self._click(b["collection_close"])
-        self._wait(0.5)
-        macro.key_tap("/")
-        self._wait(0.5)
-        macro.key_tap("enter")
+        self.align_camera()
         self._set(msg="기준 장소로 이동 · 걷기 (W → W+A)")
         self._rect()
         self._hold(("w",), float(mv.get("w_time", 0.85)))

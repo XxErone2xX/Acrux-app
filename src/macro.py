@@ -753,6 +753,11 @@ BANNER_TEXT = {
         "en": "Auto calibrating · don't touch the mouse or keyboard (F7: cancel)",
         "ja": "自動補正中 · マウスとキーボードに触らないでください（F7: キャンセル）",
     },
+    "sellcal": {
+        "ko": "판매 자동 보정 · Captain Flarg 앞에서 E 를 누르세요 · 대화창이 뜨면 손을 떼세요 (F7: 취소)",
+        "en": "Sell calibration · press E in front of Captain Flarg · hands off once the dialog opens (F7: cancel)",
+        "ja": "販売の自動補正 · Captain Flarg の前で E を押してください · 会話が出たら手を離してください（F7: キャンセル）",
+    },
     "move": {
         "ko": "매크로 이동 중 · 마우스와 키보드를 건드리지 마세요 (F7: 정지)",
         "en": "Macro is moving · don't touch the mouse or keyboard (F7: stop)",
@@ -1159,6 +1164,90 @@ def ocr_bgra(data, w, h):
     if "err" in box:
         raise box["err"]
     return box.get("text", "")
+
+
+def _win_boxes(data, w, h):
+    """윈도우 OCR → [(글자 줄, x1, y1, x2, y2)] (받은 이미지 픽셀 기준)"""
+    from winrt.windows.media.ocr import OcrEngine
+    from winrt.windows.graphics.imaging import SoftwareBitmap, BitmapPixelFormat
+    from winrt.windows.storage.streams import DataWriter
+    k_up = 1
+    if w * h < 200 * 60:
+        data, w, h = _upscale_bgra(data, w, h, 2)
+        k_up = 2
+    try:
+        limit = int(OcrEngine.max_image_dimension)
+    except Exception:
+        limit = 2600
+    k = 1
+    while max(w, h) // k > limit:
+        k += 1
+    if k > 1:
+        data, w, h = _downscale_bgra(data, w, h, k)
+    scale = k / k_up                         # 읽은 이미지 → 원래 이미지 배율
+    engine = OcrEngine.try_create_from_user_profile_languages()
+    if engine is None:
+        raise RuntimeError("윈도우 OCR 언어 없음")
+    dw = DataWriter()
+    dw.write_bytes(data)
+    bmp = SoftwareBitmap.create_copy_from_buffer(dw.detach_buffer(), BitmapPixelFormat.BGRA8, w, h)
+    op = engine.recognize_async(bmp)
+    end = time.time() + OCR_TIMEOUT
+    while int(op.status) == 0:
+        if time.time() > end:
+            raise TimeoutError("OCR 시간 초과")
+        time.sleep(0.02)
+    if int(op.status) != 1:
+        raise RuntimeError("OCR 실패")
+    out = []
+    for line in op.get_results().lines:
+        rs = [wd.bounding_rect for wd in line.words]
+        if not rs:
+            continue
+        x1, y1 = min(r.x for r in rs), min(r.y for r in rs)
+        x2, y2 = max(r.x + r.width for r in rs), max(r.y + r.height for r in rs)
+        out.append((line.text, x1 * scale, y1 * scale, x2 * scale, y2 * scale))
+    return out
+
+
+def ocr_boxes(region_ratio=None):
+    """로블록스 창(또는 그 안의 비율 영역)의 글자 덩어리와 위치 → [(글자, 가운데 x, 가운데 y, 너비, 높이)] — 위치는 창 기준 비율
+    자동 보정에서 버튼 · 창을 글자로 찾을 때 씀"""
+    hwnd = roblox_window()
+    rect = client_rect(hwnd) if hwnd else None
+    if not rect:
+        raise RuntimeError("로블록스 창을 찾을 수 없음")
+    r = region_ratio or [0, 0, 1, 1]
+    x1, y1 = to_screen(min(r[0], r[2]), min(r[1], r[3]), rect)
+    x2, y2 = to_screen(max(r[0], r[2]), max(r[1], r[3]), rect)
+    data, w, h = grab((x1, y1, x2 - x1, y2 - y1))
+    box = {}
+
+    def run():
+        try:
+            eng = ocr_engine()
+            if eng is not None:
+                import numpy as np
+                img = np.frombuffer(data, dtype=np.uint8).reshape(h, w, 4)[:, :, :3].copy()
+                res, _ = eng(img)
+                box["items"] = [(t, min(p[0] for p in b), min(p[1] for p in b), max(p[0] for p in b), max(p[1] for p in b))
+                                for b, t, _s in (res or [])]
+            else:
+                box["items"] = _win_boxes(data, w, h)
+        except BaseException as e:
+            box["err"] = e
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    t.join(OCR_TIMEOUT + 3)
+    if t.is_alive():
+        raise TimeoutError("OCR 응답 없음 (시간 초과)")
+    if "err" in box:
+        raise box["err"]
+    out = []
+    for text, a, b, c, d in box.get("items", []):
+        cx, cy = to_ratio(x1 + (a + c) / 2, y1 + (b + d) / 2, rect)
+        out.append((str(text), cx, cy, (c - a) / max(1, rect[2]), (d - b) / max(1, rect[3])))
+    return out
 
 
 def ocr_region(region_ratio, item=False):

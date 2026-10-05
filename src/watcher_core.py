@@ -115,6 +115,7 @@ BASE_DEFAULT = {
     "chat_pos": None,             # 채팅 버튼 (왼쪽 위)
     "collection_pos": None,       # 도감 버튼 (왼쪽 메뉴의 Collection)
     "collection_close": None,     # 도감 Exit 버튼
+    "dialog_pos": None,           # NPC 대화창 (눌러서 대화 넘기기 · 물고기 판매 등 여러 기능이 같이 씀)
 }
 MOVE_FEATS = ("mfish", "mpop")    # 장소를 따로 둘 수 있는 기능 (매크로 기준 위치 설정의 각 기능 칸)
 # 기능마다 정해진 장소 (사용자가 만들거나 지우지 않음 · 지점 위치와 시간만 지정)
@@ -154,7 +155,6 @@ MFISH_DEFAULT = {
     "result_region": None,        # 결과창 영역 → 결과창 X · 제목 자동 계산
     "bite_max": 60.0, "target_pct": 0, "lead_ms": 0, "click_ms": 25, "click_gap_ms": 45, "cast_retry": 3,
     # 판매 (인벤토리가 가득 차면: 물고기 판매 장소 → E → 대화 넘기기 → Sell Fish → (첫 칸 → Sell All → 확인) 반복 → X → 낚시 장소)
-    "dialog_pos": None,           # 대화창 (눌러서 대화 넘기기)
     "sell_fish_pos": None,        # 선택지 중 [Sell Fish] 버튼
     "first_fish_pos": None,       # 상점 목록의 첫 번째 물고기 칸
     "sell_all_pos": None,         # Sell All 버튼
@@ -350,7 +350,9 @@ def normalize(raw):
             base[k] = old_mp[k]
     if not base.get("notice_region") and old_mf.get("notice_region"):
         base["notice_region"] = old_mf["notice_region"]
-    for k in (*BASE_INV_KEYS, "chat_pos", "collection_pos", "collection_close"):
+    if not base.get("dialog_pos") and old_mf.get("dialog_pos"):    # 대화창은 자동 낚시에서 통합 위치로 옮김
+        base["dialog_pos"] = old_mf["dialog_pos"]
+    for k in (*BASE_INV_KEYS, "chat_pos", "collection_pos", "collection_close", "dialog_pos"):
         base[k] = _ratio_list(base.get(k), 2)
     for k in ("ocr_region", "notice_region"):
         base[k] = _ratio_list(base.get(k), 4)
@@ -426,7 +428,7 @@ def normalize(raw):
         except (TypeError, ValueError):
             pass
         mf["click_v3"] = True
-    for k in ("fish_btn", "close_pos", "title_pos", "dialog_pos", "sell_fish_pos", "first_fish_pos", "sell_all_pos",
+    for k in ("fish_btn", "close_pos", "title_pos", "sell_fish_pos", "first_fish_pos", "sell_all_pos",
               "confirm_sell_pos", "shop_close_pos"):
         mf[k] = _ratio_list(mf.get(k), 2)
     for k in ("bar_region", "panel_region", "reel_region", "result_region", "info_region"):
