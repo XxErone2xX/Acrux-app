@@ -31,6 +31,68 @@ def info_empty(text):
     return not re.search(r"[A-Za-z가-힣]{2,}", rest)       # 이름이 없음 ("..." 뿐)
 
 
+def info_dots(rgb):
+    """왼쪽 물고기 정보 영역 화면(RGB 배열) → 비었는지 (OCR 없이 픽셀로)
+    물고기를 안 골랐으면 이름 자리에 흰 네모 3개 '...' 가 밑줄 바로 위에 나란히 뜸 · 이름 글자는 이런 모양이 안 나옴
+    True = 비었음 ('...') · False = 이름이 있음 · None = 모르겠음 (밑줄을 못 찾음 → OCR 로)"""
+    lum = rgb.min(axis=2)
+    white = lum > 150                                            # 흰색 (작은 창에선 가장자리가 흐려져서 넉넉히)
+    h, w = white.shape
+    if h < 8 or w < 20:
+        return None
+    rows = (lum > 90).sum(axis=1)                                # 밑줄은 1~2px 이라 작은 창에선 더 흐림
+    line = [y for y in range(h) if rows[y] > w * 0.45]            # 이름 밑줄 (가로로 긴 흰 줄)
+    if not line:
+        return None
+    top = line[0]
+    above = white[max(0, top - int(h * 0.3)):top]                 # 밑줄 바로 위 (이름 줄)
+    above = above[:max(0, above.shape[0] - 2)]                    # 밑줄에 붙은 줄은 빼고
+    if not above.size or not above.any():
+        return None
+    blobs = _blobs(above)
+    if len(blobs) != 3:
+        return False
+    sizes = []
+    for x1, y1, x2, y2, n in blobs:
+        bw, bh = x2 - x1 + 1, y2 - y1 + 1
+        if not (0.5 <= bw / bh <= 2.0) or n < bw * bh * 0.7:        # 꽉 찬 네모가 아님 → 글자
+            return False
+        sizes.append(max(bw, bh))
+    ys = [(b[1] + b[3]) / 2 for b in blobs]
+    if max(sizes) > min(sizes) * 1.6 or max(ys) - min(ys) > max(sizes) or max(sizes) > w * 0.1:
+        return False
+    return True
+
+
+def _blobs(mask):
+    """흰 점 덩어리 [(x1, y1, x2, y2, 점 개수)] (작은 영역용 · 8방향)"""
+    import numpy as np
+    seen = np.zeros_like(mask, dtype=bool)
+    h, w = mask.shape
+    out = []
+    for y0, x0 in zip(*np.nonzero(mask)):
+        if seen[y0, x0]:
+            continue
+        stack, pts = [(y0, x0)], []
+        seen[y0, x0] = True
+        while stack:
+            y, x = stack.pop()
+            pts.append((y, x))
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    ny, nx = y + dy, x + dx
+                    if 0 <= ny < h and 0 <= nx < w and mask[ny, nx] and not seen[ny, nx]:
+                        seen[ny, nx] = True
+                        stack.append((ny, nx))
+        if len(pts) < 2:
+            continue
+        ys, xs = [p[0] for p in pts], [p[1] for p in pts]
+        out.append((min(xs), min(ys), max(xs), max(ys), len(pts)))
+        if len(out) > 12:                                       # 이름 글자 → 더 볼 필요 없음
+            break
+    return out
+
+
 class Seller:
     def __init__(self, mover, get_cfg, get_move, log):
         self.mover = mover                  # move.Mover (기준 장소 · 장소 이동)
@@ -72,9 +134,30 @@ class Seller:
         """낚시 장소로 못 가는 이유 → 안내 글 또는 None"""
         return self._path_missing(("fish_spot",))
 
+    def _grab_info(self, region):
+        import numpy as np
+        hwnd = macro.roblox_window_cached(1.0)
+        rect = macro.client_rect(hwnd) if hwnd else None
+        if not rect:
+            return None
+        x1, y1 = macro.to_screen(min(region[0], region[2]), min(region[1], region[3]), rect)
+        x2, y2 = macro.to_screen(max(region[0], region[2]), max(region[1], region[3]), rect)
+        data, w, h = macro.grab((x1, y1, x2 - x1, y2 - y1))
+        return np.frombuffer(data, np.uint8).reshape(h, w, 4)[:, :, 2::-1]    # BGRA → RGB
+
     def _empty(self, region):
+        """왼쪽 물고기 정보가 비었는지 — 이름 자리의 '...' (흰 네모 3개) 를 픽셀로 봄 (OCR 보다 훨씬 가벼움)
+        픽셀로 판단이 안 될 때만 한 번 더 보고, 그래도 모르면 OCR"""
+        for _ in range(2):
+            try:
+                r = info_dots(self._grab_info(region))
+            except Exception:
+                r = None
+            if r is not None:
+                return r
+            self.mover._wait(0.2)
         try:
-            text = macro.ocr_region(region, bring_front=False)     # 방금 상점을 눌러서 로블록스가 앞에 있음
+            text = macro.ocr_region(region, bring_front=False)
         except Exception as e:
             self.log(f"물고기 정보 OCR 오류: {e} — 판매를 여기서 끝냄", "n")
             return True
@@ -129,7 +212,7 @@ class Seller:
         with self._borrow(stop) as mv:
             d = float(cfg.get("sell_delay", 0))          # 클릭마다 더 기다릴 시간 (렉이 있으면 늘림)
             pre = 2.8 + float(cfg.get("e_wait", 1.5)) + 1.7 + 2 * d     # 카메라 정렬 · E · 대화 · Sell Fish
-            per = 2.5 + 3 * d + 0.3                       # 물고기 한 종류 파는 데 (클릭 3번 + OCR)
+            per = 2.5 + 3 * d + 0.05                      # 물고기 한 종류 파는 데 (클릭 3번 + '...' 확인)
             post = 0.5 + d                                # 상점 닫기
             sell_part = pre + 6 * per + post              # (6종류로 어림 · 더 많으면 게이지가 잠깐 기다림)
             mv.plan(2 * mv.base_time() + mv.place_time(sell_i) + mv.place_time(fish_i) + sell_part)
