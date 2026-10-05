@@ -759,26 +759,66 @@ class Bridge:
 
     def _pick_overlay(self, flag):
         """로블록스 화면 위 선택 창 (tkinter 창이라 별도 프로세스로 띄우고 결과는 임시 파일로 받음)
-        --pick-region: 드래그로 영역 / --pick-point: 클릭 1번으로 위치"""
+        --pick-region: 드래그로 영역 / --pick-point: 클릭 1번으로 위치 / --pick-file: 프로그램 고르기
+        선택 창이 가끔 안 뜨고(로블록스 뒤에 숨는 등) 그대로 2분 넘게 기다리느라 다른 위치 지정도 막히던 문제 →
+        창이 실제로 떴는지 신호(.shown 파일)를 받고, 6초 안에 안 뜨면 끄고 한 번 더 띄움 · 그래도 안 되면 바로 실패로 끝냄"""
+        for attempt in range(2):
+            r = self._pick_once(flag)
+            if r.get("error") != "__not_shown__":
+                return r
+            if attempt == 0:
+                self._on_log("위치 지정 창이 안 떠서 다시 띄움", "y")
+        return {"error": "위치 지정 창이 안 뜸 — 로블록스를 창 모드로 두고 다시 시도하세요"}
+
+    def _pick_once(self, flag):
         import tempfile
+        self.api_pick_cancel(None)                 # 남아 있던 선택 창이 있으면 정리 (안 그러면 계속 막힘)
         out = Path(tempfile.gettempdir()) / f"acrux_pick_{os.getpid()}.json"
+        shown = Path(str(out) + ".shown")
         out.unlink(missing_ok=True)
+        shown.unlink(missing_ok=True)
         if getattr(sys, "frozen", False):
             cmd = [sys.executable, flag, str(out)]
         else:
             cmd = [sys.executable, str(Path(__file__).resolve().parent / "macro.py"), flag, str(out)]
         env = dict(os.environ, ACRUX_LANG=str(self.data.get("lang") or "ko"))   # 안내 글자 언어
+        limit = 300 if flag == "--pick-file" else 150
         try:
-            subprocess.run(cmd, timeout=300 if flag == "--pick-file" else 150, creationflags=NO_WINDOW, env=env)
+            proc = subprocess.Popen(cmd, creationflags=NO_WINDOW, env=env)
+            self._pick_proc = proc
+            start = time.time()
+            while proc.poll() is None:
+                waited = time.time() - start
+                # 프로그램 고르기 창은 윈도우 기본 창이라 신호를 안 보냄 → 시간만 봄
+                if flag != "--pick-file" and waited > 6 and not shown.exists():
+                    proc.kill()
+                    return {"error": "__not_shown__"}
+                if waited > limit:
+                    proc.kill()
+                    return {"error": "시간 초과"}
+                time.sleep(0.1)
+            if getattr(self, "_pick_cancelled", False):
+                return {"error": "취소됨"}
             if not out.exists():
                 return {"error": "지정 실패"}
             return json.loads(out.read_text(encoding="utf-8"))
-        except subprocess.TimeoutExpired:
-            return {"error": "시간 초과"}
         except Exception as e:
             return {"error": str(e)}
         finally:
+            self._pick_proc, self._pick_cancelled = None, False
             out.unlink(missing_ok=True)
+            shown.unlink(missing_ok=True)
+
+    def api_pick_cancel(self, _):
+        """떠 있는(또는 안 보이게 멈춘) 선택 창 끄기 — 같은 버튼을 한 번 더 누르면 취소"""
+        proc = getattr(self, "_pick_proc", None)
+        if proc and proc.poll() is None:
+            self._pick_cancelled = True
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        return {"ok": True}
 
     def api_ocr_test(self, p):
         region = p.get("region")

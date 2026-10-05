@@ -579,6 +579,32 @@ _GUIDE = {
 }
 
 
+_SHOWN_PATH = None      # 선택 창이 실제로 화면에 떴으면 만드는 파일 (앱이 '창이 안 뜸'을 알아채고 다시 띄우게)
+
+
+def _overlay_front(root):
+    """선택 창을 맨 앞으로 확실히 띄움 (로블록스 뒤에 숨거나 포커스를 못 받아서 안 보이던 문제)
+    처음 3초 동안은 0.3초마다 다시 맨 앞으로 · 실제로 보이면 _SHOWN_PATH 파일을 만듦"""
+    state = {"n": 0}
+
+    def front():
+        try:
+            root.lift()
+            root.attributes("-topmost", True)
+            root.focus_force()
+            if IS_WIN:
+                hwnd = user32.GetAncestor(root.winfo_id(), 2) or root.winfo_id()   # GA_ROOT
+                focus(hwnd)
+            if _SHOWN_PATH and root.winfo_viewable() and not Path(_SHOWN_PATH).exists():
+                Path(_SHOWN_PATH).write_text("1", encoding="utf-8")
+        except Exception:
+            pass
+        state["n"] += 1
+        if state["n"] < 10:
+            root.after(300, front)
+    root.after(30, front)
+
+
 def pick_region_overlay(mode="region"):
     """로블록스 화면 위에 반투명 창을 띄우고 선택 → 창 기준 비율
     mode="region": 드래그로 영역 → {"region": [x1, y1, x2, y2]}
@@ -635,7 +661,7 @@ def pick_region_overlay(mode="region"):
         cv.bind("<ButtonPress-1>", click)
         root.bind("<Escape>", lambda e: root.destroy())
         root.after(120000, root.destroy)
-        root.focus_force()
+        _overlay_front(root)
         root.mainloop()
         return result
 
@@ -665,7 +691,7 @@ def pick_region_overlay(mode="region"):
     cv.bind("<ButtonRelease-1>", release)
     root.bind("<Escape>", lambda e: root.destroy())
     root.after(120000, root.destroy)         # 2분 지나면 자동 취소
-    root.focus_force()
+    _overlay_front(root)
     root.mainloop()
     return result
 
@@ -1090,6 +1116,8 @@ def wait_for_roblox(timeout=90.0, stop=None):
 def pick_region_to_file(path, mode="region"):
     """결과를 파일로 저장 (창 없는 실행/exe 에선 표준 출력이 없어서 파일로 주고받음)"""
     import json as _json
+    global _SHOWN_PATH
+    _SHOWN_PATH = str(path) + ".shown"
     try:
         res = pick_region_overlay(mode)
     except Exception as e:

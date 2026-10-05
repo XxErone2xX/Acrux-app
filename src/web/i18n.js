@@ -129,6 +129,8 @@ const I18N = (() => {
     ['로블록스 화면에서 알림 영역 드래그', 'Drag the notification area in Roblox', 'Robloxで通知の範囲をドラッグ'],
     ['알림 영역 저장', 'Notification area saved', '通知の範囲を保存'],
     ['인벤토리 가득 알림(Cannot Fish) — 낚시 인벤토리 가득', 'Inventory full notification (Cannot Fish) — fishing inventory is full', 'インベントリ満杯の通知（Cannot Fish）— 釣りインベントリが満杯'],
+    ['위치 지정 창이 안 떠서 다시 띄움', 'The picker window did not show, opening it again', '位置指定ウィンドウが出なかったので再表示'],
+    ['위치 지정 창이 안 뜸 — 로블록스를 창 모드로 두고 다시 시도하세요', 'The picker window did not show — put Roblox in windowed mode and try again', '位置指定ウィンドウが出ない — Robloxをウィンドウモードにしてもう一度試してください'],
     ['기능 켜기 · 끄기', 'Features on / off', '機能のオン・オフ'],
     ['쓸 기능을 한 번에', 'All features at once', '使う機能を一度に'],
     ['전부 끄기', 'All off', 'すべてオフ'],
