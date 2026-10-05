@@ -74,7 +74,7 @@ class Seller:
 
     def _empty(self, region):
         try:
-            text = macro.ocr_region(region)
+            text = macro.ocr_region(region, bring_front=False)     # 방금 상점을 눌러서 로블록스가 앞에 있음
         except Exception as e:
             self.log(f"물고기 정보 OCR 오류: {e} — 판매를 여기서 끝냄", "n")
             return True
@@ -127,10 +127,10 @@ class Seller:
         cfg = self.get_cfg() or {}
         sell_i, fish_i = self._place_index("sell_spot"), self._place_index("fish_spot")
         with self._borrow(stop) as mv:
-            d = float(cfg.get("sell_delay", 0.4))          # 클릭마다 더 기다릴 시간 (렉이 있으면 늘림)
-            pre = 2.8 + float(cfg.get("e_wait", 1.5)) + 2.5 + 2 * d     # 카메라 정렬 · E · 대화 · Sell Fish
-            per = 2.4 + 3 * d + 0.5                       # 물고기 한 종류 파는 데 (클릭 3번 + OCR)
-            post = 0.8 + d                                # 상점 닫기
+            d = float(cfg.get("sell_delay", 0))          # 클릭마다 더 기다릴 시간 (렉이 있으면 늘림)
+            pre = 2.8 + float(cfg.get("e_wait", 1.5)) + 1.7 + 2 * d     # 카메라 정렬 · E · 대화 · Sell Fish
+            per = 2.5 + 3 * d + 0.3                       # 물고기 한 종류 파는 데 (클릭 3번 + OCR)
+            post = 0.5 + d                                # 상점 닫기
             sell_part = pre + 6 * per + post              # (6종류로 어림 · 더 많으면 게이지가 잠깐 기다림)
             mv.plan(2 * mv.base_time() + mv.place_time(sell_i) + mv.place_time(fish_i) + sell_part)
             self.log("물고기 팔러 감", "c")
@@ -145,28 +145,29 @@ class Seller:
             macro.key_tap("e")
             mv._wait(float(cfg.get("e_wait", 1.5)))
             mv._click(cfg["dialog_pos"])
-            mv._wait(1.0 + d)
+            mv._wait(0.7 + d)
             mv._click(cfg["sell_fish_pos"])
-            mv._wait(1.5 + d)
+            mv._wait(1.0 + d)
             sold = 0
             for _ in range(int(cfg.get("sell_max", 100))):
                 mv._set(msg=f"판매 · 파는 중 ({sold}종류)")
                 if mv._acc + per <= acc0 + pre + 6 * per + 0.01:   # 어림한 것보다 많으면 게이지는 거기서 기다림
                     mv._advance(per)
+                # 시간은 직접 만든 스크립트 매크로와 같게: 첫 칸 0.5초 → Sell All 0.5초 → 확인 1.5초 (목록이 당겨질 때까지)
                 mv._click(cfg["first_fish_pos"])
-                mv._wait(0.6 + d)
+                mv._wait(0.5 + d)
                 if self._empty(cfg["info_region"]):
                     break
                 mv._click(cfg["sell_all_pos"])
-                mv._wait(0.8 + d)
+                mv._wait(0.5 + d)
                 mv._click(cfg["confirm_sell_pos"])
-                mv._wait(1.0 + d)
+                mv._wait(1.5 + d)
                 sold += 1
             self.log(f"물고기 판매 완료 ({sold}종류)", "g")
             mv._acc = acc0 + pre + 6 * per
             mv._advance(post)
             mv._click(cfg["shop_close_pos"])
-            mv._wait(0.8 + d)
+            mv._wait(0.5 + d)
             mv._set(msg="판매 · 낚시 장소로 돌아가는 중")
             mv.go_base()
             mv.walk(fish_i)
