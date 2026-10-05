@@ -17,6 +17,7 @@
       <h1>Acrux macro <span class="ver" id="verText">V1.2.1</span></h1>
       <p class="sub">Snipe &amp; popping macro</p>
       <p data-notr>Made by 얼로니</p>
+      <p class="online" id="onlineText" hidden><i></i><span></span></p>
     </header>
 
     <div class="card status-card">
@@ -540,6 +541,8 @@
         <div class="sec-head"><h2>일반</h2></div>
         <div class="card form">
           <label class="row"><span>언어<small>화면 왼쪽 위 Language 와 같은 설정</small></span><select id="acLang" data-notr></select></label>
+          <label class="row"><span>사용자 수 집계에 참여<small>켜져 있다는 신호만 보냄 (무작위 번호 · 개인 정보 없음) · 꺼도 사용자 수는 보임</small></span>
+            <span class="switch"><input type="checkbox" id="acOnline"><i></i></span></label>
           <div class="row"><span>데이터 폴더<small>설정 · 기록 · 템플릿이 저장되는 곳</small></span>
             <button class="btn mini ghost" type="button" id="acFolder">폴더 열기</button></div>
           <div class="row"><span>버전</span><b id="acVer" data-notr>-</b></div>

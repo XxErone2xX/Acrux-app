@@ -54,6 +54,8 @@ DEFAULT_CONFIG = {
     "autostart": False,
     "lang": "",               # 화면 언어: ko / en / ja (비어 있으면 처음 켤 때 윈도우 언어로 정함)
     "tutorials_done": [],     # 끝까지 완료한 튜토리얼 ID 목록
+    "online_share": True,     # 사용자 수 집계에 참여 ('켜져 있음' 신호만 보냄 · 끄면 숫자만 봄)
+    "install_id": "",         # 사용자 수 집계용 무작위 번호 (처음 켤 때 만듦 · 개인 정보 아님)
     "menu_tab": "snipe",      # 메인 화면 설정 탭 (biome / snipe / macro) — 마지막에 본 탭
     "win_size": "",           # 기본 창 크기를 맞춘 적 있는지 (맞춘 크기) — 한 번만 맞춤
     "play": {},               # 오토 팝핑: Play 버튼 자동 클릭 (아래 PLAY_DEFAULT)
@@ -453,6 +455,9 @@ def normalize(raw):
     if d.get("ocr_engine") not in ("auto", "rapid", "windows"):
         d["ocr_engine"] = "auto"
     d["open_link"] = True                   # '실제 접속' 토글 없앰: 감지되면 항상 접속
+    d["online_share"] = bool(d.get("online_share", True))
+    if not re.fullmatch(r"[0-9a-f]{32}", str(d.get("install_id") or "")):
+        d["install_id"] = secrets.token_hex(16)
     ret = d.get("ret") if isinstance(d.get("ret"), dict) else {}
     steps = [dict(x) for x in (ret.get("steps") or []) if isinstance(x, dict) and x.get("type")]
     try:

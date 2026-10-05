@@ -125,6 +125,8 @@ class Bridge:
         self.biome.start()                  # 바이옴 변경 콜백이 위 실행기들을 쓰므로 맨 마지막에 시작
         threading.Thread(target=self._macro_loop, daemon=True).start()
         threading.Thread(target=self._hotkey_loop, daemon=True).start()
+        self.online = None                  # 지금 Acrux 를 켜 둔 사람 수 (서버에서 받음 · 모르면 None)
+        threading.Thread(target=self._online_loop, daemon=True).start()
 
     # 엔진 콜백 (작업 스레드에서 옴)
     def _next(self):
@@ -314,7 +316,7 @@ class Bridge:
             return {"seq": self.seq, "logs": logs, "events": events, "status": list(self.status),
                     "running": self.running(), "armed": core.ARMED.is_set(),
                     "play": play, "pop": pop, "ret": ret, "mpop": mpop, "mfish": mfish, "steps": st, "pre": pre, "roblox": roblox,
-                    "move": mv, "macro_on": bool(self.data.get("macro_on")),
+                    "move": mv, "macro_on": bool(self.data.get("macro_on")), "online": self.online,
                     "crash": {"left": max(0.0, self.crash["until"] - time.time())} if self.crash else None,
                     "biome": bio,
                     "count": self.handler.count, "names": self.data.get("names", {}),
@@ -410,6 +412,33 @@ class Bridge:
                     self.fisher.stop()
             except Exception as e:
                 write_crash(f"macro loop: {e}")
+
+    # 사용자 수: Acrux 가 켜져 있는 동안 몇 분마다 '켜져 있음' 신호 (설치마다 만든 무작위 번호만 보냄)
+    # 집계에 참여하지 않으면 신호 없이 숫자만 받아 봄 · 서버 코드는 server/online
+    ONLINE_URL = ""                         # 서버를 올린 뒤 주소를 넣음 (예: https://acrux-online.<이름>.workers.dev)
+
+    def _online_loop(self):
+        import urllib.request
+        time.sleep(3)
+        while True:
+            wait = 300
+            if self.ONLINE_URL:
+                try:
+                    if self.data.get("online_share", True):
+                        body = json.dumps({"id": self.data.get("install_id", "")}).encode()
+                        req = urllib.request.Request(self.ONLINE_URL.rstrip("/") + "/ping", data=body, method="POST",
+                                                     headers={"Content-Type": "application/json",
+                                                              "User-Agent": f"Acrux/{VERSION}"})
+                    else:
+                        req = urllib.request.Request(self.ONLINE_URL.rstrip("/") + "/count",
+                                                     headers={"User-Agent": f"Acrux/{VERSION}"})
+                    with urllib.request.urlopen(req, timeout=10) as r:
+                        res = json.loads(r.read(4096).decode("utf-8"))
+                    self.online = int(res["online"])
+                    wait = min(3600, max(60, int(res.get("next", 300))))
+                except Exception:
+                    self.online = None
+            time.sleep(wait)
 
     def _set_macro(self, on, why="F3"):
         """매크로 버튼 켜기 · 끄기 (F3 · 화면 버튼과 같음)"""

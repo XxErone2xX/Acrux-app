@@ -814,6 +814,7 @@ async function poll() {
     updateMfish(r.mfish);
     updateMove(r.move);
     lastBio = r.biome; lastMpop = r.mpop; lastMfish = r.mfish;
+    updateOnline(r.online);
     if (r.macro_on !== undefined && !!r.macro_on !== !!config.macro_on && Date.now() - macroClickAt > 2000)
       config.macro_on = r.macro_on;            // F3 · F7 로 켜고 끈 것
     syncMainTiles();
@@ -1690,6 +1691,7 @@ function fillAcrux() {
   sel.value = I18N.lang;
   I18N.onChange(l => { sel.value = l; });
   $('acVer').textContent = $('verText').textContent;
+  $('acOnline').checked = config.online_share !== false;
 }
 $('acOcr').addEventListener('change', e => {
   config.ocr_engine = e.target.value;
@@ -1697,6 +1699,13 @@ $('acOcr').addEventListener('change', e => {
   setTimeout(refreshOcrInfo, 600);             // 저장된 뒤 다시 확인
 });
 $('acLang').addEventListener('change', e => setLang(e.target.value));
+// 사용자 수 (지금 Acrux 를 켜 둔 사람) · 집계 참여 스위치
+function updateOnline(n) {
+  const el = $('onlineText');
+  el.hidden = n == null;
+  if (n != null) el.querySelector('span').textContent = `지금 ${n}명 사용 중`;
+}
+$('acOnline').addEventListener('change', e => { config.online_share = e.target.checked; queueSave({ online_share: e.target.checked }); });
 $('acFolder').addEventListener('click', async () => {
   try { await api('open_folder'); } catch { toast('폴더를 열 수 없음'); }
 });
