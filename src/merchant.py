@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 상인 자동 구매 — 채팅에 "[Merchant]: Mari has arrived" 가 뜨면 Merchant Teleporter 로 가서 고른 아이템을 삼
-  감지: 채팅창 위에 마우스를 올려(채팅이 보이게) 채팅 글자 영역을 OCR (로블록스 로그엔 채팅이 안 남음)
+  감지: 채팅 글자 영역을 OCR (로블록스 로그엔 채팅이 안 남음 · 채팅창은 항상 켜 둠 · 낚시는 안 멈춤)
   구매: Inventory → Merchant Teleporter 1개 사용 → 대기 → E → 대화 넘기기 → Open
         → 상점 위치 자동 보정 (Set to Max · 상점 제목 글자) · 아래 칸 이름 읽기
         → 살 칸만 (칸 클릭 → 아이템 이름 확인 → Set to Max → Purchase → 대화 넘기기) → 상점 닫기 → 리셋
@@ -145,16 +145,8 @@ def match_item(text, names):
     return best, round(score, 1)
 
 
-def chat_hover(c):
-    """채팅창 위치 — 따로 안 정했으면 채팅 글자 영역 가운데"""
-    if c.get("chat_hover"):
-        return c["chat_hover"]
-    r = c.get("chat_region")
-    return [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2] if r else None
-
-
 # 매크로 기준 위치 설정 → 상인 (버튼 위치)
-POS_KEYS = (("chat_hover", "채팅창 위치"), ("open_pos", "Open 선택지"), ("first_slot", "첫 번째 칸"), ("second_slot", "두 번째 칸"),
+POS_KEYS = (("open_pos", "Open 선택지"), ("first_slot", "첫 번째 칸"), ("second_slot", "두 번째 칸"),
             ("max_pos", "Set to Max 버튼"), ("purchase_pos", "Purchase 버튼"), ("close_pos", "상점 닫기 X"))
 
 
@@ -172,12 +164,11 @@ class Merchant(popping.Popper):
     LABEL = "상인 자동 구매"
     COOLDOWN = 300.0                       # 같은 상인을 다시 보기까지 (상인은 몇 분 동안 머묾 · 같은 채팅을 또 읽지 않게)
 
-    def __init__(self, get_pop, get_base, get_cfg, log, on_done=None, before=None, after=None, on_cal=None):
+    def __init__(self, get_pop, get_base, get_cfg, log, on_done=None, on_cal=None):
         super().__init__(lambda: self._inv_cfg(), log)
         self.get_pop, self.get_base, self.get_mcfg = get_pop, get_base, get_cfg
         self.on_done = on_done
         self.on_cal = on_cal                # 상점 자동 보정으로 찾은 위치 → 저장
-        self.before, self.after = before, after    # 채팅 확인 전 · 후 (자동 낚시를 안전한 곳에서 잠깐 멈춤)
         self.seen = {}                     # 상인 이름 → 마지막으로 감지한 시각
         self.bought = 0
         self.job = None
@@ -188,6 +179,10 @@ class Merchant(popping.Popper):
         for k in (*dict(popping.POS_KEYS), "ocr_region"):
             cfg[k] = b.get(k)
         return cfg
+
+    def buying(self):
+        """구매하러 가는 중 (화면을 씀) — 채팅 확인은 화면만 읽어서 다른 기능과 같이 돌아도 됨"""
+        return self.running() and self.job == "buy"
 
     def snapshot(self):
         s = super().snapshot()
@@ -218,18 +213,13 @@ class Merchant(popping.Popper):
         return True
 
     def _job(self, job, name, stop):
-        held = False
         try:
-            if job == "check" and self.before:
-                held = True
-                if not self.before():
-                    return                          # 낚시가 안 비켜주면 이번 확인은 건너뜀
-            with macro.fast_timing():
-                if job == "check":
-                    found = self._check_chat(stop)
-                    if found:
-                        self._found = found
-                elif job == "buy":
+            if job == "check":                      # 화면만 읽음 — 낚시를 멈추거나 마우스를 옮기지 않음
+                found = self._check_chat(stop)
+                if found:
+                    self._found = found
+            elif job == "buy":
+                with macro.fast_timing():
                     self._buy(name, stop)
         except popping.Stopped:
             self.log(f"{self.LABEL} 정지", "d")
@@ -237,11 +227,6 @@ class Merchant(popping.Popper):
             self.log(f"{self.LABEL} 오류: {e}", "r")
         finally:
             self._set(msg="대기")
-            if held and self.after:
-                try:
-                    self.after()
-                except Exception:
-                    pass
             if self.on_done:
                 try:
                     self.on_done(job, getattr(self, "_found", None) if job == "check" else name)
@@ -255,11 +240,6 @@ class Merchant(popping.Popper):
         if not c.get("chat_region"):
             return None
         self._set(msg="채팅 확인")
-        rect = self._rect(stop)
-        hv = chat_hover(c)
-        x, y = macro.to_screen(hv[0], hv[1], rect)
-        macro.move_to(x, y)                    # 마우스를 올리면 흐려진 채팅이 다시 보임
-        self._wait(0.35, stop)
         try:
             text = macro.ocr_region(c["chat_region"], bring_front=False)
         except Exception as e:
