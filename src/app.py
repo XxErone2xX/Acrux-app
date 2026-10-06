@@ -691,8 +691,10 @@ class Bridge:
 
     # 매크로 기준 위치 설정 — 버튼 위치 · 영역 (feat: base = 여러 기능이 같이 쓰는 기준 위치 / mfish = 자동 낚시만)
     MPOS_POINTS = {"base": dict(popping.POS_KEYS, chat_pos="채팅 버튼", collection_pos="도감 버튼", collection_close="도감 Exit", dialog_pos="대화창"),
-                   "mfish": dict(fishing.POS_KEYS, **{k: n for k, n in sell.SELL_KEYS if k != "info_region"})}
-    MPOS_REGIONS = {"base": ("ocr_region", "notice_region"), "mfish": ("panel_region", "reel_region", "result_region", "bar_region", "info_region")}
+                   "mfish": dict(fishing.POS_KEYS, **{k: n for k, n in sell.SELL_KEYS if k != "info_region"}),
+                   "mmerch": dict(merchant.POS_KEYS)}
+    MPOS_REGIONS = {"base": ("ocr_region", "notice_region"), "mfish": ("panel_region", "reel_region", "result_region", "bar_region", "info_region"),
+                    "mmerch": ("chat_region", "item_region")}
     # 16:9 위치 템플릿 (로블록스 창 기준 비율) — 스나이프 탭 오토 팝핑 16:9 템플릿과 같은 값
     # (자동 낚시는 템플릿 대신 낚시 창 · 결과창 영역으로 안쪽 위치를 계산 → fishing.WINDOW_KEYS)
     MPOS_TEMPLATE = {
@@ -705,6 +707,11 @@ class Bridge:
         # 판매 (Noteab 매크로의 1920x1080 위치 프리셋 · Apache 2.0) — Sell Fish 버튼 · 물고기 정보 영역은 직접 지정
         "mfish": {"first_fish_pos": [0.4349, 0.3778], "sell_all_pos": [0.3464, 0.7444],
                   "confirm_sell_pos": [0.4141, 0.5731], "shop_close_pos": [0.7609, 0.2528]},
+        # 상인 (Noteab 매크로의 1920x1080 위치 프리셋 · Apache 2.0)
+        "mmerch": {"chat_hover": [0.0365, 0.1778], "chat_region": [0.0042, 0.0935, 0.251, 0.3426],
+                   "open_pos": [0.3406, 0.8759], "first_slot": [0.4958, 0.6657], "second_slot": [0.5964, 0.6657],
+                   "item_region": [0.575, 0.3407, 0.7672, 0.3731], "amount_pos": [0.5438, 0.5657],
+                   "purchase_pos": [0.5115, 0.6167], "close_pos": [0.9422, 0.3204]},
     }
 
     BANNER_PROGRESS = Path(tempfile.gettempdir()) / f"acrux_banner_{os.getpid()}.txt"
@@ -1173,7 +1180,7 @@ class Bridge:
     # 화면 비율 — 로블록스 UI 는 화면 높이에 맞춰 커지고, 낚시 창 · 결과창 · 인벤토리 창은 가로 가운데 기준,
     # Inventory 버튼(왼쪽 메뉴)은 왼쪽 끝 기준이라고 보고 16:9 값을 바꿈 (16:9 가 아닌 비율은 추정값)
     MPOS_RATIOS = {"16:9": 16 / 9}           # 다른 비율은 추정값이라 불안정해서 뺌
-    MPOS_LEFT = {"inventory_pos", "chat_pos", "collection_pos", "collection_close"}
+    MPOS_LEFT = {"inventory_pos", "chat_pos", "collection_pos", "collection_close", "chat_hover", "chat_region"}
 
     @classmethod
     def _mpos_scaled(cls, feat, aspect):
