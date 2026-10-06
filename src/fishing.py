@@ -93,19 +93,29 @@ def button_state(rgb):
 
 
 def classify_title(rgb):
-    """결과창 제목 주변 픽셀 → 'success'(옅은 하늘색) / 'junk'(회색) / 'fail'(빨강) / None
-    제목 글자만 봄 (아주 밝은 픽셀) — 결과창 바탕은 반투명이라 밝은 낮엔 바탕이 회색으로 보여서,
-    바탕까지 세면 하늘색 '성공' 글자가 회색 '쓰레기' 에 묻혔음 → 하늘색 · 빨강 글자가 조금이라도 있으면 그게 우선"""
+    """결과창 제목 주변 픽셀 → 'success' / 'junk'(회색) / 'fail'(빨강) / None
+    성공 'Fish Caught!' 은 흰색 (희귀한 물고기면 하늘색 등 다른 색) · 쓰레기 'Fish Caught...?' 은 회색 (186) · 실패는 빨강
+    흰 글자의 가장자리는 회색으로 번져 보여서 회색만 세면 흰 글자(성공)를 쓰레기로 착각함 → 흰색 · 밝은 색 글자가 있으면 성공"""
     r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
     n = max(1, r.size)
-    cyan = int(((g > 200) & (b > 185) & (g - r > 35) & (b - r > 25)).sum())       # Fish Caught! (198, 255, 244)
-    red = int(((r > 200) & (r - g > 110) & (r - b > 110)).sum())                    # Fishing Failed (255, 65, 65)
-    gray = int(((r > 165) & (abs(r - g) < 14) & (abs(g - b) < 14) & (r < 215)).sum())  # Fish Caught...? (186, 186, 186)
-    if cyan >= max(12, n * 0.006):
-        return "success"
-    if red >= max(12, n * 0.006):
+    mx = rgb.max(axis=2)
+    mn = rgb.min(axis=2)
+    red = (r > 200) & (r - g > 110) & (r - b > 110)                                  # Fishing Failed (255, 65, 65)
+    white = mn >= 232                                                                 # Fish Caught! (253, 254, 255)
+    colored = (mx >= 220) & (mx - mn >= 50) & ~red                                    # 희귀 물고기 (198, 255, 244) 등
+    gray = (r > 165) & (r < 215) & (abs(r - g) < 14) & (abs(g - b) < 14)             # Fish Caught...? (186, 186, 186)
+    need = max(12, n * 0.006)
+    h = rgb.shape[0]
+
+    def title_like(mask, least):
+        """제목 글자 모양인지: 충분히 많고 · 가로로 넓게 퍼지고 · 여러 줄에 걸침
+        (미니게임 창의 빨간 '0.0' 남은 시간 · 흰 테두리 줄 같은 걸 제목으로 착각하지 않게)"""
+        return int(mask.sum()) >= least and mask.any(axis=0).mean() >= 0.3 and int(mask.any(axis=1).sum()) >= max(4, h * 0.15)
+    if title_like(red, need):
         return "fail"
-    if gray >= max(20, n * 0.02):
+    if title_like(white | colored, need):
+        return "success"
+    if title_like(gray, max(20, n * 0.02)):
         return "junk"
     return None
 
