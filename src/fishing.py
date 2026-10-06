@@ -92,16 +92,25 @@ def button_state(rgb):
     return "fish" if blue >= red else "exit"
 
 
+TITLE_WAIT = 0.6         # 결과창 제목을 확실히 읽을 때까지 X 를 미루는 최대 시간 (초)
+
+
 def classify_title(rgb):
-    """결과창 제목 주변 픽셀 → 'success'(하늘색) / 'junk'(회색) / 'fail'(빨강) / None"""
+    """결과창 제목 주변 픽셀 → 'success'(옅은 하늘색) / 'junk'(회색) / 'fail'(빨강) / None
+    제목 글자만 봄 (아주 밝은 픽셀) — 결과창 바탕은 반투명이라 밝은 낮엔 바탕이 회색으로 보여서,
+    바탕까지 세면 하늘색 '성공' 글자가 회색 '쓰레기' 에 묻혔음 → 하늘색 · 빨강 글자가 조금이라도 있으면 그게 우선"""
     r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
     n = max(1, r.size)
-    bright = (r + g + b) > 330
-    cyan = int((bright & (g > r + 40) & (b > r + 40)).sum())
-    red = int(((r > 170) & (r > g + 80) & (r > b + 80)).sum())
-    gray = int((bright & (abs(r - g) < 22) & (abs(g - b) < 22) & (r < 225)).sum())
-    best = max((cyan, "success"), (red, "fail"), (gray, "junk"))
-    return best[1] if best[0] >= n * 0.02 else None
+    cyan = int(((g > 200) & (b > 185) & (g - r > 35) & (b - r > 25)).sum())       # Fish Caught! (198, 255, 244)
+    red = int(((r > 200) & (r - g > 110) & (r - b > 110)).sum())                    # Fishing Failed (255, 65, 65)
+    gray = int(((r > 165) & (abs(r - g) < 14) & (abs(g - b) < 14) & (r < 215)).sum())  # Fish Caught...? (186, 186, 186)
+    if cyan >= max(12, n * 0.006):
+        return "success"
+    if red >= max(12, n * 0.006):
+        return "fail"
+    if gray >= max(20, n * 0.02):
+        return "junk"
+    return None
 
 
 def _colored(band):
@@ -748,6 +757,7 @@ class Fisher:
         self._set(msg="결과창 닫는 중")
         title = cfg.get("title_pos") if base is not None else None
         kind, end = None, time.time() + FINISH_MAX
+        seen_at = None                               # 결과창(제목 자리 변화)이 처음 보인 시각
         while time.time() < end:
             self._check(stop)
             rect = self._rect(stop)
@@ -756,7 +766,14 @@ class Fisher:
             if title and kind is None:
                 img = self._grab_box(sct, rect, title, 0.12, 0.05)
                 if img.shape == base.shape and float(np.abs(img - base).mean()) > 18:
-                    kind = classify_title(img)
+                    seen_at = seen_at or time.time()
+                    k = classify_title(img)
+                    # 성공 · 실패는 바로 · 쓰레기는 결과창이 다 뜬 뒤(0.3초)에만 (뜨는 중엔 하늘색 · 빨강 글자가 흐려서 회색처럼 보일 수 있음)
+                    if k in ("success", "fail") or (k == "junk" and time.time() - seen_at >= 0.3):
+                        kind = k
+                    elif time.time() - seen_at < TITLE_WAIT:
+                        self._wait(0.05, stop)       # 제목을 다 읽을 때까지 X 는 잠깐 미룸
+                        continue
             self._click_ratio(cfg["close_pos"], stop)
             self._wait(FINISH_GAP, stop)
         else:
