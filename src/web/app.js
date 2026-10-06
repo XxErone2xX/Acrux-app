@@ -1314,7 +1314,7 @@ $('mitemStop').addEventListener('click', () => api('mitem_stop'));
 // 준비 중인 기능은 자리만 (만들면 key 를 채움)
 const MFEATS = [['mpop', '레어 바이옴 자동 팝핑', '내 서버에서 레어 바이옴이 뜨면 포션 사용'],
   ['mfish', '자동 낚시', '낚시 장소로 가서 낚시 · 가득 차면 판매'],
-  ['mitem', '오토 아이템 사용', '쿨타임마다 Strange Controller · Biome Randomizer 사용'],
+  ['mitem', '오토 아이템 사용', '아이템 자동 사용'],
   [null, '상인 자동 구매', '준비 중'], [null, '포션 자동 제작', '준비 중'], [null, '오토 메모리 매치', '준비 중']];
 const FEAT_NAME = { mpop: '레어 바이옴 자동 팝핑', mfish: '자동 낚시', mitem: '오토 아이템 사용' };
 const featCfg = k => ({ mpop, mfish, mitem, base })[k]();

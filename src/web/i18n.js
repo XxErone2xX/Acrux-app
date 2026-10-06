@@ -353,6 +353,7 @@ const I18N = (() => {
     ['오토 아이템 사용 테스트 시작 · 인벤토리 열기부터 · 정지: F7', 'Auto item use test started · from opening the inventory · stop: F7', 'オートアイテム使用テスト開始・インベントリを開くところから・停止: F7'],
     ['사용할 아이템이 꺼져 있음', 'The items to use are turned off', '使用するアイテムがオフ'],
     ['다른 동작이 도는 중', 'Another action is running', '他の動作が実行中'],
+    ['아이템 자동 사용', 'Uses items automatically', 'アイテムを自動使用'],
     ['자동 낚시가 멈추지 않아 판매 테스트를 못 함', 'Auto fishing did not pause, so the sell test could not run', '自動釣りが止まらず売却テストができません'],
     ['판매 자동 보정', 'Sell calibration', '販売の自動補正'],
     ['보정 중… (다시 누르면 취소)', 'Calibrating… (press again to cancel)', '補正中…（もう一度押すとキャンセル）'],
