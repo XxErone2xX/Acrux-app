@@ -211,7 +211,7 @@ class Seller:
         sell_i, fish_i = self._place_index("sell_spot"), self._place_index("fish_spot")
         with self._borrow(stop) as mv:
             d = float(cfg.get("sell_delay", 0))          # 클릭마다 더 기다릴 시간 (렉이 있으면 늘림)
-            pre = 2.8 + float(cfg.get("e_wait", 1.5)) + 1.7 + 2 * d     # 카메라 정렬 · E · 대화 · Sell Fish
+            pre = 2.8 + 2.5 + 1.0 + 2 * d                # 카메라 정렬 · E · 대화 넘기기 · Sell Fish
             per = 2.5 + 3 * d + 0.05                      # 물고기 한 종류 파는 데 (클릭 3번 + '...' 확인)
             post = 0.5 + d                                # 상점 닫기
             sell_part = pre + 6 * per + post              # (6종류로 어림 · 더 많으면 게이지가 잠깐 기다림)
@@ -226,10 +226,11 @@ class Seller:
             mv.align_camera()                    # E 를 누르기 전에 화면부터 맞춤
             mv._set(msg="판매 · 대화")
             macro.key_tap("e")
-            mv._wait(float(cfg.get("e_wait", 1.5)))
-            mv._click(cfg["dialog_pos"])
-            mv._wait(0.7 + d)
-            mv._click(cfg["sell_fish_pos"])
+            mv._wait(0.2)
+            # 선택지 [Sell Fish] 가 보일 때까지 대화창 연타 → 보이면 그 글자를 누름 (못 찾으면 지정한 위치)
+            sf = skip_dialog(lambda: mv._click(cfg["dialog_pos"]), macro.ocr_boxes, ("sellfish",), mv._wait)
+            mv._wait(0.15 + d)
+            mv._click([sf[1], sf[2]] if sf else cfg["sell_fish_pos"])
             mv._wait(1.0 + d)
             sold = 0
             for _ in range(int(cfg.get("sell_max", 100))):
@@ -359,6 +360,39 @@ def find_confirm(boxes):
 
 
 DIALOG_AREA = [0.0, 0.4, 1.0, 1.0]                           # 대화창 · 선택지가 뜨는 곳 (화면 아래쪽)
+SKIP_GAP = 0.1                                               # 대화 넘기기 연타 간격 (초)
+
+
+def skip_dialog(click, ocr, keys, wait, timeout=10.0, exact=False):
+    """NPC 대화 넘기기 — 선택지(keys 글자)가 보일 때까지 대화창을 SKIP_GAP 초마다 연타 (Click to skip)
+    click() → 대화창 한 번 클릭 · ocr(영역) → 덩어리 목록 · wait(초) → 멈춤 확인 포함 대기
+    → 찾은 선택지 덩어리 (못 찾으면 None)"""
+    import time
+    done, err = threading.Event(), []
+
+    def spam():
+        try:
+            while not done.is_set():
+                click()
+                done.wait(SKIP_GAP)
+        except Exception as e:                              # 멈춤(F7) 등 — 아래에서 다시 알림
+            err.append(e)
+            done.set()
+    t = threading.Thread(target=spam, daemon=True)
+    t.start()
+    try:
+        end = time.time() + timeout
+        while time.time() < end and not done.is_set():
+            b = find_text(ocr(DIALOG_AREA), *keys, exact=exact)
+            if b:
+                return b
+            wait(0.05)
+    finally:
+        done.set()
+        t.join(1.0)
+    if err:
+        raise err[0]
+    return None
 
 
 def autocal(ocr, click, wait, aspect, found, status, wait_dialog=120.0):
@@ -386,14 +420,10 @@ def autocal(ocr, click, wait, aspect, found, status, wait_dialog=120.0):
         found["dialog_pos"] = dlg
     # 2. 대화를 넘겨서 [Sell Fish]
     sf = find_text(boxes, "sellfish")
-    for _ in range(5):
-        if sf:
-            break
+    if not sf:
         if not found.get("dialog_pos"):
             raise RuntimeError("대화창을 못 찾음")
-        click(found["dialog_pos"])
-        wait(0.9)
-        sf = find_text(ocr(DIALOG_AREA), "sellfish")
+        sf = skip_dialog(lambda: click(found["dialog_pos"]), ocr, ("sellfish",), wait)      # 선택지가 뜰 때까지 연타
     if not sf:
         raise RuntimeError("[Sell Fish] 버튼을 못 찾음")
     found["sell_fish_pos"] = [round(sf[1], 4), round(sf[2], 4)]
