@@ -808,7 +808,6 @@ async function poll() {
     updateCrash(r.crash);
     updatePlay(r.play, r.roblox, r.pop);
     updateRet(r.ret, r.play);
-    updateSteps(r.steps, r.pre);
     updateBiome(r.biome);
     updateMpop(r.mpop);
     updateMfish(r.mfish);
@@ -1758,316 +1757,11 @@ $('retTest').addEventListener('click', async () => {
 });
 $('retStop').addEventListener('click', () => api('play_stop'));
 function updateRet(st, pst) {
-  if (!(st && st.running) && window._stepsState?.running) st = { running: true, msg: '복귀 후 동작 · ' + window._stepsState.msg };
   const run = st && st.running;
   const playing = pst && pst.running && /복귀/.test(pst.msg || '') ;
   $('retDot').dataset.s = run ? 'flux' : '';
   $('retState').textContent = run ? (st.msg || '복귀 중') : '대기';
   $('retTest').disabled = !!run;
-}
-
-// ---------------------------------------------------------------- 직접 만드는 매크로 (동작 목록 편집기)
-// 같은 편집기를 두 곳에서 씀: 오토 팝핑 → 접속 전 동작 / 매크로 복귀 → 복귀 후 동작
-const STEP_DEFS = {
-  key:    { label: '키 입력',           make: () => ({ key: 'e', count: 1, hold: 40, gap: 100 }) },
-  combo:  { label: '키 조합',           make: () => ({ keys: 'ctrl+l', count: 1, hold: 40, gap: 100 }) },
-  click:  { label: '마우스 클릭',       make: () => ({ x: null, y: null, button: 'left', count: 1, gap: 150 }) },
-  wait:   { label: '대기',              make: () => ({ ms: 1000 }) },
-  text:   { label: '글자 입력',         make: () => ({ text: '', enter: false, gap: 20 }) },
-  scroll: { label: '스크롤',            make: () => ({ amount: -3, gap: 100 }) },
-  run:    { label: '프로그램 실행',     make: () => ({ path: '', args: '', wait_ms: 1000 }) },
-  kill:   { label: '프로그램 강제 종료', make: () => ({ exe: '', gap: 300 }) },
-  focus:  { label: '창 맨 앞으로',      make: () => ({ target: 'roblox', title: '', exe: '', wait_ms: 3000 }) },
-};
-let KEY_LIST = [];
-
-function field(label, input, wide) {
-  const w = document.createElement('label');
-  w.className = 'f' + (wide ? ' wide' : '');
-  w.innerHTML = '<span></span>';
-  w.firstChild.textContent = label;
-  w.appendChild(input);
-  return w;
-}
-function btn(label, fn) {
-  const b = document.createElement('button');
-  b.className = 'btn mini ghost'; b.type = 'button'; b.textContent = label;
-  b.addEventListener('click', () => fn(b));
-  return b;
-}
-
-// 시간 값: 화면에선 초 (0.1초), 저장은 ms (100) — 키 입력 등은 컴퓨터에 그대로 보냄 (로블록스 전용 아님)
-function makeStepEditor({ list, save, addBar, listEl, emptyEl, types }) {
-  const num = (obj, key, min = 0) => {
-    const i = document.createElement('input');
-    i.type = 'number'; i.min = min; i.value = obj[key] ?? '';
-    i.addEventListener('input', () => { const n = parseInt(i.value, 10); if (Number.isFinite(n)) { obj[key] = n; save(); } });
-    return i;
-  };
-  const sec = (obj, key) => {
-    const i = document.createElement('input');
-    i.type = 'number'; i.min = 0; i.step = 0.05;
-    i.value = obj[key] == null ? '' : +(obj[key] / 1000).toFixed(3);
-    i.addEventListener('input', () => { const n = parseFloat(i.value); if (Number.isFinite(n) && n >= 0) { obj[key] = Math.round(n * 1000); save(); } });
-    return i;
-  };
-  const text = (obj, key, ph = '') => {
-    const i = document.createElement('input');
-    i.value = obj[key] ?? ''; i.placeholder = ph; i.spellcheck = false;
-    i.addEventListener('input', () => { obj[key] = i.value; save(); });
-    return i;
-  };
-  const select = (obj, key, options, onChange) => {
-    const s = document.createElement('select');
-    for (const [v, t] of options) { const o = document.createElement('option'); o.value = v; o.textContent = t; s.appendChild(o); }
-    s.value = obj[key];
-    s.addEventListener('change', () => { obj[key] = s.value; save(); onChange && onChange(); });
-    return s;
-  };
-  const check = (obj, key, label) => {
-    const w = document.createElement('label');
-    w.className = 'f chk';
-    w.innerHTML = `<input type="checkbox" ${obj[key] ? 'checked' : ''}><span></span>`;
-    w.lastChild.textContent = label;
-    w.firstChild.addEventListener('change', e => { obj[key] = e.target.checked; save(); });
-    return w;
-  };
-
-  addBar.dataset.tctx = 'step';
-  function renderAdd() {
-    addBar.innerHTML = '';
-    for (const type of types) {
-      const d = STEP_DEFS[type];
-      addBar.appendChild(btn('+ ' + d.label, () => {
-        const s = { type, enabled: true, ...d.make() };
-        list().push(s);
-        save(); render();
-        listEl.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }));
-    }
-  }
-
-  function render() {
-    const L = list();
-    listEl.innerHTML = '';
-    emptyEl.style.display = L.length ? 'none' : '';
-    L.forEach((s, i) => {
-      const card = document.createElement('div');
-      card.className = 'step' + (s.enabled === false ? ' off' : '');
-      card.dataset.i = i;
-      const head = document.createElement('div');
-      head.className = 'step-head';
-      head.dataset.tctx = 'step';
-      head.innerHTML = `<span class="grip" title="드래그해서 순서 바꾸기"><i></i><i></i></span><span class="num">${i + 1}</span><b>${STEP_DEFS[s.type]?.label || s.type}</b>
-        <label class="switch small"><input type="checkbox" ${s.enabled === false ? '' : 'checked'}><i></i></label>
-        <span class="grow"></span>
-        <button class="ib" data-a="up" title="위로">↑</button><button class="ib" data-a="down" title="아래로">↓</button>
-        <button class="ib" data-a="dup" title="복제">⧉</button><button class="ib del" data-a="del" title="삭제">${icon('x')}</button>`;
-      head.querySelector('.grip').addEventListener('pointerdown', e => dragStep(e, card, i));
-      head.querySelector('input').addEventListener('change', e => { s.enabled = e.target.checked; card.classList.toggle('off', !s.enabled); save(); });
-      head.querySelectorAll('.ib').forEach(b => b.addEventListener('click', () => {
-        const a = b.dataset.a;
-        if (a === 'up' && i > 0) [L[i - 1], L[i]] = [L[i], L[i - 1]];
-        else if (a === 'down' && i < L.length - 1) [L[i + 1], L[i]] = [L[i], L[i + 1]];
-        else if (a === 'dup') L.splice(i + 1, 0, JSON.parse(JSON.stringify(s)));
-        else if (a === 'del') L.splice(i, 1);
-        else return;
-        save(); render();
-      }));
-      const body = document.createElement('div');
-      body.className = 'step-body';
-      const add = (...els) => els.forEach(e => body.appendChild(e));
-      switch (s.type) {
-        case 'key':
-          add(field('키', select(s, 'key', KEY_LIST.map(k => [k, k.toUpperCase()]))),
-              field('횟수', num(s, 'count', 1)), field('누르는 시간 (초)', sec(s, 'hold')),
-              field('간격 (초)', sec(s, 'gap')));
-          break;
-        case 'combo': {
-          const inp = text(s, 'keys', '예: ctrl+l / ctrl+shift+esc / alt+f4');
-          inp.addEventListener('change', async () => {
-            const r = await api('combo_check', { keys: inp.value });
-            inp.classList.toggle('bad', !!r.error);
-            toast(r.error ? r.error : '키 조합: ' + r.keys.map(k => k.toUpperCase()).join(' + '));
-          });
-          add(field('키 조합 (+ 로 연결)', inp, true), field('횟수', num(s, 'count', 1)),
-              field('누르는 시간 (초)', sec(s, 'hold')), field('간격 (초)', sec(s, 'gap')));
-          break;
-        }
-        case 'click': {
-          const box = document.createElement('div');
-          box.className = 'pos';
-          const val = document.createElement('code');
-          const show = () => { val.textContent = s.x == null ? '지정 안 됨' : `${pct(s.x)}, ${pct(s.y)}`; val.classList.toggle('unset', s.x == null); };
-          show();
-          box.append(val, btn('위치 지정', async b => {
-            const r = await pickWith(b, '로블록스 화면에서 클릭', () => api('pick_point_overlay'));
-            if (r) { s.x = r.x; s.y = r.y; show(); save(); toast('위치 저장'); }
-          }));
-          add(field('위치 (로블록스 창 기준)', box), field('버튼', select(s, 'button', [['left', '왼쪽'], ['right', '오른쪽']])),
-              field('횟수', num(s, 'count', 1)), field('간격 (초)', sec(s, 'gap')));
-          break;
-        }
-        case 'wait':
-          add(field('시간 (초)', sec(s, 'ms')));
-          break;
-        case 'text':
-          add(field('글자 (한 번에 붙여넣기)', text(s, 'text', '입력할 글자'), true),
-              check(s, 'enter', '입력 후 엔터'));
-          break;
-        case 'scroll':
-          add(field('양 (음수 = 아래)', num(s, 'amount', -100)), field('간격 (초)', sec(s, 'gap')));
-          break;
-        case 'run': {
-          const path = text(s, 'path', '예: C:\\Program Files\\...\\program.exe');
-          path.style.flex = '1';
-          const box = document.createElement('div');
-          box.className = 'pos';
-          box.append(path, btn('찾아보기', async b => {
-            const r = await pickWith(b, '파일 고르는 중…', () => api('pick_file'));
-            if (r) { s.path = r.path; path.value = r.path; save(); }
-          }));
-          add(field('프로그램 (exe · 바로가기 · bat 등)', box, true), field('실행 옵션 (선택)', text(s, 'args', '예: --minimized')),
-              field('실행 후 대기 (초)', sec(s, 'wait_ms')));
-          break;
-        }
-        case 'kill': {
-          const exe = text(s, 'exe', '예: Discord.exe, Spotify.exe');
-          const pickSel = windowPicker(w => { s.exe = w.exe; exe.value = w.exe; save(); toast('프로그램 선택: ' + w.exe); }, true);
-          add(field('종료할 프로그램 (여러 개는 , 로 구분)', exe, true), field('열린 프로그램', pickSel), field('종료 후 대기 (초)', sec(s, 'gap')));
-          break;
-        }
-        case 'focus': {
-          const other = document.createElement('div');
-          other.className = 'step-body'; other.style.padding = '0'; other.style.flexBasis = '100%';
-          const title = text(s, 'title', '예: Discord / Chrome');
-          const exe = text(s, 'exe', '예: Discord.exe');
-          const pickSel = windowPicker(w => {
-            s.title = w.title; s.exe = w.exe; title.value = w.title; exe.value = w.exe; save();
-            toast('창 선택: ' + (w.exe || w.title));
-          });
-          other.append(field('열린 창', pickSel, true), field('창 제목에 들어간 글자', title, true),
-                       field('프로그램 이름 (선택)', exe), field('창 기다리기 (초)', sec(s, 'wait_ms')));
-          const sync = () => { other.style.display = s.target === 'roblox' ? 'none' : ''; };
-          add(field('맨 앞으로 가져올 창', select(s, 'target', [['roblox', '로블록스'], ['window', '다른 창 (프로그램)']], sync)), other);
-          sync();
-          break;
-        }
-      }
-      card.append(head, body);
-      listEl.appendChild(card);
-    });
-  }
-
-  // 왼쪽 II 를 잡고 끌어서 순서 바꾸기 (다른 카드는 비켜 주고, 놓으면 그 자리로)
-  function dragStep(e, card, from) {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    const cards = [...listEl.children];
-    const rects = cards.map(c => c.getBoundingClientRect());
-    const step = rects.length > 1 ? rects[1].top - rects[0].top : rects[0].height;
-    const shift = rects[from].height + (rects.length > 1 ? rects[1].top - rects[0].bottom : 8);
-    const sc = listEl.closest('.sec');
-    const y0 = e.clientY, s0 = sc ? sc.scrollTop : 0;
-    let to = from, lastY = y0, timer = null;
-    card.classList.add('dragging');
-    listEl.classList.add('sorting');
-    const update = () => {
-      const dy = lastY - y0 + (sc ? sc.scrollTop - s0 : 0);
-      card.style.transform = `translateY(${u(dy)}px)`;
-      const mid = rects[from].top + rects[from].height / 2 + dy;
-      to = from;
-      rects.forEach((r, k) => {
-        const m = r.top + r.height / 2;
-        if (k < from && mid < m) to = Math.min(to, k);
-        if (k > from && mid > m) to = Math.max(to, k);
-      });
-      cards.forEach((c, k) => {
-        if (k === from) return;
-        const sft = from < to && k > from && k <= to ? -shift : to < from && k >= to && k < from ? shift : 0;
-        c.style.transform = sft ? `translateY(${u(sft)}px)` : '';
-      });
-    };
-    // 목록 위·아래 끝 근처로 끌면 자동으로 스크롤
-    const edge = () => {
-      if (!sc) return;
-      const r = sc.getBoundingClientRect(), m = 48 * Z;
-      const v = lastY < r.top + m ? -10 : lastY > r.bottom - m ? 10 : 0;
-      if (v) { sc.scrollTop += v; update(); }
-    };
-    const move = ev => { lastY = ev.clientY; update(); };
-    const up = () => {
-      removeEventListener('pointermove', move);
-      removeEventListener('pointerup', up);
-      removeEventListener('pointercancel', up);
-      clearInterval(timer);
-      listEl.classList.remove('sorting');
-      const L = list();
-      if (to !== from) {
-        L.splice(to, 0, L.splice(from, 1)[0]);
-        save();
-      }
-      render();
-    };
-    addEventListener('pointermove', move);
-    addEventListener('pointerup', up);
-    addEventListener('pointercancel', up);
-    timer = setInterval(edge, 30);
-  }
-
-  let last = null;
-  function setRunning(st) {
-    const running = st && st.running;
-    const key = running ? st.step : -1;
-    if (key === last) return;
-    last = key;
-    listEl.querySelectorAll('.step').forEach(c => c.classList.toggle('now', running && +c.dataset.i === st.step));
-  }
-  return { renderAdd, render, setRunning };
-}
-
-// 열린 창 / 프로그램 고르기 (byExe: 프로그램 이름 기준으로 중복 제거)
-function windowPicker(onPick, byExe = false) {
-  const sel = document.createElement('select');
-  const blank = byExe ? '열린 프로그램에서 고르기…' : '열린 창에서 고르기…';
-  sel.innerHTML = `<option value="">${blank}</option>`;
-  sel.addEventListener('focus', async () => {
-    const r = await api('list_windows');
-    let ws = r.windows || [];
-    if (byExe) ws = ws.filter((w, n) => w.exe && ws.findIndex(x => x.exe === w.exe) === n);
-    sel._list = ws;
-    sel.innerHTML = `<option value="">${blank}</option>` + ws.map((w, n) =>
-      `<option value="${n}">${byExe ? esc(w.exe) + ' — ' + esc(w.title) : esc(w.title) + (w.exe ? ' — ' + esc(w.exe) : '')}</option>`).join('');
-  });
-  sel.addEventListener('change', () => { const w = (sel._list || [])[+sel.value]; if (w) onPick(w); sel.value = ''; });
-  return sel;
-}
-
-const retSteps = () => (ret().steps ||= []);
-const preSteps = () => (play().pre_steps ||= []);
-let retEditor, preEditor;
-async function fillSteps() {
-  try { KEY_LIST = (await api('steps_info')).keys; } catch { KEY_LIST = ['e', '1', '2', '3']; }
-  const all = Object.keys(STEP_DEFS);
-  retEditor = makeStepEditor({ list: retSteps, save: saveRet, addBar: $('addBar'), listEl: $('steps'), emptyEl: $('stepsEmpty'), types: all });
-  preEditor = makeStepEditor({ list: preSteps, save: savePlay, addBar: $('preAddBar'), listEl: $('preSteps'), emptyEl: $('preEmpty'),
-    types: ['kill', 'key', 'combo', 'wait', 'run', 'focus', 'text', 'click'] });
-  for (const ed of [retEditor, preEditor]) { ed.renderAdd(); ed.render(); }
-}
-$('stepsRun').addEventListener('click', async () => {
-  const r = await api('steps_run', { which: 'ret' });
-  toast(r.error || '2초 뒤 실행 · F7 로 정지');
-});
-$('preRun').addEventListener('click', async () => {
-  const r = await api('steps_run', { which: 'pre' });
-  toast(r.error || '2초 뒤 실행 · F7 로 정지');
-});
-function updateSteps(st, pre) {
-  window._stepsState = st;
-  $('stepsRun').disabled = !!(st && st.running);
-  $('preRun').disabled = !!(pre && pre.running);
-  retEditor?.setRunning(st);
-  preEditor?.setRunning(pre);
 }
 
 // ---------------------------------------------------------------- 바이옴 매크로
@@ -2315,15 +2009,6 @@ const Tutorial = (() => {
       body: `<p>강조된 <b>오토 팝핑 매크로 설정</b> 버튼을 직접 눌러주세요.</p>`,
       target: () => document.querySelector('.menu-card[data-key="popping"]'),
       done: () => current === 'popping' },
-    // 접속 전 동작 (선택)
-    { id: 'preSide', ...secStep(popPage, 'pre', '접속 전 동작'),
-      body: `<p>게임에 접속하기 직전에 할 동작을 정합니다. 왼쪽 목록에서 강조된 <b>접속 전 동작</b>을 눌러주세요.</p>
-             <p class="dim">선택 항목입니다. 필요 없으면 이 단계를 건너뛰어주세요.</p>`,
-      done: () => popSec('pre'), optional: true, skipTo: 'playSide', needs: 'card' },
-    { title: '접속 전 동작을 추가해주세요',
-      body: `<p>예: <b>+ 프로그램 강제 종료</b>로 방해되는 프로그램을 끄거나, <b>+ 키 입력 / + 키 조합</b>으로 단축키를 누를 수 있습니다.</p>
-             <p class="dim">위에서부터 순서대로 실행한 뒤 접속합니다. 선택 항목입니다.</p>`,
-      target: () => popPage().querySelector('.sec[data-sec="pre"]'), input: true, optional: true, needs: 'preSide' },
     // 게임 접속 (필수)
     { id: 'playSide', ...secStep(popPage, 'play', '게임 접속'), done: () => popSec('play'), needs: 'card' },
     { title: '위치 템플릿을 쓸 수 있습니다',
@@ -2396,7 +2081,7 @@ const Tutorial = (() => {
   const RET_STEPS = [
     { title: '매크로 복귀 설정이 필요합니다',
       body: `<p>바이옴이 끝나거나 오토 팝핑이 어떤 이유로든 끝나면, <b>로블록스를 모두 종료</b>하고 <b>내 서버로 돌아갑니다</b>.</p>
-             <p><b>내 브섭 링크</b>는 꼭 입력해야 하며, <b>복귀 후 동작</b>은 선택입니다.</p>`,
+             <p><b>내 브섭 링크</b>는 꼭 입력해야 합니다. 돌아가면 켜 둔 매크로(자동 낚시 등)가 다시 시작됩니다.</p>`,
       later: true },
     { id: 'card', title: '매크로 복귀 설정을 눌러주세요',
       body: `<p>강조된 <b>매크로 복귀 설정</b> 버튼을 직접 눌러주세요.</p>`,
@@ -2407,14 +2092,6 @@ const Tutorial = (() => {
       body: `<p>돌아갈 <b>내 비공개 서버 링크</b>를 붙여넣어주세요.</p>
              <p class="dim">바이옴 매크로 설정에 이미 넣었다면 <b>가져오기</b>로 그대로 쓸 수 있습니다. 필수 항목입니다.</p>`,
       target: () => $('retLink')?.closest('.card'), input: true, requires: () => !!ret().ps_link, needs: 'setSide' },
-    { id: 'stepsSide', ...secStep(retPage, 'ret-steps', '복귀 후 동작'),
-      body: `<p>내 서버에 들어간 뒤 할 동작을 정합니다. 왼쪽 목록에서 강조된 <b>복귀 후 동작</b>을 눌러주세요.</p>
-             <p class="dim">선택 항목입니다. 필요 없으면 이 단계를 건너뛰어주세요.</p>`,
-      done: () => retSec('ret-steps'), optional: true, skipTo: 'done', needs: 'card' },
-    { title: '복귀 후 동작을 추가해주세요',
-      body: `<p>키 입력 · 키 조합(Ctrl+L 등) · 클릭 · 프로그램 실행 · 창 맨 앞으로 등을 순서대로 추가할 수 있습니다.</p>
-             <p class="dim">게임 입장이 감지되고 <b>입장 후 대기</b>(기본 7.5초) 뒤에 시작합니다. 키 입력은 맨 앞에 있는 창으로 들어가니, 필요하면 <b>창 맨 앞으로</b>를 먼저 넣어주세요. 왼쪽 <b>II</b>를 끌어서 순서를 바꿀 수 있습니다.</p>`,
-      target: () => retPage().querySelector('.sec[data-sec="ret-steps"]'), input: true, optional: true, needs: 'stepsSide' },
     { id: 'done', title: '설정이 완료되었습니다',
       body: `<p>매크로 복귀 설정이 끝났습니다.</p>
              <p>위쪽 <b>복귀 테스트</b>로 바로 확인할 수 있습니다. 정지는 F7 입니다.</p>` },
@@ -2748,7 +2425,6 @@ const Tutorial = (() => {
   fillPop();
   fillRet();
   fillSnipe();
-  fillSteps();
   fillBiome();
   fillMpop();
   renderMfish();

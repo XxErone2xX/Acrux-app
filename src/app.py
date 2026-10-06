@@ -28,7 +28,6 @@ import biome
 import rejoin
 import popping
 import fishing
-import steps as stepmod
 import move
 import sell
 from version import VERSION
@@ -114,12 +113,8 @@ class Bridge:
         self.play = rejoin.PlayClicker(lambda: self.data.get("play", {}), self._on_log,
                                        on_ingame=self._on_ingame, on_fail=self._on_play_fail)
         # 매크로 복귀: 로블록스 전부 종료 → 1초 → 내 브섭 링크 → Play
-        # 게임 접속 전 동작 (프로그램 강제 종료 · 키 입력 등) — 접속 직전에 실행하고 끝날 때까지 기다림
-        self.pre = stepmod.StepRunner(lambda: self.data.get("play", {}).get("pre_steps", []), self._on_log,
-                                      label="접속 전 동작")
-        core.Bus.before_join = lambda url: self.pre.run_now("게임 접속 전")
-        # 복귀 후 동작 (플레이어가 직접 만드는 매크로)
-        self.steps = stepmod.StepRunner(lambda: self.data.get("ret", {}).get("steps", []), self._on_log)
+        # 스나이핑하는 동안은 매크로(자동 낚시 등)가 쉬고, 내 서버로 돌아오면 입장 후 대기 뒤 다시 켜짐
+        self.resume_at = 0.0                # 이 시각 전엔 매크로를 다시 켜지 않음 (복귀 직후 게임이 다 뜰 때까지)
         self.ret = rejoin.Returner(lambda: self.data.get("ret", {}), self._on_log, self.play,
                                    kill=core.kill_roblox, launch=core.open_link)
         self.biome.start()                  # 바이옴 변경 콜백이 위 실행기들을 쓰므로 맨 마지막에 시작
@@ -245,7 +240,7 @@ class Bridge:
                 now = time.time()
                 present = bool(macro.roblox_window_cached(0.5))
                 busy = (self.ret.running() or self.play.running() or self.pop.running() or self.mpop.running()
-                        or self.pre.running() or now < core.EXPECT_CLOSE["until"])
+                        or now < core.EXPECT_CLOSE["until"])
                 if present:
                     seen, gone_since = True, None
                     if self.crash:                     # 다시 켜짐 → 알림 취소
@@ -295,8 +290,6 @@ class Bridge:
         play, bio, pop, ret = self.play.snapshot(), self.biome.state(), self.pop.snapshot(), self.ret.snapshot()
         mpop = self.mpop.snapshot()
         mfish = self.fisher.snapshot()
-        st = self.steps.snapshot()
-        pre = self.pre.snapshot()
         mv = self.mover.snapshot()
         with self.lock:
             # 새로 생긴 것만 (번호가 늘어나는 순서로 쌓여 있어서 뒤에서부터 보다가 멈춤 — 0.3초마다 1000개를 다 훑지 않게)
@@ -314,7 +307,7 @@ class Bridge:
             events.reverse()
             return {"seq": self.seq, "logs": logs, "events": events, "status": list(self.status),
                     "running": self.running(), "armed": core.ARMED.is_set(),
-                    "play": play, "pop": pop, "ret": ret, "mpop": mpop, "mfish": mfish, "steps": st, "pre": pre, "roblox": roblox,
+                    "play": play, "pop": pop, "ret": ret, "mpop": mpop, "mfish": mfish, "roblox": roblox,
                     "move": mv, "macro_on": bool(self.data.get("macro_on")), "online": self.online, "online_on": bool(self.ONLINE_URL),
                     "crash": {"left": max(0.0, self.crash["until"] - time.time())} if self.crash else None,
                     "biome": bio,
@@ -377,9 +370,9 @@ class Bridge:
         if reason == "서버 접속":           # 스나이핑 접속 → 오토 팝핑
             self.pop.start(log_path=path)
         elif reason == "복귀":
-            self._on_log("매크로 복귀 완료 — 내 서버 입장", "g")
             wait = float(self.data.get("ret", {}).get("start_wait", 7.5))
-            self.steps.start("복귀 완료", delay=wait)  # 복귀 후 동작이 있으면 입장 후 대기(기본 7.5초) 뒤 실행
+            self.resume_at = time.time() + wait      # 게임이 다 뜰 때까지 기다렸다가 매크로 다시 시작
+            self._on_log(f"매크로 복귀 완료 — 내 서버 입장 · {wait:g}초 뒤 매크로 다시 시작", "g")
 
     def _on_play_fail(self, reason):
         if reason == "서버 접속":           # 스나이핑한 서버에 못 들어감 → 복귀
@@ -388,15 +381,23 @@ class Bridge:
     # ---------------- 매크로 탭 · 자동 낚시 ----------------
     def _macro_loop(self):
         """1초마다: 매크로 버튼 + 자동 낚시 켜기 + 로블록스 창 있음 + 내 서버(스나이핑 아님)
-        + 스나이핑 쪽 동작(오토 팝핑 · 복귀 · Play 클릭 · 접속 전 동작) 없음 → 자동 낚시 돌림, 아니면 멈춤"""
-        warned = None
+        + 스나이핑 쪽 동작(오토 팝핑 · 복귀 · Play 클릭 · 복귀 후 대기) 없음 → 자동 낚시 돌림, 아니면 멈춤 (돌아오면 다시 켜짐)"""
+        warned, paused = None, False
         while True:
             time.sleep(1.0)
             try:
                 mf = self.data.get("mfish", {})
                 want = bool(self.data.get("macro_on") and mf.get("enabled"))
-                busy = self.pop.running() or self.ret.running() or self.play.running() or self.pre.running()
-                ok = want and not busy and not self.biome.muted() and bool(macro.roblox_window_cached(2.0))
+                busy = self.pop.running() or self.ret.running() or self.play.running() or time.time() < self.resume_at
+                sniping = busy or self.biome.muted()
+                if want and sniping and not paused:
+                    paused = True
+                    self._on_log("스나이핑 중 — 매크로 잠시 멈춤 (내 서버로 돌아오면 다시 시작)", "c")
+                elif paused and (not want or not sniping):
+                    paused = False
+                    if want:
+                        self._on_log("내 서버 — 매크로 다시 시작", "g")
+                ok = want and not sniping and bool(macro.roblox_window_cached(2.0))
                 if want and fishing.Fisher.missing(mf):
                     ok = False
                     miss = ", ".join(fishing.Fisher.missing(mf))
@@ -492,7 +493,7 @@ class Bridge:
         if sniping:
             self._on_log(f"{found} 감지 — 스나이핑 접속이라 내 서버 팝핑 안 함", "d")
             return
-        if self.pop.running() or self.ret.running() or self.play.running() or self.pre.running():
+        if self.pop.running() or self.ret.running() or self.play.running():
             self._on_log(f"{found} 감지 — 다른 매크로가 도는 중이라 내 서버 팝핑 안 함", "y")
             return
         if not (mp.get("biomes_on") or {}).get(found, True):
@@ -505,21 +506,6 @@ class Bridge:
     def _on_pop_end(self, stopped):
         if not stopped:                     # 바이옴 종료·접속 끊김 등으로 끝남 → 복귀 (직접 멈춘 경우 제외)
             self.ret.start("오토 팝핑 종료")
-
-    def api_steps_run(self, p):
-        self.pop.stop()
-        runner = self.pre if p.get("which") == "pre" else self.steps
-        ok = runner.start("테스트", delay=2)
-        return {"ok": True} if ok else {"error": "켜진 동작이 없음"}
-
-    def api_steps_info(self, _):
-        return {"keys": macro.KEY_NAMES, "types": stepmod.STEP_TYPES}
-
-    def api_combo_check(self, p):
-        try:
-            return {"keys": stepmod.parse_combo(p.get("keys"))}
-        except ValueError as e:
-            return {"error": str(e)}
 
     def api_list_windows(self, _):
         seen, out = set(), []
@@ -566,8 +552,6 @@ class Bridge:
         self.play.stop()
         self.pop.stop()
         self.ret.stop()
-        self.steps.stop()
-        self.pre.stop()
         return {"ok": True}
 
     # 오토 팝핑 (레어 바이옴 포션 사용)

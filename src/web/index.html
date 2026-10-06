@@ -256,7 +256,6 @@
   </div>
   <div class="body">
     <nav class="side">
-      <button class="item deco" data-sec="pre"><b>접속 전 동작</b><span>프로그램 종료 · 키 입력</span></button>
       <button class="item deco" data-sec="play"><b>게임 접속</b><span>Play 버튼 위치 · 대기</span></button>
       <button class="item deco" data-sec="pop-set"><b>오토 팝핑 설정</b><span>버튼 위치 · OCR</span></button>
       <button class="item deco" data-sec="pop-biomes"><b>팝핑 바이옴 설정</b><span>팝핑할 바이옴 켜기 · 끄기</span></button>
@@ -266,12 +265,6 @@
       <button class="item deco" data-sec="pop-dream"><b>Dreamspace</b><span>포션 템플릿</span></button>
     </nav>
     <div class="content">
-      <div class="sec" data-sec="pre">
-        <div class="sec-head"><h2>접속 전 동작</h2><span class="hint">링크로 게임에 접속하기 직전에 순서대로 실행 · 끝나면 접속</span><button class="btn" id="preRun">테스트 실행</button></div>
-        <div class="add-bar" id="preAddBar"></div>
-        <div class="steps" id="preSteps"></div>
-        <div class="empty" id="preEmpty">동작 없음 · 필요하면 위 버튼으로 추가 (예: 특정 프로그램 강제 종료, 키 입력)</div>
-      </div>
       <div class="sec" data-sec="play">
         <div class="sec-head"><h2>게임 접속</h2><span class="hint" id="robloxState"></span><button class="btn ghost mini" id="popTutorialBtn">튜토리얼 보기</button></div>
         <div class="card form">
@@ -330,7 +323,6 @@
   <div class="body">
     <nav class="side">
       <button class="item deco" data-sec="ret-set"><b>복귀 설정</b><span>내 브섭 링크</span></button>
-      <button class="item deco" data-sec="ret-steps"><b>복귀 후 동작</b><span>직접 만드는 매크로</span></button>
     </nav>
     <div class="content">
       <div class="sec" data-sec="ret-set">
@@ -340,17 +332,9 @@
             <input id="retLink" placeholder="https://www.roblox.com/share?code=...&type=Server" spellcheck="false"></label>
           <div class="row"><span>바이옴 매크로 설정의 브섭 링크 사용<small>바이옴 매크로 설정 → 기본 설정에 입력한 링크를 가져옴</small></span>
             <button class="btn ghost mini" type="button" id="retFromBiome">가져오기</button></div>
-        </div>
-      </div>
-      <div class="sec" data-sec="ret-steps">
-        <div class="sec-head"><h2>복귀 후 동작</h2><span class="hint">내 서버 입장 후 순서대로 실행 · 정지: F7</span><button class="btn" id="stepsRun">테스트 실행</button></div>
-        <div class="card form start-wait">
-          <label class="row"><span>입장 후 대기<small>복귀 후 Play 로 게임 입장이 감지된 뒤 첫 동작까지 (초) · 기본 7.5</small></span>
+          <label class="row"><span>매크로 다시 시작까지 대기<small>내 서버에 들어간 뒤 매크로를 다시 켜기까지 (초) · 기본 7.5</small></span>
             <input type="number" min="0" step="0.5" id="retStartWait"></label>
         </div>
-        <div class="add-bar" id="addBar"></div>
-        <div class="steps" id="steps"></div>
-        <div class="empty" id="stepsEmpty">동작 없음 · 위 버튼으로 추가</div>
       </div>
     </div>
   </div>

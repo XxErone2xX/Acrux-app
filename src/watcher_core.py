@@ -237,7 +237,6 @@ class Bus:
     on_status = staticmethod(lambda state, text="": None)
     on_event = staticmethod(lambda entry: None)
     on_joined = staticmethod(lambda url: None)      # 로블록스 실행 직후 (팝핑 시작용)
-    before_join = staticmethod(lambda url: None)    # 접속 직전 (접속 전 동작 — 끝날 때까지 기다림)
 
 
 def log(msg, color=""):
@@ -310,7 +309,7 @@ def normalize(raw):
             play[k] = max(lo, float(play[k]))
         except (TypeError, ValueError):
             play[k] = PLAY_DEFAULT[k]
-    play["pre_steps"] = [dict(x) for x in (play.get("pre_steps") or []) if isinstance(x, dict) and x.get("type")]
+    play.pop("pre_steps", None)              # 접속 전 동작 없앰 (스나이핑 중엔 매크로가 알아서 쉼)
     d["play"] = play
     pop = dict(POP_DEFAULT)
     pop.update(d.get("pop") if isinstance(d.get("pop"), dict) else {})
@@ -459,13 +458,12 @@ def normalize(raw):
     if not re.fullmatch(r"[0-9a-f]{32}", str(d.get("install_id") or "")):
         d["install_id"] = secrets.token_hex(16)
     ret = d.get("ret") if isinstance(d.get("ret"), dict) else {}
-    steps = [dict(x) for x in (ret.get("steps") or []) if isinstance(x, dict) and x.get("type")]
     try:
         start_wait = max(0.0, float(ret.get("start_wait", 7.5)))
     except (TypeError, ValueError):
         start_wait = 7.5
-    # start_wait: 복귀 후 Play 로 게임 입장이 감지된 뒤, 복귀 후 동작을 시작하기까지 대기 (초)
-    d["ret"] = {"ps_link": str(ret.get("ps_link") or "").strip(), "steps": steps, "start_wait": start_wait}
+    # start_wait: 복귀 후 Play 로 게임 입장이 감지된 뒤, 매크로를 다시 켜기까지 대기 (초) · 복귀 후 동작은 없앰
+    d["ret"] = {"ps_link": str(ret.get("ps_link") or "").strip(), "start_wait": start_wait}
     bio = dict(BIOME_DEFAULT)
     bio.update(d.get("biome") if isinstance(d.get("biome"), dict) else {})
     hooks = [str(h).strip() for h in (bio.get("webhooks") or []) if isinstance(h, str)]
@@ -1176,10 +1174,6 @@ def _join_inner(url, stable, snipe, manual):
     if len(JOIN["recent"]) > 500:
         JOIN["recent"] = dict(sorted(JOIN["recent"].items(), key=lambda x: x[1])[-200:])
     expect_roblox_close()                       # 다른 서버로 옮겨가는 중 — 로블록스가 잠깐 꺼지는 건 정상
-    try:
-        Bus.before_join(url)                    # 게임 접속 전 동작 (프로그램 종료 · 키 입력 등)
-    except Exception as e:
-        log(f"접속 전 동작 오류: {e}", "r")
     if stable:
         # 안정화 접속: 로블록스 클라이언트 전부 종료 → 0.5초 후 실행
         if taskkill(ROBLOX_PROCESSES):
