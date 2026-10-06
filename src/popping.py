@@ -426,3 +426,104 @@ class MyServerPopper(Popper):
                     self.after()
                 except Exception:
                     pass
+
+
+# ---------------------------------------------------------------- 매크로 탭: 오토 아이템 사용
+class ItemUser(Popper):
+    """쿨타임이 찰 때마다 인벤토리에서 아이템을 1개씩 사용 (스크립트 매크로의 오토 아이템 사용과 같은 간격)
+    Inventory → Items → (아이템 검색 → OCR 로 이름 확인 → 1개 사용) → Inventory 닫기
+    위치 · OCR 영역은 매크로 기준 위치, 딜레이 · 일치율은 오토 팝핑 설정을 같이 씀"""
+
+    LABEL = "오토 아이템 사용"
+    ITEMS = (("strange", "Strange Controller", "strange_min"), ("randomizer", "Biome Randomizer", "randomizer_min"))
+    RETRY = 60.0                                  # 하나도 못 쓰고 끝나면 1분 뒤 다시 시도
+
+    def __init__(self, get_pop, get_pos, get_cfg, log, before=None, after=None):
+        super().__init__(lambda: self._merged(), log)
+        self.get_pop, self.get_pos, self.get_item_cfg = get_pop, get_pos, get_cfg
+        self.before, self.after = before, after
+        self.last = {k: 0.0 for k, _, _ in self.ITEMS}     # 마지막으로 쓴 시각 (켜면 바로 한 번 씀)
+        self.used = {k: 0 for k, _, _ in self.ITEMS}       # 이번 실행 사용 횟수
+        self.retry_at = 0.0
+        self.test = False                                   # 테스트로 돌리는 중 (매크로가 꺼져 있어도 끝까지)
+
+    def _merged(self):
+        cfg = dict(self.get_pop() or {})
+        pos = self.get_pos() or {}
+        for k in (*dict(POS_KEYS), "ocr_region"):
+            cfg[k] = pos.get(k)
+        return cfg
+
+    def due(self, now=None):
+        """지금 쓸 차례인 아이템 키 목록"""
+        now = now or time.time()
+        if now < self.retry_at:
+            return []
+        c = self.get_item_cfg() or {}
+        return [k for k, _, mk in self.ITEMS if c.get(k) and now - self.last[k] >= float(c.get(mk, 10)) * 60]
+
+    def snapshot(self):
+        snap = super().snapshot()
+        c, now = self.get_item_cfg() or {}, time.time()
+        snap["items"] = {k: {"on": bool(c.get(k)), "used": self.used[k],
+                             "left": max(0.0, max(self.last[k] + float(c.get(mk, 10)) * 60, self.retry_at) - now)}
+                         for k, _, mk in self.ITEMS}
+        return snap
+
+    def start(self, keys, test=False):
+        if self.running() or not keys:
+            return False
+        self.stop_ev = threading.Event()
+        self.test = test
+        self.thread = threading.Thread(target=self._run_items, args=(list(keys), test, self.stop_ev), daemon=True)
+        self.thread.start()
+        return True
+
+    def _run_items(self, keys, test, stop):
+        cfg = self._merged()
+        c = self.get_item_cfg() or {}
+        d = dict(DELAY_DEFAULT, **(cfg.get("delays") or {}))
+        miss = self.missing(cfg)
+        names = dict((k, n) for k, n, _ in self.ITEMS)
+        held = False
+        try:
+            if miss:
+                self.log(f"{self.LABEL} 안 함 — 매크로 기준 위치 설정 필요: {', '.join(miss)}", "n")
+                self.retry_at = time.time() + self.RETRY
+                return
+            if self.before:
+                held = True
+                if not self.before():
+                    self.log(f"{self.LABEL} — 자동 낚시가 자리를 비켜주지 않아 그냥 진행", "y")
+            with macro.fast_timing():
+                self.log(f"{self.LABEL}{' 테스트' if test else ''} — {', '.join(names[k] for k in keys)}", "c")
+                self._set(msg="Inventory 열기")
+                self._click(cfg["inventory_pos"], stop)
+                self._wait(d["inventory"], stop)
+                self._click(cfg["items_pos"], stop)
+                self._wait(d["items"], stop)
+                ok = 0
+                for k in keys:
+                    if self._use_item(cfg, d, {"name": names[k], "amount": 1, "min_have": 1}, stop):
+                        self.last[k] = time.time()
+                        self.used[k] += 1
+                        ok += 1
+                    self._wait(d["after_enter"], stop)
+                if not ok:
+                    self.retry_at = time.time() + self.RETRY
+                    self.log(f"{self.LABEL} — 쓴 아이템 없음 · 1분 뒤 다시 시도", "y")
+                if c.get("close_inventory", True):
+                    self._set(msg="Inventory 닫기")
+                    self._click(cfg["inventory_pos"], stop)
+        except Stopped:
+            self.log(f"{self.LABEL} 정지", "d")
+        except Exception as e:
+            self.retry_at = time.time() + self.RETRY
+            self.log(f"{self.LABEL} 오류: {e}", "r")
+        finally:
+            self._set(msg="대기")
+            if held and self.after:
+                try:
+                    self.after()
+                except Exception:
+                    pass

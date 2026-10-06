@@ -109,6 +109,10 @@ class Bridge:
         # 판매: 자동 낚시 중 인벤토리가 가득 차면 물고기 판매 장소로 가서 팔고 낚시 장소로 돌아옴
         self.seller = sell.Seller(self.mover, self._mfish_cfg, lambda: self.data.get("move", {}), self._on_log)
         self.fisher.on_full = self._on_fish_full
+        # 오토 아이템 사용: 쿨타임마다 Strange Controller · Biome Randomizer 사용 (자동 낚시는 잠깐 비켜줌)
+        self.items = popping.ItemUser(lambda: self.data.get("pop", {}), lambda: self.data.get("base", {}),
+                                      lambda: self.data.get("mitem", {}), self._on_log,
+                                      before=lambda: self.fisher.hold(45), after=self.fisher.release)
         self.fisher.on_start = self._on_fish_start
         self.play = rejoin.PlayClicker(lambda: self.data.get("play", {}), self._on_log,
                                        on_ingame=self._on_ingame, on_fail=self._on_play_fail)
@@ -308,7 +312,7 @@ class Bridge:
             return {"seq": self.seq, "logs": logs, "events": events, "status": list(self.status),
                     "running": self.running(), "armed": core.ARMED.is_set(),
                     "play": play, "pop": pop, "ret": ret, "mpop": mpop, "mfish": mfish, "roblox": roblox,
-                    "move": mv, "macro_on": bool(self.data.get("macro_on")), "online": self.online, "online_on": bool(self.ONLINE_URL),
+                    "move": mv, "mitem": self.items.snapshot(), "macro_on": bool(self.data.get("macro_on")), "online": self.online, "online_on": bool(self.ONLINE_URL),
                     "crash": {"left": max(0.0, self.crash["until"] - time.time())} if self.crash else None,
                     "biome": bio,
                     "count": self.handler.count, "names": self.data.get("names", {}),
@@ -362,6 +366,7 @@ class Bridge:
         self.mpop.stop()
         self.mover.stop()
         self.fisher.stop()
+        self.items.stop()
         self.ret.stop()
         self.biome.mute_next_session()
         self.play.start("서버 접속")
@@ -387,7 +392,9 @@ class Bridge:
             time.sleep(1.0)
             try:
                 mf = self.data.get("mfish", {})
-                want = bool(self.data.get("macro_on") and mf.get("enabled"))
+                mi = self.data.get("mitem", {})
+                want_items = bool(self.data.get("macro_on") and mi.get("enabled"))
+                want = bool(self.data.get("macro_on") and mf.get("enabled")) or want_items
                 busy = self.pop.running() or self.ret.running() or self.play.running() or time.time() < self.resume_at
                 sniping = busy or self.biome.muted()
                 if want and sniping and not paused:
@@ -398,6 +405,13 @@ class Bridge:
                     if want:
                         self._on_log("내 서버 — 매크로 다시 시작", "g")
                 ok = want and not sniping and bool(macro.roblox_window_cached(2.0))
+                # 오토 아이템 사용: 쿨타임이 찼고 이동 · 판매 · 팝핑 중이 아니면 (낚시는 안전한 곳에서 잠깐 비켜줌)
+                if ok and want_items and not self.items.running() and not self.mpop.running() and not self.mover.running():
+                    self.items.start(self.items.due())
+                elif self.items.running() and not self.items.test and (sniping or not want_items):
+                    self.items.stop()
+                want = bool(self.data.get("macro_on") and mf.get("enabled"))
+                ok = ok and want
                 if want and fishing.Fisher.missing(mf):
                     ok = False
                     miss = ", ".join(fishing.Fisher.missing(mf))
@@ -406,7 +420,8 @@ class Bridge:
                         self._on_log(f"자동 낚시 안 함 — 매크로 기준 위치 설정 필요: {miss}", "n")
                 else:
                     warned = None
-                if ok and not self.fisher.running() and not self.mpop.running() and not self.mover.running():
+                if ok and not self.fisher.running() and not self.mpop.running() and not self.mover.running() \
+                        and not self.items.running():
                     self.fisher.start()
                 elif not ok and self.fisher.running():
                     self.fisher.stop()
@@ -448,6 +463,7 @@ class Bridge:
         if not on:
             self.mpop.stop()
             self.fisher.stop()
+            self.items.stop()
         self._on_log(f"{why} — 매크로 {'켜짐' if on else '꺼짐'}", "y" if not on else "g")
 
     def _hotkey_loop(self):
@@ -466,7 +482,7 @@ class Bridge:
                     continue
                 other = (getattr(self, "_mv_banner", None) is not None and self._mv_banner.poll() is None) \
                     or getattr(self, "_autocal_running", False) or getattr(self, "_sellcal_running", False)
-                want = bool(self.data.get("macro_on")) and (self.fisher.running() or self.mpop.running()) and not other
+                want = bool(self.data.get("macro_on")) and (self.fisher.running() or self.mpop.running() or self.items.running()) and not other
                 alive = banner is not None and banner.poll() is None
                 if want and not alive:
                     banner = self._banner_proc("macro")
@@ -1236,6 +1252,23 @@ class Bridge:
 
     def api_mpop_stop(self, _):
         self.mpop.stop()
+        return {"ok": True}
+
+    def api_mitem_test(self, _):
+        """오토 아이템 사용 테스트: 켜 둔 아이템을 쿨타임과 상관없이 지금 한 번 사용"""
+        miss = popping.Popper.missing(self.items._merged())
+        if miss:
+            return {"error": "매크로 기준 위치 설정 필요: " + ", ".join(miss)}
+        keys = [k for k, _, _ in popping.ItemUser.ITEMS if (self.data.get("mitem") or {}).get(k)]
+        if not keys:
+            return {"error": "사용할 아이템이 꺼져 있음"}
+        if self.items.running() or self.mover.running():
+            return {"error": "다른 동작이 도는 중"}
+        self.items.start(keys, test=True)
+        return {"ok": True}
+
+    def api_mitem_stop(self, _):
+        self.items.stop()
         return {"ok": True}
 
     def api_play_pos(self, p):

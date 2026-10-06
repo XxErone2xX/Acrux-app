@@ -65,6 +65,7 @@ DEFAULT_CONFIG = {
     "ocr_engine": "auto",     # Acrux 설정 · OCR 감지 방식: auto / rapid / windows
     "macro_on": False,        # 메인 화면 '매크로' 버튼 — 꺼져 있으면 매크로 탭 기능이 전부 안 돎 (켤 때마다 꺼진 상태로 시작)
     "mfish": {},              # 매크로 탭 · 자동 낚시 (아래 MFISH_DEFAULT)
+    "mitem": {},              # 매크로 탭 · 오토 아이템 사용 (아래 MITEM_DEFAULT)
     "mpop": {},               # 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버) (아래 MPOP_DEFAULT)
     "base": {},               # 매크로 기준 위치 — 여러 기능이 같이 쓰는 위치 (아래 BASE_DEFAULT)
     "move": {},               # 이동 — 기준 장소로 가는 방법 · 장소별 경로 (아래 MOVE_DEFAULT)
@@ -144,6 +145,16 @@ MPOP_DEFAULT = {
     "close_inventory": True,      # 다 쓰고 Inventory 버튼을 한 번 더 눌러 닫기
     "templates": {},              # 바이옴별 포션 목록 (오토 팝핑과 따로)
     "biomes_on": {},              # 켜진 바이옴에서만 (기본 전부 켜짐)
+}
+MITEM_DEFAULT = {
+    # 매크로 탭 · 오토 아이템 사용 — 쿨타임마다 인벤토리에서 아이템 사용 (스크립트 매크로와 같은 간격)
+    # 위치 · OCR 영역은 매크로 기준 위치(base), 딜레이 · 일치율은 오토 팝핑(pop) 설정을 같이 씀
+    "enabled": False,
+    "strange": True,              # Strange Controller 사용
+    "strange_min": 10.5,          # Strange Controller 간격 (분)
+    "randomizer": True,           # Biome Randomizer 사용
+    "randomizer_min": 18.0,       # Biome Randomizer 간격 (분)
+    "close_inventory": True,      # 다 쓰고 Inventory 버튼을 한 번 더 눌러 닫기
 }
 MFISH_DEFAULT = {
     # 매크로 탭 · 자동 낚시 (제자리 낚시) — 위치는 로블록스 창 기준 비율
@@ -417,6 +428,16 @@ def normalize(raw):
     mp["templates"], mp["biomes_on"] = _norm_templates(mp)
     mp["seeded"] = True
     d["mpop"] = mp
+    mi = dict(MITEM_DEFAULT)
+    mi.update(d.get("mitem") if isinstance(d.get("mitem"), dict) else {})
+    for k in ("enabled", "strange", "randomizer", "close_inventory"):
+        mi[k] = bool(mi.get(k))
+    for k in ("strange_min", "randomizer_min"):
+        try:
+            mi[k] = min(240.0, max(1.0, float(mi.get(k))))
+        except (TypeError, ValueError):
+            mi[k] = MITEM_DEFAULT[k]
+    d["mitem"] = {k: mi[k] for k in MITEM_DEFAULT}
     d["macro_on"] = bool(d.get("macro_on"))
     mf = dict(MFISH_DEFAULT)
     mf.update(d.get("mfish") if isinstance(d.get("mfish"), dict) else {})
