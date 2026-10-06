@@ -66,6 +66,7 @@ DEFAULT_CONFIG = {
     "macro_on": False,        # 메인 화면 '매크로' 버튼 — 꺼져 있으면 매크로 탭 기능이 전부 안 돎 (켤 때마다 꺼진 상태로 시작)
     "mfish": {},              # 매크로 탭 · 자동 낚시 (아래 MFISH_DEFAULT)
     "mitem": {},              # 매크로 탭 · 오토 아이템 사용 (아래 MITEM_DEFAULT)
+    "mmerch": {},             # 매크로 탭 · 상인 자동 구매 (아래 MMERCH_DEFAULT)
     "mpop": {},               # 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버) (아래 MPOP_DEFAULT)
     "base": {},               # 매크로 기준 위치 — 여러 기능이 같이 쓰는 위치 (아래 BASE_DEFAULT)
     "move": {},               # 이동 — 기준 장소로 가는 방법 · 장소별 경로 (아래 MOVE_DEFAULT)
@@ -155,6 +156,30 @@ MITEM_DEFAULT = {
     "randomizer": True,           # Biome Randomizer 사용
     "randomizer_min": 18.0,       # Biome Randomizer 간격 (분)
     "close_inventory": True,      # 다 쓰고 Inventory 버튼을 한 번 더 눌러 닫기
+}
+# 상인 아이템 (스크립트 매크로의 상인 아이템 설정과 같은 목록)
+MERCHANT_ITEMS = {
+    "Jester": ("Oblivion Potion", "Heavenly Potion", "Potion of Bound", "Rune of Everything", "Random Potion Sack",
+               "Stella's Candle", "Lucky Potion"),
+    "Mari": ("Void Coin", "Lucky Penny", "Gear A", "Gear B"),
+}
+MMERCH_DEFAULT = {
+    # 매크로 탭 · 상인 자동 구매 — 채팅에 상인 도착이 뜨면 Merchant Teleporter 로 가서 고른 아이템 구매
+    # 위치는 Noteab 매크로(Apache 2.0)의 1920x1080 값을 템플릿으로 씀 · 대화창 · 인벤토리는 통합 위치
+    "enabled": False,
+    "check_sec": 30.0,            # 채팅창 확인 간격 (초)
+    "teleport_wait": 3.0,         # Merchant Teleporter 사용 후 대기 (초)
+    "buy": {},                    # {"Mari_Void Coin": 개수, ...} — 고른 아이템만
+    "chat_hover": None,           # 채팅창 위 (마우스를 올려 채팅이 보이게)
+    "chat_region": None,          # 채팅 글자 영역 [x1, y1, x2, y2]
+    "open_pos": None,             # 대화 선택지 Open (글자로 못 찾을 때)
+    "first_slot": None,           # 상점 첫 번째 칸
+    "second_slot": None,          # 상점 두 번째 칸 (칸 간격 계산용)
+    "slots": 5,                   # 상점 칸 수
+    "item_region": None,          # 칸을 눌렀을 때 아이템 이름이 뜨는 영역
+    "amount_pos": None,           # 수량 입력칸
+    "purchase_pos": None,         # Purchase 버튼
+    "close_pos": None,            # 상점 닫기 X
 }
 MFISH_DEFAULT = {
     # 매크로 탭 · 자동 낚시 (제자리 낚시) — 위치는 로블록스 창 기준 비율
@@ -428,6 +453,32 @@ def normalize(raw):
     mp["templates"], mp["biomes_on"] = _norm_templates(mp)
     mp["seeded"] = True
     d["mpop"] = mp
+    mm = dict(MMERCH_DEFAULT)
+    mm.update(d.get("mmerch") if isinstance(d.get("mmerch"), dict) else {})
+    mm["enabled"] = bool(mm.get("enabled"))
+    for k, lo, hi in (("check_sec", 10, 600), ("teleport_wait", 0.5, 15)):
+        try:
+            mm[k] = min(hi, max(lo, float(mm.get(k))))
+        except (TypeError, ValueError):
+            mm[k] = MMERCH_DEFAULT[k]
+    try:
+        mm["slots"] = int(min(12, max(1, int(mm.get("slots") or 5))))
+    except (TypeError, ValueError):
+        mm["slots"] = 5
+    valid = {f"{m}_{n}" for m, items in MERCHANT_ITEMS.items() for n in items}
+    buy = {}
+    for k, v in (mm.get("buy") if isinstance(mm.get("buy"), dict) else {}).items():
+        try:
+            if k in valid and int(v) > 0:
+                buy[k] = min(999, int(v))
+        except (TypeError, ValueError):
+            pass
+    mm["buy"] = buy
+    for k in ("chat_hover", "open_pos", "first_slot", "second_slot", "amount_pos", "purchase_pos", "close_pos"):
+        mm[k] = _ratio_list(mm.get(k), 2)
+    for k in ("chat_region", "item_region"):
+        mm[k] = _ratio_list(mm.get(k), 4)
+    d["mmerch"] = {k: mm[k] for k in MMERCH_DEFAULT}
     mi = dict(MITEM_DEFAULT)
     mi.update(d.get("mitem") if isinstance(d.get("mitem"), dict) else {})
     for k in ("enabled", "strange", "randomizer", "close_inventory"):
