@@ -117,7 +117,8 @@ class Bridge:
         # 상인 자동 구매: 일정 간격마다 채팅 확인 → 상인이 오면 Merchant Teleporter 로 가서 구매 (자동 낚시는 멈췄다가 다시 시작)
         self.merchant = merchant.Merchant(lambda: self.data.get("pop", {}), lambda: self.data.get("base", {}),
                                           lambda: self.data.get("mmerch", {}), self._on_log, on_done=self._on_merchant_done,
-                                          before=lambda: self.fisher.hold(20), after=self.fisher.release)
+                                          before=lambda: self.fisher.hold(20), after=self.fisher.release,
+                                          on_cal=self._on_merchant_cal)
         self.merchant_pending, self.merchant_check_at = None, 0.0
         self.mpop_wait = False             # 레어 바이옴 팝핑이 다른 기능이 끝나길 기다리는 중
         self.fisher.on_start = self._on_fish_start
@@ -1331,11 +1332,16 @@ class Bridge:
             else:
                 self._on_log(f"{name} — 살 아이템이 없어서 안 감", "d")
 
+    def _on_merchant_cal(self, lay):
+        with self.lock:
+            self.data.setdefault("mmerch", {}).update(lay)
+        self._save()
+
     def api_mmerch_check(self, _):
         """채팅 확인 테스트: 지금 채팅창을 한 번 읽어 봄 (상인이 있으면 구매까지 이어감)"""
         c = self.data.get("mmerch") or {}
-        if not (c.get("chat_hover") and c.get("chat_region")):
-            return {"error": "채팅창 위치 · 채팅 글자 영역 지정 필요 (매크로 기준 위치 설정 → 상인)"}
+        if not c.get("chat_region"):
+            return {"error": "채팅 글자 영역 지정 필요 (매크로 기준 위치 설정 → 상인)"}
         if self.merchant.running():
             return {"error": "상인 자동 구매가 도는 중"}
         self.merchant.seen.clear()

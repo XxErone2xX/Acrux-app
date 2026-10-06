@@ -18,6 +18,33 @@ NAMES = ("Mari", "Jester", "Rin")
 # OCR 로 읽은 채팅 (영문만 · 소문자 · a→o · i→l 로 맞춘 글자) 에서 '이름 has arrived'
 _ARRIVE = re.compile(r"(m[o0]rl|jester|r[l1]n)h[o0]s[o0]rrlved")
 DIALOG_AREA = sell.DIALOG_AREA
+# 상점 자동 보정: Purchase 버튼 글자를 찾아서 나머지 위치를 계산 — 1920x1080 에서 Purchase 가운데 (982, 666) 기준 거리 (px)
+# 로블록스 UI 는 창 높이에 맞춰 커지므로 px / 1080 × 창 높이 로 바꿈 (Noteab 매크로 1080p 프리셋 · Apache 2.0)
+SHOP_OFFSETS = {"amount_pos": (62, -55), "first_slot": (-30, 53), "second_slot": (163, 53), "close_pos": (827, -320)}
+ITEM_OFFSET = (122, -298, 491, -263)        # 아이템 이름 영역 (왼쪽 위 · 오른쪽 아래)
+SHOP_KEYS = ("open_pos", "first_slot", "second_slot", "item_region", "amount_pos", "purchase_pos", "close_pos")
+
+
+def shop_layout(purchase, aspect):
+    """Purchase 글자 가운데 (창 비율) + 창 너비/높이 → 상점 위치들 (창 비율)"""
+    px, py = purchase
+
+    def at(dx, dy):
+        return [round(min(1.0, max(0.0, px + dx / 1080 / aspect)), 4), round(min(1.0, max(0.0, py + dy / 1080)), 4)]
+    out = {k: at(*d) for k, d in SHOP_OFFSETS.items()}
+    out["purchase_pos"] = at(0, 0)
+    out["item_region"] = at(*ITEM_OFFSET[:2]) + at(*ITEM_OFFSET[2:])
+    return out
+
+
+def chat_hover(c):
+    """채팅창 위치 — 따로 안 정했으면 채팅 글자 영역 가운데"""
+    if c.get("chat_hover"):
+        return c["chat_hover"]
+    r = c.get("chat_region")
+    return [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2] if r else None
+
+
 # 매크로 기준 위치 설정 → 상인 (버튼 위치)
 POS_KEYS = (("chat_hover", "채팅창 위치"), ("open_pos", "Open 선택지"), ("first_slot", "첫 번째 칸"), ("second_slot", "두 번째 칸"),
             ("amount_pos", "수량 입력칸"), ("purchase_pos", "Purchase 버튼"), ("close_pos", "상점 닫기 X"))
@@ -37,10 +64,11 @@ class Merchant(popping.Popper):
     LABEL = "상인 자동 구매"
     COOLDOWN = 300.0                       # 같은 상인을 다시 보기까지 (상인은 몇 분 동안 머묾 · 같은 채팅을 또 읽지 않게)
 
-    def __init__(self, get_pop, get_base, get_cfg, log, on_done=None, before=None, after=None):
+    def __init__(self, get_pop, get_base, get_cfg, log, on_done=None, before=None, after=None, on_cal=None):
         super().__init__(lambda: self._inv_cfg(), log)
         self.get_pop, self.get_base, self.get_mcfg = get_pop, get_base, get_cfg
         self.on_done = on_done
+        self.on_cal = on_cal                # 상점 자동 보정으로 찾은 위치 → 저장
         self.before, self.after = before, after    # 채팅 확인 전 · 후 (자동 낚시를 안전한 곳에서 잠깐 멈춤)
         self.seen = {}                     # 상인 이름 → 마지막으로 감지한 시각
         self.bought = 0
@@ -62,9 +90,10 @@ class Merchant(popping.Popper):
     @staticmethod
     def missing(c, base):
         """비어 있는 설정 이름 목록 (채팅 감지에 필요한 것 · 구매에 필요한 것)"""
-        miss = [n for k, n in (("chat_hover", "채팅창 위치"), ("chat_region", "채팅 글자 영역"), ("first_slot", "첫 번째 칸"),
-                               ("second_slot", "두 번째 칸"), ("item_region", "아이템 이름 영역"), ("amount_pos", "수량 입력칸"),
-                               ("purchase_pos", "Purchase 버튼"), ("close_pos", "상점 닫기 X")) if not c.get(k)]
+        shop = () if c.get("auto_cal", True) else (
+            ("first_slot", "첫 번째 칸"), ("second_slot", "두 번째 칸"), ("item_region", "아이템 이름 영역"),
+            ("amount_pos", "수량 입력칸"), ("purchase_pos", "Purchase 버튼"), ("close_pos", "상점 닫기 X"))
+        miss = [n for k, n in (("chat_region", "채팅 글자 영역"), *shop) if not c.get(k)]
         if not base.get("dialog_pos"):
             miss.append("대화창 (통합 위치)")
         return miss + popping.Popper.missing(dict(base))
@@ -115,11 +144,12 @@ class Merchant(popping.Popper):
     # ---- 채팅 확인
     def _check_chat(self, stop):
         c = self.get_mcfg() or {}
-        if not (c.get("chat_hover") and c.get("chat_region")):
+        if not c.get("chat_region"):
             return None
         self._set(msg="채팅 확인")
         rect = self._rect(stop)
-        x, y = macro.to_screen(c["chat_hover"][0], c["chat_hover"][1], rect)
+        hv = chat_hover(c)
+        x, y = macro.to_screen(hv[0], hv[1], rect)
         macro.move_to(x, y)                    # 마우스를 올리면 흐려진 채팅이 다시 보임
         self._wait(0.35, stop)
         try:
@@ -178,7 +208,12 @@ class Merchant(popping.Popper):
                 self.log(f"{self.LABEL} — 상점 Open 을 못 찾음", "y")
                 return
             self._wait(2.0, stop)
-            # 3. 칸마다 확인하고 사기
+            # 3. 상점 위치 자동 보정 (Purchase 글자 기준) → 칸마다 확인하고 사기
+            if c.get("auto_cal", True):
+                c = self._calibrate(c, name, stop)
+            if any(not c.get(k) for k in SHOP_KEYS if k != "open_pos"):
+                self.log(f"{self.LABEL} — 상점 위치를 못 찾음 (자동 보정 실패 · 직접 지정 필요)", "y")
+                return
             self._buy_slots(c, base, name, want, stop)
             self._set(msg="상점 닫기")
             self._click(c["close_pos"], stop)
@@ -206,6 +241,38 @@ class Merchant(popping.Popper):
             self._click(c["open_pos"], stop)
             return True
         return False
+
+    def _calibrate(self, c, name, stop):
+        """상점이 열린 화면에서 Purchase 글자를 찾아 위치 계산 → 첫 칸의 아이템 이름이 읽히면 저장 · 못 하면 지정한 위치 그대로"""
+        self._set(msg="상점 위치 자동 보정")
+        rect = self._rect(stop)
+        aspect = rect[2] / max(1, rect[3])
+        p = sell.find_text(macro.ocr_boxes(None), "purchase", exact=True)
+        if not p:
+            # 아이템을 골라야 Purchase 가 뜨는 경우 — 첫 칸 (지정한 것 · 없으면 1080p 기준 화면 가운데에서 계산)
+            self._click(c.get("first_slot") or [round(0.5 - 8 / 1080 / aspect, 4), 0.6657], stop)
+            self._wait(0.6, stop)
+            p = sell.find_text(macro.ocr_boxes(None), "purchase", exact=True)
+        if not p:
+            self.log("상점 자동 보정 — Purchase 버튼을 못 찾음", "y")
+            return c
+        lay = shop_layout((p[1], p[2]), aspect)
+        self._click(lay["first_slot"], stop)
+        self._wait(0.6, stop)
+        try:
+            text = macro.ocr_region(lay["item_region"], bring_front=False)
+        except Exception:
+            text = ""
+        got = popping._clean_name(text.splitlines()[0] if text else "")
+        items = watcher_core.MERCHANT_ITEMS.get(name) or [n for v in watcher_core.MERCHANT_ITEMS.values() for n in v]
+        score = max((popping.similarity(got, n) for n in items), default=0)
+        if score < float((self.get_pop() or {}).get("match_threshold", 70)):
+            self.log(f"상점 자동 보정 — 첫 칸 이름을 못 읽음 ('{got}')", "y")
+            return c
+        if self.on_cal:
+            self.on_cal(lay)
+        self.log("상점 위치 자동 보정 완료", "g")
+        return dict(c, **lay)
 
     def _buy_slots(self, c, base, name, want, stop):
         f, s2 = c["first_slot"], c["second_slot"]

@@ -170,6 +170,7 @@ MMERCH_DEFAULT = {
     "check_sec": 30.0,            # 채팅창 확인 간격 (초)
     "teleport_wait": 3.0,         # Merchant Teleporter 사용 후 대기 (초)
     "buy": {},                    # {"Mari_Void Coin": 개수, ...} — 고른 아이템만
+    "auto_cal": True,             # 상점이 열리면 Purchase 글자로 상점 위치를 자동 보정
     "chat_hover": None,           # 채팅창 위 (마우스를 올려 채팅이 보이게)
     "chat_region": None,          # 채팅 글자 영역 [x1, y1, x2, y2]
     "open_pos": None,             # 대화 선택지 Open (글자로 못 찾을 때)
@@ -456,6 +457,7 @@ def normalize(raw):
     mm = dict(MMERCH_DEFAULT)
     mm.update(d.get("mmerch") if isinstance(d.get("mmerch"), dict) else {})
     mm["enabled"] = bool(mm.get("enabled"))
+    mm["auto_cal"] = mm.get("auto_cal") is not False
     for k, lo, hi in (("check_sec", 10, 600), ("teleport_wait", 0.5, 15)):
         try:
             mm[k] = min(hi, max(lo, float(mm.get(k))))
