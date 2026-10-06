@@ -30,6 +30,7 @@ import popping
 import fishing
 import move
 import sell
+import merchant
 from version import VERSION
 
 
@@ -113,6 +114,11 @@ class Bridge:
         self.items = popping.ItemUser(lambda: self.data.get("pop", {}), lambda: self.data.get("base", {}),
                                       lambda: self.data.get("mitem", {}), self._on_log,
                                       before=lambda: self.fisher.hold(45), after=self.fisher.release)
+        # 상인 자동 구매: 일정 간격마다 채팅 확인 → 상인이 오면 Merchant Teleporter 로 가서 구매 (자동 낚시는 멈췄다가 다시 시작)
+        self.merchant = merchant.Merchant(lambda: self.data.get("pop", {}), lambda: self.data.get("base", {}),
+                                          lambda: self.data.get("mmerch", {}), self._on_log, on_done=self._on_merchant_done,
+                                          before=lambda: self.fisher.hold(20), after=self.fisher.release)
+        self.merchant_pending, self.merchant_check_at = None, 0.0
         self.fisher.on_start = self._on_fish_start
         self.play = rejoin.PlayClicker(lambda: self.data.get("play", {}), self._on_log,
                                        on_ingame=self._on_ingame, on_fail=self._on_play_fail)
@@ -312,7 +318,7 @@ class Bridge:
             return {"seq": self.seq, "logs": logs, "events": events, "status": list(self.status),
                     "running": self.running(), "armed": core.ARMED.is_set(),
                     "play": play, "pop": pop, "ret": ret, "mpop": mpop, "mfish": mfish, "roblox": roblox,
-                    "move": mv, "mitem": self.items.snapshot(), "macro_on": bool(self.data.get("macro_on")), "online": self.online, "online_on": bool(self.ONLINE_URL),
+                    "move": mv, "mitem": self.items.snapshot(), "mmerch": self.merchant.snapshot(), "macro_on": bool(self.data.get("macro_on")), "online": self.online, "online_on": bool(self.ONLINE_URL),
                     "crash": {"left": max(0.0, self.crash["until"] - time.time())} if self.crash else None,
                     "biome": bio,
                     "count": self.handler.count, "names": self.data.get("names", {}),
@@ -367,6 +373,7 @@ class Bridge:
         self.mover.stop()
         self.fisher.stop()
         self.items.stop()
+        self.merchant.stop()
         self.ret.stop()
         self.biome.mute_next_session()
         self.play.start("서버 접속")
@@ -394,7 +401,9 @@ class Bridge:
                 mf = self.data.get("mfish", {})
                 mi = self.data.get("mitem", {})
                 want_items = bool(self.data.get("macro_on") and mi.get("enabled"))
-                want = bool(self.data.get("macro_on") and mf.get("enabled")) or want_items
+                mm = self.data.get("mmerch", {})
+                want_merch = bool(self.data.get("macro_on") and mm.get("enabled"))
+                want = bool(self.data.get("macro_on") and mf.get("enabled")) or want_items or want_merch
                 busy = self.pop.running() or self.ret.running() or self.play.running() or time.time() < self.resume_at
                 sniping = busy or self.biome.muted()
                 if want and sniping and not paused:
@@ -406,7 +415,26 @@ class Bridge:
                         self._on_log("내 서버 — 매크로 다시 시작", "g")
                 ok = want and not sniping and bool(macro.roblox_window_cached(2.0))
                 # 오토 아이템 사용: 쿨타임이 찼고 이동 · 판매 · 팝핑 중이 아니면 (낚시는 안전한 곳에서 잠깐 비켜줌)
-                if ok and want_items and not self.items.running() and not self.mpop.running() and not self.mover.running():
+                # 상인 자동 구매: 상인이 왔으면 낚시를 멈추고 구매 · 아니면 간격마다 채팅 확인
+                others = self.items.running() or self.mpop.running() or self.mover.running() or self.merchant.running()
+                if self.merchant_pending and time.time() - self.merchant_pending[1] > 180:
+                    self.merchant_pending = None             # 상인이 떠났을 시간
+                if ok and want_merch and not others:
+                    if self.merchant_pending:
+                        if self.fisher.running():
+                            self.fisher.stop()               # 상인한테 갔다가 낚시 장소로 다시 가야 해서 낚시는 끝냄
+                        else:
+                            name = self.merchant_pending[0]
+                            self.merchant_pending = None
+                            self.merchant.start_job("buy", name)
+                        continue
+                    if time.time() - self.merchant_check_at >= float(mm.get("check_sec", 30)):
+                        self.merchant_check_at = time.time()
+                        self.merchant.start_job("check")
+                elif self.merchant.running() and self.merchant.job == "buy" and (sniping or not want_merch):
+                    self.merchant.stop()
+                if ok and want_items and not self.items.running() and not self.mpop.running() and not self.mover.running() \
+                        and not self.merchant.running() and not self.merchant_pending:
                     self.items.start(self.items.due())
                 elif self.items.running() and not self.items.test and (sniping or not want_items):
                     self.items.stop()
@@ -421,7 +449,7 @@ class Bridge:
                 else:
                     warned = None
                 if ok and not self.fisher.running() and not self.mpop.running() and not self.mover.running() \
-                        and not self.items.running():
+                        and not self.items.running() and not self.merchant.running() and not self.merchant_pending:
                     self.fisher.start()
                 elif not ok and self.fisher.running():
                     self.fisher.stop()
@@ -465,6 +493,7 @@ class Bridge:
             self.mpop.stop()
             self.fisher.stop()
             self.items.stop()
+            self.merchant.stop()
         self._on_log(f"{why} — 매크로 {'켜짐' if on else '꺼짐'}", "y" if not on else "g")
 
     def _hotkey_loop(self):
@@ -483,7 +512,8 @@ class Bridge:
                     continue
                 other = (getattr(self, "_mv_banner", None) is not None and self._mv_banner.poll() is None) \
                     or getattr(self, "_autocal_running", False) or getattr(self, "_sellcal_running", False)
-                want = bool(self.data.get("macro_on")) and (self.fisher.running() or self.mpop.running() or self.items.running()) and not other
+                want = bool(self.data.get("macro_on")) and (self.fisher.running() or self.mpop.running() or self.items.running()
+                                                          or self.merchant.running()) and not other
                 alive = banner is not None and banner.poll() is None
                 if want and not alive:
                     banner = self._banner_proc("macro")
@@ -1266,6 +1296,42 @@ class Bridge:
         if self.items.running() or self.mover.running():
             return {"error": "다른 동작이 도는 중"}
         self.items.start(keys, test=True)
+        return {"ok": True}
+
+    def _on_merchant_done(self, job, name):
+        if job == "check" and name:
+            if (self.data.get("mmerch") or {}).get("buy") and any(
+                    k.startswith(name + "_") for k in self.data["mmerch"]["buy"]):
+                self.merchant_pending = (name, time.time())
+            else:
+                self._on_log(f"{name} — 살 아이템이 없어서 안 감", "d")
+
+    def api_mmerch_check(self, _):
+        """채팅 확인 테스트: 지금 채팅창을 한 번 읽어 봄 (상인이 있으면 구매까지 이어감)"""
+        c = self.data.get("mmerch") or {}
+        if not (c.get("chat_hover") and c.get("chat_region")):
+            return {"error": "채팅창 위치 · 채팅 글자 영역 지정 필요 (매크로 기준 위치 설정 → 상인)"}
+        if self.merchant.running():
+            return {"error": "상인 자동 구매가 도는 중"}
+        self.merchant.seen.clear()
+        self.merchant.start_job("check")
+        return {"ok": True}
+
+    def api_mmerch_buy_test(self, p):
+        """구매 테스트: Merchant Teleporter 부터 끝까지 한 번 (상인이 와 있을 때)"""
+        name = "Jester" if p.get("name") == "Jester" else "Mari"
+        miss = merchant.Merchant.missing(self.data.get("mmerch") or {}, self.data.get("base") or {})
+        if miss:
+            return {"error": "위치 설정 필요: " + ", ".join(miss)}
+        if self.merchant.running() or self.mover.running():
+            return {"error": "다른 동작이 도는 중"}
+        self.fisher.stop()
+        self.merchant.start_job("buy", name)
+        return {"ok": True}
+
+    def api_mmerch_stop(self, _):
+        self.merchant.stop()
+        self.merchant_pending = None
         return {"ok": True}
 
     def api_mitem_stop(self, _):
