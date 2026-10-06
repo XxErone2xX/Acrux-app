@@ -433,27 +433,28 @@ class Bridge:
     ONLINE_URL = "https://acrux.pentagration.com/"   # 사용자 수 서버 (Server hosted by shebern_park)
 
     def _online_loop(self):
+        """1분마다 /count 로 사용자 수를 읽어 표시 · 집계에 참여하면 서버가 알려준 간격(기본 5분)마다 /ping 신호
+        (신호 응답의 숫자는 서버에 따라 신호를 반영하기 전 값일 수 있어서, 표시는 항상 /count 로)"""
         import urllib.request
         time.sleep(3)
+        ping_every, last_ping = 300, 0.0
+
+        def call(path, body=None):
+            req = urllib.request.Request(self.ONLINE_URL.rstrip("/") + path, data=body, method="POST" if body else "GET",
+                                         headers={"Content-Type": "application/json", "User-Agent": f"Acrux/{VERSION}"})
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return json.loads(r.read(4096).decode("utf-8"))
         while True:
-            wait = 300
             if self.ONLINE_URL:
                 try:
-                    if self.data.get("online_share", True):
-                        body = json.dumps({"id": self.data.get("install_id", "")}).encode()
-                        req = urllib.request.Request(self.ONLINE_URL.rstrip("/") + "/ping", data=body, method="POST",
-                                                     headers={"Content-Type": "application/json",
-                                                              "User-Agent": f"Acrux/{VERSION}"})
-                    else:
-                        req = urllib.request.Request(self.ONLINE_URL.rstrip("/") + "/count",
-                                                     headers={"User-Agent": f"Acrux/{VERSION}"})
-                    with urllib.request.urlopen(req, timeout=10) as r:
-                        res = json.loads(r.read(4096).decode("utf-8"))
-                    self.online = int(res["online"])
-                    wait = min(3600, max(60, int(res.get("next", 300))))
+                    if self.data.get("online_share", True) and time.time() - last_ping >= ping_every:
+                        res = call("/ping", json.dumps({"id": self.data.get("install_id", "")}).encode())
+                        last_ping = time.time()
+                        ping_every = min(3600, max(60, int(res.get("next", 300))))
+                    self.online = int(call("/count")["online"])
                 except Exception:
                     self.online = None
-            time.sleep(wait)
+            time.sleep(60)
 
     def _set_macro(self, on, why="F3"):
         """매크로 버튼 켜기 · 끄기 (F3 · 화면 버튼과 같음)"""
