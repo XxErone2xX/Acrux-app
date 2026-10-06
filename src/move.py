@@ -113,7 +113,7 @@ class Mover:
     def base_time(self):
         """기준 장소까지 예상 시간 (go_base 순서 · 화면의 총 시간과 같은 계산)"""
         m = self.get_move() or {}
-        return 4.9 + float(m.get("reset_wait", 3.5)) + float(m.get("w_time", 0.85)) + float(m.get("wa_time", 8.0)) \
+        return 4.9 + float(m.get("reset_wait", 3.5)) + float(m.get("w_time", 1.0)) + float(m.get("wa_time", 8.0)) \
             + max(float(m.get("o_time", 2.5)), float(m.get("tilt_px", 800)) / 20 * 0.015)
 
     def place_time(self, i, upto=None):
@@ -327,7 +327,7 @@ class Mover:
         self.align_camera()
         self._set(msg="기준 장소로 이동 · 걷기 (W → W+A)")
         self._rect()
-        self._hold(("w",), float(mv.get("w_time", 0.85)))
+        self._hold(("w",), float(mv.get("w_time", 1.0)))
         self._hold(("w", "a"), float(mv.get("wa_time", 8.0)))
         self._wait(0.5)
         self._set(msg="기준 장소로 이동 · 내려다보기 + 최대 줌 (우클릭 드래그 + O)")
