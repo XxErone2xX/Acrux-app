@@ -363,9 +363,10 @@ DIALOG_AREA = [0.0, 0.4, 1.0, 1.0]                           # 대화창 · 선�
 SKIP_GAP = 0.1                                               # 대화 넘기기 연타 간격 (초)
 
 
-def skip_dialog(click, ocr, keys, wait, timeout=10.0, exact=False):
+def skip_dialog(click, ocr, keys, wait, timeout=10.0, exact=False, pick=None):
     """NPC 대화 넘기기 — 선택지(keys 글자)가 보일 때까지 대화창을 SKIP_GAP 초마다 연타 (Click to skip)
     click() → 대화창 한 번 클릭 · ocr(영역) → 덩어리 목록 · wait(초) → 멈춤 확인 포함 대기
+    pick(덩어리 목록) → 찾은 것 또는 None : keys 대신 직접 찾기
     → 찾은 선택지 덩어리 (못 찾으면 None)"""
     import time
     done, err = threading.Event(), []
@@ -383,7 +384,8 @@ def skip_dialog(click, ocr, keys, wait, timeout=10.0, exact=False):
     try:
         end = time.time() + timeout
         while time.time() < end and not done.is_set():
-            b = find_text(ocr(DIALOG_AREA), *keys, exact=exact)
+            boxes = ocr(DIALOG_AREA)
+            b = pick(boxes) if pick else find_text(boxes, *keys, exact=exact)
             if b:
                 return b
             wait(0.05)
