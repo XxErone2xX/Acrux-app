@@ -430,7 +430,7 @@ class Bridge:
 
     # 사용자 수: Acrux 가 켜져 있는 동안 몇 분마다 '켜져 있음' 신호 (설치마다 만든 무작위 번호만 보냄)
     # 집계에 참여하지 않으면 신호 없이 숫자만 받아 봄 · 서버 코드는 server/online
-    ONLINE_URL = ""                         # 서버를 올린 뒤 주소를 넣음 (예: https://acrux-online.<이름>.workers.dev)
+    ONLINE_URL = "https://acrux.pentagration.com/"   # 사용자 수 서버 (Server hosted by shebern_park)
 
     def _online_loop(self):
         import urllib.request

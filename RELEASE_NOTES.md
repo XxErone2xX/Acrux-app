@@ -1,15 +1,9 @@
-## Acrux macro V1.28.0 업데이트
-- **오토 아이템 사용 추가** (매크로 기능 설정 → 오토 아이템 사용 · 자동 낚시 바로 아래)
-  - 매크로가 켜져 있는 동안 쿨타임마다 인벤토리에서 아이템을 1개씩 사용: **Strange Controller** 10.5분 · **Biome Randomizer** 18분 (각각 켜기 · 끄기 · 간격 바꾸기)
-  - Inventory → Items → 아이템 검색 → 이름 확인(OCR) → 1개 사용 → Inventory 닫기 · 위치는 통합 위치의 인벤토리 위치 · OCR 영역을 씀
-  - 자동 낚시 중이면 낚시가 끝난 자리에서 잠깐 비켜줬다가 이어감 · 이동 · 판매 중엔 끝난 뒤에 사용
-  - 아이템을 못 찾으면 1분 뒤 다시 시도 · 스나이핑 중엔 쉬고 내 서버로 돌아오면 다시 시작
-  - [지금 사용 테스트] 로 쿨타임과 상관없이 바로 한 번 써 볼 수 있음
+## Acrux macro V1.28.1 업데이트
+- 메인 화면 오른쪽 위 **Now Active** 에 지금 Acrux 를 켜 둔 사람 수가 뜸 (서버: shebern_park 님 제공)
+  - Acrux 가 켜져 있는 동안 몇 분마다 "켜져 있음" 신호만 보냄 — 설치할 때 만든 무작위 번호 하나뿐, 이름 · 계정 · 디스코드 같은 개인 정보는 보내지 않음
+  - 원하지 않으면 Acrux 설정 → 일반 → **사용자 수 집계에 참여** 를 끄면 됨 (꺼도 사용자 수는 보임)
 
-## Acrux macro V1.28.0 Update
-- **Added Auto item use** (Macro feature settings → Auto item use · right below Auto fishing)
-  - While the macro is on, uses one item from the inventory each cooldown: **Strange Controller** every 10.5 min · **Biome Randomizer** every 18 min (each can be turned on/off and its interval changed)
-  - Inventory → Items → search the item → check the name (OCR) → use 1 → close Inventory · uses the inventory positions and OCR area from Shared positions
-  - During auto fishing, fishing steps aside at a safe point and then continues · during movement or selling, it waits until they finish
-  - If the item isn't found it retries in 1 minute · it rests while sniping and starts again back in your server
-  - [Use now (test)] uses it once right away, ignoring the cooldown
+## Acrux macro V1.28.1 Update
+- **Now Active** at the top right of the main screen shows how many people have Acrux open (server provided by shebern_park)
+  - While Acrux is open it sends only an "I'm open" signal every few minutes — just a random number made at install, no personal info like names, accounts or Discord
+  - If you don't want that, turn off Acrux settings → General → **Join the user count** (the count still shows when off)
