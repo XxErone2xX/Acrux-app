@@ -274,7 +274,6 @@ const I18N = (() => {
     ['상점 닫기 X', 'Shop close X', 'ショップを閉じる X'],
     ['상점 닫기 X 위치', 'Shop close X position', 'ショップを閉じる X の位置'],
     ['상점 오른쪽 위 X', 'X at the top right of the shop', 'ショップ右上の X'],
-    ['물고기 정보 영역', 'Fish info area', '魚の情報の範囲'],
     ['E 누른 뒤 대기', 'Wait after E', 'E を押した後の待機'],
     ['대화창이 뜰 때까지 (초)', 'until the dialog shows (s)', '会話ウィンドウが出るまで（秒）'],
     ['판매 반복 최대', 'Max sell repeats', '売却の最大繰り返し'],
@@ -1326,7 +1325,6 @@ const I18N = (() => {
     [/^오토 아이템 사용 오류: (.+)$/, 'Auto item use error: $1', 'オートアイテム使用のエラー: $1'],
     [/^인벤토리 가득 — 판매 못 함: (.+)$/, 'Inventory full — cannot sell: $1', 'インベントリ満杯 — 売却できません: $1'],
     [/^판매 실패: (.+)$/, 'Selling failed: $1', '売却失敗: $1'],
-    [/^물고기 정보 OCR 오류: (.+) — 판매를 여기서 끝냄$/, 'Fish info OCR error: $1 — selling ends here', '魚情報のOCRエラー: $1 — 売却をここで終了'],
     [/^이동 오류: (.+)$/, 'Movement error: $1', '移動エラー: $1'],
     [/^(\d+)초 안에 도착을 안 누름 — 시간 재기 취소$/, 'Arrival not pressed within $1 s — timing cancelled', '$1秒以内に到着が押されず — 計測取り消し'],
     // 매크로 탭 · 자동 낚시

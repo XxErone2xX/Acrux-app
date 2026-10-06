@@ -2,9 +2,9 @@
 """
 물고기 판매 — 자동 낚시 중 인벤토리가 가득 차면 (Fish 를 3번 눌러도 반응 없음 · Cannot Fish 알림)
   기준 장소 → 물고기 판매 장소(Captain Flarg) 로 이동 → 카메라 정렬(채팅 · 도감) → E → 대화창 눌러 넘기기 → [Sell Fish]
-  → (첫 칸 → 왼쪽 정보 확인 → Sell All → 확인 Sell) 을 왼쪽 정보가 빌 때까지 반복 (최대 sell_max 번)
+  → (첫 칸 → Sell All → 확인 Sell) 을 확인창이 안 뜰 때까지 반복 (최대 sell_max 번)
   → X 로 상점 닫기 → 기준 장소 → 낚시 장소 로 돌아감
-왼쪽 정보가 비었는지: 물고기를 눌렀는데 이름 줄이 "..." 이거나 비어 있음 / "Sells for 0" → 다 판 것
+다 팔았는지: Sell All 을 눌렀는데 확인창(초록 Sell 버튼)이 안 뜸 → 물고기가 없음 (버튼 자리 픽셀만 봄)
 이동은 move.Mover 를 그대로 씀 (기준 장소 · 장소별 지점 · 잰 시간)
 대화창 위치는 여러 기능이 같이 쓰는 통합 위치(base.dialog_pos) — get_cfg 가 같이 넘겨 줌
 """
@@ -15,82 +15,7 @@ import threading
 import macro
 
 SELL_KEYS = (("sell_fish_pos", "Sell Fish 버튼"), ("first_fish_pos", "첫 번째 물고기 칸"),
-             ("sell_all_pos", "Sell All 버튼"), ("confirm_sell_pos", "확인 Sell 버튼"), ("shop_close_pos", "상점 닫기 X"),
-             ("info_region", "물고기 정보 영역"))
-
-
-SELLS_FOR = r"se[l1i|]{1,2}[a-z]?\s*f[o0]r"                # "Sells for" (OCR 이 'Sellefor' · 'Sellsfor' 로 읽기도 함)
-
-
-def info_empty(text):
-    """왼쪽 물고기 정보 OCR 글자 → 비었는지 (물고기가 안 골라짐 = 다 팜)"""
-    t = " ".join(str(text or "").split())
-    if re.search(SELLS_FOR + r"\s*0(?![\d,.])", t, re.I):
-        return True
-    rest = re.sub(SELLS_FOR + r"\s*[\d,.]*", " ", t, flags=re.I)
-    return not re.search(r"[A-Za-z가-힣]{2,}", rest)       # 이름이 없음 ("..." 뿐)
-
-
-def info_dots(rgb):
-    """왼쪽 물고기 정보 영역 화면(RGB 배열) → 비었는지 (OCR 없이 픽셀로)
-    물고기를 안 골랐으면 이름 자리에 흰 네모 3개 '...' 가 밑줄 바로 위에 나란히 뜸 · 이름 글자는 이런 모양이 안 나옴
-    True = 비었음 ('...') · False = 이름이 있음 · None = 모르겠음 (밑줄을 못 찾음 → OCR 로)"""
-    lum = rgb.min(axis=2)
-    white = lum > 150                                            # 흰색 (작은 창에선 가장자리가 흐려져서 넉넉히)
-    h, w = white.shape
-    if h < 8 or w < 20:
-        return None
-    rows = (lum > 90).sum(axis=1)                                # 밑줄은 1~2px 이라 작은 창에선 더 흐림
-    line = [y for y in range(h) if rows[y] > w * 0.45]            # 이름 밑줄 (가로로 긴 흰 줄)
-    if not line:
-        return None
-    top = line[0]
-    above = white[max(0, top - int(h * 0.3)):top]                 # 밑줄 바로 위 (이름 줄)
-    above = above[:max(0, above.shape[0] - 2)]                    # 밑줄에 붙은 줄은 빼고
-    if not above.size or not above.any():
-        return None
-    blobs = _blobs(above)
-    if len(blobs) != 3:
-        return False
-    sizes = []
-    for x1, y1, x2, y2, n in blobs:
-        bw, bh = x2 - x1 + 1, y2 - y1 + 1
-        if not (0.5 <= bw / bh <= 2.0) or n < bw * bh * 0.7:        # 꽉 찬 네모가 아님 → 글자
-            return False
-        sizes.append(max(bw, bh))
-    ys = [(b[1] + b[3]) / 2 for b in blobs]
-    if max(sizes) > min(sizes) * 1.6 or max(ys) - min(ys) > max(sizes) or max(sizes) > w * 0.1:
-        return False
-    return True
-
-
-def _blobs(mask):
-    """흰 점 덩어리 [(x1, y1, x2, y2, 점 개수)] (작은 영역용 · 8방향)"""
-    import numpy as np
-    seen = np.zeros_like(mask, dtype=bool)
-    h, w = mask.shape
-    out = []
-    for y0, x0 in zip(*np.nonzero(mask)):
-        if seen[y0, x0]:
-            continue
-        stack, pts = [(y0, x0)], []
-        seen[y0, x0] = True
-        while stack:
-            y, x = stack.pop()
-            pts.append((y, x))
-            for dy in (-1, 0, 1):
-                for dx in (-1, 0, 1):
-                    ny, nx = y + dy, x + dx
-                    if 0 <= ny < h and 0 <= nx < w and mask[ny, nx] and not seen[ny, nx]:
-                        seen[ny, nx] = True
-                        stack.append((ny, nx))
-        if len(pts) < 2:
-            continue
-        ys, xs = [p[0] for p in pts], [p[1] for p in pts]
-        out.append((min(xs), min(ys), max(xs), max(ys), len(pts)))
-        if len(out) > 12:                                       # 이름 글자 → 더 볼 필요 없음
-            break
-    return out
+             ("sell_all_pos", "Sell All 버튼"), ("confirm_sell_pos", "확인 Sell 버튼"), ("shop_close_pos", "상점 닫기 X"))
 
 
 class Seller:
@@ -134,34 +59,38 @@ class Seller:
         """낚시 장소로 못 가는 이유 → 안내 글 또는 None"""
         return self._path_missing(("fish_spot",))
 
-    def _grab_info(self, region):
-        import numpy as np
-        hwnd = macro.roblox_window_cached(1.0)
-        rect = macro.client_rect(hwnd) if hwnd else None
-        if not rect:
-            return None
-        x1, y1 = macro.to_screen(min(region[0], region[2]), min(region[1], region[3]), rect)
-        x2, y2 = macro.to_screen(max(region[0], region[2]), max(region[1], region[3]), rect)
-        data, w, h = macro.grab((x1, y1, x2 - x1, y2 - y1))
-        return np.frombuffer(data, np.uint8).reshape(h, w, 4)[:, :, 2::-1]    # BGRA → RGB
-
-    def _empty(self, region):
-        """왼쪽 물고기 정보가 비었는지 — 이름 자리의 '...' (흰 네모 3개) 를 픽셀로 봄 (OCR 보다 훨씬 가벼움)
-        픽셀로 판단이 안 될 때만 한 번 더 보고, 그래도 모르면 OCR"""
-        for _ in range(2):
-            try:
-                r = info_dots(self._grab_info(region))
-            except Exception:
-                r = None
-            if r is not None:
-                return r
-            self.mover._wait(0.2)
+    def _green(self, pos):
+        """확인창 Sell 버튼 자리 작은 칸에서 밝은 초록(버튼 글자 · 테두리) 비율 0~1 · 못 보면 None"""
         try:
-            text = macro.ocr_region(region, bring_front=False)
-        except Exception as e:
-            self.log(f"물고기 정보 OCR 오류: {e} — 판매를 여기서 끝냄", "n")
-            return True
-        return info_empty(text)
+            import numpy as np
+            hwnd = macro.roblox_window_cached(1.0)
+            rect = macro.client_rect(hwnd) if hwnd else None
+            if not rect:
+                return None
+            x, y = macro.to_screen(pos[0], pos[1], rect)
+            w, h = max(8, int(rect[3] * 0.08)), max(6, int(rect[3] * 0.04))     # 버튼 글자 'Sell' 정도 크기
+            data, gw, gh = macro.grab((x - w // 2, y - h // 2, w, h))
+            px = np.frombuffer(data, np.uint8).reshape(gh, gw, 4).astype(np.int16)
+            b, g, r = px[..., 0], px[..., 1], px[..., 2]
+            return float(((g > 170) & (g > r + 50) & (g > b + 60)).mean())
+        except Exception:
+            return None
+
+    def _confirm_shown(self, pos, before, timeout, mv):
+        """Sell All 뒤 확인창이 떴는지 — 뜨면 바로 True (기다림 없음) · timeout 초 동안 안 뜨면 False (물고기 없음)
+        픽셀을 못 보면 예전처럼 떴다고 봄 (판매 반복 최대에서 멈춤)"""
+        import time
+        end = time.time() + timeout
+        while True:
+            g = self._green(pos)
+            if g is None:
+                mv._wait(0.5)
+                return True
+            if g >= 0.06 and g >= (before or 0) + 0.05:   # 확인창 Sell 버튼: 약 20% · 없을 때: 1% 아래
+                return True
+            if time.time() >= end:
+                return False
+            mv._wait(0.03)
 
     @contextlib.contextmanager
     def _borrow(self, stop):
@@ -212,7 +141,7 @@ class Seller:
         with self._borrow(stop) as mv:
             d = float(cfg.get("sell_delay", 0))          # 클릭마다 더 기다릴 시간 (렉이 있으면 늘림)
             pre = 2.8 + 2.5 + 1.0 + 2 * d                # 카메라 정렬 · E · 대화 넘기기 · Sell Fish
-            per = 2.5 + 3 * d + 0.05                      # 물고기 한 종류 파는 데 (클릭 3번 + '...' 확인)
+            per = 2.5 + 3 * d + 0.05                      # 물고기 한 종류 파는 데 (클릭 3번)
             post = 0.5 + d                                # 상점 닫기
             sell_part = pre + 6 * per + post              # (6종류로 어림 · 더 많으면 게이지가 잠깐 기다림)
             mv.plan(2 * mv.base_time() + mv.place_time(sell_i) + mv.place_time(fish_i) + sell_part)
@@ -237,13 +166,15 @@ class Seller:
                 mv._set(msg=f"판매 · 파는 중 ({sold}종류)")
                 if mv._acc + per <= acc0 + pre + 6 * per + 0.01:   # 어림한 것보다 많으면 게이지는 거기서 기다림
                     mv._advance(per)
-                # 시간은 직접 만든 스크립트 매크로와 같게: 첫 칸 0.5초 → Sell All 0.5초 → 확인 1.5초 (목록이 당겨질 때까지)
+                # 시간은 직접 만든 스크립트 매크로와 같게: 첫 칸 0.5초 → Sell All → 확인 1.5초 (목록이 당겨질 때까지)
+                # 다 팔았는지: Sell All 뒤에 확인창(초록 Sell 버튼)이 안 뜨면 물고기가 없는 것 — 버튼 자리 작은 칸의 픽셀만 봄
                 mv._click(cfg["first_fish_pos"])
                 mv._wait(0.5 + d)
-                if self._empty(cfg["info_region"]):
-                    break
+                before = self._green(cfg["confirm_sell_pos"])
                 mv._click(cfg["sell_all_pos"])
-                mv._wait(0.5 + d)
+                if not self._confirm_shown(cfg["confirm_sell_pos"], before, 0.8 + d, mv):
+                    break
+                mv._wait(0.1 + d)
                 mv._click(cfg["confirm_sell_pos"])
                 mv._wait(1.5 + d)
                 sold += 1
@@ -339,9 +270,7 @@ def shop_layout(boxes, title, sell_all, aspect):
     else:                                                        # 물고기가 없음 → 목록 왼쪽 위에서 어림
         w = (right - left) / 5
         out["first_fish_pos"] = _r(left + w * 0.55, buy[2] + w * aspect * 0.8)
-    # 왼쪽 물고기 정보: 제목 왼쪽 끝 ~ 목록 왼쪽 끝 · Sell All 위쪽 (이름 · Weight · Sells for)
-    x1 = title[1] - title[3] / 2 - 0.005
-    out["info_region"] = _r(x1, sell_all[2] - 0.38 * span) + _r(left - 0.005, sell_all[2] - 0.035 * span)
+    x1 = title[1] - title[3] / 2 - 0.005                         # 상점 왼쪽 끝
     # 확인창 Sell (확인창이 안 떴을 때만 씀): 상점 가운데에서 조금 왼쪽
     out["confirm_sell_pos"] = _r((x1 + right) / 2 - 0.155 * (right - x1), title[2] + 0.66 * span)
     return out
@@ -449,7 +378,6 @@ def autocal(ocr, click, wait, aspect, found, status, wait_dialog=120.0):
     geo = shop_layout(boxes, title, sa, aspect())
     found["sell_all_pos"] = [round(sa[1], 4), round(sa[2], 4)]
     found["first_fish_pos"] = geo["first_fish_pos"]
-    found["info_region"] = geo["info_region"]
     found["shop_close_pos"] = geo["shop_close_pos"]
     # 4. 확인 Sell: 첫 칸 → Sell All → 확인창에서 Sell 자리만 재고 Cancel (실제로 팔지는 않음)
     status("확인창 확인 중 (팔지는 않음)")

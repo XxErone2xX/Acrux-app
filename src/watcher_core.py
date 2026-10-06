@@ -171,7 +171,6 @@ MMERCH_DEFAULT = {
     "teleport_wait": 3.0,         # Merchant Teleporter 사용 후 대기 (초)
     "buy": {},                    # {"Mari_Void Coin": 1, ...} — 고른 아이템만 (개수는 Set to Max)
     "auto_cal": True,             # 상점이 열리면 Purchase 글자로 상점 위치를 자동 보정
-    "chat_hover": None,           # 채팅창 위 (마우스를 올려 채팅이 보이게)
     "chat_region": None,          # 채팅 글자 영역 [x1, y1, x2, y2]
     "open_pos": None,             # 대화 선택지 Open (글자로 못 찾을 때)
     "first_slot": None,           # 상점 첫 번째 칸
@@ -198,7 +197,6 @@ MFISH_DEFAULT = {
     "sell_all_pos": None,         # Sell All 버튼
     "confirm_sell_pos": None,     # 확인창의 Sell 버튼
     "shop_close_pos": None,       # 상점 닫기 X
-    "info_region": None,          # 왼쪽 물고기 정보 (이름 · Sells for) — 비어 있으면 다 판 것
     "e_wait": 1.0,                # E 누른 뒤 대화창이 뜰 때까지 (초)
     "sell_delay": 0.0,            # 판매 클릭마다 더 기다릴 시간 (초) — 렉이 있을 때만
     "sell_v2": False,             # 판매를 빠르게 바꾼 것 적용했는지 (예전 기본값 0.4 → 0, 한 번만)
@@ -475,7 +473,7 @@ def normalize(raw):
         except (TypeError, ValueError):
             pass
     mm["buy"] = buy
-    for k in ("chat_hover", "open_pos", "first_slot", "second_slot", "max_pos", "purchase_pos", "close_pos"):
+    for k in ("open_pos", "first_slot", "second_slot", "max_pos", "purchase_pos", "close_pos"):
         mm[k] = _ratio_list(mm.get(k), 2)
     for k in ("chat_region", "item_region"):
         mm[k] = _ratio_list(mm.get(k), 4)
@@ -508,7 +506,7 @@ def normalize(raw):
     for k in ("fish_btn", "close_pos", "title_pos", "sell_fish_pos", "first_fish_pos", "sell_all_pos",
               "confirm_sell_pos", "shop_close_pos"):
         mf[k] = _ratio_list(mf.get(k), 2)
-    for k in ("bar_region", "panel_region", "reel_region", "result_region", "info_region"):
+    for k in ("bar_region", "panel_region", "reel_region", "result_region"):
         mf[k] = _ratio_list(mf.get(k), 4)
     for k, lo, hi in (("bite_max", 5, 600), ("target_pct", 0, 90), ("lead_ms", 0, 300), ("click_ms", 5, 200), ("click_gap_ms", 10, 500),
                       ("cast_retry", 1, 10), ("e_wait", 0.2, 10), ("sell_delay", 0, 5), ("sell_max", 1, 300)):

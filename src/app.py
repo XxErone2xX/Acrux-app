@@ -117,7 +117,6 @@ class Bridge:
         # 상인 자동 구매: 일정 간격마다 채팅 확인 → 상인이 오면 Merchant Teleporter 로 가서 구매 (자동 낚시는 멈췄다가 다시 시작)
         self.merchant = merchant.Merchant(lambda: self.data.get("pop", {}), lambda: self.data.get("base", {}),
                                           lambda: self.data.get("mmerch", {}), self._on_log, on_done=self._on_merchant_done,
-                                          before=lambda: self.fisher.hold(20), after=self.fisher.release,
                                           on_cal=self._on_merchant_cal)
         self.merchant_pending, self.merchant_check_at = None, 0.0
         self.mpop_wait = False             # 레어 바이옴 팝핑이 다른 기능이 끝나길 기다리는 중
@@ -430,13 +429,13 @@ class Bridge:
                             self.merchant_pending = None
                             self.merchant.start_job("buy", name)
                         continue
-                    if time.time() - self.merchant_check_at >= float(mm.get("check_sec", 30)):
+                    if time.time() - self.merchant_check_at >= float(mm.get("check_sec", 15)):
                         self.merchant_check_at = time.time()
                         self.merchant.start_job("check")
                 elif self.merchant.running() and self.merchant.job == "buy" and (sniping or not want_merch):
                     self.merchant.stop()
                 if ok and want_items and not self.items.running() and not (self.mpop.running() or self.mpop_wait) and not self.mover.running() \
-                        and not self.merchant.running() and not self.merchant_pending:
+                        and not self.merchant.buying() and not self.merchant_pending:
                     self.items.start(self.items.due())
                 elif self.items.running() and not self.items.test and (sniping or not want_items):
                     self.items.stop()
@@ -451,7 +450,7 @@ class Bridge:
                 else:
                     warned = None
                 if ok and not self.fisher.running() and not (self.mpop.running() or self.mpop_wait) and not self.mover.running() \
-                        and not self.items.running() and not self.merchant.running() and not self.merchant_pending:
+                        and not self.items.running() and not self.merchant.buying() and not self.merchant_pending:
                     self.fisher.start()
                 elif not ok and self.fisher.running():
                     self.fisher.stop()
@@ -551,7 +550,7 @@ class Bridge:
         if not macro.roblox_window_cached(1.0):
             return                          # 옛 로그 파일 (로블록스가 꺼져 있음)
         # 레어 바이옴이 먼저 — 아이템 사용 · 상인 구매가 화면을 쓰는 중이면 멈추고 끝난 뒤 팝핑 (같이 클릭하면 꼬임)
-        others = [f for f in (self.items, self.merchant) if f.running()]
+        others = [f for f in (self.items, self.merchant) if (f.buying() if f is self.merchant else f.running())]
         if not others:
             self.mpop.start(found)
             return
@@ -710,9 +709,9 @@ class Bridge:
 
     # 매크로 기준 위치 설정 — 버튼 위치 · 영역 (feat: base = 여러 기능이 같이 쓰는 기준 위치 / mfish = 자동 낚시만)
     MPOS_POINTS = {"base": dict(popping.POS_KEYS, chat_pos="채팅 버튼", collection_pos="도감 버튼", collection_close="도감 Exit", dialog_pos="대화창"),
-                   "mfish": dict(fishing.POS_KEYS, **{k: n for k, n in sell.SELL_KEYS if k != "info_region"}),
+                   "mfish": dict(fishing.POS_KEYS, **dict(sell.SELL_KEYS)),
                    "mmerch": dict(merchant.POS_KEYS)}
-    MPOS_REGIONS = {"base": ("ocr_region", "notice_region"), "mfish": ("panel_region", "reel_region", "result_region", "bar_region", "info_region"),
+    MPOS_REGIONS = {"base": ("ocr_region", "notice_region"), "mfish": ("panel_region", "reel_region", "result_region", "bar_region"),
                     "mmerch": ("chat_region", "item_region")}
     # 16:9 위치 템플릿 (로블록스 창 기준 비율) — 스나이프 탭 오토 팝핑 16:9 템플릿과 같은 값
     # (자동 낚시는 템플릿 대신 낚시 창 · 결과창 영역으로 안쪽 위치를 계산 → fishing.WINDOW_KEYS)
@@ -723,11 +722,11 @@ class Bridge:
                  # 1080p 기준: 채팅 버튼 (112, 30) · 도감 버튼 (47, 467) · 도감 Exit (382, 126) — FishSol 에서 쓰는 자리
                  "chat_pos": [0.0582, 0.0278], "collection_pos": [0.0245, 0.4324], "collection_close": [0.199, 0.1167],
                  "dialog_pos": [0.3979, 0.763]},     # NPC 대화창 (Noteab 매크로 1080p 프리셋 · Apache 2.0)
-        # 판매 (Noteab 매크로의 1920x1080 위치 프리셋 · Apache 2.0) — Sell Fish 버튼 · 물고기 정보 영역은 직접 지정
+        # 판매 (Noteab 매크로의 1920x1080 위치 프리셋 · Apache 2.0) — Sell Fish 버튼은 직접 지정
         "mfish": {"first_fish_pos": [0.4349, 0.3778], "sell_all_pos": [0.3464, 0.7444],
                   "confirm_sell_pos": [0.4141, 0.5731], "shop_close_pos": [0.7609, 0.2528]},
         # 상인 — 1920x1080 전체 화면 스크린샷에서 잰 값 (채팅 위치는 Noteab 매크로 1080p 프리셋 · Apache 2.0)
-        "mmerch": {"chat_hover": [0.0365, 0.1778], "chat_region": [0.0042, 0.0935, 0.251, 0.3426],
+        "mmerch": {"chat_region": [0.0042, 0.0935, 0.251, 0.3426],
                    "open_pos": [0.3396, 0.8759], "first_slot": [0.5021, 0.6667], "second_slot": [0.601, 0.6667],
                    "item_region": [0.5724, 0.3444, 0.9427, 0.3741], "max_pos": [0.6984, 0.5685],
                    "purchase_pos": [0.6125, 0.613], "close_pos": [0.9422, 0.3213]},
@@ -990,7 +989,7 @@ class Bridge:
 
     def api_sell_autocal(self, _):
         """판매 자동 보정: 플레이어가 Captain Flarg 앞에서 E 를 누르면 대화창 → [Sell Fish] → 상점을 글자(OCR)로 찾아
-        대화창(통합 위치) · Sell Fish · 첫 칸 · Sell All · 확인 Sell · 상점 X · 물고기 정보 영역을 맞춤 (실제로 팔지는 않음)
+        대화창(통합 위치) · Sell Fish · 첫 칸 · Sell All · 확인 Sell · 상점 X 를 맞춤 (실제로 팔지는 않음)
         F7 이나 버튼을 한 번 더 누르면 취소 · 자동 낚시가 돌고 있으면 잠깐 멈췄다가 이어감"""
         if getattr(self, "_sellcal_running", False):
             self._sellcal_stop.set()
@@ -1060,7 +1059,7 @@ class Bridge:
                 for k, v in found.items():
                     (b if k == "dialog_pos" else mf)[k] = v
             self._save()
-        names = dict(self.MPOS_POINTS["base"], **self.MPOS_POINTS["mfish"], info_region="물고기 정보 영역")
+        names = dict(self.MPOS_POINTS["base"], **self.MPOS_POINTS["mfish"])
         done = ", ".join(names.get(k, k) for k in found)
         res = {"base": self.data.get("base"), "mfish": self.data.get("mfish"), "found": list(found)}
         if error:
@@ -1275,7 +1274,7 @@ class Bridge:
     # 화면 비율 — 로블록스 UI 는 화면 높이에 맞춰 커지고, 낚시 창 · 결과창 · 인벤토리 창은 가로 가운데 기준,
     # Inventory 버튼(왼쪽 메뉴)은 왼쪽 끝 기준이라고 보고 16:9 값을 바꿈 (16:9 가 아닌 비율은 추정값)
     MPOS_RATIOS = {"16:9": 16 / 9}           # 다른 비율은 추정값이라 불안정해서 뺌
-    MPOS_LEFT = {"inventory_pos", "chat_pos", "collection_pos", "collection_close", "chat_hover", "chat_region"}
+    MPOS_LEFT = {"inventory_pos", "chat_pos", "collection_pos", "collection_close", "chat_region"}
 
     @classmethod
     def _mpos_scaled(cls, feat, aspect):
