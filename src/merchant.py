@@ -201,9 +201,9 @@ class Merchant(popping.Popper):
             self._wait(float(c.get("teleport_wait", 3.0)), stop)
             # 2. 대화 → Open
             self._set(msg="대화 (E)")
-            for _ in range(5):
+            for _ in range(5):                          # 순간이동 직후엔 E 가 씹힐 수 있어서 여러 번
                 macro.key_tap("e")
-                self._wait(0.35, stop)
+                self._wait(0.2, stop)
             if not self._open_shop(c, base, stop):
                 self.log(f"{self.LABEL} — 상점 Open 을 못 찾음", "y")
                 return
@@ -226,17 +226,13 @@ class Merchant(popping.Popper):
                 time.sleep(0.5)
 
     def _open_shop(self, c, base, stop):
-        """대화를 넘기면서 선택지 Open 을 글자로 찾아 누름 · 못 찾으면 지정한 Open 위치"""
-        end = time.time() + 8
-        while time.time() < end:
-            boxes = macro.ocr_boxes(DIALOG_AREA)
-            o = sell.find_text(boxes, "open", exact=True)
-            if o:
-                self._wait(0.25, stop)
-                self._click([o[1], o[2]], stop)
-                return True
-            self._click(base["dialog_pos"], stop)      # 대화 넘기기
-            self._wait(0.6, stop)
+        """선택지 Open 이 보일 때까지 대화창 연타 → Open 글자를 누름 · 못 찾으면 지정한 Open 위치"""
+        o = sell.skip_dialog(lambda: self._click(base["dialog_pos"], stop), macro.ocr_boxes, ("open",),
+                             lambda sec: self._wait(sec, stop), exact=True)
+        self._wait(0.15, stop)
+        if o:
+            self._click([o[1], o[2]], stop)
+            return True
         if c.get("open_pos"):
             self._click(c["open_pos"], stop)
             return True
@@ -302,9 +298,9 @@ class Merchant(popping.Popper):
             macro.paste_text(str(amount))
             self._wait(0.3, stop)
             self._click(c["purchase_pos"], stop)
-            end = time.time() + 3.3                    # 상인 대사 넘기기 (구매 확인)
+            end = time.time() + 3.3                    # 상인 대사 넘기기 (구매 확인) · 연타
             while time.time() < end:
                 self._click(base["dialog_pos"], stop)
-                self._wait(0.4, stop)
+                self._wait(sell.SKIP_GAP, stop)
             self.bought += 1
             self.log(f"{best} {amount}개 구매", "g")

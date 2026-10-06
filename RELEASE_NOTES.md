@@ -1,11 +1,13 @@
-## Acrux macro V1.29.2 업데이트
-- 상인 자동 구매: 상점 위치 자동 보정 추가 (기본 켜짐)
-  - 순간이동 후 상점이 열리면 Purchase 버튼을 찾아서 칸 · 수량 입력칸 · 닫기 위치를 맞춤
-  - 첫 칸의 아이템 이름이 읽히면 보정한 위치를 저장 · 못 하면 지정한 위치를 그대로 씀
-  - 이제 채팅 글자 영역만 지정하면 됨 (채팅창 위치는 비워 두면 영역 가운데)
+## Acrux macro V1.29.3 업데이트
+- NPC 대화는 이제 선택지가 뜰 때까지 대화창을 0.1초 간격으로 연타함 (Click to skip)
+  - 물고기 판매 (Sell Fish) · 상인 상점 (Open) · 판매 자동 보정 모두 해당
+  - 선택지가 보이면 그 글자 위치를 바로 누름
+  - 상인 구매 후 대사도 0.1초 간격으로 넘김
+- 판매 설정의 "E 누른 뒤 대기" 는 더 이상 필요 없어서 뺌
 
-## Acrux macro V1.29.2 Update
-- Merchant auto buy: added shop position auto calibration (on by default)
-  - After teleporting, when the shop opens it finds the Purchase button and sets the slot · amount box · close positions
-  - Saves the calibrated positions when the first slot's item name can be read · otherwise keeps the set positions
-  - Only the chat text area needs to be set now (an empty chat window position uses the center of the area)
+## Acrux macro V1.29.3 Update
+- NPC dialogs are now skipped by clicking the dialog every 0.1 s until the choices appear (Click to skip)
+  - Applies to fish selling (Sell Fish) · the merchant shop (Open) · sell calibration
+  - Clicks the choice right where its text is found
+  - Merchant lines after a purchase are also skipped every 0.1 s
+- Removed "Wait after pressing E" from the sell settings since it is no longer needed
