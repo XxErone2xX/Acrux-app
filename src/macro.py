@@ -1094,6 +1094,7 @@ _RAPID_LOCK = threading.Lock()
 
 def rapid_engine():
     """설치돼 있으면 RapidOCR 엔진 (처음 한 번만 불러옴), 없으면 None"""
+    # 부를 때는 use_cls=False — 게임 글자는 안 뒤집혀 있는데, 방향 판별이 짧은 글자(Open)를 거꾸로 보고 "uado" 로 읽음
     with _RAPID_LOCK:
         if _RAPID["engine"] is None and _RAPID["failed"] is None:
             try:
@@ -1130,7 +1131,7 @@ def _rapid_worker(eng, data, w, h):
         import cv2
         k = 48.0 / max(1, h)
         img = cv2.resize(img, (int(w * k), 48), interpolation=cv2.INTER_CUBIC)
-    res, _ = eng(img)
+    res, _ = eng(img, use_cls=False)
     if not res:
         return ""
     # 글자 덩어리를 줄(위→아래) · 칸(왼→오) 순서로 이어 붙임
@@ -1167,7 +1168,7 @@ def _rapid_count(eng, data, w, h):
     tries = [cv2.cvtColor(cv2.resize(th, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC), cv2.COLOR_GRAY2BGR),
              cv2.resize(crop, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)]
     for im in tries:
-        res, _ = eng(im)
+        res, _ = eng(im, use_cls=False)
         for r in res or []:
             m = re.search(r"[x×X]\s*([0-9][0-9,\.]*)", r[1])
             if m:
@@ -1279,7 +1280,7 @@ def ocr_boxes(region_ratio=None):
             if eng is not None:
                 import numpy as np
                 img = np.frombuffer(data, dtype=np.uint8).reshape(h, w, 4)[:, :, :3].copy()
-                res, _ = eng(img)
+                res, _ = eng(img, use_cls=False)
                 box["items"] = [(t, min(p[0] for p in b), min(p[1] for p in b), max(p[0] for p in b), max(p[1] for p in b))
                                 for b, t, _s in (res or [])]
             else:
