@@ -485,7 +485,7 @@ function fillFields() {
 }
 
 let pending = {}, saveTimer = null;
-const LOCAL_KEYS = ['play', 'biome', 'pop', 'ret', 'snipe', 'mpop', 'mfish', 'base', 'move'];
+const LOCAL_KEYS = ['play', 'biome', 'pop', 'ret', 'snipe', 'mpop', 'mfish', 'mitem', 'base', 'move'];
 function queueSave(patch) {
   Object.assign(pending, patch);
   // 팝핑·바이옴·매크로 탭 설정은 화면 쪽 객체가 원본 (폼이 그 객체를 직접 고치므로 복사본으로 바꾸면 이후 수정이 사라짐)
@@ -767,8 +767,8 @@ $('mgMacro').addEventListener('click', () => {
 document.querySelectorAll('[data-tab-go]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tabGo, true)));
 
 // 켜진 매크로 탭 기능 수
-const macroFeatures = () => [mpop().enabled, mfish().enabled].filter(Boolean).length;
-let lastBio = null, lastMpop = null, lastMfish = null;
+const macroFeatures = () => [mpop().enabled, mfish().enabled, mitem().enabled].filter(Boolean).length;
+let lastBio = null, lastMpop = null, lastMfish = null, lastMitem = null;
 function syncMainTiles() {
   const bOn = !!bio().enabled;
   setTile('biome', bOn);
@@ -782,6 +782,7 @@ function syncMainTiles() {
   tile('macro').classList.toggle('wait', mOn && sniping);
   $('mtMacro').textContent = !mOn ? (n ? `꺼짐 · 기능 ${n}개 켜짐` : '꺼짐')
     : lastMpop && lastMpop.running ? (lastMpop.msg || '포션 사용 중')
+    : lastMitem && lastMitem.running ? (lastMitem.msg || '아이템 사용 중')
     : lastMfish && lastMfish.running ? (lastMfish.msg || '낚시 중')
     : sniping ? '스나이핑 중이라 대기'
     : n ? `작동 중 · 기능 ${n}개` : '켜진 기능 없음';
@@ -812,7 +813,8 @@ async function poll() {
     updateMpop(r.mpop);
     updateMfish(r.mfish);
     updateMove(r.move);
-    lastBio = r.biome; lastMpop = r.mpop; lastMfish = r.mfish;
+    lastBio = r.biome; lastMpop = r.mpop; lastMfish = r.mfish; lastMitem = r.mitem;
+    updateMitem(r.mitem);
     updateOnline(r.online);
     $('acOnline').closest('.row').hidden = !r.online_on;   // 사용자 수 서버가 아직 없으면 스위치도 숨김
     if (r.macro_on !== undefined && !!r.macro_on !== !!config.macro_on && Date.now() - macroClickAt > 2000)
@@ -1260,13 +1262,62 @@ function updateMfish(st) {
 }
 $('mfishStop').addEventListener('click', () => api('mfish_stop'));
 
+// ---------------------------------------------------------------- 매크로 탭 · 오토 아이템 사용
+const mitem = () => (config.mitem ||= {});
+const saveMitem = () => queueSave({ mitem: JSON.parse(JSON.stringify(mitem())) });
+const MITEMS = [['strange', 'Strange Controller', 'strange_min', 10.5], ['randomizer', 'Biome Randomizer', 'randomizer_min', 18]];
+const fmtLeft = s => s <= 0 ? '곧 사용' : s >= 60 ? `${Math.floor(s / 60)}분 ${Math.round(s % 60)}초 뒤` : `${Math.round(s)}초 뒤`;
+function renderMitem() {
+  const m = mitem();
+  const posMiss = POP_POS_KEYS.filter(k => !base()[k]).length;
+  $('mitemForm').innerHTML = `
+    <label class="row"><span>켜기<small>매크로가 켜져 있는 동안 쿨타임마다 사용</small></span>
+      <span class="switch"><input type="checkbox" id="mitemOn" ${m.enabled ? 'checked' : ''}><i></i></span></label>
+    <div class="row"><span>인벤토리 위치 · OCR 영역<small>매크로 기준 위치 설정 → 통합 위치 에서 지정</small></span>
+      <span class="${posMiss ? 'warn' : ''}">${posMiss ? `${posMiss}개 지정 안 됨` : '지정됨'}</span></div>` +
+    MITEMS.map(([k, name, mk, def]) => `
+    <label class="row"><span>${name}<small>켜면 이 간격(분)마다 1개 사용 · <b data-mitem-left="${k}">-</b></small></span>
+      <span class="pos"><input type="number" min="1" step="0.5" data-mitem-min="${mk}" value="${m[mk] ?? def}" title="분">
+      <span class="switch"><input type="checkbox" data-mitem-on="${k}" ${m[k] !== false ? 'checked' : ''}><i></i></span></span></label>`).join('') + `
+    <label class="row"><span>다 쓰고 Inventory 닫기<small>Inventory 버튼을 한 번 더 눌러 닫음</small></span>
+      <span class="switch"><input type="checkbox" id="mitemClose" ${m.close_inventory !== false ? 'checked' : ''}><i></i></span></label>
+    <div class="row"><span>이번 실행 사용 횟수<small>Strange Controller · Biome Randomizer</small></span><b id="mitemUsed">-</b></div>`;
+  $('mitemOn').addEventListener('change', e => setFeature('mitem', e.target.checked));
+  $('mitemClose').addEventListener('change', e => { m.close_inventory = e.target.checked; saveMitem(); });
+  $('mitemForm').querySelectorAll('[data-mitem-on]').forEach(i => i.addEventListener('change', () => { m[i.dataset.mitemOn] = i.checked; saveMitem(); }));
+  $('mitemForm').querySelectorAll('[data-mitem-min]').forEach(i => i.addEventListener('input', () => {
+    const n = parseFloat(i.value);
+    if (Number.isFinite(n) && n >= 1) { m[i.dataset.mitemMin] = n; saveMitem(); }
+  }));
+  if (lastMitem) updateMitem(lastMitem);
+}
+function updateMitem(st) {
+  const running = !!(st && st.running);
+  $('mitemDot').dataset.s = running ? 'flux' : '';
+  $('mitemState').textContent = running ? (st.msg || '사용 중') : '대기';
+  $('mitemTest').disabled = running;
+  const it = (st && st.items) || {};
+  document.querySelectorAll('[data-mitem-left]').forEach(el => {
+    const x = it[el.dataset.mitemLeft];
+    el.textContent = !x ? '-' : !x.on ? '꺼짐' : !(config.macro_on && mitem().enabled) ? '매크로를 켜면 사용' : fmtLeft(x.left);
+  });
+  const u = $('mitemUsed');
+  if (u && it.strange) u.textContent = `${it.strange.used} · ${it.randomizer.used}`;
+}
+$('mitemTest').addEventListener('click', async () => {
+  const r = await api('mitem_test');
+  toast(r.error || '오토 아이템 사용 테스트 시작 · 인벤토리 열기부터 · 정지: F7');
+});
+$('mitemStop').addEventListener('click', () => api('mitem_stop'));
+
 // ---------------------------------------------------------------- 매크로 기능 설정 · 기능 켜기 · 끄기
 // 준비 중인 기능은 자리만 (만들면 key 를 채움)
 const MFEATS = [['mpop', '레어 바이옴 자동 팝핑', '내 서버에서 레어 바이옴이 뜨면 포션 사용'],
   ['mfish', '자동 낚시', '낚시 장소로 가서 낚시 · 가득 차면 판매'],
+  ['mitem', '오토 아이템 사용', '쿨타임마다 Strange Controller · Biome Randomizer 사용'],
   [null, '상인 자동 구매', '준비 중'], [null, '포션 자동 제작', '준비 중'], [null, '오토 메모리 매치', '준비 중']];
-const FEAT_NAME = { mpop: '레어 바이옴 자동 팝핑', mfish: '자동 낚시' };
-const featCfg = k => ({ mpop, mfish, base })[k]();
+const FEAT_NAME = { mpop: '레어 바이옴 자동 팝핑', mfish: '자동 낚시', mitem: '오토 아이템 사용' };
+const featCfg = k => ({ mpop, mfish, mitem, base })[k]();
 function setFeature(k, on, quiet) {
   const c = featCfg(k);
   c.enabled = !!on;
@@ -1595,7 +1646,7 @@ function updateMove(st) {
 // 위치는 서버가 이미 저장함 → 화면만 다시 그림
 function mposChanged(feat) {
   renderMpos(feat);
-  if (feat === 'base') { renderMpop(); renderPopSet(); } else renderMfish();
+  if (feat === 'base') { renderMpop(); renderPopSet(); renderMitem(); } else renderMfish();
 }
 // 스나이프 탭 오토 팝핑 ↔ 통합 위치 연동 (양쪽 화면에서 같은 스위치)
 function setPopLink(on) {
@@ -2428,6 +2479,7 @@ const Tutorial = (() => {
   fillBiome();
   fillMpop();
   renderMfish();
+  renderMitem();
   renderMfAll();
   renderMpos('base'); renderMpos('mfish');
   fillAcrux();
