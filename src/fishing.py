@@ -778,9 +778,13 @@ class Fisher:
             self._wait(FINISH_GAP, stop)
         else:
             self.log(f"결과창을 닫은 뒤 {FINISH_MAX:g}초 동안 Fish 버튼이 안 보임 — 다시 확인", "y")
-        # 열리고 닫히는 동안 한 번이라도 하늘색(성공) · 빨강(실패) 글자가 보였으면 그게 결과
-        # (흐린 순간엔 하늘색 · 빨강 글자도 회색처럼 보일 수 있어서 쓰레기는 다른 색이 하나도 없을 때만)
-        kind = next((k for k in ("success", "fail", "junk") if k in seen), None)
+        # 회색 제목(쓰레기) · 빨간 제목(실패)이 보였을 때만 그 결과 · 그 밖엔 전부 성공
+        # (흰색 · 하늘색 등 물고기마다 제목 색이 달라서 · 결과창이 빨리 닫혀 제목을 못 읽었어도 성공으로 셈)
+        # 흐린 순간엔 성공 제목도 회색처럼 보일 수 있어서, 성공 글자가 한 번이라도 보였으면 성공이 우선
+        if "success" in seen:
+            kind = "success"
+        else:
+            kind = next((k for k in ("fail", "junk") if k in seen), "success")
         self.stats[kind or "unknown"] += 1
         name = {"success": "성공", "junk": "쓰레기", "fail": "실패"}.get(kind, "결과 확인 안 됨")
         self.log(f"낚시 결과: {name} · 성공 {self.stats['success']} / 쓰레기 {self.stats['junk']} / 실패 {self.stats['fail']}",
