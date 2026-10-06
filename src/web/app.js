@@ -1321,7 +1321,7 @@ const MERCH_ITEMS = { Jester: ['Oblivion Potion', 'Heavenly Potion', 'Potion of 
 const MERCH_NAME = { Jester: '제스터', Mari: '마리' };
 const MMERCH_SET = [['check_sec', '채팅 확인 간격', '초', 30, 10, 5], ['teleport_wait', '순간이동 후 대기', '초', 3, 0.5, 0.5],
                     ['slots', '상점 칸 수', '칸', 5, 1, 1]];
-const MMERCH_SHOP = ['first_slot', 'second_slot', 'item_region', 'amount_pos', 'purchase_pos', 'close_pos'];
+const MMERCH_SHOP = ['first_slot', 'second_slot', 'item_region', 'max_pos', 'purchase_pos', 'close_pos'];
 function renderMmerch() {
   const m = mmerch(), buy = (m.buy ||= {});
   const need = ['chat_region', ...(m.auto_cal !== false ? [] : MMERCH_SHOP)];
@@ -1345,8 +1345,7 @@ function renderMmerch() {
     const k = `${who}_${n}`, on = buy[k] > 0;
     return `
     <div class="row"><span>${n}</span>
-      <span class="pos"><input type="number" min="1" max="999" step="1" data-mmerch-amt="${k}" value="${buy[k] || 1}" title="개수" ${on ? '' : 'disabled'}>
-      <label class="switch"><input type="checkbox" data-mmerch-item="${k}" ${on ? 'checked' : ''}><i></i></label></span></div>`;
+      <label class="switch"><input type="checkbox" data-mmerch-item="${k}" ${on ? 'checked' : ''}><i></i></label></div>`;
   }).join('')).join('');
   $('mmerchOn').addEventListener('change', e => setFeature('mmerch', e.target.checked));
   $('mmerchCal').addEventListener('change', e => {
@@ -1362,14 +1361,9 @@ function renderMmerch() {
     toast(r.error || '구매 테스트 시작 · 정지: F7');
   }));
   $('mmerchItems').querySelectorAll('[data-mmerch-item]').forEach(i => i.addEventListener('change', () => {
-    const k = i.dataset.mmerchItem, amt = $('mmerchItems').querySelector(`[data-mmerch-amt="${k}"]`);
-    if (i.checked) buy[k] = Math.max(1, parseInt(amt.value) || 1); else delete buy[k];
-    amt.disabled = !i.checked;
+    const k = i.dataset.mmerchItem;
+    if (i.checked) buy[k] = 1; else delete buy[k];
     saveMmerch();
-  }));
-  $('mmerchItems').querySelectorAll('[data-mmerch-amt]').forEach(i => i.addEventListener('input', () => {
-    const n = parseInt(i.value);
-    if (buy[i.dataset.mmerchAmt] && n >= 1) { buy[i.dataset.mmerchAmt] = Math.min(999, n); saveMmerch(); }
   }));
   if (lastMmerch) updateMmerch(lastMmerch);
 }
@@ -1465,14 +1459,14 @@ MPOS.mmerch = { box: 'mposMerch', tpl: true,
            ['open_pos', 'Open 선택지', '대화 선택지 Open (글자로 못 찾을 때만)'],
            ['first_slot', '첫 번째 칸', '상점 맨 왼쪽 아이템 칸'],
            ['second_slot', '두 번째 칸', '그 옆 칸 (칸 간격 계산)'],
-           ['amount_pos', '수량 입력칸', '아이템을 누르면 뜨는 수량 칸'],
+           ['max_pos', 'Set to Max 버튼', '수량 칸 오른쪽 Set to Max'],
            ['purchase_pos', 'Purchase 버튼', '수량 칸 아래 Purchase'],
            ['close_pos', '상점 닫기 X', '상점 오른쪽 위 X']],
   regions: [['chat_region', '채팅 글자 영역', '채팅 글자가 보이는 곳 전체'],
             ['item_region', '아이템 이름 영역', '칸을 눌렀을 때 뜨는 아이템 이름']],
   tabs: [['chat', '채팅', '상인 도착 감지 (채팅 OCR)', ['chat_hover', 'chat_region'], true],
          ['shop', '상점', '자동 보정이 켜져 있으면 비워 둬도 됨',
-          ['open_pos', 'first_slot', 'second_slot', 'item_region', 'amount_pos', 'purchase_pos', 'close_pos']]] };
+          ['open_pos', 'first_slot', 'second_slot', 'item_region', 'max_pos', 'purchase_pos', 'close_pos']]] };
 const MPOS_RATIOS = [['16:9', '16:9']];                // 다른 비율은 추정값이라 불안정해서 뺌
 let mposRatio = '16:9';
 function renderMpos(feat) {

@@ -169,7 +169,7 @@ MMERCH_DEFAULT = {
     "enabled": False,
     "check_sec": 30.0,            # 채팅창 확인 간격 (초)
     "teleport_wait": 3.0,         # Merchant Teleporter 사용 후 대기 (초)
-    "buy": {},                    # {"Mari_Void Coin": 개수, ...} — 고른 아이템만
+    "buy": {},                    # {"Mari_Void Coin": 1, ...} — 고른 아이템만 (개수는 Set to Max)
     "auto_cal": True,             # 상점이 열리면 Purchase 글자로 상점 위치를 자동 보정
     "chat_hover": None,           # 채팅창 위 (마우스를 올려 채팅이 보이게)
     "chat_region": None,          # 채팅 글자 영역 [x1, y1, x2, y2]
@@ -178,7 +178,7 @@ MMERCH_DEFAULT = {
     "second_slot": None,          # 상점 두 번째 칸 (칸 간격 계산용)
     "slots": 5,                   # 상점 칸 수
     "item_region": None,          # 칸을 눌렀을 때 아이템 이름이 뜨는 영역
-    "amount_pos": None,           # 수량 입력칸
+    "max_pos": None,              # Set to Max 버튼 (살 수 있는 만큼)
     "purchase_pos": None,         # Purchase 버튼
     "close_pos": None,            # 상점 닫기 X
 }
@@ -476,7 +476,7 @@ def normalize(raw):
         except (TypeError, ValueError):
             pass
     mm["buy"] = buy
-    for k in ("chat_hover", "open_pos", "first_slot", "second_slot", "amount_pos", "purchase_pos", "close_pos"):
+    for k in ("chat_hover", "open_pos", "first_slot", "second_slot", "max_pos", "purchase_pos", "close_pos"):
         mm[k] = _ratio_list(mm.get(k), 2)
     for k in ("chat_region", "item_region"):
         mm[k] = _ratio_list(mm.get(k), 4)
