@@ -7,3 +7,4 @@ out/
 src/config.json
 src/config_t.json
 src/app.log
+/*.png

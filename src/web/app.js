@@ -1319,8 +1319,7 @@ const MERCH_ITEMS = { Jester: ['Oblivion Potion', 'Heavenly Potion', 'Potion of 
                                "Stella's Candle", 'Lucky Potion'],
                       Mari: ['Void Coin', 'Lucky Penny', 'Gear A', 'Gear B', 'Mixed Potion', 'Speed Potion', 'Lucky Potion', 'Fortune Spoid I'] };
 const MERCH_NAME = { Jester: '제스터', Mari: '마리' };
-const MMERCH_SET = [['check_sec', '채팅 확인 간격', '초', 30, 10, 5], ['teleport_wait', '순간이동 후 대기', '초', 3, 0.5, 0.5],
-                    ['slots', '상점 칸 수', '칸', 5, 1, 1]];
+const MMERCH_SET = [['check_sec', '채팅 확인 간격', '초', 15, 10, 5], ['teleport_wait', '순간이동 후 대기', '초', 3, 0.5, 0.5]];
 const MMERCH_SHOP = ['first_slot', 'second_slot', 'item_region', 'max_pos', 'purchase_pos', 'close_pos'];
 function renderMmerch() {
   const m = mmerch(), buy = (m.buy ||= {});
@@ -1329,9 +1328,7 @@ function renderMmerch() {
   $('mmerchForm').innerHTML = `
     <label class="row"><span>켜기<small>매크로가 켜져 있는 동안 채팅을 확인</small></span>
       <span class="switch"><input type="checkbox" id="mmerchOn" ${m.enabled ? 'checked' : ''}><i></i></span></label>
-    <label class="row"><span>상점 위치 자동 보정<small>순간이동 후 상점이 열리면 화면 글자로 위치를 맞춤</small></span>
-      <span class="switch"><input type="checkbox" id="mmerchCal" ${m.auto_cal !== false ? 'checked' : ''}><i></i></span></label>
-    <div class="row"><span>위치<small>매크로 기준 위치 설정 → 상인 · 통합 위치</small></span>
+    <div class="row"><span>위치<small>매크로 기준 위치 설정 → 상인 자동 구매 · 통합 위치</small></span>
       <span class="${miss ? 'warn' : ''}">${miss ? `${miss}개 지정 안 됨` : '지정됨'}</span></div>` +
     MMERCH_SET.map(([k, name, unit, def, min, step]) => `
     <label class="row"><span>${name}<small>${unit}</small></span>
@@ -1340,18 +1337,17 @@ function renderMmerch() {
       <span class="pos"><button class="btn mini ghost" type="button" data-mmerch-buy="Mari">마리</button>
       <button class="btn mini ghost" type="button" data-mmerch-buy="Jester">제스터</button></span></div>
     <div class="row"><span>이번 실행 구매 횟수</span><b id="mmerchBought">-</b></div>`;
+  // 상인마다 따로 칸
   $('mmerchItems').innerHTML = Object.entries(MERCH_ITEMS).map(([who, list]) => `
-    <div class="row mmerch-who"><b>${MERCH_NAME[who]}</b></div>` + list.map(n => {
+    <div class="sec-head mpop-tpl-head"><h3>${MERCH_NAME[who]}</h3></div>
+    <div class="card form">` + list.map(n => {
     const k = `${who}_${n}`, on = buy[k] > 0;
     return `
-    <div class="row"><span>${n}</span>
-      <label class="switch"><input type="checkbox" data-mmerch-item="${k}" ${on ? 'checked' : ''}><i></i></label></div>`;
-  }).join('')).join('');
+      <div class="row"><span>${n}</span>
+        <label class="switch"><input type="checkbox" data-mmerch-item="${k}" ${on ? 'checked' : ''}><i></i></label></div>`;
+  }).join('') + `
+    </div>`).join('');
   $('mmerchOn').addEventListener('change', e => setFeature('mmerch', e.target.checked));
-  $('mmerchCal').addEventListener('change', e => {
-    m.auto_cal = e.target.checked; saveMmerch();
-    setTimeout(renderMmerch, 230);                 // 스위치 애니메이션 뒤에 '지정 안 됨' 개수 다시 계산
-  });
   $('mmerchForm').querySelectorAll('[data-mmerch-set]').forEach(i => i.addEventListener('input', () => {
     const n = parseFloat(i.value);
     if (Number.isFinite(n) && n >= +i.min) { m[i.dataset.mmerchSet] = n; saveMmerch(); }
@@ -1466,7 +1462,7 @@ MPOS.mmerch = { box: 'mposMerch', tpl: true,
             ['item_region', '아이템 이름 영역', '칸을 눌렀을 때 뜨는 아이템 이름']],
   tabs: [['chat', '채팅', '상인 도착 감지 (채팅 OCR)', ['chat_hover', 'chat_region'], true],
          ['shop', '상점', '자동 보정이 켜져 있으면 비워 둬도 됨',
-          ['open_pos', 'first_slot', 'second_slot', 'item_region', 'max_pos', 'purchase_pos', 'close_pos']]] };
+          ['open_pos', 'first_slot', 'second_slot', 'item_region', 'max_pos', 'purchase_pos', 'close_pos'], false, '', 'merchauto']] };
 const MPOS_RATIOS = [['16:9', '16:9']];                // 다른 비율은 추정값이라 불안정해서 뺌
 let mposRatio = '16:9';
 function renderMpos(feat) {
@@ -1533,7 +1529,7 @@ function renderMpos(feat) {
 const move = () => (config.move ||= { places: [] });
 const saveMove = () => queueSave({ move: JSON.parse(JSON.stringify(move())) });
 const MOVE_SET = [['reset_wait', '리셋 후 대기', 'Esc → R → Enter 로 리셋한 뒤 (초)', 3.5, 0.5, 0.1],
-                  ['w_time', 'W 누르기', 'W 만 누르는 시간 (초)', 0.85, 0, 0.05],
+                  ['w_time', 'W 누르기', 'W 만 누르는 시간 (초)', 1, 0, 0.05],
                   ['wa_time', 'W + A 누르기', 'W 와 A 를 같이 누르는 시간 (초)', 8, 0, 0.5],
                   ['tilt_px', '화면 내려다보기', '우클릭을 누른 채 마우스를 아래로 끄는 거리 (px)', 800, 0, 50],
                   ['o_time', 'O 누르기', '최대 줌 (초)', 2.5, 0, 0.1],
@@ -1542,7 +1538,7 @@ let lastMove = null;
 const fmtT = t => t == null ? '안 잼' : `${t}초`;
 // 장소의 지점이 전부 지정 · 측정되면 제목 옆에 총 걸리는 시간 — Esc(리셋)부터 도착까지 전부
 // 기준 장소 (서버 move.go_base 순서): 0.2 + Esc·R 1.0 + 리셋 대기 + 카메라 정렬 2.8 + W + W+A + 0.5 + 내려다보기·줌 + 0.4
-const baseTime = m => 4.9 + (m.reset_wait ?? 3.5) + (m.w_time ?? 0.85) + (m.wa_time ?? 8)
+const baseTime = m => 4.9 + (m.reset_wait ?? 3.5) + (m.w_time ?? 1) + (m.wa_time ?? 8)
   + Math.max(m.o_time ?? 2.5, (m.tilt_px ?? 800) / 20 * 0.015);
 const placeTotal = pl => {
   if (!pl.points.length || !pl.points.every(pt => pt.pos && pt.time != null)) return '';
@@ -1556,7 +1552,7 @@ function renderMoveCustom(el) {
   const [kind, feat] = el.dataset.mposCustom.split(':');
   if (kind === 'movebase') MPOS_CUSTOM.movebase(el);
   else if (kind === 'sell') MPOS_CUSTOM.sell(el);
-  else if (kind === 'fishauto' || kind === 'sellauto') MPOS_CUSTOM[kind](el);
+  else if (kind === 'fishauto' || kind === 'sellauto' || kind === 'merchauto') MPOS_CUSTOM[kind](el);
   else MPOS_CUSTOM.places(el, feat);
 }
 function rerenderMove() { document.querySelectorAll('[data-mpos-custom]').forEach(renderMoveCustom); }
@@ -1564,6 +1560,7 @@ const SELL_SET = [['sell_delay', '클릭 사이 추가 대기', '렉이 있으�
                   ['sell_max', '판매 반복 최대', '클릭이 씹혀 끝없이 도는 것만 막음', 100, 1, 1]];
 let sellcalBusy = false;
 let autocalBusy = false;
+let merchcalBusy = false;
 const autoRow = (name, sub, busy, label, attr) => `
       <div class="row"><span>${name}<small>${sub}</small></span>
         <span class="pos"><button class="btn mini ${busy ? 'waiting' : ''}" type="button" ${attr}>${busy ? '보정 중… (다시 누르면 취소)' : label}</button></span></div>`;
@@ -1595,6 +1592,29 @@ const MPOS_CUSTOM = {
         toast(r.error || `판매 자동 보정 완료${r.notes?.length ? ' · ' + r.notes.join(' · ') : ''}`);
       } catch (err) { toast('판매 자동 보정 실패: ' + err.message); }
       finally { sellcalBusy = false; rerenderMove(); }
+    });
+  },
+  // 상인: 상점 위치 자동 보정 (구매할 때마다) · E 를 눌러 지금 보정
+  merchauto(el) {
+    const m = mmerch();
+    el.innerHTML = `
+      <label class="row"><span>상점 위치 자동 보정<small>순간이동 후 상점이 열리면 화면 글자로 위치를 맞춤</small></span>
+        <span class="switch"><input type="checkbox" data-merch-cal ${m.auto_cal !== false ? 'checked' : ''}><i></i></span></label>` +
+      autoRow('지금 자동 보정', '상인이 와 있을 때 누른 뒤 상인 앞에서 E · 사지는 않음', merchcalBusy, '자동 보정', 'data-merch-auto');
+    el.querySelector('[data-merch-cal]').addEventListener('change', e => {
+      m.auto_cal = e.target.checked; saveMmerch();
+      setTimeout(renderMmerch, 230);
+    });
+    el.querySelector('[data-merch-auto]').addEventListener('click', async () => {
+      if (merchcalBusy) { const r = await api('mmerch_autocal'); return r.error && toast(r.error); }
+      merchcalBusy = true; rerenderMove();
+      toast('상인 앞에서 E 를 눌러 주세요');
+      try {
+        const r = await api('mmerch_autocal');
+        if (r.mmerch) { Object.assign(mmerch(), r.mmerch); mposChanged('mmerch'); }
+        toast(r.error || '상인 자동 보정 완료');
+      } catch (err) { toast('상인 자동 보정 실패: ' + err.message); }
+      finally { merchcalBusy = false; rerenderMove(); }
     });
   },
   // 판매: 대기 · 반복 설정 + [판매 테스트]

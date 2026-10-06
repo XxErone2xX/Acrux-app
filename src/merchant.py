@@ -85,6 +85,46 @@ def open_choice(boxes, fallback=None):
     return fallback if (who or lv) else None
 
 
+def autocal(ocr, click, wait, rect, status, dialog_pos=None, wait_dialog=120.0):
+    """상인 위치 자동 보정 — 상인이 와 있을 때 플레이어가 상인 앞에서 E 를 직접 누르면
+    대화창 연타 → Open → 상점 글자(Set to Max · 제목)로 상점 위치를 전부 맞춤 → 상점 닫기 (사지는 않음)
+    ocr(영역) → 덩어리 목록 · click(위치) · wait(초) (멈춤 확인 포함) · rect() → 창 (x, y, 너비, 높이)
+    → 찾은 위치 {키: 값}"""
+    status("상인 앞에서 E 를 눌러 주세요")
+    end = time.time() + wait_dialog
+    while True:
+        boxes = ocr(DIALOG_AREA)
+        skip = sell.find_text(boxes, "clicktoskip", "toskip")
+        pos = open_choice(boxes)
+        if pos or skip:
+            break
+        if time.time() > end:
+            raise RuntimeError("대화창이 안 보임 — 상인 앞에서 E 를 눌러 주세요")
+        wait(0.4)
+    status("대화창 찾음 — 이제 만지지 마세요")
+    if not pos:
+        dpos = dialog_pos or ([skip[1], skip[2]] if skip else None)
+        pos = sell.skip_dialog(lambda: click(dpos), ocr, (), wait, pick=open_choice)
+    if not pos:
+        raise RuntimeError("선택지 Open 을 못 찾음")
+    found = {"open_pos": [round(pos[0], 4), round(pos[1], 4)]}
+    wait(0.15)
+    click(pos)
+    status("상점 여는 중")
+    end, lay = time.time() + 6, None
+    while not lay:
+        if time.time() > end:
+            raise RuntimeError("상점(Set to Max 버튼)을 못 찾음")
+        wait(0.6)
+        lay = shop_layout(ocr(None), rect())
+    lay.pop("labels")
+    found.update(lay)
+    status("상점 닫는 중")
+    click(lay["close_pos"])
+    wait(0.6)
+    return found
+
+
 def item_name(text):
     """아이템 이름 줄 'Mixed Potion | Common' → 'Mixed Potion' (등급 · 구분선 뺌)"""
     t = (text or "").splitlines()[0] if text else ""
@@ -329,7 +369,7 @@ class Merchant(popping.Popper):
         f, s2 = c["first_slot"], c["second_slot"]
         gap = (s2[0] - f[0], s2[1] - f[1])
         th = float((self.get_pop() or {}).get("match_threshold", 70))
-        for i in range(int(c.get("slots", 5))):
+        for i in range(5):                             # 상점 칸은 항상 5칸
             lab = (labels or [""] * 5)[i] if i < 5 else ""
             if lab:                                    # 칸 이름이 읽혔으면 살 것만 누름
                 best, score = match_item(lab, want)

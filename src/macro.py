@@ -758,6 +758,11 @@ BANNER_TEXT = {
         "en": "Sell calibration · press E in front of Captain Flarg · hands off once the dialog opens (F7: cancel)",
         "ja": "販売の自動補正 · Captain Flarg の前で E を押してください · 会話が出たら手を離してください（F7: キャンセル）",
     },
+    "merchcal": {
+        "ko": "상인 자동 보정 · 상인 앞에서 E 를 누르세요 · 대화창이 뜨면 손을 떼세요 (F7: 취소)",
+        "en": "Merchant calibration · press E in front of the merchant · hands off once the dialog opens (F7: cancel)",
+        "ja": "商人の自動補正 · 商人の前で E を押してください · 会話が出たら手を離してください（F7: キャンセル）",
+    },
     "macro": {
         "ko": "매크로 작동 중 · 마우스와 키보드를 건드리지 마세요 (F3: 매크로 끄기)",
         "en": "Macro running · don't touch the mouse or keyboard (F3: turn the macro off)",

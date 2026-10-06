@@ -1072,6 +1072,82 @@ class Bridge:
             res["notes"] = notes
         return res
 
+    def api_mmerch_autocal(self, _):
+        """상인 자동 보정: 상인이 와 있을 때 플레이어가 상인 앞에서 E 를 누르면 대화창 연타 → Open → 상점 글자로
+        Open · 상점 위치를 전부 맞춤 → 상점 닫기 (사지는 않음) · F7 이나 버튼을 한 번 더 누르면 취소"""
+        if getattr(self, "_merchcal_running", False):
+            self._merchcal_stop.set()
+            return {"error": "상인 자동 보정 취소 중"}
+        if self.mover.running() or self.merchant.running():
+            return {"error": "다른 동작이 도는 중"}
+        hwnd = macro.roblox_window_cached(1.0)
+        if not hwnd:
+            return {"error": "로블록스 창 없음"}
+        self._merchcal_running, self._merchcal_stop = True, threading.Event()
+        stop, back, banner = self._merchcal_stop, macro.foreground(), [None]
+
+        def set_banner(kind):
+            if banner[0] is not None and banner[0].poll() is None:
+                banner[0].kill()
+            banner[0] = self._banner_proc(kind) if kind else None
+
+        def wait(sec):
+            end = time.time() + sec
+            while True:
+                if stop.is_set() or macro.key_down_now("f7"):
+                    raise _AutocalStop("상인 자동 보정 취소됨")
+                if time.time() >= end:
+                    return
+                time.sleep(0.03)
+
+        def rect():
+            h = macro.roblox_window_cached(1.0)
+            r = macro.client_rect(h) if h else None
+            if not r:
+                raise _AutocalStop("로블록스 창 없음")
+            return r
+
+        def click(pos):
+            r = rect()
+            macro.focus(macro.roblox_window_cached(1.0))
+            macro.click(*macro.to_screen(pos[0], pos[1], r))
+
+        def status(msg):
+            self._on_log(f"상인 자동 보정 · {msg}", "c")
+            if msg.startswith("대화창 찾음"):
+                set_banner("autocal")
+                self._banner_progress(0.3, 2.0)
+            step = {"상점 여는 중": (0.7, 3.0), "상점 닫는 중": (0.95, 1.0)}.get(msg)
+            if step:
+                self._banner_progress(*step)
+
+        found, error = {}, None
+        try:
+            if not self.fisher.hold(45):
+                return {"error": "자동 낚시가 멈추지 않음 — 낚시를 끄고 다시 눌러주세요"}
+            set_banner("merchcal")
+            macro.focus(hwnd, wait=0.3)
+            found = merchant.autocal(lambda r: macro.ocr_boxes(r), click, wait, rect, status,
+                                     (self.data.get("base") or {}).get("dialog_pos"))
+        except _AutocalStop as e:
+            error = str(e)
+        except Exception as e:
+            error = f"상인 자동 보정 실패: {e}"
+        finally:
+            set_banner(None)
+            self.fisher.release()
+            self._merchcal_running = False
+            macro.focus_back(back)
+        if found:
+            with self.lock:
+                self.data.setdefault("mmerch", {}).update(found)
+            self._save()
+        if error:
+            self._on_log(error, "n")
+            return {"error": error, "mmerch": self.data.get("mmerch")}
+        self._on_log("상인 자동 보정 완료", "g")
+        return {"mmerch": self.data.get("mmerch")}
+
     def api_sell_test(self, _):
         """판매 테스트: 기준 장소 → 물고기 판매 장소 → 판매 → 낚시 장소 (자동 낚시는 잠깐 멈췄다가 이어감)"""
         if self.mover.running():

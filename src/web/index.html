@@ -462,8 +462,7 @@
           <button class="btn ghost" id="mmerchStop">정지</button></div>
         <p class="hint">채팅에 상인 도착이 뜨면 Merchant Teleporter 로 가서 고른 아이템을 삼 · 정지: F7</p>
         <div class="card form" id="mmerchForm"></div>
-        <div class="sec-head mpop-tpl-head"><h3>살 아이템</h3></div>
-        <div class="card form" id="mmerchItems"></div>
+        <div id="mmerchItems"></div>
       </div>
       <div class="sec" data-sec="mf-craft"><div class="sec-head"><h2>포션 자동 제작</h2></div><div class="empty">준비 중</div></div>
       <div class="sec" data-sec="mf-memory"><div class="sec-head"><h2>오토 메모리 매치</h2></div><div class="empty">준비 중</div></div>
@@ -480,7 +479,7 @@
     <nav class="side">
       <button class="item deco" data-sec="mp-base"><b>통합 위치</b><span>여러 기능이 같이 쓰는 위치</span></button>
       <button class="item deco" data-sec="mp-fish"><b>자동 낚시</b><span>Fish 버튼 · 릴링 바 · 결과창</span></button>
-      <button class="item deco" data-sec="mp-merch"><b>상인</b><span>채팅 · 상점</span></button>
+      <button class="item deco" data-sec="mp-merch"><b>상인 자동 구매</b><span>채팅 · 상점</span></button>
     </nav>
     <div class="content">
       <div class="sec" data-sec="mp-base">
@@ -496,7 +495,7 @@
         <div class="mpos-cards" id="mposFish"></div>
       </div>
       <div class="sec" data-sec="mp-merch">
-        <div class="sec-head"><h2>상인</h2></div>
+        <div class="sec-head"><h2>상인 자동 구매</h2></div>
         <div class="mpos-cards" id="mposMerch"></div>
       </div>
     </div>

@@ -129,7 +129,7 @@ MOVE_DEFAULT = {
     #  Esc → R → Enter (리셋 · 0.5초 간격) → 3.5초 → / → 채팅 버튼 → 도감 버튼 → 도감 Exit → / → Enter (각 0.5초)
     #  → W 0.85초 → W+A 8초 → 0.5초 → 우클릭 드래그(위에서 내려다보기) → O 2.5초 (최대 줌) → 갈 곳 우클릭
     "reset_wait": 3.5,            # 리셋 후 대기 (초)
-    "w_time": 0.85,               # W 누르기 (초)
+    "w_time": 1.0,                # W 누르기 (초)
     "wa_time": 8.0,               # W + A 같이 누르기 (초)
     "tilt_px": 800,               # 우클릭을 누른 채 마우스를 아래로 끄는 거리 (px) — 위에서 내려다보기
     "o_time": 2.5,                # O 누르기 (초) — 최대 줌
@@ -167,7 +167,7 @@ MMERCH_DEFAULT = {
     # 매크로 탭 · 상인 자동 구매 — 채팅에 상인 도착이 뜨면 Merchant Teleporter 로 가서 고른 아이템 구매
     # 위치는 Noteab 매크로(Apache 2.0)의 1920x1080 값을 템플릿으로 씀 · 대화창 · 인벤토리는 통합 위치
     "enabled": False,
-    "check_sec": 30.0,            # 채팅창 확인 간격 (초)
+    "check_sec": 15.0,            # 채팅창 확인 간격 (초)
     "teleport_wait": 3.0,         # Merchant Teleporter 사용 후 대기 (초)
     "buy": {},                    # {"Mari_Void Coin": 1, ...} — 고른 아이템만 (개수는 Set to Max)
     "auto_cal": True,             # 상점이 열리면 Purchase 글자로 상점 위치를 자동 보정
@@ -176,7 +176,6 @@ MMERCH_DEFAULT = {
     "open_pos": None,             # 대화 선택지 Open (글자로 못 찾을 때)
     "first_slot": None,           # 상점 첫 번째 칸
     "second_slot": None,          # 상점 두 번째 칸 (칸 간격 계산용)
-    "slots": 5,                   # 상점 칸 수
     "item_region": None,          # 칸을 눌렀을 때 아이템 이름이 뜨는 영역
     "max_pos": None,              # Set to Max 버튼 (살 수 있는 만큼)
     "purchase_pos": None,         # Purchase 버튼
@@ -401,6 +400,8 @@ def normalize(raw):
     mv.update(d.get("move") if isinstance(d.get("move"), dict) else {})
     if not mv.get("v18") and mv.get("reset_wait") == 2.6:      # 예전(FishSol 방식) 기본값이면 새 기본값으로 한 번
         mv["reset_wait"] = 3.5
+    if not mv.get("v129") and mv.get("w_time") == 0.85:        # 예전 기본값이면 새 기본값(1초)으로 한 번
+        mv["w_time"] = 1.0
     for k, lo, hi, cast in (("reset_wait", 0.5, 15, float), ("w_time", 0, 30, float), ("wa_time", 0, 60, float),
                             ("o_time", 0, 15, float), ("tilt_px", 0, 5000, int), ("margin", 0, 5, float)):
         try:
@@ -440,7 +441,7 @@ def normalize(raw):
                 out.append({"name": name, "feat": feat, "key": key, "points": [{"pos": None, "time": None}]})
     mv["places"] = out
     d["move"] = {k: mv[k] for k in MOVE_DEFAULT}
-    d["move"]["v18"] = True
+    d["move"]["v18"] = d["move"]["v129"] = True
     mp = dict(MPOP_DEFAULT)
     mp.update(old_mp)
     for k in (*BASE_INV_KEYS, "ocr_region"):
@@ -458,15 +459,13 @@ def normalize(raw):
     mm.update(d.get("mmerch") if isinstance(d.get("mmerch"), dict) else {})
     mm["enabled"] = bool(mm.get("enabled"))
     mm["auto_cal"] = mm.get("auto_cal") is not False
+    if not mm.get("v129") and mm.get("check_sec") == 30:        # 예전 기본값이면 새 기본값(15초)으로 한 번
+        mm["check_sec"] = 15.0
     for k, lo, hi in (("check_sec", 10, 600), ("teleport_wait", 0.5, 15)):
         try:
             mm[k] = min(hi, max(lo, float(mm.get(k))))
         except (TypeError, ValueError):
             mm[k] = MMERCH_DEFAULT[k]
-    try:
-        mm["slots"] = int(min(12, max(1, int(mm.get("slots") or 5))))
-    except (TypeError, ValueError):
-        mm["slots"] = 5
     valid = {f"{m}_{n}" for m, items in MERCHANT_ITEMS.items() for n in items}
     buy = {}
     for k, v in (mm.get("buy") if isinstance(mm.get("buy"), dict) else {}).items():
@@ -481,6 +480,7 @@ def normalize(raw):
     for k in ("chat_region", "item_region"):
         mm[k] = _ratio_list(mm.get(k), 4)
     d["mmerch"] = {k: mm[k] for k in MMERCH_DEFAULT}
+    d["mmerch"]["v129"] = True
     mi = dict(MITEM_DEFAULT)
     mi.update(d.get("mitem") if isinstance(d.get("mitem"), dict) else {})
     for k in ("enabled", "strange", "randomizer", "close_inventory"):
