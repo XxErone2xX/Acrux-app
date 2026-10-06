@@ -1321,13 +1321,16 @@ const MERCH_ITEMS = { Jester: ['Oblivion Potion', 'Heavenly Potion', 'Potion of 
 const MERCH_NAME = { Jester: '제스터', Mari: '마리' };
 const MMERCH_SET = [['check_sec', '채팅 확인 간격', '초', 30, 10, 5], ['teleport_wait', '순간이동 후 대기', '초', 3, 0.5, 0.5],
                     ['slots', '상점 칸 수', '칸', 5, 1, 1]];
-const MMERCH_POS = ['chat_hover', 'chat_region', 'first_slot', 'second_slot', 'item_region', 'amount_pos', 'purchase_pos', 'close_pos'];
+const MMERCH_SHOP = ['first_slot', 'second_slot', 'item_region', 'amount_pos', 'purchase_pos', 'close_pos'];
 function renderMmerch() {
   const m = mmerch(), buy = (m.buy ||= {});
-  const miss = MMERCH_POS.filter(k => !m[k]).length + (base().dialog_pos ? 0 : 1) + POP_POS_KEYS.filter(k => !base()[k]).length;
+  const need = ['chat_region', ...(m.auto_cal !== false ? [] : MMERCH_SHOP)];
+  const miss = need.filter(k => !m[k]).length + (base().dialog_pos ? 0 : 1) + POP_POS_KEYS.filter(k => !base()[k]).length;
   $('mmerchForm').innerHTML = `
     <label class="row"><span>켜기<small>매크로가 켜져 있는 동안 채팅을 확인</small></span>
       <span class="switch"><input type="checkbox" id="mmerchOn" ${m.enabled ? 'checked' : ''}><i></i></span></label>
+    <label class="row"><span>상점 위치 자동 보정<small>순간이동 후 상점이 열리면 Purchase 버튼으로 위치를 맞춤</small></span>
+      <span class="switch"><input type="checkbox" id="mmerchCal" ${m.auto_cal !== false ? 'checked' : ''}><i></i></span></label>
     <div class="row"><span>위치<small>매크로 기준 위치 설정 → 상인 · 통합 위치</small></span>
       <span class="${miss ? 'warn' : ''}">${miss ? `${miss}개 지정 안 됨` : '지정됨'}</span></div>` +
     MMERCH_SET.map(([k, name, unit, def, min, step]) => `
@@ -1346,6 +1349,10 @@ function renderMmerch() {
       <label class="switch"><input type="checkbox" data-mmerch-item="${k}" ${on ? 'checked' : ''}><i></i></label></span></div>`;
   }).join('')).join('');
   $('mmerchOn').addEventListener('change', e => setFeature('mmerch', e.target.checked));
+  $('mmerchCal').addEventListener('change', e => {
+    m.auto_cal = e.target.checked; saveMmerch();
+    setTimeout(renderMmerch, 230);                 // 스위치 애니메이션 뒤에 '지정 안 됨' 개수 다시 계산
+  });
   $('mmerchForm').querySelectorAll('[data-mmerch-set]').forEach(i => i.addEventListener('input', () => {
     const n = parseFloat(i.value);
     if (Number.isFinite(n) && n >= +i.min) { m[i.dataset.mmerchSet] = n; saveMmerch(); }
@@ -1454,7 +1461,7 @@ const MPOS = {
                   ['move', '이동', '매크로를 켜면 낚시 장소로, 가득 차면 판매 장소로 이동', [], false, 'places:mfish']] },
 };
 MPOS.mmerch = { box: 'mposMerch', tpl: true,
-  points: [['chat_hover', '채팅창', '채팅 글자 위 (마우스를 올리면 채팅이 보임)'],
+  points: [['chat_hover', '채팅창', '비워 두면 채팅 글자 영역 가운데'],
            ['open_pos', 'Open 선택지', '대화 선택지 Open (글자로 못 찾을 때만)'],
            ['first_slot', '첫 번째 칸', '상점 맨 왼쪽 아이템 칸'],
            ['second_slot', '두 번째 칸', '그 옆 칸 (칸 간격 계산)'],
@@ -1464,7 +1471,7 @@ MPOS.mmerch = { box: 'mposMerch', tpl: true,
   regions: [['chat_region', '채팅 글자 영역', '채팅 글자가 보이는 곳 전체'],
             ['item_region', '아이템 이름 영역', '칸을 눌렀을 때 뜨는 아이템 이름']],
   tabs: [['chat', '채팅', '상인 도착 감지 (채팅 OCR)', ['chat_hover', 'chat_region'], true],
-         ['shop', '상점', '대화창 · 인벤토리는 통합 위치를 씀',
+         ['shop', '상점', '자동 보정이 켜져 있으면 비워 둬도 됨',
           ['open_pos', 'first_slot', 'second_slot', 'item_region', 'amount_pos', 'purchase_pos', 'close_pos']]] };
 const MPOS_RATIOS = [['16:9', '16:9']];                // 다른 비율은 추정값이라 불안정해서 뺌
 let mposRatio = '16:9';
