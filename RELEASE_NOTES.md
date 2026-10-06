@@ -1,5 +1,5 @@
-## Acrux macro V1.28.3 업데이트
-- 바이옴 매크로 설정의 플레이어 이름 예시를 RN_Acrux 로 바꿈
+## Acrux macro V1.28.4 업데이트
+- 오토 아이템 사용의 설명을 "아이템 자동 사용" 으로 바꿈
 
-## Acrux macro V1.28.3 Update
-- Changed the player name example in Biome macro settings to RN_Acrux
+## Acrux macro V1.28.4 Update
+- Changed the Auto item use description to "Uses items automatically"
