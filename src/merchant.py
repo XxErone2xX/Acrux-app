@@ -4,7 +4,7 @@
   감지: 채팅창 위에 마우스를 올려(채팅이 보이게) 채팅 글자 영역을 OCR (로블록스 로그엔 채팅이 안 남음)
   구매: Inventory → Merchant Teleporter 1개 사용 → 대기 → E → 대화 넘기기 → Open
         → 상점 위치 자동 보정 (Set to Max · 상점 제목 글자) · 아래 칸 이름 읽기
-        → 살 칸만 (칸 클릭 → 아이템 이름 확인 → 수량 입력 → Purchase → 대화 넘기기) → 상점 닫기 → 리셋
+        → 살 칸만 (칸 클릭 → 아이템 이름 확인 → Set to Max → Purchase → 대화 넘기기) → 상점 닫기 → 리셋
   방식 · 1920x1080 위치 값은 Noteab 매크로(Apache 2.0)를 참고함
 """
 import difflib
@@ -23,11 +23,11 @@ DIALOG_AREA = sell.DIALOG_AREA
 #   기준: [Set to Max] 버튼 글자 가운데 (1341, 614) · 크기: 상점 제목('Mari's Shop')에서 Set to Max 까지 세로 266 px
 #   (상점은 창 크기에 맞춰 커지고 작아짐 — 작은 창에서도 이 비율 그대로인 것 확인)
 SET_MAX_REF, TITLE_GAP, PURCHASE_GAP = (1341, 614), 266, 48
-SHOP_OFFSETS = {"close_pos": (468, -267), "amount_pos": (-289, -2), "purchase_pos": (-164, 48),
+SHOP_OFFSETS = {"close_pos": (468, -267), "max_pos": (0, 0), "purchase_pos": (-164, 48),
                 "first_slot": (-376, 106), "second_slot": (-186, 106)}
 ITEM_OFFSET = (-241, -242, 469, -210)       # 오른쪽 위 아이템 이름 줄 ('Mixed Potion | Common')
 SLOT_GAP, SLOT_HALF = 190, 92               # 아래 칸 간격 · 칸 반 너비
-SHOP_KEYS = ("open_pos", "first_slot", "second_slot", "item_region", "amount_pos", "purchase_pos", "close_pos")
+SHOP_KEYS = ("open_pos", "first_slot", "second_slot", "item_region", "max_pos", "purchase_pos", "close_pos")
 # 이름 비교용 상인 아이템 (고를 수 있는 것 + 비슷한 이름을 잘못 사지 않게 다른 것도)
 KNOWN_ITEMS = ("Mixed Potion", "Speed Potion", "Lucky Potion", "Fortune Spoid I", "Fortune Spoid II", "Fortune Spoid III",
                "Void Coin", "Lucky Penny", "Gear A", "Gear B", "Strange Potion I", "Strange Potion II",
@@ -115,7 +115,7 @@ def chat_hover(c):
 
 # 매크로 기준 위치 설정 → 상인 (버튼 위치)
 POS_KEYS = (("chat_hover", "채팅창 위치"), ("open_pos", "Open 선택지"), ("first_slot", "첫 번째 칸"), ("second_slot", "두 번째 칸"),
-            ("amount_pos", "수량 입력칸"), ("purchase_pos", "Purchase 버튼"), ("close_pos", "상점 닫기 X"))
+            ("max_pos", "Set to Max 버튼"), ("purchase_pos", "Purchase 버튼"), ("close_pos", "상점 닫기 X"))
 
 
 def arrived_in(text):
@@ -160,7 +160,7 @@ class Merchant(popping.Popper):
         """비어 있는 설정 이름 목록 (채팅 감지에 필요한 것 · 구매에 필요한 것)"""
         shop = () if c.get("auto_cal", True) else (
             ("first_slot", "첫 번째 칸"), ("second_slot", "두 번째 칸"), ("item_region", "아이템 이름 영역"),
-            ("amount_pos", "수량 입력칸"), ("purchase_pos", "Purchase 버튼"), ("close_pos", "상점 닫기 X"))
+            ("max_pos", "Set to Max 버튼"), ("purchase_pos", "Purchase 버튼"), ("close_pos", "상점 닫기 X"))
         miss = [n for k, n in (("chat_region", "채팅 글자 영역"), *shop) if not c.get(k)]
         if not base.get("dialog_pos"):
             miss.append("대화창 (통합 위치)")
@@ -351,13 +351,8 @@ class Merchant(popping.Popper):
             if best not in want or score < th:
                 self.log(f"{i + 1}번 칸 '{got}' — 안 삼", "d")
                 continue
-            amount = int(want[best])
-            self._set(msg=f"{best} {amount}개 구매")
-            self._click(c["amount_pos"], stop)
-            self._wait(0.2, stop)
-            macro.key_combo(["ctrl", "a"])
-            self._wait(0.1, stop)
-            macro.paste_text(str(amount))
+            self._set(msg=f"{best} 구매")
+            self._click(c["max_pos"], stop)            # 개수는 Set to Max (살 수 있는 만큼)
             self._wait(0.3, stop)
             self._click(c["purchase_pos"], stop)
             end = time.time() + 3.3                    # 상인 대사 넘기기 (구매 확인) · 연타
@@ -365,4 +360,4 @@ class Merchant(popping.Popper):
                 self._click(base["dialog_pos"], stop)
                 self._wait(sell.SKIP_GAP, stop)
             self.bought += 1
-            self.log(f"{best} {amount}개 구매", "g")
+            self.log(f"{best} 구매 (Set to Max)", "g")
