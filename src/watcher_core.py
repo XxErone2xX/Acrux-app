@@ -161,7 +161,7 @@ MITEM_DEFAULT = {
 MERCHANT_ITEMS = {
     "Jester": ("Oblivion Potion", "Heavenly Potion", "Potion of Bound", "Rune of Everything", "Random Potion Sack",
                "Stella's Candle", "Lucky Potion"),
-    "Mari": ("Void Coin", "Lucky Penny", "Gear A", "Gear B"),
+    "Mari": ("Void Coin", "Lucky Penny", "Gear A", "Gear B", "Mixed Potion", "Speed Potion", "Lucky Potion", "Fortune Spoid I"),
 }
 MMERCH_DEFAULT = {
     # 매크로 탭 · 상인 자동 구매 — 채팅에 상인 도착이 뜨면 Merchant Teleporter 로 가서 고른 아이템 구매

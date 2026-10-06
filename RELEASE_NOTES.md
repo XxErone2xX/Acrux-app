@@ -1,13 +1,17 @@
-## Acrux macro V1.29.3 업데이트
-- NPC 대화는 이제 선택지가 뜰 때까지 대화창을 0.1초 간격으로 연타함 (Click to skip)
-  - 물고기 판매 (Sell Fish) · 상인 상점 (Open) · 판매 자동 보정 모두 해당
-  - 선택지가 보이면 그 글자 위치를 바로 누름
-  - 상인 구매 후 대사도 0.1초 간격으로 넘김
-- 판매 설정의 "E 누른 뒤 대기" 는 더 이상 필요 없어서 뺌
+## Acrux macro V1.29.4 업데이트
+- 상인 자동 구매: 실제 상점 화면에 맞춰 다시 만듦
+  - 상점 위치 자동 보정: [Set to Max] 버튼과 상점 제목 글자로 위치 · 크기를 재서 작은 창에서도 맞음
+  - 아래 칸 이름을 한 번에 읽고 고른 아이템 칸만 눌러서 더 빠름
+  - Open 글자가 잘 안 읽혀도 옆 선택지(Who are you? · Leave) 간격으로 Open 위치를 찾음
+  - 수량은 입력칸을 비운 뒤 입력함
+  - 마리 아이템에 Mixed Potion · Speed Potion · Lucky Potion · Fortune Spoid I 추가
+  - 16:9 위치 템플릿을 실제 화면 기준으로 고침
 
-## Acrux macro V1.29.3 Update
-- NPC dialogs are now skipped by clicking the dialog every 0.1 s until the choices appear (Click to skip)
-  - Applies to fish selling (Sell Fish) · the merchant shop (Open) · sell calibration
-  - Clicks the choice right where its text is found
-  - Merchant lines after a purchase are also skipped every 0.1 s
-- Removed "Wait after pressing E" from the sell settings since it is no longer needed
+## Acrux macro V1.29.4 Update
+- Merchant auto buy: rebuilt to match the real shop screen
+  - Shop calibration measures position · size from the [Set to Max] button and shop title, so it also fits small windows
+  - Reads all slot names at once and clicks only the chosen items, so it is faster
+  - Finds Open from the spacing of the other choices (Who are you? · Leave) even when the Open text is hard to read
+  - Clears the amount box before typing the amount
+  - Added Mixed Potion · Speed Potion · Lucky Potion · Fortune Spoid I to Mari's items
+  - Fixed the 16:9 position template to match the real screen

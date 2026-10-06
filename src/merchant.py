@@ -3,38 +3,106 @@
 상인 자동 구매 — 채팅에 "[Merchant]: Mari has arrived" 가 뜨면 Merchant Teleporter 로 가서 고른 아이템을 삼
   감지: 채팅창 위에 마우스를 올려(채팅이 보이게) 채팅 글자 영역을 OCR (로블록스 로그엔 채팅이 안 남음)
   구매: Inventory → Merchant Teleporter 1개 사용 → 대기 → E → 대화 넘기기 → Open
-        → 칸마다 (칸 클릭 → 아이템 이름 OCR → 고른 아이템이면 수량 입력 → Purchase → 대화 넘기기) → 상점 닫기 → 리셋
+        → 상점 위치 자동 보정 (Set to Max · 상점 제목 글자) · 아래 칸 이름 읽기
+        → 살 칸만 (칸 클릭 → 아이템 이름 확인 → 수량 입력 → Purchase → 대화 넘기기) → 상점 닫기 → 리셋
   방식 · 1920x1080 위치 값은 Noteab 매크로(Apache 2.0)를 참고함
 """
+import difflib
 import re
 import time
 
 import macro
 import popping
 import sell
-import watcher_core
 
 NAMES = ("Mari", "Jester", "Rin")
 # OCR 로 읽은 채팅 (영문만 · 소문자 · a→o · i→l 로 맞춘 글자) 에서 '이름 has arrived'
 _ARRIVE = re.compile(r"(m[o0]rl|jester|r[l1]n)h[o0]s[o0]rrlved")
 DIALOG_AREA = sell.DIALOG_AREA
-# 상점 자동 보정: Purchase 버튼 글자를 찾아서 나머지 위치를 계산 — 1920x1080 에서 Purchase 가운데 (982, 666) 기준 거리 (px)
-# 로블록스 UI 는 창 높이에 맞춰 커지므로 px / 1080 × 창 높이 로 바꿈 (Noteab 매크로 1080p 프리셋 · Apache 2.0)
-SHOP_OFFSETS = {"amount_pos": (62, -55), "first_slot": (-30, 53), "second_slot": (163, 53), "close_pos": (827, -320)}
-ITEM_OFFSET = (122, -298, 491, -263)        # 아이템 이름 영역 (왼쪽 위 · 오른쪽 아래)
+# 상점 자동 보정 — 1920x1080 전체 화면 스크린샷에서 잰 값 (px)
+#   기준: [Set to Max] 버튼 글자 가운데 (1341, 614) · 크기: 상점 제목('Mari's Shop')에서 Set to Max 까지 세로 266 px
+#   (상점은 창 크기에 맞춰 커지고 작아짐 — 작은 창에서도 이 비율 그대로인 것 확인)
+SET_MAX_REF, TITLE_GAP, PURCHASE_GAP = (1341, 614), 266, 48
+SHOP_OFFSETS = {"close_pos": (468, -267), "amount_pos": (-289, -2), "purchase_pos": (-164, 48),
+                "first_slot": (-376, 106), "second_slot": (-186, 106)}
+ITEM_OFFSET = (-241, -242, 469, -210)       # 오른쪽 위 아이템 이름 줄 ('Mixed Potion | Common')
+SLOT_GAP, SLOT_HALF = 190, 92               # 아래 칸 간격 · 칸 반 너비
 SHOP_KEYS = ("open_pos", "first_slot", "second_slot", "item_region", "amount_pos", "purchase_pos", "close_pos")
+# 이름 비교용 상인 아이템 (고를 수 있는 것 + 비슷한 이름을 잘못 사지 않게 다른 것도)
+KNOWN_ITEMS = ("Mixed Potion", "Speed Potion", "Lucky Potion", "Fortune Spoid I", "Fortune Spoid II", "Fortune Spoid III",
+               "Void Coin", "Lucky Penny", "Gear A", "Gear B", "Strange Potion I", "Strange Potion II",
+               "Oblivion Potion", "Heavenly Potion", "Potion of Bound", "Random Potion Sack", "Stella's Candle",
+               "Rune of Everything", "Rune of Wind", "Rune of Frost", "Rune of Rainstorm", "Rune of Hell",
+               "Rune of Galaxy", "Rune of Corruption", "Rune of Nothing", "Merchant Tracker")
+_RARITY = re.compile(r"\b(common|uncommon|rare|epic|legendary|mythic|exalted|divine|special|unique|limited)\b.*$", re.I)
 
 
-def shop_layout(purchase, aspect):
-    """Purchase 글자 가운데 (창 비율) + 창 너비/높이 → 상점 위치들 (창 비율)"""
-    px, py = purchase
+def shop_layout(boxes, rect):
+    """상점이 열린 화면의 OCR 덩어리 → 상점 위치들 (창 비율) · 칸 이름 목록 / 못 찾으면 None"""
+    sm = sell.find_text(boxes, "settomax", exact=True)
+    if not sm:
+        return None
+    W, H = rect[2], rect[3]
+    title = next((b for b in boxes if "sshop" in sell._norm(b[0]) and b[2] < sm[2]), None)
+    pur = next((b for b in boxes if sell._norm(b[0]).startswith("purchose") and b[2] > sm[2]), None)
+    if title:
+        k = (sm[2] - title[2]) * H / TITLE_GAP
+    elif pur:
+        k = (pur[2] - sm[2]) * H / PURCHASE_GAP
+    else:
+        k = W / 1920
+    if not 0.2 < k < 3:
+        return None
+    sx, sy = sm[1] * W, sm[2] * H
 
     def at(dx, dy):
-        return [round(min(1.0, max(0.0, px + dx / 1080 / aspect)), 4), round(min(1.0, max(0.0, py + dy / 1080)), 4)]
-    out = {k: at(*d) for k, d in SHOP_OFFSETS.items()}
-    out["purchase_pos"] = at(0, 0)
-    out["item_region"] = at(*ITEM_OFFSET[:2]) + at(*ITEM_OFFSET[2:])
-    return out
+        return [round(min(1.0, max(0.0, (sx + dx * k) / W)), 4), round(min(1.0, max(0.0, (sy + dy * k) / H)), 4)]
+    lay = {key: at(*d) for key, d in SHOP_OFFSETS.items()}
+    lay["item_region"] = at(*ITEM_OFFSET[:2]) + at(*ITEM_OFFSET[2:])
+    # 아래 칸 이름: 칸 줄 높이의 글자를 가장 가까운 칸에 모음 (한 칸 이름이 두 덩어리로 읽혀도 합침)
+    row_y, x0 = sy + SHOP_OFFSETS["first_slot"][1] * k, sx + SHOP_OFFSETS["first_slot"][0] * k
+    labels = [[] for _ in range(5)]
+    for b in sorted(boxes, key=lambda b: b[1]):
+        bx, by = b[1] * W, b[2] * H
+        if abs(by - row_y) > 22 * k:
+            continue
+        i = round((bx - x0) / (SLOT_GAP * k))
+        if 0 <= i < 5 and abs(bx - (x0 + i * SLOT_GAP * k)) < SLOT_HALF * k:
+            labels[i].append(b[0])
+    lay["labels"] = [" ".join(t) for t in labels]
+    return lay
+
+
+def open_choice(boxes, fallback=None):
+    """대화 선택지 줄에서 Open 위치 — 글자로 못 읽으면 (뒤집혀 읽히기도 함) 옆의 'Who are you?' · 'Leave' 간격으로 계산
+    선택지는 보이는데 계산도 못 하면 지정한 위치 · 선택지가 아직 없으면 None"""
+    o = sell.find_text(boxes, "open", exact=True)
+    if o:
+        return [o[1], o[2]]
+    who, lv = sell.find_text(boxes, "whooreyou"), sell.find_text(boxes, "leave", exact=True)
+    if who and lv and lv[1] > who[1]:
+        return [round(2 * who[1] - lv[1], 4), round(who[2], 4)]
+    return fallback if (who or lv) else None
+
+
+def item_name(text):
+    """아이템 이름 줄 'Mixed Potion | Common' → 'Mixed Potion' (등급 · 구분선 뺌)"""
+    t = (text or "").splitlines()[0] if text else ""
+    t = _RARITY.sub("", t.split("|")[0]).strip()
+    return popping._clean_name(t)
+
+
+def match_item(text, names):
+    """OCR 이름 → (가장 비슷한 이름, 점수 0~100) — 게임 글꼴에서 헷갈리는 a ↔ o · i ↔ l 은 같게 봄"""
+    a = sell._norm(text)
+    if not a:
+        return None, 0.0
+    best, score = None, 0.0
+    for n in set(KNOWN_ITEMS) | set(names):
+        r = difflib.SequenceMatcher(None, a, sell._norm(n)).ratio() * 100
+        if r > score:
+            best, score = n, r
+    return best, round(score, 1)
 
 
 def chat_hover(c):
@@ -207,14 +275,15 @@ class Merchant(popping.Popper):
             if not self._open_shop(c, base, stop):
                 self.log(f"{self.LABEL} — 상점 Open 을 못 찾음", "y")
                 return
-            self._wait(2.0, stop)
-            # 3. 상점 위치 자동 보정 (Purchase 글자 기준) → 칸마다 확인하고 사기
+            self._wait(1.0, stop)
+            # 3. 상점 위치 자동 보정 (Set to Max 글자 기준) → 살 칸만 확인하고 사기
+            labels = None
             if c.get("auto_cal", True):
-                c = self._calibrate(c, name, stop)
+                c, labels = self._calibrate(c, stop)
             if any(not c.get(k) for k in SHOP_KEYS if k != "open_pos"):
                 self.log(f"{self.LABEL} — 상점 위치를 못 찾음 (자동 보정 실패 · 직접 지정 필요)", "y")
                 return
-            self._buy_slots(c, base, name, want, stop)
+            self._buy_slots(c, base, name, want, stop, labels)
             self._set(msg="상점 닫기")
             self._click(c["close_pos"], stop)
             self._wait(0.8, stop)
@@ -226,55 +295,47 @@ class Merchant(popping.Popper):
                 time.sleep(0.5)
 
     def _open_shop(self, c, base, stop):
-        """선택지 Open 이 보일 때까지 대화창 연타 → Open 글자를 누름 · 못 찾으면 지정한 Open 위치"""
-        o = sell.skip_dialog(lambda: self._click(base["dialog_pos"], stop), macro.ocr_boxes, ("open",),
-                             lambda sec: self._wait(sec, stop), exact=True)
+        """선택지가 보일 때까지 대화창 연타 → Open 을 누름 · 못 찾으면 지정한 Open 위치"""
+        pos = sell.skip_dialog(lambda: self._click(base["dialog_pos"], stop), macro.ocr_boxes, (),
+                               lambda sec: self._wait(sec, stop), pick=lambda b: open_choice(b, c.get("open_pos")))
+        if not pos:
+            pos = c.get("open_pos")
+        if not pos:
+            return False
         self._wait(0.15, stop)
-        if o:
-            self._click([o[1], o[2]], stop)
-            return True
-        if c.get("open_pos"):
-            self._click(c["open_pos"], stop)
-            return True
-        return False
+        self._click(pos, stop)
+        return True
 
-    def _calibrate(self, c, name, stop):
-        """상점이 열린 화면에서 Purchase 글자를 찾아 위치 계산 → 첫 칸의 아이템 이름이 읽히면 저장 · 못 하면 지정한 위치 그대로"""
+    def _calibrate(self, c, stop):
+        """상점이 열린 화면에서 Set to Max · 상점 제목 글자로 위치 계산 → (위치, 칸 이름 목록) · 못 하면 (지정한 위치, None)"""
         self._set(msg="상점 위치 자동 보정")
-        rect = self._rect(stop)
-        aspect = rect[2] / max(1, rect[3])
-        p = sell.find_text(macro.ocr_boxes(None), "purchase", exact=True)
-        if not p:
-            # 아이템을 골라야 Purchase 가 뜨는 경우 — 첫 칸 (지정한 것 · 없으면 1080p 기준 화면 가운데에서 계산)
-            self._click(c.get("first_slot") or [round(0.5 - 8 / 1080 / aspect, 4), 0.6657], stop)
-            self._wait(0.6, stop)
-            p = sell.find_text(macro.ocr_boxes(None), "purchase", exact=True)
-        if not p:
-            self.log("상점 자동 보정 — Purchase 버튼을 못 찾음", "y")
-            return c
-        lay = shop_layout((p[1], p[2]), aspect)
-        self._click(lay["first_slot"], stop)
-        self._wait(0.6, stop)
-        try:
-            text = macro.ocr_region(lay["item_region"], bring_front=False)
-        except Exception:
-            text = ""
-        got = popping._clean_name(text.splitlines()[0] if text else "")
-        items = watcher_core.MERCHANT_ITEMS.get(name) or [n for v in watcher_core.MERCHANT_ITEMS.values() for n in v]
-        score = max((popping.similarity(got, n) for n in items), default=0)
-        if score < float((self.get_pop() or {}).get("match_threshold", 70)):
-            self.log(f"상점 자동 보정 — 첫 칸 이름을 못 읽음 ('{got}')", "y")
-            return c
+        end = time.time() + 5
+        while True:
+            rect = self._rect(stop)
+            lay = shop_layout(macro.ocr_boxes(None), rect)
+            if lay or time.time() > end:
+                break
+            self._wait(0.4, stop)
+        if not lay:
+            self.log("상점 자동 보정 — Set to Max 버튼을 못 찾음", "y")
+            return c, None
+        labels = lay.pop("labels")
         if self.on_cal:
             self.on_cal(lay)
         self.log("상점 위치 자동 보정 완료", "g")
-        return dict(c, **lay)
+        return dict(c, **lay), labels
 
-    def _buy_slots(self, c, base, name, want, stop):
+    def _buy_slots(self, c, base, name, want, stop, labels=None):
         f, s2 = c["first_slot"], c["second_slot"]
         gap = (s2[0] - f[0], s2[1] - f[1])
         th = float((self.get_pop() or {}).get("match_threshold", 70))
         for i in range(int(c.get("slots", 5))):
+            lab = (labels or [""] * 5)[i] if i < 5 else ""
+            if lab:                                    # 칸 이름이 읽혔으면 살 것만 누름
+                best, score = match_item(lab, want)
+                if best not in want or score < th:
+                    self.log(f"{i + 1}번 칸 '{lab}' — 안 삼", "d")
+                    continue
             pos = [f[0] + gap[0] * i, f[1] + gap[1] * i]
             self._set(msg=f"상점 {i + 1}번 칸 확인")
             self._click(pos, stop)
@@ -284,17 +345,18 @@ class Merchant(popping.Popper):
             except Exception as e:
                 self.log(f"아이템 이름 OCR 오류: {e}", "r")
                 continue
-            got = popping._clean_name(text.splitlines()[0] if text else "")
-            # 그 상인의 아이템 전체 중 가장 비슷한 것 (Gear A ↔ Gear B 처럼 비슷한 이름을 잘못 사지 않게)
-            names = set(watcher_core.MERCHANT_ITEMS.get(name, ())) | set(want)
-            best = max(names, key=lambda n: popping.similarity(got, n))
-            if best not in want or popping.similarity(got, best) < th:
+            got = item_name(text)
+            # 상인 아이템 전체 중 가장 비슷한 것 (Gear A ↔ Gear B · Lucky Potion ↔ Lucky Penny 를 잘못 사지 않게)
+            best, score = match_item(got, want)
+            if best not in want or score < th:
                 self.log(f"{i + 1}번 칸 '{got}' — 안 삼", "d")
                 continue
             amount = int(want[best])
             self._set(msg=f"{best} {amount}개 구매")
-            self._click(c["amount_pos"], stop, double_gap=0.1)
-            self._wait(0.3, stop)
+            self._click(c["amount_pos"], stop)
+            self._wait(0.2, stop)
+            macro.key_combo(["ctrl", "a"])
+            self._wait(0.1, stop)
             macro.paste_text(str(amount))
             self._wait(0.3, stop)
             self._click(c["purchase_pos"], stop)

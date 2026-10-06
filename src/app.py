@@ -726,11 +726,11 @@ class Bridge:
         # 판매 (Noteab 매크로의 1920x1080 위치 프리셋 · Apache 2.0) — Sell Fish 버튼 · 물고기 정보 영역은 직접 지정
         "mfish": {"first_fish_pos": [0.4349, 0.3778], "sell_all_pos": [0.3464, 0.7444],
                   "confirm_sell_pos": [0.4141, 0.5731], "shop_close_pos": [0.7609, 0.2528]},
-        # 상인 (Noteab 매크로의 1920x1080 위치 프리셋 · Apache 2.0)
+        # 상인 — 1920x1080 전체 화면 스크린샷에서 잰 값 (채팅 위치는 Noteab 매크로 1080p 프리셋 · Apache 2.0)
         "mmerch": {"chat_hover": [0.0365, 0.1778], "chat_region": [0.0042, 0.0935, 0.251, 0.3426],
-                   "open_pos": [0.3406, 0.8759], "first_slot": [0.4958, 0.6657], "second_slot": [0.5964, 0.6657],
-                   "item_region": [0.575, 0.3407, 0.7672, 0.3731], "amount_pos": [0.5438, 0.5657],
-                   "purchase_pos": [0.5115, 0.6167], "close_pos": [0.9422, 0.3204]},
+                   "open_pos": [0.3396, 0.8759], "first_slot": [0.5021, 0.6667], "second_slot": [0.601, 0.6667],
+                   "item_region": [0.5724, 0.3444, 0.9427, 0.3741], "amount_pos": [0.5474, 0.5667],
+                   "purchase_pos": [0.6125, 0.613], "close_pos": [0.9422, 0.3213]},
     }
 
     BANNER_PROGRESS = Path(tempfile.gettempdir()) / f"acrux_banner_{os.getpid()}.txt"

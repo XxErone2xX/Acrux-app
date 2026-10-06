@@ -1317,7 +1317,7 @@ const mmerch = () => (config.mmerch ||= {});
 const saveMmerch = () => queueSave({ mmerch: JSON.parse(JSON.stringify(mmerch())) });
 const MERCH_ITEMS = { Jester: ['Oblivion Potion', 'Heavenly Potion', 'Potion of Bound', 'Rune of Everything', 'Random Potion Sack',
                                "Stella's Candle", 'Lucky Potion'],
-                      Mari: ['Void Coin', 'Lucky Penny', 'Gear A', 'Gear B'] };
+                      Mari: ['Void Coin', 'Lucky Penny', 'Gear A', 'Gear B', 'Mixed Potion', 'Speed Potion', 'Lucky Potion', 'Fortune Spoid I'] };
 const MERCH_NAME = { Jester: '제스터', Mari: '마리' };
 const MMERCH_SET = [['check_sec', '채팅 확인 간격', '초', 30, 10, 5], ['teleport_wait', '순간이동 후 대기', '초', 3, 0.5, 0.5],
                     ['slots', '상점 칸 수', '칸', 5, 1, 1]];
@@ -1329,7 +1329,7 @@ function renderMmerch() {
   $('mmerchForm').innerHTML = `
     <label class="row"><span>켜기<small>매크로가 켜져 있는 동안 채팅을 확인</small></span>
       <span class="switch"><input type="checkbox" id="mmerchOn" ${m.enabled ? 'checked' : ''}><i></i></span></label>
-    <label class="row"><span>상점 위치 자동 보정<small>순간이동 후 상점이 열리면 Purchase 버튼으로 위치를 맞춤</small></span>
+    <label class="row"><span>상점 위치 자동 보정<small>순간이동 후 상점이 열리면 화면 글자로 위치를 맞춤</small></span>
       <span class="switch"><input type="checkbox" id="mmerchCal" ${m.auto_cal !== false ? 'checked' : ''}><i></i></span></label>
     <div class="row"><span>위치<small>매크로 기준 위치 설정 → 상인 · 통합 위치</small></span>
       <span class="${miss ? 'warn' : ''}">${miss ? `${miss}개 지정 안 됨` : '지정됨'}</span></div>` +
