@@ -12,11 +12,15 @@ import time
 import macro
 import popping
 import sell
+import watcher_core
 
 NAMES = ("Mari", "Jester", "Rin")
 # OCR 로 읽은 채팅 (영문만 · 소문자 · a→o · i→l 로 맞춘 글자) 에서 '이름 has arrived'
 _ARRIVE = re.compile(r"(m[o0]rl|jester|r[l1]n)h[o0]s[o0]rrlved")
 DIALOG_AREA = sell.DIALOG_AREA
+# 매크로 기준 위치 설정 → 상인 (버튼 위치)
+POS_KEYS = (("chat_hover", "채팅창 위치"), ("open_pos", "Open 선택지"), ("first_slot", "첫 번째 칸"), ("second_slot", "두 번째 칸"),
+            ("amount_pos", "수량 입력칸"), ("purchase_pos", "Purchase 버튼"), ("close_pos", "상점 닫기 X"))
 
 
 def arrived_in(text):
@@ -175,7 +179,7 @@ class Merchant(popping.Popper):
                 return
             self._wait(2.0, stop)
             # 3. 칸마다 확인하고 사기
-            self._buy_slots(c, base, want, stop)
+            self._buy_slots(c, base, name, want, stop)
             self._set(msg="상점 닫기")
             self._click(c["close_pos"], stop)
             self._wait(0.8, stop)
@@ -203,7 +207,7 @@ class Merchant(popping.Popper):
             return True
         return False
 
-    def _buy_slots(self, c, base, want, stop):
+    def _buy_slots(self, c, base, name, want, stop):
         f, s2 = c["first_slot"], c["second_slot"]
         gap = (s2[0] - f[0], s2[1] - f[1])
         th = float((self.get_pop() or {}).get("match_threshold", 70))
@@ -218,9 +222,10 @@ class Merchant(popping.Popper):
                 self.log(f"아이템 이름 OCR 오류: {e}", "r")
                 continue
             got = popping._clean_name(text.splitlines()[0] if text else "")
-            best = max(want, key=lambda n: popping.similarity(got, n))
-            score = popping.similarity(got, best)
-            if score < th:
+            # 그 상인의 아이템 전체 중 가장 비슷한 것 (Gear A ↔ Gear B 처럼 비슷한 이름을 잘못 사지 않게)
+            names = set(watcher_core.MERCHANT_ITEMS.get(name, ())) | set(want)
+            best = max(names, key=lambda n: popping.similarity(got, n))
+            if best not in want or popping.similarity(got, best) < th:
                 self.log(f"{i + 1}번 칸 '{got}' — 안 삼", "d")
                 continue
             amount = int(want[best])

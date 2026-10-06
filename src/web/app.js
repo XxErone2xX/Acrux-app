@@ -485,7 +485,7 @@ function fillFields() {
 }
 
 let pending = {}, saveTimer = null;
-const LOCAL_KEYS = ['play', 'biome', 'pop', 'ret', 'snipe', 'mpop', 'mfish', 'mitem', 'base', 'move'];
+const LOCAL_KEYS = ['play', 'biome', 'pop', 'ret', 'snipe', 'mpop', 'mfish', 'mitem', 'mmerch', 'base', 'move'];
 function queueSave(patch) {
   Object.assign(pending, patch);
   // 팝핑·바이옴·매크로 탭 설정은 화면 쪽 객체가 원본 (폼이 그 객체를 직접 고치므로 복사본으로 바꾸면 이후 수정이 사라짐)
@@ -767,8 +767,8 @@ $('mgMacro').addEventListener('click', () => {
 document.querySelectorAll('[data-tab-go]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tabGo, true)));
 
 // 켜진 매크로 탭 기능 수
-const macroFeatures = () => [mpop().enabled, mfish().enabled, mitem().enabled].filter(Boolean).length;
-let lastBio = null, lastMpop = null, lastMfish = null, lastMitem = null;
+const macroFeatures = () => [mpop().enabled, mfish().enabled, mitem().enabled, mmerch().enabled].filter(Boolean).length;
+let lastBio = null, lastMpop = null, lastMfish = null, lastMitem = null, lastMmerch = null;
 function syncMainTiles() {
   const bOn = !!bio().enabled;
   setTile('biome', bOn);
@@ -783,6 +783,7 @@ function syncMainTiles() {
   $('mtMacro').textContent = !mOn ? (n ? `꺼짐 · 기능 ${n}개 켜짐` : '꺼짐')
     : lastMpop && lastMpop.running ? (lastMpop.msg || '포션 사용 중')
     : lastMitem && lastMitem.running ? (lastMitem.msg || '아이템 사용 중')
+    : lastMmerch && lastMmerch.running && lastMmerch.job === 'buy' ? (lastMmerch.msg || '상인 구매 중')
     : lastMfish && lastMfish.running ? (lastMfish.msg || '낚시 중')
     : sniping ? '스나이핑 중이라 대기'
     : n ? `작동 중 · 기능 ${n}개` : '켜진 기능 없음';
@@ -813,8 +814,9 @@ async function poll() {
     updateMpop(r.mpop);
     updateMfish(r.mfish);
     updateMove(r.move);
-    lastBio = r.biome; lastMpop = r.mpop; lastMfish = r.mfish; lastMitem = r.mitem;
+    lastBio = r.biome; lastMpop = r.mpop; lastMfish = r.mfish; lastMitem = r.mitem; lastMmerch = r.mmerch;
     updateMitem(r.mitem);
+    updateMmerch(r.mmerch);
     updateOnline(r.online);
     $('acOnline').closest('.row').hidden = !r.online_on;   // 사용자 수 서버가 아직 없으면 스위치도 숨김
     if (r.macro_on !== undefined && !!r.macro_on !== !!config.macro_on && Date.now() - macroClickAt > 2000)
@@ -1276,9 +1278,9 @@ function renderMitem() {
     <div class="row"><span>인벤토리 위치 · OCR 영역<small>매크로 기준 위치 설정 → 통합 위치 에서 지정</small></span>
       <span class="${posMiss ? 'warn' : ''}">${posMiss ? `${posMiss}개 지정 안 됨` : '지정됨'}</span></div>` +
     MITEMS.map(([k, name, mk, def]) => `
-    <label class="row"><span>${name}<small>켜면 이 간격(분)마다 1개 사용 · <b data-mitem-left="${k}">-</b></small></span>
+    <div class="row"><span>${name}<small>켜면 이 간격(분)마다 1개 사용 · <b data-mitem-left="${k}">-</b></small></span>
       <span class="pos"><input type="number" min="1" step="0.5" data-mitem-min="${mk}" value="${m[mk] ?? def}" title="분">
-      <span class="switch"><input type="checkbox" data-mitem-on="${k}" ${m[k] !== false ? 'checked' : ''}><i></i></span></span></label>`).join('') + `
+      <label class="switch"><input type="checkbox" data-mitem-on="${k}" ${m[k] !== false ? 'checked' : ''}><i></i></label></span></div>`).join('') + `
     <label class="row"><span>다 쓰고 Inventory 닫기<small>Inventory 버튼을 한 번 더 눌러 닫음</small></span>
       <span class="switch"><input type="checkbox" id="mitemClose" ${m.close_inventory !== false ? 'checked' : ''}><i></i></span></label>
     <div class="row"><span>이번 실행 사용 횟수<small>Strange Controller · Biome Randomizer</small></span><b id="mitemUsed">-</b></div>`;
@@ -1310,19 +1312,88 @@ $('mitemTest').addEventListener('click', async () => {
 });
 $('mitemStop').addEventListener('click', () => api('mitem_stop'));
 
+// ---------------------------------------------------------------- 매크로 탭 · 상인 자동 구매
+const mmerch = () => (config.mmerch ||= {});
+const saveMmerch = () => queueSave({ mmerch: JSON.parse(JSON.stringify(mmerch())) });
+const MERCH_ITEMS = { Jester: ['Oblivion Potion', 'Heavenly Potion', 'Potion of Bound', 'Rune of Everything', 'Random Potion Sack',
+                               "Stella's Candle", 'Lucky Potion'],
+                      Mari: ['Void Coin', 'Lucky Penny', 'Gear A', 'Gear B'] };
+const MERCH_NAME = { Jester: '제스터', Mari: '마리' };
+const MMERCH_SET = [['check_sec', '채팅 확인 간격', '초', 30, 10, 5], ['teleport_wait', '순간이동 후 대기', '초', 3, 0.5, 0.5],
+                    ['slots', '상점 칸 수', '칸', 5, 1, 1]];
+const MMERCH_POS = ['chat_hover', 'chat_region', 'first_slot', 'second_slot', 'item_region', 'amount_pos', 'purchase_pos', 'close_pos'];
+function renderMmerch() {
+  const m = mmerch(), buy = (m.buy ||= {});
+  const miss = MMERCH_POS.filter(k => !m[k]).length + (base().dialog_pos ? 0 : 1) + POP_POS_KEYS.filter(k => !base()[k]).length;
+  $('mmerchForm').innerHTML = `
+    <label class="row"><span>켜기<small>매크로가 켜져 있는 동안 채팅을 확인</small></span>
+      <span class="switch"><input type="checkbox" id="mmerchOn" ${m.enabled ? 'checked' : ''}><i></i></span></label>
+    <div class="row"><span>위치<small>매크로 기준 위치 설정 → 상인 · 통합 위치</small></span>
+      <span class="${miss ? 'warn' : ''}">${miss ? `${miss}개 지정 안 됨` : '지정됨'}</span></div>` +
+    MMERCH_SET.map(([k, name, unit, def, min, step]) => `
+    <label class="row"><span>${name}<small>${unit}</small></span>
+      <input type="number" min="${min}" step="${step}" data-mmerch-set="${k}" value="${m[k] ?? def}"></label>`).join('') + `
+    <div class="row"><span>구매 테스트<small>상인이 와 있을 때 Merchant Teleporter 부터 한 번</small></span>
+      <span class="pos"><button class="btn mini ghost" type="button" data-mmerch-buy="Mari">마리</button>
+      <button class="btn mini ghost" type="button" data-mmerch-buy="Jester">제스터</button></span></div>
+    <div class="row"><span>이번 실행 구매 횟수</span><b id="mmerchBought">-</b></div>`;
+  $('mmerchItems').innerHTML = Object.entries(MERCH_ITEMS).map(([who, list]) => `
+    <div class="row mmerch-who"><b>${MERCH_NAME[who]}</b></div>` + list.map(n => {
+    const k = `${who}_${n}`, on = buy[k] > 0;
+    return `
+    <div class="row"><span>${n}</span>
+      <span class="pos"><input type="number" min="1" max="999" step="1" data-mmerch-amt="${k}" value="${buy[k] || 1}" title="개수" ${on ? '' : 'disabled'}>
+      <label class="switch"><input type="checkbox" data-mmerch-item="${k}" ${on ? 'checked' : ''}><i></i></label></span></div>`;
+  }).join('')).join('');
+  $('mmerchOn').addEventListener('change', e => setFeature('mmerch', e.target.checked));
+  $('mmerchForm').querySelectorAll('[data-mmerch-set]').forEach(i => i.addEventListener('input', () => {
+    const n = parseFloat(i.value);
+    if (Number.isFinite(n) && n >= +i.min) { m[i.dataset.mmerchSet] = n; saveMmerch(); }
+  }));
+  $('mmerchForm').querySelectorAll('[data-mmerch-buy]').forEach(b => b.addEventListener('click', async () => {
+    const r = await api('mmerch_buy_test', { name: b.dataset.mmerchBuy });
+    toast(r.error || '구매 테스트 시작 · 정지: F7');
+  }));
+  $('mmerchItems').querySelectorAll('[data-mmerch-item]').forEach(i => i.addEventListener('change', () => {
+    const k = i.dataset.mmerchItem, amt = $('mmerchItems').querySelector(`[data-mmerch-amt="${k}"]`);
+    if (i.checked) buy[k] = Math.max(1, parseInt(amt.value) || 1); else delete buy[k];
+    amt.disabled = !i.checked;
+    saveMmerch();
+  }));
+  $('mmerchItems').querySelectorAll('[data-mmerch-amt]').forEach(i => i.addEventListener('input', () => {
+    const n = parseInt(i.value);
+    if (buy[i.dataset.mmerchAmt] && n >= 1) { buy[i.dataset.mmerchAmt] = Math.min(999, n); saveMmerch(); }
+  }));
+  if (lastMmerch) updateMmerch(lastMmerch);
+}
+function updateMmerch(st) {
+  const running = !!(st && st.running);
+  $('mmerchDot').dataset.s = running ? 'flux' : '';
+  $('mmerchState').textContent = running ? (st.msg || '작동 중') : '대기';
+  $('mmerchCheck').disabled = running;
+  const b = $('mmerchBought');
+  if (b && st) b.textContent = st.bought;
+}
+$('mmerchCheck').addEventListener('click', async () => {
+  const r = await api('mmerch_check');
+  toast(r.error || '채팅 확인 중 · 상인이 있으면 구매까지 이어감');
+});
+$('mmerchStop').addEventListener('click', () => api('mmerch_stop'));
+
 // ---------------------------------------------------------------- 매크로 기능 설정 · 기능 켜기 · 끄기
 // 준비 중인 기능은 자리만 (만들면 key 를 채움)
 const MFEATS = [['mpop', '레어 바이옴 자동 팝핑', '내 서버에서 레어 바이옴이 뜨면 포션 사용'],
   ['mfish', '자동 낚시', '낚시 장소로 가서 낚시 · 가득 차면 판매'],
   ['mitem', '오토 아이템 사용', '아이템 자동 사용'],
-  [null, '상인 자동 구매', '준비 중'], [null, '포션 자동 제작', '준비 중'], [null, '오토 메모리 매치', '준비 중']];
-const FEAT_NAME = { mpop: '레어 바이옴 자동 팝핑', mfish: '자동 낚시', mitem: '오토 아이템 사용' };
-const featCfg = k => ({ mpop, mfish, mitem, base })[k]();
+  ['mmerch', '상인 자동 구매', '마리 · 제스터가 오면 고른 아이템 구매'], [null, '포션 자동 제작', '준비 중'], [null, '오토 메모리 매치', '준비 중']];
+const FEAT_NAME = { mpop: '레어 바이옴 자동 팝핑', mfish: '자동 낚시', mitem: '오토 아이템 사용', mmerch: '상인 자동 구매' };
+const featCfg = k => ({ mpop, mfish, mitem, mmerch, base })[k]();
 function setFeature(k, on, quiet) {
   const c = featCfg(k);
   c.enabled = !!on;
   queueSave({ [k]: JSON.parse(JSON.stringify(c)) });
   if (k === 'mfish' && !on) api('mfish_stop');
+  if (k === 'mmerch' && !on) api('mmerch_stop');
   // 다시 그리지 않고 같은 기능의 스위치만 맞춤 (다시 그리면 누른 스위치가 새로 생겨서 움직이는 애니메이션이 안 보임)
   document.querySelectorAll(`#${k}On, [data-feat="${k}"]`).forEach(i => { i.checked = !!on; });
   syncMainTiles();
@@ -1382,6 +1453,19 @@ const MPOS = {
                    ['sell_fish_pos', 'first_fish_pos', 'sell_all_pos', 'confirm_sell_pos', 'shop_close_pos', 'info_region'], true, 'sell', 'sellauto'],
                   ['move', '이동', '매크로를 켜면 낚시 장소로, 가득 차면 판매 장소로 이동', [], false, 'places:mfish']] },
 };
+MPOS.mmerch = { box: 'mposMerch', tpl: true,
+  points: [['chat_hover', '채팅창', '채팅 글자 위 (마우스를 올리면 채팅이 보임)'],
+           ['open_pos', 'Open 선택지', '대화 선택지 Open (글자로 못 찾을 때만)'],
+           ['first_slot', '첫 번째 칸', '상점 맨 왼쪽 아이템 칸'],
+           ['second_slot', '두 번째 칸', '그 옆 칸 (칸 간격 계산)'],
+           ['amount_pos', '수량 입력칸', '아이템을 누르면 뜨는 수량 칸'],
+           ['purchase_pos', 'Purchase 버튼', '수량 칸 아래 Purchase'],
+           ['close_pos', '상점 닫기 X', '상점 오른쪽 위 X']],
+  regions: [['chat_region', '채팅 글자 영역', '채팅 글자가 보이는 곳 전체'],
+            ['item_region', '아이템 이름 영역', '칸을 눌렀을 때 뜨는 아이템 이름']],
+  tabs: [['chat', '채팅', '상인 도착 감지 (채팅 OCR)', ['chat_hover', 'chat_region'], true],
+         ['shop', '상점', '대화창 · 인벤토리는 통합 위치를 씀',
+          ['open_pos', 'first_slot', 'second_slot', 'item_region', 'amount_pos', 'purchase_pos', 'close_pos']]] };
 const MPOS_RATIOS = [['16:9', '16:9']];                // 다른 비율은 추정값이라 불안정해서 뺌
 let mposRatio = '16:9';
 function renderMpos(feat) {
@@ -1646,7 +1730,9 @@ function updateMove(st) {
 // 위치는 서버가 이미 저장함 → 화면만 다시 그림
 function mposChanged(feat) {
   renderMpos(feat);
-  if (feat === 'base') { renderMpop(); renderPopSet(); renderMitem(); } else renderMfish();
+  if (feat === 'base') { renderMpop(); renderPopSet(); renderMitem(); renderMmerch(); }
+  else if (feat === 'mmerch') renderMmerch();
+  else renderMfish();
 }
 // 스나이프 탭 오토 팝핑 ↔ 통합 위치 연동 (양쪽 화면에서 같은 스위치)
 function setPopLink(on) {
@@ -2479,9 +2565,9 @@ const Tutorial = (() => {
   fillBiome();
   fillMpop();
   renderMfish();
-  renderMitem();
+  renderMitem(); renderMmerch();
   renderMfAll();
-  renderMpos('base'); renderMpos('mfish');
+  renderMpos('base'); renderMpos('mfish'); renderMpos('mmerch');
   fillAcrux();
   renderSummary();
   setStatus(s.status);

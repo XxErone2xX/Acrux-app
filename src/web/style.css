@@ -740,3 +740,4 @@ body:not(.in-page) .lang.in-card { display: none; }
 .now-active b { font-size: 13px; }
 .now-active .na-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
 .now-active.live .na-dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.mmerch-who b { font-size: 13px; color: var(--muted, #8a8f98); }
