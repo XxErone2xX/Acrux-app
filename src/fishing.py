@@ -44,6 +44,7 @@ DIAMOND_IDLE_R = (0.8735, 0.8239)        # 미니게임 창 기준
 DIAMOND_REEL_R = (0.9317, 0.8310)        # 미니게임 창 기준
 FINISH_GAP = 0.1         # 낚은 뒤 Fish 버튼이 다시 보일 때까지 결과창 X 를 누르는 간격 (초)
 FINISH_MAX = 10.0        # 그래도 Fish 버튼이 안 보이면 이 시간 뒤 다시 상태 확인부터
+FIND_X_AFTER = 5.0       # 낚은 뒤 이 시간 동안 Fish 버튼이 안 보이면 결과창 X 를 화면에서 찾아서 누름 (결과창이 다른 높이에 뜰 때)
 FULL_WORDS = ("cannot fish", "inventory space", "not have enough", "inventory")   # 인벤토리 가득 알림 글자
 POS_KEYS = (("fish_btn", "Fish 버튼"), ("close_pos", "결과창 X"), ("title_pos", "결과창 제목"))
 
@@ -74,6 +75,43 @@ def layout_from(region, layout):
 def _np(data, w, h):
     import numpy as np
     return np.frombuffer(data, dtype=np.uint8).reshape(h, w, 4)[:, :, 2::-1].astype(np.int16)   # BGRA → RGB
+
+
+def find_close_x(rgb, H):
+    """세로 띠 화면(RGB) 안에서 흰 × 버튼 → (가운데 x, y) 또는 None · H = 창 높이
+    결과창이 가끔 지정한 자리보다 위 · 아래에 떠서 X 자리가 바뀜 → X 가 있는 세로줄을 훑어서 찾음 (가벼운 픽셀 검사)"""
+    import numpy as np
+    try:
+        import cv2
+    except ImportError:
+        return None
+    white = rgb.min(axis=2) > 190
+    _n, _lab, stats, _c = cv2.connectedComponentsWithStats(white.astype(np.uint8), connectivity=8)
+    best = None
+    for x1, y1, bw, bh, n in stats[1:]:
+        x2, y2 = x1 + bw - 1, y1 + bh - 1
+        if not (0.007 * H <= bw <= 0.035 * H and 0.007 * H <= bh <= 0.035 * H and 0.7 <= bw / bh <= 1.4):
+            continue
+        if not 0.15 <= n / (bw * bh) <= 0.6:                   # 가는 대각선 두 줄
+            continue
+        m = max(bw, bh)                                        # 글자 x 가 아니라 따로 떨어진 버튼인지 (둘레가 비어 있어야 함)
+        ring = white[max(0, y1 - m):y2 + m + 1, max(0, x1 - m):x2 + m + 1]
+        if int(ring.sum()) - n > 0.15 * n:
+            continue
+        sub = white[y1:y2 + 1, x1:x2 + 1]
+
+        def diag(flip, k=9):
+            hit = 0
+            for i in range(1, k):
+                t = i / k
+                yy, xx = int(t * (bh - 1)), int((1 - t if flip else t) * (bw - 1))
+                hit += bool(sub[max(0, yy - 1):yy + 2, max(0, xx - 1):xx + 2].any())
+            return hit / (k - 1)
+        if diag(False) >= 0.85 and diag(True) >= 0.85:
+            c = ((x1 + x2) / 2, (y1 + y2) / 2)
+            if best is None or c[1] < best[1]:
+                best = c
+    return best
 
 
 def button_state(rgb):
@@ -662,7 +700,7 @@ class Fisher:
                     self.stop_ev.set()
                     raise Stopped()
                 self.log(f"한동안 낚시가 진행되지 않음 — 화면 복구 ({rescues}/3)", "y")
-                self._rescue(cfg, stop)
+                self._rescue(cfg, stop, sct)
                 progress_at = time.time()
                 cast_at, tries, wait_at, unknown_at = None, 0, None, None
                 continue
@@ -731,19 +769,35 @@ class Fisher:
             else:                                    # 알 수 없음 (다른 창이 가림 · 로딩 등)
                 unknown_at = unknown_at or now
                 self._set(msg="낚시 화면 확인 중")
-                if now - unknown_at > 3.0:
-                    self._click_ratio(cfg["close_pos"], stop)     # 결과창 등이 가리고 있을 수 있음 → X 한 번
+                if now - unknown_at > 3.0:                # 결과창 등이 가리고 있을 수 있음 → X 한 번 (화면에서 찾은 X 먼저)
+                    if not self._click_found_x(sct, rect, cfg, stop):
+                        self._click_ratio(cfg["close_pos"], stop)
                     unknown_at = time.time()
                     self._wait(0.6, stop)
                     continue
             # 기다리는 동안은 0.1초마다만 봄 (화면 캡처는 로블록스를 버벅이게 할 수 있음)
             self._wait(0.1, stop)
 
-    def _rescue(self, cfg, stop):
-        """꼬인 화면 풀기: 결과창 X 를 몇 번 누름 (UI 내비게이션 \ 은 안 씀)"""
+    def _click_found_x(self, sct, rect, cfg, stop):
+        """결과창 X 를 지정한 X 의 세로줄에서 찾아서 누름 → 눌렀으면 True"""
+        x, _y = macro.to_screen(cfg["close_pos"][0], 0, rect)
+        half = max(10, int(rect[3] * 0.06))
+        top, h = rect[1] + int(rect[3] * 0.05), int(rect[3] * 0.7)
+        img = sct.grab({"left": x - half, "top": top, "width": 2 * half, "height": h})
+        found = find_close_x(_np(bytes(img.bgra), img.width, img.height), rect[3])
+        if not found:
+            return False
+        fx, fy = x - half + found[0], top + found[1]
+        self.log("결과창이 다른 자리에 뜸 — X 를 찾아서 누름", "d")
+        macro.click(int(fx), int(fy))
+        return True
+
+    def _rescue(self, cfg, stop, sct=None):
+        """꼬인 화면 풀기: 결과창 X 를 몇 번 누름 (UI 내비게이션 \ 은 안 씀) · 화면에서 찾은 X 가 있으면 그걸 누름"""
         self._set(msg="화면 복구 중")
         for _ in range(3):
-            self._click_ratio(cfg["close_pos"], stop)
+            if not (sct and self._click_found_x(sct, self._rect(stop), cfg, stop)):
+                self._click_ratio(cfg["close_pos"], stop)
             self._wait(0.5, stop)
 
     def _inventory_full(self, stop, tries, notice=False):
@@ -765,7 +819,8 @@ class Fisher:
         import numpy as np
         self._set(msg="결과창 닫는 중")
         title = cfg.get("title_pos") if base is not None else None
-        end = time.time() + FINISH_MAX
+        start = time.time()
+        end, find_at = start + FINISH_MAX, start + FIND_X_AFTER
         seen = set()                                 # 결과창이 보이는 동안 읽은 제목 색들 (X 는 기다리지 않고 바로 누름)
         while time.time() < end:
             self._check(stop)
@@ -776,6 +831,11 @@ class Fisher:
                 img = self._grab_box(sct, rect, title, 0.12, 0.05)
                 if img.shape == base.shape and float(np.abs(img - base).mean()) > 18:
                     seen.add(classify_title(img))
+            if time.time() >= find_at:               # 5초가 지나도 안 닫힘 → 결과창이 다른 자리에 뜬 것 → X 를 찾아서 누름
+                find_at = time.time() + 0.5
+                if self._click_found_x(sct, rect, cfg, stop):
+                    self._wait(0.3, stop)
+                    continue
             self._click_ratio(cfg["close_pos"], stop)
             self._wait(FINISH_GAP, stop)
         else:
