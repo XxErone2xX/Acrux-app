@@ -92,30 +92,32 @@ def button_state(rgb):
     return "fish" if blue >= red else "exit"
 
 
+FAIL_RGB = (255, 65, 65)       # 'Fishing Failed' 글자 색 (정확히 이 색만 실패 — Hell 바이옴 물고기 등 다른 빨강은 성공)
+JUNK_RGB = (186, 186, 186)     # 'Fish Caught...?' 글자 색 (쓰레기)
+
+
 def classify_title(rgb):
-    """결과창 제목 주변 픽셀 → 'success' / 'junk'(회색) / 'fail'(빨강) / None
-    성공 'Fish Caught!' 은 흰색 (희귀한 물고기면 하늘색 등 다른 색) · 쓰레기 'Fish Caught...?' 은 회색 (186) · 실패는 빨강
-    흰 글자의 가장자리는 회색으로 번져 보여서 회색만 세면 흰 글자(성공)를 쓰레기로 착각함 → 흰색 · 밝은 색 글자가 있으면 성공"""
-    r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
-    n = max(1, r.size)
-    mx = rgb.max(axis=2)
-    mn = rgb.min(axis=2)
-    red = (r > 200) & (r - g > 110) & (r - b > 110)                                  # Fishing Failed (255, 65, 65)
-    white = mn >= 232                                                                 # Fish Caught! (253, 254, 255)
-    colored = (mx >= 220) & (mx - mn >= 50) & ~red                                    # 희귀 물고기 (198, 255, 244) 등
-    gray = (r > 165) & (r < 215) & (abs(r - g) < 14) & (abs(g - b) < 14)             # Fish Caught...? (186, 186, 186)
-    need = max(12, n * 0.006)
+    """결과창 제목 주변 픽셀 → 'fail' / 'junk' / 'success' / None
+    실패 · 쓰레기는 정해진 글자 색일 때만 · 흰색 · 하늘색 · 다른 빨강 등 그 밖의 밝은 제목은 전부 성공"""
+    n = max(1, rgb.shape[0] * rgb.shape[1])
     h = rgb.shape[0]
+
+    def near(c, tol=8):
+        return (abs(rgb[:, :, 0] - c[0]) <= tol) & (abs(rgb[:, :, 1] - c[1]) <= tol) & (abs(rgb[:, :, 2] - c[2]) <= tol)
 
     def title_like(mask, least):
         """제목 글자 모양인지: 충분히 많고 · 가로로 넓게 퍼지고 · 여러 줄에 걸침
         (미니게임 창의 빨간 '0.0' 남은 시간 · 흰 테두리 줄 같은 걸 제목으로 착각하지 않게)"""
         return int(mask.sum()) >= least and mask.any(axis=0).mean() >= 0.3 and int(mask.any(axis=1).sum()) >= max(4, h * 0.15)
-    if title_like(red, need):
+    need = max(12, n * 0.006)
+    fail, junk = near(FAIL_RGB), near(JUNK_RGB)
+    mx, mn = rgb.max(axis=2), rgb.min(axis=2)
+    other = ((mn >= 232) | ((mx >= 220) & (mx - mn >= 50))) & ~fail                     # 흰색 · 밝은 색 글자
+    if title_like(fail, need):
         return "fail"
-    if title_like(white | colored, need):
+    if title_like(other, need):
         return "success"
-    if title_like(gray, max(20, n * 0.02)):
+    if title_like(junk, max(20, n * 0.02)):
         return "junk"
     return None
 
@@ -770,7 +772,7 @@ class Fisher:
             rect = self._rect(stop)
             if button_state(self._grab_box(sct, rect, cfg["fish_btn"])) in ("fish", "exit"):
                 break                                # Fish(또는 이미 다시 던진 Exit)가 보이면 낚시 화면으로 돌아온 것
-            if title and "success" not in seen and "fail" not in seen:
+            if title and "fail" not in seen:
                 img = self._grab_box(sct, rect, title, 0.12, 0.05)
                 if img.shape == base.shape and float(np.abs(img - base).mean()) > 18:
                     seen.add(classify_title(img))
@@ -778,13 +780,11 @@ class Fisher:
             self._wait(FINISH_GAP, stop)
         else:
             self.log(f"결과창을 닫은 뒤 {FINISH_MAX:g}초 동안 Fish 버튼이 안 보임 — 다시 확인", "y")
-        # 회색 제목(쓰레기) · 빨간 제목(실패)이 보였을 때만 그 결과 · 그 밖엔 전부 성공
-        # (흰색 · 하늘색 등 물고기마다 제목 색이 달라서 · 결과창이 빨리 닫혀 제목을 못 읽었어도 성공으로 셈)
-        # 흐린 순간엔 성공 제목도 회색처럼 보일 수 있어서, 성공 글자가 한 번이라도 보였으면 성공이 우선
-        if "success" in seen:
-            kind = "success"
-        else:
-            kind = next((k for k in ("fail", "junk") if k in seen), "success")
+        # 실패 색(255, 65, 65) · 쓰레기 색(186, 186, 186) 제목이 보였을 때만 그 결과 · 그 밖엔 전부 성공
+        # (흰색 · 하늘색 · 다른 빨강 등 물고기마다 제목 색이 달라서 · 결과창이 빨리 닫혀 제목을 못 읽었어도 성공으로 셈)
+        # 실패 색은 다른 제목엔 없어서 한 번이라도 보이면 실패 (뜨는 중 흐린 '실패' 글자는 다른 색처럼 보일 수 있음)
+        # 쓰레기 회색은 흐린 성공 글자로도 보일 수 있어서, 성공 글자가 한 번이라도 보였으면 성공
+        kind = next((k for k in ("fail", "success", "junk") if k in seen), "success")
         self.stats[kind or "unknown"] += 1
         name = {"success": "성공", "junk": "쓰레기", "fail": "실패"}.get(kind, "결과 확인 안 됨")
         self.log(f"낚시 결과: {name} · 성공 {self.stats['success']} / 쓰레기 {self.stats['junk']} / 실패 {self.stats['fail']}",

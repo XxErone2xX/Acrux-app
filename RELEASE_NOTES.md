@@ -1,7 +1,9 @@
-## Acrux macro V1.26.12 업데이트
-- 낚시 결과 판정을 단순하게: 회색 제목(쓰레기) · 빨간 제목(실패)이 보였을 때만 그 결과, 그 밖엔 전부 성공
-  - 물고기마다 제목 색이 달라도 성공으로 셈 · 결과창이 빨리 닫혀 제목을 못 읽었을 때도 성공으로 셈
+## Acrux macro V1.26.13 업데이트
+- 낚시 실패 · 쓰레기는 정해진 글자 색일 때만 셈
+  - 실패: "Fishing Failed" 빨강 (255, 65, 65) · 쓰레기: "Fish Caught...?" 회색 (186, 186, 186)
+  - Hell 바이옴 물고기처럼 다른 빨간 제목은 성공으로 셈
 
-## Acrux macro V1.26.12 Update
-- Simpler fishing result check: only a gray title (junk) or a red title (fail) counts as that result, everything else is a success
-  - Titles in any other color count as a success · so does a result window that closed too fast to read
+## Acrux macro V1.26.13 Update
+- Fishing fail and junk now count only with their exact title colors
+  - Fail: "Fishing Failed" red (255, 65, 65) · Junk: "Fish Caught...?" gray (186, 186, 186)
+  - Other red titles, like Hell biome fish, count as a success
