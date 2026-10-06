@@ -92,9 +92,6 @@ def button_state(rgb):
     return "fish" if blue >= red else "exit"
 
 
-TITLE_WAIT = 0.6         # 결과창 제목을 확실히 읽을 때까지 X 를 미루는 최대 시간 (초)
-
-
 def classify_title(rgb):
     """결과창 제목 주변 픽셀 → 'success'(옅은 하늘색) / 'junk'(회색) / 'fail'(빨강) / None
     제목 글자만 봄 (아주 밝은 픽셀) — 결과창 바탕은 반투명이라 밝은 낮엔 바탕이 회색으로 보여서,
@@ -756,28 +753,24 @@ class Fisher:
         import numpy as np
         self._set(msg="결과창 닫는 중")
         title = cfg.get("title_pos") if base is not None else None
-        kind, end = None, time.time() + FINISH_MAX
-        seen_at = None                               # 결과창(제목 자리 변화)이 처음 보인 시각
+        end = time.time() + FINISH_MAX
+        seen = set()                                 # 결과창이 보이는 동안 읽은 제목 색들 (X 는 기다리지 않고 바로 누름)
         while time.time() < end:
             self._check(stop)
             rect = self._rect(stop)
             if button_state(self._grab_box(sct, rect, cfg["fish_btn"])) in ("fish", "exit"):
                 break                                # Fish(또는 이미 다시 던진 Exit)가 보이면 낚시 화면으로 돌아온 것
-            if title and kind is None:
+            if title and "success" not in seen and "fail" not in seen:
                 img = self._grab_box(sct, rect, title, 0.12, 0.05)
                 if img.shape == base.shape and float(np.abs(img - base).mean()) > 18:
-                    seen_at = seen_at or time.time()
-                    k = classify_title(img)
-                    # 성공 · 실패는 바로 · 쓰레기는 결과창이 다 뜬 뒤(0.3초)에만 (뜨는 중엔 하늘색 · 빨강 글자가 흐려서 회색처럼 보일 수 있음)
-                    if k in ("success", "fail") or (k == "junk" and time.time() - seen_at >= 0.3):
-                        kind = k
-                    elif time.time() - seen_at < TITLE_WAIT:
-                        self._wait(0.05, stop)       # 제목을 다 읽을 때까지 X 는 잠깐 미룸
-                        continue
+                    seen.add(classify_title(img))
             self._click_ratio(cfg["close_pos"], stop)
             self._wait(FINISH_GAP, stop)
         else:
             self.log(f"결과창을 닫은 뒤 {FINISH_MAX:g}초 동안 Fish 버튼이 안 보임 — 다시 확인", "y")
+        # 열리고 닫히는 동안 한 번이라도 하늘색(성공) · 빨강(실패) 글자가 보였으면 그게 결과
+        # (흐린 순간엔 하늘색 · 빨강 글자도 회색처럼 보일 수 있어서 쓰레기는 다른 색이 하나도 없을 때만)
+        kind = next((k for k in ("success", "fail", "junk") if k in seen), None)
         self.stats[kind or "unknown"] += 1
         name = {"success": "성공", "junk": "쓰레기", "fail": "실패"}.get(kind, "결과 확인 안 됨")
         self.log(f"낚시 결과: {name} · 성공 {self.stats['success']} / 쓰레기 {self.stats['junk']} / 실패 {self.stats['fail']}",
