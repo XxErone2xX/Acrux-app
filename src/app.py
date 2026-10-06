@@ -119,6 +119,7 @@ class Bridge:
                                           lambda: self.data.get("mmerch", {}), self._on_log, on_done=self._on_merchant_done,
                                           before=lambda: self.fisher.hold(20), after=self.fisher.release)
         self.merchant_pending, self.merchant_check_at = None, 0.0
+        self.mpop_wait = False             # 레어 바이옴 팝핑이 다른 기능이 끝나길 기다리는 중
         self.fisher.on_start = self._on_fish_start
         self.play = rejoin.PlayClicker(lambda: self.data.get("play", {}), self._on_log,
                                        on_ingame=self._on_ingame, on_fail=self._on_play_fail)
@@ -416,7 +417,7 @@ class Bridge:
                 ok = want and not sniping and bool(macro.roblox_window_cached(2.0))
                 # 오토 아이템 사용: 쿨타임이 찼고 이동 · 판매 · 팝핑 중이 아니면 (낚시는 안전한 곳에서 잠깐 비켜줌)
                 # 상인 자동 구매: 상인이 왔으면 낚시를 멈추고 구매 · 아니면 간격마다 채팅 확인
-                others = self.items.running() or self.mpop.running() or self.mover.running() or self.merchant.running()
+                others = self.items.running() or (self.mpop.running() or self.mpop_wait) or self.mover.running() or self.merchant.running()
                 if self.merchant_pending and time.time() - self.merchant_pending[1] > 180:
                     self.merchant_pending = None             # 상인이 떠났을 시간
                 if ok and want_merch and not others:
@@ -433,7 +434,7 @@ class Bridge:
                         self.merchant.start_job("check")
                 elif self.merchant.running() and self.merchant.job == "buy" and (sniping or not want_merch):
                     self.merchant.stop()
-                if ok and want_items and not self.items.running() and not self.mpop.running() and not self.mover.running() \
+                if ok and want_items and not self.items.running() and not (self.mpop.running() or self.mpop_wait) and not self.mover.running() \
                         and not self.merchant.running() and not self.merchant_pending:
                     self.items.start(self.items.due())
                 elif self.items.running() and not self.items.test and (sniping or not want_items):
@@ -448,7 +449,7 @@ class Bridge:
                         self._on_log(f"자동 낚시 안 함 — 매크로 기준 위치 설정 필요: {miss}", "n")
                 else:
                     warned = None
-                if ok and not self.fisher.running() and not self.mpop.running() and not self.mover.running() \
+                if ok and not self.fisher.running() and not (self.mpop.running() or self.mpop_wait) and not self.mover.running() \
                         and not self.items.running() and not self.merchant.running() and not self.merchant_pending:
                     self.fisher.start()
                 elif not ok and self.fisher.running():
@@ -548,7 +549,24 @@ class Bridge:
             return
         if not macro.roblox_window_cached(1.0):
             return                          # 옛 로그 파일 (로블록스가 꺼져 있음)
-        self.mpop.start(found)
+        # 레어 바이옴이 먼저 — 아이템 사용 · 상인 구매가 화면을 쓰는 중이면 멈추고 끝난 뒤 팝핑 (같이 클릭하면 꼬임)
+        others = [f for f in (self.items, self.merchant) if f.running()]
+        if not others:
+            self.mpop.start(found)
+            return
+        for f in others:
+            f.stop()
+
+        def later():
+            try:
+                for f in others:
+                    if f.thread:
+                        f.thread.join(8)
+                self.mpop.start(found)
+            finally:
+                self.mpop_wait = False
+        self.mpop_wait = True               # 기다리는 동안 매크로 루프가 다른 기능을 새로 시작하지 않게
+        threading.Thread(target=later, daemon=True).start()
 
     def _on_pop_end(self, stopped):
         if not stopped:                     # 바이옴 종료·접속 끊김 등으로 끝남 → 복귀 (직접 멈춘 경우 제외)
