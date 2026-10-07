@@ -16,8 +16,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from version import VERSION
-# 최신 실행기(Acrux.exe) 바로 다운로드 — 깃허브가 항상 가장 최신 릴리스 파일로 연결해줌
-DOWNLOAD_URL = "https://github.com/rngenesis0-coder/Acrux-app/releases/latest/download/Acrux.exe"
+# 매크로 받는 곳 — 디스코드 서버 초대 링크
+DISCORD_URL = "https://discord.gg/B9QzJuseHR"
 MACRO_NAME_LABEL = f"Acrux macro V{VERSION}"
 EMBED_COLOR = 0xFFFFFF
 EXIT_COLOR = 0xFF0000
@@ -95,9 +95,9 @@ def _now_iso():
 
 def toggle_payload(enabled, player=None):        # 플레이어 이름은 웹후크에 안 띄움 (감지용으로만 씀)
     return {"embeds": [{
-        # 바이옴 매크로를 켤 때 · 끌 때: 'Download Acrux macro' 를 누르면 최신 Acrux 실행기가 바로 다운로드됨
+        # 바이옴 매크로를 켤 때 · 끌 때: 매크로를 받을 수 있는 디스코드 서버 안내
         "description": "> ## Biome Macro " + ("Enabled" if enabled else "Disabled")
-                       + f"\n[Download Acrux macro]({DOWNLOAD_URL})",
+                       + f"\nJoin my discord to download macro\n{DISCORD_URL}",
         "color": EMBED_COLOR,
         "timestamp": _now_iso(),
         "footer": {"text": MACRO_NAME_LABEL},
