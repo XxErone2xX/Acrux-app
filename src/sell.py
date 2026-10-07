@@ -18,6 +18,9 @@ SELL_KEYS = (("sell_fish_pos", "Sell Fish 버튼"), ("first_fish_pos", "첫 번�
              ("sell_all_pos", "Sell All 버튼"), ("confirm_sell_pos", "확인 Sell 버튼"), ("shop_close_pos", "상점 닫기 X"))
 
 
+CONFIRM_GREEN = 0.04                                         # 확인창 Sell 버튼 자리의 밝은 초록 비율 (떠 있으면 약 10~35% · 없으면 0%)
+
+
 class Seller:
     def __init__(self, mover, get_cfg, get_move, log):
         self.mover = mover                  # move.Mover (기준 장소 · 장소 이동)
@@ -72,7 +75,7 @@ class Seller:
             data, gw, gh = macro.grab((x - w // 2, y - h // 2, w, h))
             px = np.frombuffer(data, np.uint8).reshape(gh, gw, 4).astype(np.int16)
             b, g, r = px[..., 0], px[..., 1], px[..., 2]
-            return float(((g > 170) & (g > r + 50) & (g > b + 60)).mean())
+            return float(((g > 170) & (g > r + 40) & (g > b + 40)).mean())
         except Exception:
             return None
 
@@ -86,7 +89,7 @@ class Seller:
             if g is None:
                 mv._wait(0.5)
                 return True
-            if g >= 0.06 and g >= (before or 0) + 0.05:   # 확인창 Sell 버튼: 약 20% · 없을 때: 1% 아래
+            if g >= CONFIRM_GREEN and g >= (before or 0) + 0.05:   # 확인창이 새로 떴는지
                 return True
             if time.time() >= end:
                 return False
@@ -171,9 +174,10 @@ class Seller:
                 mv._click(cfg["first_fish_pos"])
                 mv._wait(0.5 + d)
                 before = self._green(cfg["confirm_sell_pos"])
-                mv._click(cfg["sell_all_pos"])
-                if not self._confirm_shown(cfg["confirm_sell_pos"], before, 0.8 + d, mv):
-                    break
+                if before is None or before < CONFIRM_GREEN:      # 확인창이 이미 떠 있으면 (클릭이 늦게 먹힘 등) 바로 Sell
+                    mv._click(cfg["sell_all_pos"])
+                    if not self._confirm_shown(cfg["confirm_sell_pos"], before, 0.8 + d, mv):
+                        break
                 mv._wait(0.1 + d)
                 mv._click(cfg["confirm_sell_pos"])
                 mv._wait(1.5 + d)

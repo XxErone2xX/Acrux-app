@@ -150,6 +150,16 @@ POS_KEYS = (("open_pos", "Open 선택지"), ("first_slot", "첫 번째 칸"), ("
             ("max_pos", "Set to Max 버튼"), ("purchase_pos", "Purchase 버튼"), ("close_pos", "상점 닫기 X"))
 
 
+def arrivals(text):
+    """채팅 OCR 글자 → {상인 이름: 도착 줄 개수}"""
+    out = {}
+    for m in _ARRIVE.finditer(sell._norm(text)):
+        w = m.group(1)
+        name = "Jester" if w.startswith("j") else "Rin" if w.startswith("r") else "Mari"
+        out[name] = out.get(name, 0) + 1
+    return out
+
+
 def arrived_in(text):
     """채팅 OCR 글자 → 도착한 상인 이름 (마지막으로 나온 것) 또는 None"""
     n = sell._norm(text)
@@ -162,7 +172,7 @@ def arrived_in(text):
 
 class Merchant(popping.Popper):
     LABEL = "상인 자동 구매"
-    COOLDOWN = 300.0                       # 같은 상인을 다시 보기까지 (상인은 몇 분 동안 머묾 · 같은 채팅을 또 읽지 않게)
+    COOLDOWN = 600.0                       # 같은 상인을 다시 보기까지 최소 (OCR 이 한 번 잘못 읽어도 또 가지 않게)
 
     def __init__(self, get_pop, get_base, get_cfg, log, on_done=None, on_cal=None):
         super().__init__(lambda: self._inv_cfg(), log)
@@ -170,6 +180,9 @@ class Merchant(popping.Popper):
         self.on_done = on_done
         self.on_cal = on_cal                # 상점 자동 보정으로 찾은 위치 → 저장
         self.seen = {}                     # 상인 이름 → 마지막으로 감지한 시각
+        # 채팅창이 항상 켜져 있어서 예전 도착 줄이 오래 남음 → 도착 줄 '개수가 늘었을 때' 만 새로 온 것
+        self.counts = None                 # 상인 이름 → 지난번 채팅에 보인 도착 줄 개수 (None = 아직 안 봄)
+        self.lower = {}                    # 개수가 줄어든 걸 본 횟수 (OCR 이 한 번 못 읽은 것과 구분 · 두 번 연속이면 반영)
         self.bought = 0
         self.job = None
 
@@ -245,11 +258,21 @@ class Merchant(popping.Popper):
         except Exception as e:
             self.log(f"채팅 OCR 오류: {e}", "r")
             return None
-        name = arrived_in(text)
+        now = arrivals(text)
+        if self.counts is None:                # 처음 봄: 예전 줄일 수 있음 → 채팅 맨 아래 몇 줄에 있을 때만 방금 온 것
+            recent = arrivals("\n".join(str(text).splitlines()[-4:]))
+            self.counts = {n: now[n] - recent.get(n, 0) for n in now}
+        new = [n for n in now if now[n] > self.counts.get(n, 0)]
+        for n in set(now) | set(self.counts):
+            if now.get(n, 0) >= self.counts.get(n, 0):
+                self.counts[n], self.lower[n] = now.get(n, 0), 0
+            else:                              # 줄이 위로 밀려 사라짐 — 두 번 연속 줄어들면 반영
+                self.lower[n] = self.lower.get(n, 0) + 1
+                if self.lower[n] >= 2:
+                    self.counts[n], self.lower[n] = now.get(n, 0), 0
+        name = next((n for n in new if time.time() - self.seen.get(n, 0) >= self.COOLDOWN), None)
         if not name:
             return None
-        if time.time() - self.seen.get(name, 0) < self.COOLDOWN:
-            return None                        # 방금 본 상인 (같은 채팅이 아직 남아 있음)
         self.seen[name] = time.time()
         self.log(f"상인 도착 — {name}", "g")
         return name
@@ -285,6 +308,7 @@ class Merchant(popping.Popper):
             self.log(f"{self.LABEL} — Merchant Teleporter 를 못 씀", "y")
             return
         try:
+            macro.mark_moved()                          # 순간이동 → 다음 리셋은 해야 함
             self._set(msg=f"{name} 에게 가는 중")
             self._wait(float(c.get("teleport_wait", 3.0)), stop)
             # 2. 대화 → Open
@@ -310,9 +334,7 @@ class Merchant(popping.Popper):
         finally:
             # 4. 리셋 (상인 앞에 남지 않게 · 자동 낚시는 다시 시작하면서 낚시 장소로 감)
             self._set(msg="리셋")
-            for k in ("esc", "r", "enter"):
-                macro.key_tap(k)
-                time.sleep(0.5)
+            macro.respawn()
 
     def _open_shop(self, c, base, stop):
         """선택지가 보일 때까지 대화창 연타 → Open 을 누름 · 못 찾으면 지정한 Open 위치"""

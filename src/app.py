@@ -113,13 +113,15 @@ class Bridge:
         # 오토 아이템 사용: 쿨타임마다 Strange Controller · Biome Randomizer 사용 (자동 낚시는 잠깐 비켜줌)
         self.items = popping.ItemUser(lambda: self.data.get("pop", {}), lambda: self.data.get("base", {}),
                                       lambda: self.data.get("mitem", {}), self._on_log,
-                                      before=lambda: self.fisher.hold(45), after=self.fisher.release)
+                                      before=lambda: self.fisher.hold(90, cancel=False), after=self.fisher.release)
         # 상인 자동 구매: 일정 간격마다 채팅 확인 → 상인이 오면 Merchant Teleporter 로 가서 구매 (자동 낚시는 멈췄다가 다시 시작)
         self.merchant = merchant.Merchant(lambda: self.data.get("pop", {}), lambda: self.data.get("base", {}),
                                           lambda: self.data.get("mmerch", {}), self._on_log, on_done=self._on_merchant_done,
                                           on_cal=self._on_merchant_cal)
         self.merchant_pending, self.merchant_check_at = None, 0.0
         self.mpop_wait = False             # 레어 바이옴 팝핑이 다른 기능이 끝나길 기다리는 중
+        # 자동 낚시가 계속 헛돌면(낚시 자리를 못 찾음 · 팔 물고기가 없는데 가득 참) 멈춰 둠 — F3 으로 매크로를 다시 켜면 풀림
+        self.fish_block, self.fish_fails, self.zero_sells = None, 0, 0
         self.fisher.on_start = self._on_fish_start
         self.play = rejoin.PlayClicker(lambda: self.data.get("play", {}), self._on_log,
                                        on_ingame=self._on_ingame, on_fail=self._on_play_fail)
@@ -449,6 +451,17 @@ class Bridge:
                         self._on_log(f"자동 낚시 안 함 — 매크로 기준 위치 설정 필요: {miss}", "n")
                 else:
                     warned = None
+                if self.fisher.reels != getattr(self, "_reels_seen", 0):   # 낚시가 잘 되면 실패 횟수는 처음부터
+                    self._reels_seen, self.fish_fails, self.zero_sells = self.fisher.reels, 0, 0
+                if self.fish_block:
+                    ok = False
+                if ok and not self.fisher.running() and self.fisher.failed:     # 낚시 화면을 못 찾고 멈췄음 → 다시 켜기는 한 번만
+                    self.fisher.failed = False
+                    self.fish_fails += 1
+                    if self.fish_fails >= 2:
+                        self.fish_block = "낚시 화면 없음"
+                        self._on_log("낚시 화면을 계속 못 찾음 — 자동 낚시 멈춤 (F3 로 다시 켜면 다시 시도)", "r")
+                        ok = False
                 if ok and not self.fisher.running() and not (self.mpop.running() or self.mpop_wait) and not self.mover.running() \
                         and not self.items.running() and not self.merchant.buying() and not self.merchant_pending:
                     self.fisher.start()
@@ -487,6 +500,7 @@ class Bridge:
 
     def _set_macro(self, on, why="F3"):
         """매크로 버튼 켜기 · 끄기 (F3 · 화면 버튼과 같음)"""
+        self.fish_block, self.fish_fails, self.zero_sells = None, 0, 0
         with self.lock:
             self.data["macro_on"] = bool(on)
         self._save()
@@ -977,7 +991,17 @@ class Bridge:
             self._on_log(f"인벤토리 가득 — 판매 못 함: {m}", "n")
             return False
         try:
-            self.seller.run(stop)
+            sold = self.seller.run(stop)
+            if sold:
+                self.zero_sells = 0
+                return True
+            # 팔 물고기가 없었음 = 인벤토리가 가득 찬 게 아니라 낚시 자리가 아니었던 것 (Fish 가 반응 없음)
+            self.zero_sells += 1
+            if self.zero_sells >= 2:
+                self.fish_block = "팔 물고기 없음"
+                self._on_log("판매하러 갔는데 두 번 연속 팔 물고기가 없음 — 낚시 자리 문제로 보고 자동 낚시 멈춤 (F3 로 다시 켜면 다시 시도)", "r")
+                return False
+            self._on_log("판매하러 갔는데 팔 물고기가 없음 — 낚시 자리를 다시 잡고 이어감", "y")
             return True
         except move.Stopped:
             if not stop.is_set():                  # 자동 낚시가 멈춘 게 아니면 F7 · 멈춤 버튼 → 매크로 끔
@@ -1420,6 +1444,7 @@ class Bridge:
         if self.merchant.running():
             return {"error": "상인 자동 구매가 도는 중"}
         self.merchant.seen.clear()
+        self.merchant.counts = {}            # 테스트: 채팅에 보이는 도착 줄을 전부 새로 온 것으로
         self.merchant.start_job("check")
         return {"ok": True}
 

@@ -747,6 +747,35 @@ def pick_region_overlay(mode="region"):
 
 
 # ---------------------------------------------------------------- 안내 띠 (자동 보정 중 등)
+# 리셋(Esc → R → Enter) 뒤로 캐릭터가 안 움직였는지 — 리셋하고 아무것도 안 했는데 또 리셋하면 건너뜀
+# (게임에 리셋 쿨타임이 있어서 바로 다시 하면 '[Respawn]: You can reset after 4s' 로 씹히고 시간만 감)
+_RESET = {"fresh": False}
+
+
+def mark_reset():
+    _RESET["fresh"] = True
+
+
+def mark_moved():
+    _RESET["fresh"] = False
+
+
+def reset_fresh():
+    return _RESET["fresh"]
+
+
+def respawn(wait=None):
+    """Esc → R → Enter (0.5초 간격) → 방금 리셋하고 안 움직였으면 건너뜀 → 리셋했으면 True"""
+    import time as _t
+    if reset_fresh():
+        return False
+    for k in ("esc", "r", "enter"):
+        key_tap(k)
+        _t.sleep(0.5)
+    mark_reset()
+    return True
+
+
 BANNER_TEXT = {
     "autocal": {
         "ko": "자동 보정 중 · 마우스와 키보드를 건드리지 마세요 (F7: 취소)",
