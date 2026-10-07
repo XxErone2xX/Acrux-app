@@ -1,5 +1,7 @@
-## Acrux macro V1.30.3 업데이트
-- 바이옴 매크로 웹후크 메시지 문구를 "Join discord to download macro" 로 바꿈
+## Acrux macro V1.30.4 업데이트
+- 아이콘 변경 (앱 창 · 작업 표시줄 · Acrux.exe)
+  - Acrux.exe 는 이번에 새로 받아짐
 
-## Acrux macro V1.30.3 Update
-- Changed the biome macro webhook message to "Join discord to download macro"
+## Acrux macro V1.30.4 Update
+- New icon (app window · taskbar · Acrux.exe)
+  - Acrux.exe is downloaded again with this update

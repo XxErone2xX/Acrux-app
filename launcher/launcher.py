@@ -29,7 +29,7 @@ import time
 import urllib.request
 import zipfile
 
-LAUNCHER_VERSION = 5            # 실행기 코드를 바꿨을 때만 +1
+LAUNCHER_VERSION = 6            # 실행기 코드를 바꿨을 때만 +1
 REPO = "rngenesis0-coder/Acrux-app"
 API = f"https://api.github.com/repos/{REPO}/releases/latest"
 UA = {"User-Agent": "AcruxLauncher", "Accept": "application/vnd.github+json"}
