@@ -42,6 +42,20 @@ jobs:
       - name: Build runtime (AcruxHost)
         run: pyinstaller --noconfirm --clean --onedir --windowed --name AcruxHost --icon launcher/icon.ico --collect-all rapidocr_onnxruntime --collect-binaries onnxruntime --collect-submodules winrt launcher/host.py
 
+      # 런타임 줄이기: 앱이 안 쓰는 파일 빼기 (파일 수 1100개 → 약 350개)
+      #  · Tcl 시간대(tzdata) · 번역 메시지(msgs) — 안내 띠 · 위치 지정 창은 시계 · 번역 대화상자를 안 씀 (약 750개)
+      #  · OpenCV 동영상 코덱 DLL (31MB · 동영상을 안 읽음) · Pillow AVIF 플러그인 (8MB · 없으면 그 형식만 못 엶)
+      - name: Slim runtime
+        shell: pwsh
+        run: |
+          $i = 'dist/AcruxHost/_internal'
+          $before = (Get-ChildItem dist/AcruxHost -Recurse -File).Count
+          Remove-Item -Recurse -Force "$i/_tcl_data/tzdata", "$i/_tcl_data/msgs", "$i/_tk_data/msgs" -ErrorAction SilentlyContinue
+          Remove-Item -Force "$i/cv2/opencv_videoio_ffmpeg*.dll", "$i/PIL/_avif*.pyd" -ErrorAction SilentlyContinue
+          $after = (Get-ChildItem dist/AcruxHost -Recurse -File).Count
+          Write-Host "Runtime files: $before -> $after"
+          if (-not (Test-Path "$i/_tcl_data/init.tcl")) { throw "Tcl init.tcl missing" }
+
       # 실행기(Acrux.exe) 고정: 실행기 버전(LAUNCHER_VERSION)이 그대로면 이전 릴리스의 Acrux.exe 를 그대로 다시 올림
       # → 파일이 매번 바뀌지 않아서 백신·SmartScreen 평판이 쌓이고, 오탐 신고 결과도 계속 유지됨
       - name: Reuse previous launcher

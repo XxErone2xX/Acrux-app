@@ -1814,6 +1814,22 @@ def find_edge():
     return next((c for c in cands if c.is_file()), None)
 
 
+def _clean_install_leftovers():
+    """런처로 설치한 경우: 업데이트 중 파일이 잠겨서 못 지운 예전 폴더(runtime.old 등) · 받다 만 zip 정리"""
+    if not os.environ.get("ACRUX_DATA"):
+        return
+    import shutil
+    root = Path(os.environ["ACRUX_DATA"]).parent
+    for name in ("runtime.old", "runtime.new", "app.old", "app.new"):
+        shutil.rmtree(root / name, ignore_errors=True)
+    for z in root.glob("tmp*.zip"):
+        try:
+            if time.time() - z.stat().st_mtime > 3600:
+                z.unlink()
+        except OSError:
+            pass
+
+
 def main():
     global BRIDGE
     BRIDGE = Bridge()
@@ -1822,6 +1838,7 @@ def main():
     threading.Thread(target=server.serve_forever, daemon=True).start()
     url = f"http://127.0.0.1:{port}/#{TOKEN}"
 
+    threading.Thread(target=_clean_install_leftovers, daemon=True).start()
     BRIDGE.start_engine()                 # 앱 켜자마자 디스코드 연결 + 감지
     # OCR 엔진은 미리 불러둠 (첫 OCR 이 느리지 않게)
     threading.Thread(target=lambda: BRIDGE._on_log(f"OCR 엔진: {macro.ocr_engine_name()}", "d"), daemon=True).start()
