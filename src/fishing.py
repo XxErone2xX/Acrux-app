@@ -493,6 +493,9 @@ class Fisher:
         self.stats = {"success": 0, "junk": 0, "fail": 0, "unknown": 0, "full": 0}
         self.hold_req = threading.Event()   # 다른 기능(레어 바이옴 팝핑 등)이 잠깐 자리를 달라고 함
         self.holding = threading.Event()    # 안전한 곳에서 멈춰 기다리는 중
+        self.failed = False                 # 낚시 화면을 끝내 못 찾고 멈췄는지 (앱이 계속 다시 켜지 않게)
+        self.reels = 0                      # 미니게임을 시작한 횟수 (낚시가 잘 되고 있는지)
+        self.hold_cancel = True             # 비켜줄 때 던진 낚시를 Exit 로 취소할지 (급한 것만 · 아이템 사용은 끝날 때까지 기다림)
         self.diamond_ok = False             # 낚시 창 ◇ 가 미니게임 자리로 옮겨가는 걸 한 번이라도 봤는지 (◇ 위치가 맞음)
         self.no_focus = False               # 위치 지정 창이 떠 있는 동안: 로블록스를 앞으로 끌어오지 않음 (선택 창을 가리지 않게)
 
@@ -528,10 +531,13 @@ class Fisher:
     def stop(self):
         self.stop_ev.set()
 
-    def hold(self, timeout=30.0):
-        """다른 기능이 쓰는 동안 안전한 곳(릴링이 끝난 뒤)에서 멈춰 기다리게 함 — 멈췄으면 True"""
+    def hold(self, timeout=30.0, cancel=True):
+        """다른 기능이 쓰는 동안 안전한 곳(릴링이 끝난 뒤)에서 멈춰 기다리게 함 — 멈췄으면 True
+        cancel: 입질을 기다리는 중이면 Exit 로 취소하고 바로 비켜줌 (레어 바이옴 팝핑 등 급한 것)
+                / False 면 지금 던진 낚시가 끝날 때까지(입질 → 릴링 → 결과) 기다렸다가 비켜줌 (오토 아이템 사용)"""
         if not self.running():
             return True
+        self.hold_cancel = cancel
         self.hold_req.set()
         return self.holding.wait(timeout)
 
@@ -620,6 +626,7 @@ class Fisher:
                 self.log(f"{self.LABEL} 안 함 — 설정 필요: {', '.join(miss)}", "n")
                 return
             self.log(f"{self.LABEL} 시작", "g")
+            self.failed = False
             if self.on_start:
                 self._set(msg="낚시 장소로 가는 중")
                 self.on_start(stop)
@@ -685,6 +692,7 @@ class Fisher:
         cast_at, tries = None, 0          # 마지막 Fish 클릭 시각 · 반응 없던 횟수
         wait_at, unknown_at = None, None  # 입질 대기 시작 · 알 수 없는 화면 시작
         progress_at, rescues = time.time(), 0   # 마지막으로 미니게임이 시작된 시각 · 연속 복구 횟수
+        known_at, relocs = time.time(), 0       # 마지막으로 낚시 화면(Fish · Exit · 미니게임)을 본 시각 · 낚시 장소로 다시 간 횟수
         maybe = 0                                # '바만 보임' 이 이어진 횟수
         while True:
             self._check(stop)
@@ -697,6 +705,7 @@ class Fisher:
                 rescues += 1
                 if rescues > 3:
                     self.log("낚시 화면을 계속 못 찾음 — 자동 낚시 멈춤 (낚시 자리 · 위치 설정 확인)", "r")
+                    self.failed = True
                     self.stop_ev.set()
                     raise Stopped()
                 self.log(f"한동안 낚시가 진행되지 않음 — 화면 복구 ({rescues}/3)", "y")
@@ -715,10 +724,11 @@ class Fisher:
             if st != "wait":
                 wait_at = None
             if st is not None:
-                unknown_at = None
+                unknown_at, known_at = None, now
 
             if st == "reel":
-                cast_at, tries = None, 0
+                cast_at, tries, relocs = None, 0, 0
+                self.reels += 1
                 progress_at, rescues = now, 0
                 # 결과창 제목 자리의 '결과창이 없을 때' 모습 (릴링 중엔 결과창이 없고, 낚시 중엔 카메라가 안 움직임)
                 base = self._grab_box(sct, rect, cfg["title_pos"], 0.12, 0.05) if cfg.get("title_pos") else None
@@ -729,7 +739,7 @@ class Fisher:
             if st == "wait":                         # 던졌음 → 입질 기다리는 중
                 cast_at, tries = None, 0
                 wait_at = wait_at or now
-                if self.hold_req.is_set():           # 레어 바이옴 팝핑 등이 기다림 → 던진 걸 취소하고 비켜줌
+                if self.hold_req.is_set() and self.hold_cancel:   # 레어 바이옴 팝핑 등 급함 → 던진 걸 취소하고 비켜줌
                     self._click_ratio(cfg["fish_btn"], stop)
                     self._wait(0.8, stop)
                     continue
@@ -769,6 +779,15 @@ class Fisher:
             else:                                    # 알 수 없음 (다른 창이 가림 · 로딩 등)
                 unknown_at = unknown_at or now
                 self._set(msg="낚시 화면 확인 중")
+                # 20초 동안 낚시 화면이 한 번도 안 보임 → 낚시 장소에 못 간 것 → 다시 이동 (2번까지)
+                if self.on_start and not self.hold_req.is_set() and now - known_at > 20 and relocs < 2:
+                    relocs += 1
+                    self.log(f"낚시 화면이 안 보임 — 낚시 장소로 다시 이동 ({relocs}/2)", "y")
+                    self._set(msg="낚시 장소로 다시 가는 중")
+                    self.on_start(stop)
+                    known_at = progress_at = time.time()
+                    unknown_at = None
+                    continue
                 if now - unknown_at > 3.0:                # 결과창 등이 가리고 있을 수 있음 → X 한 번 (화면에서 찾은 X 먼저)
                     if not self._click_found_x(sct, rect, cfg, stop):
                         self._click_ratio(cfg["close_pos"], stop)
