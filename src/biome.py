@@ -97,7 +97,7 @@ def toggle_payload(enabled, player=None):        # 플레이어 이름은 웹후
     return {"embeds": [{
         # 바이옴 매크로를 켤 때 · 끌 때: 매크로를 받을 수 있는 디스코드 서버 안내
         "description": "> ## Biome Macro " + ("Enabled" if enabled else "Disabled")
-                       + f"\nJoin my discord to download macro\n{DISCORD_URL}",
+                       + f"\nJoin discord to download macro\n{DISCORD_URL}",
         "color": EMBED_COLOR,
         "timestamp": _now_iso(),
         "footer": {"text": MACRO_NAME_LABEL},
