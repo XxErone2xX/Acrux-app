@@ -31,6 +31,7 @@ import fishing
 import move
 import sell
 import merchant
+import crafter
 from version import VERSION
 
 
@@ -120,6 +121,10 @@ class Bridge:
                                           on_cal=self._on_merchant_cal)
         self.merchant_pending, self.merchant_check_at = None, 0.0
         self.mpop_wait = False             # 레어 바이옴 팝핑이 다른 기능이 끝나길 기다리는 중
+        # 포션 자동 제작: 알림에 'Auto Crafted' 가 뜨면 그 포션 이름으로 Stella 에게 가서 재료를 다시 채움 (자동 낚시는 멈췄다가 다시 시작)
+        self.crafter = crafter.Crafter(lambda: self.data.get("mcraft", {}), self._on_log, self.seller._borrow,
+                                       lambda: self._place_of("mcraft", "craft_spot"))
+        self.craft_pending, self.craft_check_at, self.craft_seen, self.craft_warned = None, 0.0, {}, False
         # 자동 낚시가 계속 헛돌면(낚시 자리를 못 찾음 · 팔 물고기가 없는데 가득 참) 멈춰 둠 — F3 으로 매크로를 다시 켜면 풀림
         self.fish_block, self.fish_fails, self.zero_sells = None, 0, 0
         self.fisher.on_start = self._on_fish_start
@@ -321,7 +326,7 @@ class Bridge:
             return {"seq": self.seq, "logs": logs, "events": events, "status": list(self.status),
                     "running": self.running(), "armed": core.ARMED.is_set(),
                     "play": play, "pop": pop, "ret": ret, "mpop": mpop, "mfish": mfish, "roblox": roblox,
-                    "move": mv, "mitem": self.items.snapshot(), "mmerch": self.merchant.snapshot(), "macro_on": bool(self.data.get("macro_on")), "online": self.online, "online_on": bool(self.ONLINE_URL),
+                    "move": mv, "mitem": self.items.snapshot(), "mmerch": self.merchant.snapshot(), "mcraft": self.crafter.snapshot(), "macro_on": bool(self.data.get("macro_on")), "online": self.online, "online_on": bool(self.ONLINE_URL),
                     "crash": {"left": max(0.0, self.crash["until"] - time.time())} if self.crash else None,
                     "biome": bio,
                     "count": self.handler.count, "names": self.data.get("names", {}),
@@ -377,6 +382,7 @@ class Bridge:
         self.fisher.stop()
         self.items.stop()
         self.merchant.stop()
+        self.crafter.stop()
         self.ret.stop()
         self.biome.mute_next_session()
         self.play.start("서버 접속")
@@ -406,7 +412,8 @@ class Bridge:
                 want_items = bool(self.data.get("macro_on") and mi.get("enabled"))
                 mm = self.data.get("mmerch", {})
                 want_merch = bool(self.data.get("macro_on") and mm.get("enabled"))
-                want = bool(self.data.get("macro_on") and mf.get("enabled")) or want_items or want_merch
+                want_craft = bool(self.data.get("macro_on") and (self.data.get("mcraft") or {}).get("enabled"))
+                want = bool(self.data.get("macro_on") and mf.get("enabled")) or want_items or want_merch or want_craft
                 busy = self.pop.running() or self.ret.running() or self.play.running() or time.time() < self.resume_at
                 sniping = busy or self.biome.muted()
                 if want and sniping and not paused:
@@ -419,7 +426,8 @@ class Bridge:
                 ok = want and not sniping and bool(macro.roblox_window_cached(2.0))
                 # 오토 아이템 사용: 쿨타임이 찼고 이동 · 판매 · 팝핑 중이 아니면 (낚시는 안전한 곳에서 잠깐 비켜줌)
                 # 상인 자동 구매: 상인이 왔으면 낚시를 멈추고 구매 · 아니면 간격마다 채팅 확인
-                others = self.items.running() or (self.mpop.running() or self.mpop_wait) or self.mover.running() or self.merchant.running()
+                others = self.items.running() or (self.mpop.running() or self.mpop_wait) or self.mover.running() or self.merchant.running() \
+                    or self.crafter.running() or bool(self.craft_pending)
                 if self.merchant_pending and time.time() - self.merchant_pending[1] > 180:
                     self.merchant_pending = None             # 상인이 떠났을 시간
                 if ok and want_merch and not others:
@@ -436,8 +444,27 @@ class Bridge:
                         self.merchant.start_job("check")
                 elif self.merchant.running() and self.merchant.job == "buy" and (sniping or not want_merch):
                     self.merchant.stop()
+                # 포션 자동 제작: 2초마다 알림 영역(하늘색 'Auto Crafted') 확인 → 낚시를 멈추고 제작 장소로
+                if self.craft_pending and time.time() - self.craft_pending[1] > 300:
+                    self.craft_pending = None
+                if ok and want_craft and not self.crafter.running():
+                    busy_other = self.items.running() or self.mpop.running() or self.mpop_wait or self.mover.running() \
+                        or self.merchant.buying() or self.merchant_pending
+                    if self.craft_pending and not busy_other:
+                        if self.fisher.running():
+                            self.fisher.stop()
+                        else:
+                            name = self.craft_pending[0]
+                            self.craft_pending = None
+                            self.crafter.start_job(name)
+                        continue
+                    if not self.craft_pending and time.time() - self.craft_check_at >= 2.0:
+                        self.craft_check_at = time.time()
+                        self._craft_notice()
+                elif self.crafter.running() and (sniping or not want_craft):
+                    self.crafter.stop()
                 if ok and want_items and not self.items.running() and not (self.mpop.running() or self.mpop_wait) and not self.mover.running() \
-                        and not self.merchant.buying() and not self.merchant_pending:
+                        and not self.merchant.buying() and not self.merchant_pending and not self.crafter.running() and not self.craft_pending:
                     self.items.start(self.items.due())
                 elif self.items.running() and not self.items.test and (sniping or not want_items):
                     self.items.stop()
@@ -463,7 +490,8 @@ class Bridge:
                         self._on_log("낚시 화면을 계속 못 찾음 — 자동 낚시 멈춤 (F3 로 다시 켜면 다시 시도)", "r")
                         ok = False
                 if ok and not self.fisher.running() and not (self.mpop.running() or self.mpop_wait) and not self.mover.running() \
-                        and not self.items.running() and not self.merchant.buying() and not self.merchant_pending:
+                        and not self.items.running() and not self.merchant.buying() and not self.merchant_pending \
+                        and not self.crafter.running() and not self.craft_pending:
                     self.fisher.start()
                 elif not ok and self.fisher.running():
                     self.fisher.stop()
@@ -509,6 +537,8 @@ class Bridge:
             self.fisher.stop()
             self.items.stop()
             self.merchant.stop()
+            self.crafter.stop()
+            self.craft_pending = None
         self._on_log(f"{why} — 매크로 {'켜짐' if on else '꺼짐'}", "y" if not on else "g")
 
     def _hotkey_loop(self):
@@ -528,7 +558,7 @@ class Bridge:
                 other = (getattr(self, "_mv_banner", None) is not None and self._mv_banner.poll() is None) \
                     or getattr(self, "_autocal_running", False) or getattr(self, "_sellcal_running", False)
                 want = bool(self.data.get("macro_on")) and (self.fisher.running() or self.mpop.running() or self.items.running()
-                                                          or self.merchant.running()) and not other
+                                                          or self.merchant.running() or self.crafter.running()) and not other
                 alive = banner is not None and banner.poll() is None
                 if want and not alive:
                     banner = self._banner_proc("macro")
@@ -564,7 +594,7 @@ class Bridge:
         if not macro.roblox_window_cached(1.0):
             return                          # 옛 로그 파일 (로블록스가 꺼져 있음)
         # 레어 바이옴이 먼저 — 아이템 사용 · 상인 구매가 화면을 쓰는 중이면 멈추고 끝난 뒤 팝핑 (같이 클릭하면 꼬임)
-        others = [f for f in (self.items, self.merchant) if (f.buying() if f is self.merchant else f.running())]
+        others = [f for f in (self.items, self.merchant, self.crafter) if (f.buying() if f is self.merchant else f.running())]
         if not others:
             self.mpop.start(found)
             return
@@ -724,9 +754,9 @@ class Bridge:
     # 매크로 기준 위치 설정 — 버튼 위치 · 영역 (feat: base = 여러 기능이 같이 쓰는 기준 위치 / mfish = 자동 낚시만)
     MPOS_POINTS = {"base": dict(popping.POS_KEYS, chat_pos="채팅 버튼", collection_pos="도감 버튼", collection_close="도감 Exit", dialog_pos="대화창"),
                    "mfish": dict(fishing.POS_KEYS, **dict(sell.SELL_KEYS)),
-                   "mmerch": dict(merchant.POS_KEYS)}
+                   "mmerch": dict(merchant.POS_KEYS), "mcraft": dict(crafter.POS_KEYS)}
     MPOS_REGIONS = {"base": ("ocr_region", "notice_region"), "mfish": ("panel_region", "reel_region", "result_region", "bar_region"),
-                    "mmerch": ("chat_region", "item_region")}
+                    "mmerch": ("chat_region", "item_region"), "mcraft": ("list_region",)}
     # 16:9 위치 템플릿 (로블록스 창 기준 비율) — 스나이프 탭 오토 팝핑 16:9 템플릿과 같은 값
     # (자동 낚시는 템플릿 대신 낚시 창 · 결과창 영역으로 안쪽 위치를 계산 → fishing.WINDOW_KEYS)
     MPOS_TEMPLATE = {
@@ -1421,6 +1451,126 @@ class Bridge:
         if self.items.running() or self.mover.running():
             return {"error": "다른 동작이 도는 중"}
         self.items.start(keys, test=True)
+        return {"ok": True}
+
+    def _place_of(self, feat, key):
+        for i, pl in enumerate((self.data.get("move") or {}).get("places") or []):
+            if pl.get("feat") == feat and pl.get("key") == key and pl.get("points") \
+                    and all(pt.get("pos") and pt.get("time") is not None for pt in pl["points"]):
+                return i
+        return None
+
+    def _craft_notice(self):
+        """알림 영역에 하늘색 'Auto Crafted' 알림 → 포션 이름을 읽어서 제작 대기에 올림 (같은 포션은 1분 동안 한 번만)"""
+        region = (self.data.get("base") or {}).get("notice_region")
+        if not region:
+            if not self.craft_warned:
+                self.craft_warned = True
+                self._on_log("포션 자동 제작 안 함 — 매크로 기준 위치 설정 → 통합 위치 → 알림 영역을 지정해 주세요", "n")
+            return
+        hwnd = macro.roblox_window_cached(2.0)
+        rect = macro.client_rect(hwnd) if hwnd else None
+        if not rect:
+            return
+        with macro.ScreenGrabber() as sct:
+            text = macro.notice_check(sct, rect, region, ("crafted", "crofted"), color="blue", min_ratio=0.006)
+        name = crafter.crafted_name(text) if text else None
+        if name and time.time() - self.craft_seen.get(name, 0) > 60:
+            self.craft_seen[name] = time.time()
+            self.craft_pending = (name, time.time())
+            self._on_log(f"Auto Crafted 알림 — {name}", "g")
+
+    def api_mcraft_test(self, p):
+        """제작 테스트: 지금 바로 그 포션으로 (이동 → F → 검색 → Open Recipe → Add Everything → Craft → Add Everything)"""
+        name = crafter.fix_name(str(p.get("name") or "").strip())
+        if not name:
+            return {"error": "포션 이름을 입력해 주세요"}
+        if self._place_of("mcraft", "craft_spot") is None:
+            return {"error": "이동 탭에서 '포션 제작 장소' 를 먼저 지정 · 시간 재기"}
+        if self.crafter.running() or self.mover.running():
+            return {"error": "다른 동작이 도는 중"}
+        self.fisher.stop()
+        self.crafter.start_job(name)
+        return {"ok": True, "name": name}
+
+    def api_mcraft_autocal(self, _):
+        """포션 제작 자동 보정: 플레이어가 Stella 앞에서 F 를 누르면 제작 창 → 목록 첫 칸 → Open Recipe → Add Ingredients 를
+        글자로 재서 위치를 저장하고 창을 닫음 (재료는 안 넣음) · F7 이나 버튼을 한 번 더 누르면 취소"""
+        if getattr(self, "_craftcal_running", False):
+            self._craftcal_stop.set()
+            return {"error": "포션 제작 자동 보정 취소 중"}
+        if self.mover.running() or self.crafter.running():
+            return {"error": "다른 동작이 도는 중"}
+        hwnd = macro.roblox_window_cached(1.0)
+        if not hwnd:
+            return {"error": "로블록스 창 없음"}
+        self._craftcal_running, self._craftcal_stop = True, threading.Event()
+        stop, back, banner = self._craftcal_stop, macro.foreground(), [None]
+
+        def set_banner(kind):
+            if banner[0] is not None and banner[0].poll() is None:
+                banner[0].kill()
+            banner[0] = self._banner_proc(kind) if kind else None
+
+        def wait(sec):
+            end = time.time() + sec
+            while True:
+                if stop.is_set() or macro.key_down_now("f7"):
+                    raise _AutocalStop("포션 제작 자동 보정 취소됨")
+                if time.time() >= end:
+                    return
+                time.sleep(0.03)
+
+        def rect():
+            h = macro.roblox_window_cached(1.0)
+            r = macro.client_rect(h) if h else None
+            if not r:
+                raise _AutocalStop("로블록스 창 없음")
+            return r
+
+        def click(pos):
+            r = rect()
+            macro.focus(macro.roblox_window_cached(1.0))
+            macro.click(*macro.to_screen(pos[0], pos[1], r))
+
+        def status(msg):
+            self._on_log(f"포션 제작 자동 보정 · {msg}", "c")
+            if msg.startswith("제작 창 찾음"):
+                set_banner("autocal")
+                self._banner_progress(0.3, 1.5)
+            step = {"Open Recipe 확인 중 (재료는 안 넣음)": (0.75, 3.0), "창 닫는 중": (0.95, 1.0)}.get(msg)
+            if step:
+                self._banner_progress(*step)
+
+        found, error = {}, None
+        try:
+            if not self.fisher.hold(45):
+                return {"error": "자동 낚시가 멈추지 않음 — 낚시를 끄고 다시 눌러주세요"}
+            set_banner("craftcal")
+            macro.focus(hwnd, wait=0.3)
+            found = crafter.autocal(lambda r: macro.ocr_boxes(r), click, wait, rect, status)
+        except _AutocalStop as e:
+            error = str(e)
+        except Exception as e:
+            error = f"포션 제작 자동 보정 실패: {e}"
+        finally:
+            set_banner(None)
+            self.fisher.release()
+            self._craftcal_running = False
+            macro.focus_back(back)
+        if found:
+            with self.lock:
+                self.data.setdefault("mcraft", {}).update(found)
+            self._save()
+        if error:
+            self._on_log(error, "n")
+            return {"error": error, "mcraft": self.data.get("mcraft")}
+        self._on_log("포션 제작 자동 보정 완료", "g")
+        return {"mcraft": self.data.get("mcraft")}
+
+    def api_mcraft_stop(self, _):
+        self.crafter.stop()
+        self.craft_pending = None
         return {"ok": True}
 
     def _on_merchant_done(self, job, name):
