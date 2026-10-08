@@ -125,6 +125,8 @@ BASE_DEFAULT = {
 MOVE_FEATS = ("mfish", "mpop", "mcraft")    # 장소를 따로 둘 수 있는 기능 (매크로 기준 위치 설정의 각 기능 칸)
 # 기능마다 정해진 장소 (사용자가 만들거나 지우지 않음 · 지점 위치와 시간만 지정)
 MOVE_TEMPLATES = {"mfish": (("fish_spot", "낚시 장소"), ("sell_spot", "물고기 판매 장소")), "mcraft": (("craft_spot", "포션 제작 장소"),)}
+# 지점 수가 정해진 장소 (포션 제작 장소: 1번 퀘스트 보드 · 2번 스텔라 포탈)
+MOVE_FIXED_POINTS = {("mcraft", "craft_spot"): 2}
 MOVE_DEFAULT = {
     # 기준 장소로 가기 (사용자가 정한 순서):
     #  Esc → R → Enter (리셋 · 0.5초 간격) → 3.5초 → / → 채팅 버튼 → 도감 버튼 → 도감 Exit → / → Enter (각 0.5초)
@@ -135,9 +137,9 @@ MOVE_DEFAULT = {
     "a_time": 1.0,                # 그 다음 A 누르기 (초)
     # 반대쪽 기준 장소 (포션 제작 장소 · 낚시와 정반대 방향): 리셋 · 카메라 정렬 · 내려다보기+줌 → S+D → S (끝에 A 같이)
     "rsd_time": 1.0,              # S + D 같이 누르기 (초)
-    "rs_time": 7.0,               # 그 다음 S 누르기 (초)
-    "ra_time": 1.0,               # S 를 누르는 마지막 이 시간 동안 A 도 같이 (초) — 기본: S 누른 지 6초 뒤부터 1초
-    # 반대쪽 길 1번 지점(퀘스트 보드)에 도착한 뒤: E → q_wait 초 → 퀘스트 창 Exit 클릭 → D rd_time 초
+    "rs_time": 6.0,               # 그 다음 S 누르기 (초)
+    "ra_time": 1.0,               # S 를 누르는 마지막 이 시간 동안 A 도 같이 (초) — 기본: S 누른 지 5초 뒤부터 1초
+    # 반대쪽 길: 1번 지점(퀘스트 보드) 뒤 E → q_wait 초 → 퀘스트 창 Exit · 2번 지점(스텔라 포탈) 뒤 D rd_time 초 = 포션 제작 장소
     "q_wait": 1.5,
     "rd_time": 2.0,
     "quest_exit_pos": None,       # 퀘스트 창 Exit 버튼 [x, y]
@@ -430,6 +432,8 @@ def normalize(raw):
             mv["wa_time"] = max(0.0, float(mv.get("wa_time", 8.0)) - 1.0)
         except (TypeError, ValueError):
             mv["wa_time"] = 7.0
+    if not mv.get("v132") and mv.get("rs_time") == 7.0:        # 반대쪽 기준 장소 S 7초 → 6초 (A 시작도 1초 당겨짐 · 한 번)
+        mv["rs_time"] = 6.0
     if not mv.get("v131") and mv.get("a_time") == 0.75:        # A 뒤에 W 를 따로 누르던 방식 → A 1초 안에 W 를 겹쳐 누름 (한 번)
         mv["a_time"] = 1.0
     for k, lo, hi, cast in (("reset_wait", 0.5, 15, float), ("w_time", 0, 30, float), ("wa_time", 0, 60, float),
@@ -468,13 +472,18 @@ def normalize(raw):
         elif pl["key"] in tpls and (pl["feat"], pl["key"]) not in seen:
             seen.add((pl["feat"], pl["key"]))
             out.append(dict(pl, name=tpls[pl["key"]]))
+            fixed = MOVE_FIXED_POINTS.get((pl["feat"], pl["key"]))
+            if fixed:                                              # 지점 수를 딱 맞춤 (남는 건 버리고 모자라면 빈 지점)
+                pts = out[-1]["points"][:fixed]
+                out[-1]["points"] = pts + [{"pos": None, "time": None} for _ in range(fixed - len(pts))]
     for feat, tpls in MOVE_TEMPLATES.items():
         for key, name in tpls:
             if (feat, key) not in seen:
-                out.append({"name": name, "feat": feat, "key": key, "points": [{"pos": None, "time": None}]})
+                n = MOVE_FIXED_POINTS.get((feat, key), 1)
+                out.append({"name": name, "feat": feat, "key": key, "points": [{"pos": None, "time": None} for _ in range(n)]})
     mv["places"] = out
     d["move"] = {k: mv[k] for k in MOVE_DEFAULT}
-    d["move"]["v18"] = d["move"]["v129"] = d["move"]["v130"] = d["move"]["v131"] = True
+    d["move"]["v18"] = d["move"]["v129"] = d["move"]["v130"] = d["move"]["v131"] = d["move"]["v132"] = True
     mp = dict(MPOP_DEFAULT)
     mp.update(old_mp)
     for k in (*BASE_INV_KEYS, "ocr_region"):
