@@ -52,6 +52,9 @@ small { color: var(--muted); font-weight: 400; }
 
 /* ---------- 메인 ---------- */
 #main { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+/* 배경 무늬 (희미하게 · 클릭은 통과) */
+#main::before { content: ""; position: absolute; left: 50%; top: 50%; width: min(92vh, 92vw); aspect-ratio: 1;
+  transform: translate(-50%, -50%); background: url("bg.png") center / contain no-repeat; opacity: .07; pointer-events: none; z-index: -1; }
 .col { width: min(520px, calc(100vw - 48px)); }
 .brand h1 { margin: 0; font-size: 44px; letter-spacing: -1px; line-height: 1.12; }
 .brand p { margin: 0 0 24px; color: var(--muted); font-size: 17px; }
