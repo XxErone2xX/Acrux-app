@@ -2,7 +2,7 @@
 """
 포션 자동 제작 — 오른쪽 알림에 "Auto Crafted" (Your ○○○ was automatically crafted!) 가 뜨면
   그 포션 이름을 읽고 → 포션 제작 장소(Stella)로 이동 → F → 검색창에 이름 입력 → 첫 결과 → Open Recipe
-  → Add Ingredients 창에서 Add Everything → Craft → Add Everything (다음 자동 제작용으로 재료를 다시 채움) → 닫기 → 리셋
+  → Add Ingredients 창에서 Add Everything → Craft → Add Everything (다음 자동 제작용으로 재료를 다시 채움) → 그 자리에서 리셋
   화면은 전부 글자(OCR)로 찾음: 상점 제목 'Stella's Workshop' · 탭 'Item' 'Lantern' 으로 위치 · 크기를 잼
   (1920x1080 전체 화면 스크린샷 기준 거리)
 """
@@ -331,11 +331,7 @@ class Crafter(popping.Popper):
         self._wait(0.25, stop)
         self._click(add["add_all_pos"], stop)
         self._wait(0.5, stop)
-        # 6. 창 닫기
-        self._click(add["add_close_pos"], stop)
-        self._wait(0.3, stop)
-        self._click(shop["shop_close_pos"], stop)
-        self._wait(0.3, stop)
+        # 6. 창은 안 닫고 그 자리에서 리셋 (_run 의 finally)
         self.crafted += 1
         self.log(f"{self.LABEL} 완료 — {name} 재료 다시 채움", "g")
         return True
