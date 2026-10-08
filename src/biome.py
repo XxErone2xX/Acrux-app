@@ -2,9 +2,8 @@
 """
 바이옴 매크로
 - 바이옴 감지: 로블록스 로그 파일(%LOCALAPPDATA%\\Roblox\\logs)의 [BloxstrapRPC] 줄에서 hoverText 읽기
-  (Noteab/Coteab 매크로 방식 — Apache-2.0)
 - 플레이어 이름이 설정돼 있으면 그 계정의 로그만 사용 (TutorialCursor 줄로 확인)
-- 디스코드 웹후크: 얼로니 SolsRNG 스크립트의 바이옴 매크로 임베드 형식
+- 디스코드 웹후크: 바이옴 시작 · 끝 임베드
 """
 import json
 import os

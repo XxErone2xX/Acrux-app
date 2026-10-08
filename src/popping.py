@@ -5,7 +5,7 @@
      → Inventory → Items → [포션마다: Search → 이름 입력 + 엔터 → OCR 확인(일치율, 1회 재시도)
      → 아이템 클릭 → 수량칸 더블클릭 → 개수 입력 + 엔터 → Use] → 바이옴이 끝날 때까지 대기 → 종료
 
-- 기준: 얼로니 SolsRNG 스크립트 (OpenInventoryAndUseItems / _RareBiomePotionTable / _FindInventoryItemByName)
+- 아이템 찾기
   · 이름은 '정확 일치' 원칙 — "Warp Potion" 을 찾을 때 "Super Warp Potion", "Warp Potion X" 같은
     이름이 더 붙은 다른 아이템은 집지 않음
   · OCR 은 글자가 조금씩 틀릴 수 있어서, 정규화(NFKC · 소문자 · 기호 제거) 후 일치율(%)로 판단
@@ -130,6 +130,9 @@ class SessionBiome:
 
 
 # ---------------------------------------------------------------- 실행기
+BIOME_WAIT_MAX = 1200      # 오토 팝핑 후 바이옴이 끝나길 기다리는 최대 시간 (초) — 넘으면 끝내고 복귀
+
+
 class Stopped(Exception):
     pass
 
@@ -270,9 +273,12 @@ class Popper:
             return
         # 바이옴이 끝날 때까지(다른 바이옴이 감지될 때까지) 대기 → 종료 (이후 매크로 복귀로 이어질 예정)
         self._set(msg=f"{cur} 끝날 때까지 대기")
-        gone = 0
+        gone, end = 0, time.time() + BIOME_WAIT_MAX
         while True:
             self._wait(1.0, stop)
+            if time.time() > end:
+                self.log(f"{cur} 가 {BIOME_WAIT_MAX // 60}분 넘게 안 끝남 — 오토 팝핑 종료", "y")
+                return
             now = tracker.update()
             if now and now != cur:
                 self.log(f"바이옴 종료 ({cur} → {now}) — 오토 팝핑 종료", "c")
@@ -430,7 +436,7 @@ class MyServerPopper(Popper):
 
 # ---------------------------------------------------------------- 매크로 탭: 오토 아이템 사용
 class ItemUser(Popper):
-    """쿨타임이 찰 때마다 인벤토리에서 아이템을 1개씩 사용 (스크립트 매크로의 오토 아이템 사용과 같은 간격)
+    """쿨타임이 찰 때마다 인벤토리에서 아이템을 1개씩 사용 
     Inventory → Items → (아이템 검색 → OCR 로 이름 확인 → 1개 사용) → Inventory 닫기
     위치 · OCR 영역은 매크로 기준 위치, 딜레이 · 일치율은 오토 팝핑 설정을 같이 씀"""
 

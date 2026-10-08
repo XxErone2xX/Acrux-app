@@ -5,7 +5,6 @@
   구매: Inventory → Merchant Teleporter 1개 사용 → 대기 → E → 대화 넘기기 → Open
         → 상점 위치 자동 보정 (Set to Max · 상점 제목 글자) · 아래 칸 이름 읽기
         → 살 칸만 (칸 클릭 → 아이템 이름 확인 → Set to Max → Purchase → 대화 넘기기) → 상점 닫기 → 리셋
-  방식 · 1920x1080 위치 값은 Noteab 매크로(Apache 2.0)를 참고함
 """
 import difflib
 import re

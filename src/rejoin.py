@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
 오토 팝핑 — Play 버튼 자동 클릭
-(Noteab/Coteab 매크로의 재접속 방식 참고 — Apache-2.0)
 1. 로블록스 창이 뜰 때까지 기다림
 2. 창을 맨 앞으로 → 지정한 Play 버튼 위치를 일정 간격으로 클릭
 3. 로블록스 로그에 '"state":"Equipped' 가 새로 찍히면(= 게임에 들어감) 멈춤
@@ -120,7 +119,7 @@ class PlayClicker:
                     return
             end = time.time() + max_time
             clicks = 0
-            # Noteab 방식: 먼저 클릭하고 → 그 뒤에 로그 확인 (클릭 전에 찍힌 기록은 무시)
+            # 먼저 클릭하고 → 그 뒤에 로그 확인 (클릭 전에 찍힌 기록은 무시)
             watch.in_game()
             with macro.fast_timing():                # 클릭하는 동안만 타이머 1ms + 우선순위 높음
                 t_next = time.time()                 # 클릭 시간표 (렉으로 밀려도 다음 클릭에서 따라잡음)
