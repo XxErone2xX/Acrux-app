@@ -192,6 +192,7 @@ class Crafter(popping.Popper):
         self.on_done = on_done
         self.crafted = 0
         self.name = None
+        self.test = False                    # 제작 테스트로 돌리는 중 (매크로 · 기능이 꺼져 있어도 끝까지)
 
     def snapshot(self):
         s = super().snapshot()
@@ -199,12 +200,13 @@ class Crafter(popping.Popper):
         s["name"] = self.name if self.running() else None
         return s
 
-    def start_job(self, name):
+    def start_job(self, name, test=False):
         if self.running():
             return False
         import threading
         self.stop_ev = threading.Event()
         self.name = name
+        self.test = test
         self.thread = threading.Thread(target=self._job, args=(name, self.stop_ev), daemon=True)
         self.thread.start()
         return True
