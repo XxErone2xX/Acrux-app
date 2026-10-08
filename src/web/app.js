@@ -1529,8 +1529,8 @@ const saveMove = () => queueSave({ move: JSON.parse(JSON.stringify(move())) });
 const MOVE_SET = [['reset_wait', '리셋 후 대기', 'Esc → R → Enter 로 리셋한 뒤 (초)', 3.5, 0.5, 0.1],
                   ['w_time', 'W 누르기', 'W 만 누르는 시간 (초)', 1, 0, 0.05],
                   ['wa_time', 'W + A 누르기', 'W 와 A 를 같이 누르는 시간 (초)', 7, 0, 0.5],
-                  ['a_time', 'A 누르기', '그 다음 A 만 누르는 시간 (초)', 0.75, 0, 0.05],
-                  ['w2_time', 'W 다시 누르기', '그 다음 W 만 누르는 시간 (초)', 0.25, 0, 0.05],
+                  ['a_time', 'A 누르기', '그 다음 A 를 누르는 시간 (초)', 1, 0, 0.05],
+                  ['w2_time', 'W 같이 누르기', 'A 를 누르는 마지막 이 시간 동안 W 도 같이 (초)', 0.25, 0, 0.05],
                   ['tilt_px', '화면 내려다보기', '우클릭을 누른 채 마우스를 아래로 끄는 거리 (px)', 800, 0, 50],
                   ['o_time', 'O 누르기', '최대 줌 (초)', 2.5, 0, 0.1],
                   ['margin', '도착 여유', '잰 시간에 더 기다릴 시간 (초)', 0.3, 0, 0.1]];
@@ -1538,7 +1538,7 @@ let lastMove = null;
 const fmtT = t => t == null ? '안 잼' : `${t}초`;
 // 장소의 지점이 전부 지정 · 측정되면 제목 옆에 총 걸리는 시간 — Esc(리셋)부터 도착까지 전부
 // 기준 장소 (서버 move.go_base 순서): 0.2 + Esc·R 1.0 + 리셋 대기 + 카메라 정렬 2.8 + W + W+A + 0.5 + 내려다보기·줌 + 0.4
-const baseTime = m => 4.9 + (m.reset_wait ?? 3.5) + (m.w_time ?? 1) + (m.wa_time ?? 7) + (m.a_time ?? 0.75) + (m.w2_time ?? 0.25)
+const baseTime = m => 4.9 + (m.reset_wait ?? 3.5) + (m.w_time ?? 1) + (m.wa_time ?? 7) + Math.max(m.a_time ?? 1, m.w2_time ?? 0.25)
   + Math.max(m.o_time ?? 2.5, (m.tilt_px ?? 800) / 20 * 0.015);
 const placeTotal = pl => {
   if (!pl.points.length || !pl.points.every(pt => pt.pos && pt.time != null)) return '';
