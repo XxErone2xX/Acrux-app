@@ -536,7 +536,8 @@ class Bridge:
         return self.mpop.running() or self.mpop_wait
 
     CALS = (("_autocal_running", "_autocal_stop"), ("_sellcal_running", "_sellcal_stop"),
-            ("_merchcal_running", "_merchcal_stop"), ("_craftcal_running", "_craftcal_stop"))
+            ("_merchcal_running", "_merchcal_stop"), ("_craftcal_running", "_craftcal_stop"),
+            ("_matchcal_running", "_matchcal_stop"))
 
     def _cal_running(self):
         return any(getattr(self, flag, False) for flag, _ in self.CALS)
@@ -907,9 +908,9 @@ class Bridge:
     # 매크로 기준 위치 설정 — 버튼 위치 · 영역 (feat: base = 여러 기능이 같이 쓰는 기준 위치 / mfish = 자동 낚시만)
     MPOS_POINTS = {"base": dict(popping.POS_KEYS, chat_pos="채팅 버튼", collection_pos="도감 버튼", collection_close="도감 Exit", dialog_pos="대화창"),
                    "mfish": dict(fishing.POS_KEYS, **dict(sell.SELL_KEYS)),
-                   "mmerch": dict(merchant.POS_KEYS), "mcraft": dict(crafter.POS_KEYS)}
+                   "mmerch": dict(merchant.POS_KEYS), "mcraft": dict(crafter.POS_KEYS), "mmatch": dict(memmatch.POS_KEYS)}
     MPOS_REGIONS = {"base": ("ocr_region", "notice_region"), "mfish": ("panel_region", "reel_region", "result_region", "bar_region"),
-                    "mmerch": ("chat_region", "item_region"), "mcraft": ("list_region",)}
+                    "mmerch": ("chat_region", "item_region"), "mcraft": ("list_region",), "mmatch": ("note_region",)}
     # 16:9 위치 템플릿 (로블록스 창 기준 비율) — 스나이프 탭 오토 팝핑 16:9 템플릿과 같은 값
     # (자동 낚시는 템플릿 대신 낚시 창 · 결과창 영역으로 안쪽 위치를 계산 → fishing.WINDOW_KEYS)
     MPOS_TEMPLATE = {
@@ -1751,6 +1752,80 @@ class Bridge:
             return {"error": error, "mcraft": self.data.get("mcraft")}
         self._on_log("포션 제작 자동 보정 완료", "g")
         return {"mcraft": self.data.get("mcraft")}
+
+    def api_mmatch_autocal(self, _):
+        """메모리 매치 자동 보정: 플레이어가 보드 앞에서 E 를 누르면 알림 창 · Start/Available 버튼 · Watch AD 칸 ·
+        카드 판 자리를 글자로 재서 저장하고 창을 닫음 (Start · 광고는 안 누름) · F7 이나 버튼을 한 번 더 누르면 취소"""
+        if getattr(self, "_matchcal_running", False):
+            self._matchcal_stop.set()
+            return {"error": "메모리 매치 자동 보정 취소 중"}
+        if self.mover.running() or self.matcher.running():
+            return {"error": "다른 동작이 도는 중"}
+        hwnd = macro.roblox_window_cached(1.0)
+        if not hwnd:
+            return {"error": "로블록스 창 없음"}
+        self._matchcal_running, self._matchcal_stop = True, threading.Event()
+        stop, back, banner = self._matchcal_stop, macro.foreground(), [None]
+
+        def set_banner(kind):
+            if banner[0] is not None and banner[0].poll() is None:
+                banner[0].kill()
+            banner[0] = self._banner_proc(kind) if kind else None
+
+        def wait(sec):
+            end = time.time() + sec
+            while True:
+                if stop.is_set() or macro.key_down_now("f7"):
+                    raise _AutocalStop("메모리 매치 자동 보정 취소됨")
+                if time.time() >= end:
+                    return
+                time.sleep(0.03)
+
+        def rect():
+            h = macro.roblox_window_cached(1.0)
+            r = macro.client_rect(h) if h else None
+            if not r:
+                raise _AutocalStop("로블록스 창 없음")
+            return r
+
+        def click(pos):
+            r = rect()
+            macro.focus(macro.roblox_window_cached(1.0))
+            macro.click(*macro.to_screen(pos[0], pos[1], r))
+
+        def status(msg):
+            self._on_log(f"메모리 매치 자동 보정 · {msg}", "c")
+            if msg.startswith("메모리 매치 창 찾음"):
+                set_banner("autocal")
+                self._banner_progress(0.6, 1.5)
+            elif msg == "창 닫는 중":
+                self._banner_progress(0.95, 1.0)
+
+        found, notes, error = {}, [], None
+        try:
+            if not self.fisher.hold(45, who="cal"):
+                return {"error": "자동 낚시가 멈추지 않음 — 낚시를 끄고 다시 눌러주세요"}
+            set_banner("matchcal")
+            macro.focus(hwnd, wait=0.3)
+            found, notes = memmatch.autocal(lambda r: macro.ocr_boxes(r), click, wait, rect, status)
+        except _AutocalStop as e:
+            error = str(e)
+        except Exception as e:
+            error = f"메모리 매치 자동 보정 실패: {e}"
+        finally:
+            set_banner(None)
+            self.fisher.release("cal")
+            self._matchcal_running = False
+            macro.focus_back(back)
+        if found:
+            with self.lock:
+                self.data.setdefault("mmatch", {}).update(found)
+            self._save()
+        if error:
+            self._on_log(error, "n")
+            return {"error": error, "mmatch": self.data.get("mmatch")}
+        self._on_log("메모리 매치 자동 보정 완료" + (" · " + " · ".join(notes) if notes else ""), "g")
+        return {"mmatch": self.data.get("mmatch"), "notes": notes}
 
     def api_mmatch_test(self, _):
         """메모리 매치 테스트: 지금 자리에서 (메모리 매치 보드 앞) E → 확인 → 할 수 있으면 짝 맞추기"""

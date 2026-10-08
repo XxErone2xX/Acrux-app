@@ -1565,8 +1565,15 @@ MPOS.mcraft = { box: 'mposCraft',
           ['search_pos', 'list_region', 'shop_close_pos', 'open_recipe_pos', 'add_all_pos', 'craft_pos', 'add_close_pos'], false, '', 'craftauto'],
          ['revbase', '반대쪽 기준 장소', '낚시와 정반대 방향 · 리셋 → 카메라 정렬 → 내려다보기+줌 → S+D → S (끝에 A 같이)', [], false, 'movebaserev'],
          ['move', '이동', '1번 퀘스트 보드 → E → 대기 → Exit → D → 2번 스텔라 포탈 → D = 포션 제작 장소', [], false, 'places:mcraft']] };
-MPOS.mmatch = { box: 'mposMatch', points: [], regions: [],
-  tabs: [['move', '이동', '기준 장소 → 메모리 매치 보드 앞 (E 를 누를 수 있는 곳)', [], false, 'places:mmatch']] };
+MPOS.mmatch = { box: 'mposMatch',
+  points: [['note_close_pos', '알림 창 X', 'E 를 누르면 뜨는 Notification 창 오른쪽 위 X'],
+           ['note_btn_pos', 'Start / Available 버튼', '창 가운데 초록 버튼 (Start Memory Match · Available after)'],
+           ['ad_pos', 'Watch AD 칸', '창 아래 Watch AD to lower the cooltime'],
+           ['board_close_pos', '카드 판 Close 버튼', '게임이 끝나면 카드 판 아래 뜨는 Close']],
+  regions: [['note_region', '알림 창 영역', 'Notification 창부터 Watch AD 칸까지 (이 영역만 읽어서 빠름)']],
+  tabs: [['note', '메모리 매치 창', '실행할 땐 글자로 먼저 찾고, 못 찾으면 이 위치를 씀',
+          ['note_region', 'note_close_pos', 'note_btn_pos', 'ad_pos', 'board_close_pos'], false, '', 'matchauto'],
+         ['move', '이동', '기준 장소 → 메모리 매치 보드 앞 (E 를 누를 수 있는 곳)', [], false, 'places:mmatch']] };
 MPOS.mmerch = { box: 'mposMerch', tpl: true,
   points: [['open_pos', 'Open 선택지', '대화 선택지 Open (글자로 못 찾을 때만)'],
            ['first_slot', '첫 번째 칸', '상점 맨 왼쪽 아이템 칸'],
@@ -1682,7 +1689,7 @@ function renderMoveCustom(el) {
   const [kind, feat] = el.dataset.mposCustom.split(':');
   if (kind === 'movebase') MPOS_CUSTOM.movebase(el);
   else if (kind === 'sell') MPOS_CUSTOM.sell(el);
-  else if (kind === 'fishauto' || kind === 'sellauto' || kind === 'merchauto' || kind === 'craftauto' || kind === 'movebaserev') MPOS_CUSTOM[kind](el);
+  else if (kind === 'fishauto' || kind === 'sellauto' || kind === 'merchauto' || kind === 'craftauto' || kind === 'matchauto' || kind === 'movebaserev') MPOS_CUSTOM[kind](el);
   else MPOS_CUSTOM.places(el, feat);
 }
 function rerenderMove() { document.querySelectorAll('[data-mpos-custom]').forEach(renderMoveCustom); if (config.mcraft) renderMcraft(); if (config.mmatch) renderMmatch(); Tutorial.refresh(); }
@@ -1692,6 +1699,7 @@ let sellcalBusy = false;
 let autocalBusy = false;
 let merchcalBusy = false;
 let craftcalBusy = false;
+let matchcalBusy = false;
 const autoRow = (name, sub, busy, label, attr) => `
       <div class="row"><span>${name}<small>${sub}</small></span>
         <span class="pos"><button class="btn mini ${busy ? 'waiting' : ''}" type="button" ${attr}>${busy ? '보정 중… (다시 누르면 취소)' : label}</button></span></div>`;
@@ -1761,6 +1769,21 @@ const MPOS_CUSTOM = {
         toast(r.error || '포션 제작 자동 보정 완료');
       } catch (err) { toast('포션 제작 자동 보정 실패: ' + err.message); }
       finally { craftcalBusy = false; rerenderMove(); }
+    });
+  },
+  // 메모리 매치: E 를 눌러 알림 창 · 카드 판 위치 보정
+  matchauto(el) {
+    el.innerHTML = autoRow('자동 보정', '누른 뒤 메모리 매치 보드 앞에서 E · Start · 광고는 안 누름', matchcalBusy, '자동 보정', 'data-match-auto');
+    el.querySelector('[data-match-auto]').addEventListener('click', async () => {
+      if (matchcalBusy) { const r = await api('mmatch_autocal'); return r.error && toast(r.error); }
+      matchcalBusy = true; rerenderMove();
+      toast('메모리 매치 보드 앞에서 E 를 눌러 주세요');
+      try {
+        const r = await api('mmatch_autocal');
+        if (r.mmatch) { Object.assign(mmatch(), r.mmatch); mposChanged('mmatch'); }
+        toast(r.error || `메모리 매치 자동 보정 완료${r.notes?.length ? ' · ' + r.notes.join(' · ') : ''}`);
+      } catch (err) { toast('메모리 매치 자동 보정 실패: ' + err.message); }
+      finally { matchcalBusy = false; rerenderMove(); }
     });
   },
   // 판매: 대기 · 반복 설정 + [판매 테스트]
@@ -2544,10 +2567,14 @@ const Tutorial = (() => {
     matchPlace: { label: '메모리 매치 장소', sec: 'mp-match', side: '오토 메모리 매치', target: groupEl('mposMatch', 'move'),
       ok: () => placesOk('mmatch'),
       body: `<p>보드 앞(E 를 누를 수 있는 곳)까지의 지점을 <b>기준 장소에서 지정</b>한 뒤, <b>테스트</b>로 걸리는 시간을 재주세요.</p>` },
+    matchNote: { label: '메모리 매치 창 위치', sec: 'mp-match', side: '오토 메모리 매치', target: groupEl('mposMatch', 'note'), optional: true,
+      ok: () => !!(mmatch().note_region && mmatch().note_btn_pos),
+      body: `<p><b>자동 보정</b>을 누른 뒤 메모리 매치 보드 앞에서 <b>E</b> 를 눌러주세요. 창 · 카드 판 위치를 저장해 두면 확인이 빨라집니다.</p>
+             <p class="dim">선택 항목입니다.</p>` },
   };
   const FEAT_REQ = { mpop: ['inv'], mitem: ['inv'], mmerch: ['merchChat', 'dialog', 'inv'],
     mfish: ['fishWin', 'moveBase', 'fishPlace', 'dialog', 'fishSell'],
-    mcraft: ['notice', 'moveBase', 'craftRev', 'craftPlace', 'craftShop'], mmatch: ['moveBase', 'matchPlace'] };
+    mcraft: ['notice', 'moveBase', 'craftRev', 'craftPlace', 'craftShop'], mmatch: ['moveBase', 'matchPlace', 'matchNote'] };
   const FEAT_TIP = {
     mpop: '<p class="dim">레어 바이옴이 뜨면 기능 설정의 바이옴별 포션 목록대로 사용합니다.</p>',
     mitem: '<p class="dim">쿨타임마다 아이템을 1개씩 사용합니다.</p>',

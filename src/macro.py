@@ -821,6 +821,11 @@ BANNER_TEXT = {
         "en": "Potion craft calibration · press F in front of Stella · hands off once the crafting window opens (F7: cancel)",
         "ja": "ポーション製作の自動補正 · Stella の前で F を押してください · 製作ウィンドウが出たら手を離してください（F7: キャンセル）",
     },
+    "matchcal": {
+        "ko": "메모리 매치 자동 보정 · 보드 앞에서 E 를 누르세요 · 창이 뜨면 손을 떼세요 (F7: 취소)",
+        "en": "Memory match calibration · press E in front of the board · hands off once the window opens (F7: cancel)",
+        "ja": "メモリーマッチの自動補正 · ボードの前で E を押してください · ウィンドウが出たら手を離してください（F7: キャンセル）",
+    },
     "macro": {
         "ko": "매크로 작동 중 · 마우스와 키보드를 건드리지 마세요 (F3: 매크로 끄기)",
         "en": "Macro running · don't touch the mouse or keyboard (F3: turn the macro off)",

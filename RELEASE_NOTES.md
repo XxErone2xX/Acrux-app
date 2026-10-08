@@ -6,7 +6,10 @@
 - 매크로 복귀 때 내 서버 입장이 확인되지 않으면 2번까지 다시 복귀 · 그래도 안 되면 매크로를 멈춘 채로 두고, 직접 들어가거나 F3 으로 다시 켜면 이어감
 - 매크로를 멈추거나 F7 을 누른 뒤에도 리셋 키(Esc · R · Enter)가 다른 창에 입력되던 문제 수정 · 리셋 전에 로블록스 창을 앞으로 가져옴
 - 포션 자동 제작의 Auto Crafted 알림 확인(글자 읽기)이 매크로 전체를 몇 초씩 멈추던 문제 수정 · 응답 없는 글자 읽기가 계속 쌓이지 않게 함
-- 오토 메모리 매치: 할 수 있으면 바로 하고, 'Watch AD' 칸이 있으면 광고를 최대한 봄 (광고 1번 = 쿨타임 3시간 ↓ · 광고로 쿨타임이 끝나면 또 메모리 매치) · 광고 칸이 없으면 남은 시간 뒤에 (최대 1시간 뒤) 다시 확인
+- 오토 메모리 매치: 할 수 있으면 바로 하고, 'Watch AD' 칸이 있으면 광고를 최대한 봄 (광고 1번 = 쿨타임 3시간 ↓ · 광고로 쿨타임이 끝나면 또 메모리 매치)
+- 오토 메모리 매치: 광고 칸이 없으면(오늘 광고를 다 봄) 광고는 다시 보러 오지 않고, 쿨타임이 끝나고 1분 뒤에 다시 감 · 광고를 본 뒤 · 메모리 매치를 한 뒤엔 E 를 다시 눌러서 창을 엶
+- 오토 메모리 매치: Start 를 누른 뒤 새 판이 깔릴 때까지(카드가 전부 뒷면) 기다렸다가 시작 · Close 는 뜨고 1초 뒤에 누름
+- 메모리 매치 자동 보정 추가 (매크로 기준 위치 설정 → 오토 메모리 매치 → 메모리 매치 창): 보드 앞에서 E 를 누르면 알림 창 · 버튼 · 광고 칸 · 카드 판 자리를 저장 → 그 영역만 읽어서 확인이 빨라짐
 - 오토 메모리 매치: 짝을 맞추면 기회가 안 줄어드는데 매번 줄어드는 걸로 세서 판을 일찍 끝내던 문제 수정
 - 매크로 탭 오토 메모리 매치에 '본 광고' 수 표시
 
@@ -18,6 +21,9 @@
 - If a macro return can't confirm you joined your server, it retries up to 2 times · after that the macro stays paused and resumes once you join yourself or turn it back on with F3
 - Fixed reset keys (Esc · R · Enter) being sent to other windows after stopping or pressing F7 · Roblox is brought to the front before resetting
 - Fixed the Auto Crafted notice check (text reading) for potion auto craft freezing the whole macro for seconds · stuck text reads no longer pile up
-- Auto memory match: plays right away when ready, and watches as many ads as possible while the 'Watch AD' bar is shown (each ad = −3 h cooldown · plays again once ads finish the cooldown) · without the ad bar it checks again when the cooldown ends (within 1 hour at most)
+- Auto memory match: plays right away when ready, and watches as many ads as possible while the 'Watch AD' bar is shown (each ad = −3 h cooldown · plays again once ads finish the cooldown)
+- Auto memory match: without the ad bar (all of today's ads watched) it no longer comes back for ads and returns 1 minute after the cooldown ends · presses E again to reopen the window after ads and after playing
+- Auto memory match: after Start, waits until the new board is dealt (all cards face down) before playing · clicks Close 1 second after it appears
+- Added memory match auto calibration (Macro base position settings → Auto memory match → Memory match window): press E at the board to save the window, button, ad bar and card board positions → only that area is read, so checks are faster
 - Auto memory match: fixed ending the round early by counting a chance for every pair (matched pairs don't use a chance)
 - Macro tab auto memory match now shows how many ads were watched

@@ -5,7 +5,9 @@
     끝나면 다시 E 로 확인 (광고를 볼 수 있으면 이어서 광고)
   · Available after 00h 00m Left + 'Watch AD to lower the cooltime for 3 hours!' 가 있으면 광고를 봄
     (광고 1번 = 쿨타임 3시간 ↓) → 다시 알림 창을 읽어서 할 수 있으면 메모리 매치 · 아니면 광고를 또 봄 (최대한)
-  · 광고 칸이 없으면(= 광고를 볼 수 없음 · 스크립트 매크로와 같은 기준) 남은 시간 뒤에 다시 확인 (최대 1시간 뒤)
+  · 광고 칸이 없으면(= 오늘 광고를 다 봄 · 스크립트 매크로와 같은 기준) 광고는 다시 보러 오지 않고, 쿨타임이 끝나고 1분 뒤에 다시 감
+  · 광고를 다 본 뒤 · 메모리 매치를 한 뒤 다시 창을 쓸 땐 항상 E 를 다시 누름
+  자동 보정: 보드 앞에서 E 를 누르면 알림 창 · 버튼 · 광고 칸 · 카드 판 자리를 재서 저장 (실행할 땐 글자로 먼저 찾고, 못 찾으면 이 자리)
   카드 구별: 그림(작게 줄인 픽셀) + 아래 개수 글자(OCR · x100 / x200 처럼 그림만으론 같은 카드)
   위치는 전부 글자로 잼: 보드 제목 'Memory Match' ↔ 'CHANCES' 거리로 크기 · 알림 창은 'Notification' 제목 기준
   (1920x1080 전체 화면 스크린샷 기준 거리)
@@ -29,12 +31,18 @@ CLOSE_DY = 549                        # 제목 → 게임이 끝나면 뜨는 Cl
 # 알림 창 ('Notification' 제목 가운데 기준 px · 1080p)
 NOTE_CLOSE = (271, -3)                # 오른쪽 위 X
 NOTE_BTN_DY = 157                     # 제목 → Start Memory Match / Available after 버튼
+NOTE_AD_DY = 206                      # 제목 → 아래 'Watch AD' 칸
+NOTE_BOARD_DY = -163                  # 알림 창 제목 → 카드 판 제목 'Memory Match' (둘 다 화면 가운데)
+NOTE_REGION = (-310, -30, 310, 240)   # 알림 창을 읽을 영역 (제목 기준)
+POS_KEYS = (("note_close_pos", "알림 창 X"), ("note_btn_pos", "Start / Available 버튼"), ("ad_pos", "Watch AD 칸"),
+            ("board_close_pos", "카드 판 Close 버튼"))
 # 광고 화면 (1920x1080 기준 px) — 닫기 X 는 스크립트 매크로와 같은 자리 (화면 비율로 맞춤 · 넓은 화면은 조금 오른쪽)
 AD_CLOSE = (1513, 239)
 AD_ICON = (3, 582)                    # 닫기 X → 아래 재생/일시정지 아이콘 (재생 중엔 ‖ · 끝나면 ▶)
 AD_MAX = 8                            # 한 번 확인할 때 볼 광고 최대 수 (광고 1번 = 3시간 · 쿨타임 12시간)
 ROUND_MAX = 20                        # 한 번 확인에서 (메모리 매치 + 광고) 최대 반복
-NO_AD_RECHECK = 3600                  # 광고를 볼 수 없을 때 다시 확인하는 최대 간격 (초)
+AFTER_COOLDOWN = 60                   # 쿨타임이 끝나고 이만큼 뒤에 다시 감 (초)
+READY_MIN = 5.5                       # Start 를 누르고 판이 새로 깔릴 때까지 최소 대기 (스크립트 매크로와 같음)
 
 
 def _r(rect, x, y):
@@ -54,7 +62,11 @@ def board_layout(boxes, rect):
     k = (ch[2] - t[2]) * H / REF_CHANCES_DY
     if not 0.25 < k < 4:
         return None
-    tx, ty = t[1] * W, t[2] * H
+    return board_at(t[1] * W, t[2] * H, k, rect)
+
+
+def board_at(tx, ty, k, rect):
+    """카드 판 제목 가운데 (px) · 크기 k (1080p 대비) → 카드 자리들"""
     cards, cboxes, texts = [], [], []
     for r in range(ROWS):
         for c in range(COLS):
@@ -64,6 +76,17 @@ def board_layout(boxes, rect):
             texts.append(_r(rect, x - TEXT_W * k / 2, y + (TEXT_DY - TEXT_H / 2) * k)
                          + _r(rect, x + TEXT_W * k / 2, y + (TEXT_DY + TEXT_H / 2) * k))
     return {"cards": cards, "boxes": cboxes, "texts": texts, "close_pos": _r(rect, tx, ty + CLOSE_DY * k)}
+
+
+def saved_board(cfg, rect):
+    """자동 보정으로 저장한 카드 판 자리 → board_at 결과 또는 None"""
+    t, k = cfg.get("board_title"), cfg.get("board_k")
+    if not t or not k:
+        return None
+    lay = board_at(t[0] * rect[2], t[1] * rect[3], float(k) * rect[3] / 1080, rect)
+    if cfg.get("board_close_pos"):
+        lay["close_pos"] = list(cfg["board_close_pos"])
+    return lay
 
 
 def parse_wait(text):
@@ -125,9 +148,55 @@ def notice_state(boxes, rect):
         hx, hy = low[1] * W, low[2] * H - NOTE_BTN_DY * k
     close = _r(rect, hx + NOTE_CLOSE[0] * k, hy + NOTE_CLOSE[1] * k)
     ad_pos = [round(ad[1], 4), round(ad[2], 4)] if ad else None
+    base = {"close_pos": close, "ad_pos": ad_pos, "pos": [round(low[1], 4), round(low[2], 4)], "head": bool(head),
+            "k": k, "head_xy": (hx, hy)}
     if btn:
-        return {"kind": "start", "pos": [round(btn[1], 4), round(btn[2], 4)], "close_pos": close, "ad_pos": ad_pos}
-    return {"kind": "wait", "sec": parse_wait(avail[0]), "close_pos": close, "ad_pos": ad_pos}
+        return dict(base, kind="start")
+    return dict(base, kind="wait", sec=parse_wait(avail[0]))
+
+
+def measure(boxes, rect):
+    """알림 창(E 를 누른 뒤) → 자동 보정 값 · 제목(Notification)을 못 읽으면 None"""
+    st = notice_state(boxes, rect)
+    if not st or not st["head"]:
+        return None
+    (hx, hy), k = st["head_xy"], st["k"]
+    return {"note_close_pos": st["close_pos"], "note_btn_pos": st["pos"],
+            "ad_pos": st["ad_pos"] or _r(rect, hx, hy + NOTE_AD_DY * k),
+            "note_region": _r(rect, hx + NOTE_REGION[0] * k, hy + NOTE_REGION[1] * k)
+            + _r(rect, hx + NOTE_REGION[2] * k, hy + NOTE_REGION[3] * k),
+            "board_title": _r(rect, hx, hy + NOTE_BOARD_DY * k), "board_k": round(k * 1080 / rect[3], 4),
+            "board_close_pos": _r(rect, hx, hy + (NOTE_BOARD_DY + CLOSE_DY) * k)}, st
+
+
+def autocal(ocr, click, wait, rect, status, wait_e=120.0):
+    """메모리 매치 자동 보정 — 플레이어가 보드 앞에서 E 를 직접 누르면 알림 창을 글자로 재서 자리를 저장하고 창을 닫음
+    (Start · 광고는 안 누름) → ({키: 값}, 알림 글)"""
+    status("메모리 매치 보드 앞에서 E 를 눌러 주세요")
+    end = time.time() + wait_e
+    while True:
+        res = measure(ocr(None), rect())
+        if res:
+            break
+        if time.time() > end:
+            raise RuntimeError("메모리 매치 창이 안 보임 — 보드 앞에서 E 를 눌러 주세요")
+        wait(0.4)
+    status("메모리 매치 창 찾음 — 이제 만지지 마세요")
+    wait(0.8)
+    res = measure(ocr(None), rect()) or res              # 창이 다 뜬 뒤 한 번 더
+    found, st = res
+    notes = []
+    if not st["ad_pos"]:
+        notes.append("Watch AD 칸이 안 보여서 그 자리는 계산값")
+    notes.append("지금 바로 할 수 있음" if st["kind"] == "start" else
+                 f"쿨타임 {st['sec'] // 3600}시간 {st['sec'] % 3600 // 60}분 남음" if st.get("sec") is not None else "")
+    status("창 닫는 중")
+    for _ in range(2):
+        click(found["note_close_pos"])
+        wait(0.6)
+        if not notice_state(ocr(found["note_region"]), rect()):
+            break
+    return found, [n for n in notes if n]
 
 
 def ad_screen(img):
@@ -199,6 +268,12 @@ def same_icon(a, b):
     return sig_diff(a, b) < 10 and float(np.abs(a[1] - b[1]).max()) < 30
 
 
+def green_ratio_sig(sig):
+    """서명의 가운데 평균 색이 초록(맞춘 카드)이 아닌지"""
+    b, g, r = (float(v) for v in sig[1])
+    return not (g > 110 and g > r + 30 and g > b + 30)
+
+
 def green_ratio(img):
     """맞춘 카드는 초록 바탕 + 체크 → 초록 비율"""
     b, g, r = (img[..., i].astype("int16") for i in range(3))
@@ -247,11 +322,24 @@ class Matcher(popping.Popper):
             self._set(msg="대기")
 
     # ---- 화면 읽기
+    def _read_notice(self, stop):
+        """알림 창 읽기 — 자동 보정한 영역만 먼저 (빠름) · 못 찾으면 화면 전체
+        제목을 못 읽어서 X 자리를 모르면 보정한 X 자리"""
+        c = self.get_mcfg() or {}
+        rect = self._rect(stop)
+        st = notice_state(macro.ocr_boxes(c["note_region"]), rect) if c.get("note_region") else None
+        st = st or notice_state(macro.ocr_boxes(None), rect)
+        if st and not st["head"] and c.get("note_close_pos"):
+            st["close_pos"] = list(c["note_close_pos"])
+        return st
+
     def _notice(self, stop, timeout):
         end = time.time() + timeout
         while True:
-            st = notice_state(macro.ocr_boxes(None), self._rect(stop))
+            st = self._read_notice(stop)
             if st or time.time() > end:
+                if st:
+                    self._wait(float((self.get_mcfg() or {}).get("click_wait", 1.0)), stop)   # 창이 다 뜰 때까지
                 return st
             self._wait(0.4, stop)
 
@@ -270,20 +358,14 @@ class Matcher(popping.Popper):
             self._click(st["close_pos"], stop)
             self._wait(0.4, stop)
 
-    def _schedule(self, st, cap=None, ad=False):
-        """알림의 남은 시간 → 다음 확인 시각 (cap: 광고를 다시 볼 수 있는지 그보다 먼저 확인)"""
+    def _schedule(self, st):
+        """알림의 남은 시간 → 다음 확인 시각 (쿨타임이 끝나고 1분 뒤 · 광고는 다시 보러 오지 않음)"""
         sec = st.get("sec") if st else None
         if sec is None:
             self.next_at = time.time() + 3600
             return
-        wait = sec + 30 if cap is None else min(sec + 30, cap)
-        self.next_at = time.time() + wait
-        left = f"{sec // 3600}시간 {sec % 3600 // 60}분"
-        if wait < sec:
-            why = "광고를 더 볼 수 없음" if ad else "광고를 볼 수 없음"
-            self.log(f"{self.LABEL} — 쿨타임 {left} 남음 · {why} · {wait // 60}분 뒤 다시 확인", "d")
-        else:
-            self.log(f"{self.LABEL} — 쿨타임 {left} 남음 · 그때 다시 확인", "d")
+        self.next_at = time.time() + sec + AFTER_COOLDOWN
+        self.log(f"{self.LABEL} — 쿨타임 {sec // 3600}시간 {sec % 3600 // 60}분 남음 · 끝나고 1분 뒤에 다시 감", "d")
 
     # ---- 전체 순서
     def _run(self, here, stop):
@@ -319,8 +401,8 @@ class Matcher(popping.Popper):
             if st["kind"] == "start":                       # 할 수 있으면 광고보다 먼저
                 if not self._play_round(st, stop):
                     return
-                self._wait(1.0, stop)
-                st = self._open_notice(stop)
+                self._wait(1.5, stop)
+                st = self._open_notice(stop)                 # 메모리 매치를 한 뒤에도 E 를 다시
                 if not st:
                     self.next_at = time.time() + 600
                     return
@@ -332,7 +414,8 @@ class Matcher(popping.Popper):
                 self.log(f"{self.LABEL} — 광고 보기 ({ads}번째 · 쿨타임 3시간 줄이기)", "c")
                 shown = self._watch_ad(st["ad_pos"], stop)
                 self._check(stop)
-                nxt = self._notice(stop, 6) or self._open_notice(stop)
+                self._wait(1.5, stop)
+                nxt = self._open_notice(stop)                # 광고 뒤엔 E 를 다시 눌러야 창을 쓸 수 있음
                 if not nxt:
                     self.log(f"{self.LABEL} — 광고 뒤에 메모리 매치 창이 안 뜸 · 10분 뒤 다시", "y")
                     self.next_at = time.time() + 600
@@ -351,8 +434,10 @@ class Matcher(popping.Popper):
                     self.log(f"{self.LABEL} — 광고 보상 없음 ({why})", "y")
                 st = nxt
                 continue
-            # 광고를 볼 수 없음(칸 없음) · 계속 실패 · 이번 확인에서 많이 봄 → 남은 시간 뒤에 (광고를 다시 볼 수 있는지는 더 일찍) 확인
-            self._schedule(st, cap=NO_AD_RECHECK if not st.get("ad_pos") else 1800, ad=bool(st.get("ad_pos")))
+            # 광고 칸이 없음(= 오늘 광고를 다 봄) · 광고가 계속 실패 · 이번에 많이 봄 → 쿨타임이 끝나고 1분 뒤에 다시
+            if not st.get("ad_pos") and ads:
+                self.log(f"{self.LABEL} — 광고를 다 봄 (오늘은 더 볼 수 없음)", "d")
+            self._schedule(st)
             self._close_notice(st, stop)
             break
         else:
@@ -364,10 +449,21 @@ class Matcher(popping.Popper):
         """Start Memory Match → 카드 짝 맞추기 → Close · 판이 안 보이면 False"""
         self._set(msg="Start Memory Match")
         self._click(st["pos"], stop)
-        lay, end = None, time.time() + 10
+        t0 = time.time()
+        lay, end = None, t0 + 12
         while not lay and time.time() < end:
             self._wait(0.5, stop)
             lay = board_layout(macro.ocr_boxes(None), self._rect(stop))
+        lay = lay or saved_board(self.get_mcfg() or {}, self._rect(stop))
+        # 판이 새로 깔릴 때까지: 최소 5.5초 + 카드가 전부 뒷면 (바로 뒤엔 지난 판이 그대로 보일 수 있음 · 최대 30초)
+        self._set(msg="카드 판 준비 확인 중")
+        self._wait(max(0.0, READY_MIN - (time.time() - t0)), stop)
+        end = time.time() + 30
+        while lay and not self._all_hidden(lay, stop):
+            if time.time() > end:
+                lay = None
+                break
+            self._wait(0.5, stop)
         if not lay:
             self.log(f"{self.LABEL} — 카드 판이 안 보임", "y")
             self.next_at = time.time() + 600
@@ -383,6 +479,7 @@ class Matcher(popping.Popper):
                 close = [b[1], b[2]]
                 break
             self._wait(0.5, stop)
+        self._wait(1.0, stop)                                # Close 가 뜨고 1초 뒤 (스크립트 매크로와 같음)
         self._click(close, stop)
         self.log(f"{self.LABEL} — 한 판 끝", "g")
         return True
@@ -430,6 +527,13 @@ class Matcher(popping.Popper):
     # ---- 카드 짝 맞추기
     def _grab(self, lay, i, stop):
         return card_img(lay["boxes"][i], self._rect(stop))
+
+    def _all_hidden(self, lay, stop):
+        """카드 20장이 전부 같은 뒷면(별)인지 — 새 판이 깔렸는지"""
+        import numpy as np
+        sigs = [card_sig(self._grab(lay, i, stop)) for i in range(len(lay["boxes"]))]
+        ref = (np.median([g[0] for g in sigs], axis=0), np.median([g[1] for g in sigs], axis=0))
+        return all(sig_diff(g, ref) < 8 and green_ratio_sig(g) for g in sigs)
 
     def _reveal(self, lay, i, hidden, stop):
         """카드를 눌러 앞면을 읽음 → (그림 서명, 개수 글자)"""
