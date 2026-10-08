@@ -66,6 +66,7 @@ DEFAULT_CONFIG = {
     "macro_on": False,        # 메인 화면 '매크로' 버튼 — 꺼져 있으면 매크로 탭 기능이 전부 안 돎 (켤 때마다 꺼진 상태로 시작)
     "mfish": {},              # 매크로 탭 · 자동 낚시 (아래 MFISH_DEFAULT)
     "mitem": {},              # 매크로 탭 · 오토 아이템 사용 (아래 MITEM_DEFAULT)
+    "mcraft": {},             # 매크로 탭 · 포션 자동 제작 (아래 MCRAFT_DEFAULT)
     "mmerch": {},             # 매크로 탭 · 상인 자동 구매 (아래 MMERCH_DEFAULT)
     "mpop": {},               # 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버) (아래 MPOP_DEFAULT)
     "base": {},               # 매크로 기준 위치 — 여러 기능이 같이 쓰는 위치 (아래 BASE_DEFAULT)
@@ -121,9 +122,9 @@ BASE_DEFAULT = {
     "collection_close": None,     # 도감 Exit 버튼
     "dialog_pos": None,           # NPC 대화창 (눌러서 대화 넘기기 · 물고기 판매 등 여러 기능이 같이 씀)
 }
-MOVE_FEATS = ("mfish", "mpop")    # 장소를 따로 둘 수 있는 기능 (매크로 기준 위치 설정의 각 기능 칸)
+MOVE_FEATS = ("mfish", "mpop", "mcraft")    # 장소를 따로 둘 수 있는 기능 (매크로 기준 위치 설정의 각 기능 칸)
 # 기능마다 정해진 장소 (사용자가 만들거나 지우지 않음 · 지점 위치와 시간만 지정)
-MOVE_TEMPLATES = {"mfish": (("fish_spot", "낚시 장소"), ("sell_spot", "물고기 판매 장소"))}
+MOVE_TEMPLATES = {"mfish": (("fish_spot", "낚시 장소"), ("sell_spot", "물고기 판매 장소")), "mcraft": (("craft_spot", "포션 제작 장소"),)}
 MOVE_DEFAULT = {
     # 기준 장소로 가기 (사용자가 정한 순서):
     #  Esc → R → Enter (리셋 · 0.5초 간격) → 3.5초 → / → 채팅 버튼 → 도감 버튼 → 도감 Exit → / → Enter (각 0.5초)
@@ -158,6 +159,20 @@ MITEM_DEFAULT = {
     "randomizer": True,           # Biome Randomizer 사용
     "randomizer_min": 18.0,       # Biome Randomizer 간격 (분)
     "close_inventory": True,      # 다 쓰고 Inventory 버튼을 한 번 더 눌러 닫기
+}
+MCRAFT_DEFAULT = {
+    # 매크로 탭 · 포션 자동 제작 — 알림에 "Auto Crafted" 가 뜨면 Stella 에게 가서 그 포션을 다시 채워 둠
+    # (검색 → Open Recipe → Add Everything → Craft → Add Everything) · 알림 영역은 통합 위치, 가는 길은 이동 탭
+    "enabled": False,
+    "f_wait": 2.5,                # F 누른 뒤 제작 창이 뜰 때까지 (초)
+    # 제작 창 위치 (자동 보정 · 직접 지정) — 실행 중엔 글자로 먼저 찾고, 못 찾을 때 이 값을 씀
+    "search_pos": None,           # 검색창
+    "list_region": None,          # 검색 결과 목록
+    "shop_close_pos": None,       # 제작 창 X
+    "open_recipe_pos": None,      # Open Recipe
+    "add_all_pos": None,          # Add Everything
+    "craft_pos": None,            # Craft
+    "add_close_pos": None,        # Add Ingredients 창 X
 }
 # 상인 아이템 (스크립트 매크로의 상인 아이템 설정과 같은 목록)
 MERCHANT_ITEMS = {
@@ -499,6 +514,17 @@ def normalize(raw):
         except (TypeError, ValueError):
             mi[k] = MITEM_DEFAULT[k]
     d["mitem"] = {k: mi[k] for k in MITEM_DEFAULT}
+    mc = dict(MCRAFT_DEFAULT)
+    mc.update(d.get("mcraft") if isinstance(d.get("mcraft"), dict) else {})
+    mc["enabled"] = bool(mc.get("enabled"))
+    try:
+        mc["f_wait"] = min(15.0, max(0.5, float(mc.get("f_wait"))))
+    except (TypeError, ValueError):
+        mc["f_wait"] = MCRAFT_DEFAULT["f_wait"]
+    for k in ("search_pos", "shop_close_pos", "open_recipe_pos", "add_all_pos", "craft_pos", "add_close_pos"):
+        mc[k] = _ratio_list(mc.get(k), 2)
+    mc["list_region"] = _ratio_list(mc.get("list_region"), 4)
+    d["mcraft"] = {k: mc[k] for k in MCRAFT_DEFAULT}
     d["macro_on"] = bool(d.get("macro_on"))
     mf = dict(MFISH_DEFAULT)
     mf.update(d.get("mfish") if isinstance(d.get("mfish"), dict) else {})

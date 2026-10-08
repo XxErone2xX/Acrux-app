@@ -464,7 +464,13 @@
         <div class="card form" id="mmerchForm"></div>
         <div id="mmerchItems"></div>
       </div>
-      <div class="sec" data-sec="mf-craft"><div class="sec-head"><h2>포션 자동 제작</h2></div><div class="empty">준비 중</div></div>
+      <div class="sec" data-sec="mf-craft">
+        <div class="sec-head"><h2>포션 자동 제작</h2>
+          <span class="status-mini mpop-status"><span class="dot" id="mcraftDot"></span><span id="mcraftState">대기</span></span>
+          <button class="btn ghost" id="mcraftStop">정지</button></div>
+        <p class="hint">알림에 Auto Crafted 가 뜨면 Stella 에게 가서 그 포션의 재료를 다시 채움 · 정지: F7</p>
+        <div class="card form" id="mcraftForm"></div>
+      </div>
       <div class="sec" data-sec="mf-memory"><div class="sec-head"><h2>오토 메모리 매치</h2></div><div class="empty">준비 중</div></div>
     </div>
   </div>
@@ -480,6 +486,7 @@
       <button class="item deco" data-sec="mp-base"><b>통합 위치</b><span>여러 기능이 같이 쓰는 위치</span></button>
       <button class="item deco" data-sec="mp-fish"><b>자동 낚시</b><span>Fish 버튼 · 릴링 바 · 결과창</span></button>
       <button class="item deco" data-sec="mp-merch"><b>상인 자동 구매</b><span>채팅 · 상점</span></button>
+      <button class="item deco" data-sec="mp-craft"><b>포션 자동 제작</b><span>제작 창 · 제작 장소</span></button>
     </nav>
     <div class="content">
       <div class="sec" data-sec="mp-base">
@@ -497,6 +504,10 @@
       <div class="sec" data-sec="mp-merch">
         <div class="sec-head"><h2>상인 자동 구매</h2></div>
         <div class="mpos-cards" id="mposMerch"></div>
+      </div>
+      <div class="sec" data-sec="mp-craft">
+        <div class="sec-head"><h2>포션 자동 제작</h2></div>
+        <div class="mpos-cards" id="mposCraft"></div>
       </div>
     </div>
   </div>

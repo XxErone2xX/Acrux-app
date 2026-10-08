@@ -792,6 +792,11 @@ BANNER_TEXT = {
         "en": "Merchant calibration · press E in front of the merchant · hands off once the dialog opens (F7: cancel)",
         "ja": "商人の自動補正 · 商人の前で E を押してください · 会話が出たら手を離してください（F7: キャンセル）",
     },
+    "craftcal": {
+        "ko": "포션 제작 자동 보정 · Stella 앞에서 F 를 누르세요 · 제작 창이 뜨면 손을 떼세요 (F7: 취소)",
+        "en": "Potion craft calibration · press F in front of Stella · hands off once the crafting window opens (F7: cancel)",
+        "ja": "ポーション製作の自動補正 · Stella の前で F を押してください · 製作ウィンドウが出たら手を離してください（F7: キャンセル）",
+    },
     "macro": {
         "ko": "매크로 작동 중 · 마우스와 키보드를 건드리지 마세요 (F3: 매크로 끄기)",
         "en": "Macro running · don't touch the mouse or keyboard (F3: turn the macro off)",
@@ -1354,6 +1359,8 @@ def ocr_region(region_ratio, item=False, bring_front=True):
 NOTICE_COLORS = {
     # 알림 제목 색 — red: "Cannot Fish" 같은 빨간 알림 (제목 · 꺾쇠가 빨강)
     "red": lambda r, g, b: (r > 170) & (r - g > 90) & (r - b > 70),
+    # blue: "Auto Crafted" 같은 하늘색 알림 (제목 · 글자가 하늘색)
+    "blue": lambda r, g, b: (b > 200) & (b - r > 60) & (g > 130),
 }
 
 
