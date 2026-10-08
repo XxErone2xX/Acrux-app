@@ -1501,7 +1501,7 @@ MPOS.mcraft = { box: 'mposCraft',
   tabs: [['shop', '제작 창', '실행할 땐 글자로 먼저 찾고, 못 찾으면 이 위치를 씀',
           ['search_pos', 'list_region', 'shop_close_pos', 'open_recipe_pos', 'add_all_pos', 'craft_pos', 'add_close_pos'], false, '', 'craftauto'],
          ['revbase', '반대쪽 기준 장소', '낚시와 정반대 방향 · 리셋 → 카메라 정렬 → 내려다보기+줌 → S+D → S (끝에 A 같이)', [], false, 'movebaserev'],
-         ['move', '이동', '1번 퀘스트 보드 → E → 대기 → Exit → 2번 스텔라 포탈 → D = 포션 제작 장소', [], false, 'places:mcraft']] };
+         ['move', '이동', '1번 퀘스트 보드 → E → 대기 → Exit → D → 2번 스텔라 포탈 → D = 포션 제작 장소', [], false, 'places:mcraft']] };
 MPOS.mmerch = { box: 'mposMerch', tpl: true,
   points: [['open_pos', 'Open 선택지', '대화 선택지 Open (글자로 못 찾을 때만)'],
            ['first_slot', '첫 번째 칸', '상점 맨 왼쪽 아이템 칸'],
@@ -1591,10 +1591,11 @@ const REV_SET = [['rsd_time', 'S + D 누르기', 'S 와 D 를 같이 누르는 �
                  ['rs_time', 'S 누르기', '그 다음 S 를 누르는 시간 (초)', 6, 0, 0.5],
                  ['ra_time', 'A 같이 누르기', 'S 를 누르는 마지막 이 시간 동안 A 도 같이 (초)', 1, 0, 0.1],
                  ['q_wait', '퀘스트 보드 E 뒤 대기', 'E 를 누르고 Exit 를 누르기까지 (초)', 1.5, 0, 0.1],
-                 ['rd_time', 'D 누르기', '스텔라 포탈 다음 D 를 누르는 시간 (초) — 끝나는 자리가 포션 제작 장소', 2, 0, 0.1]];
+                 ['qd_time', 'Exit 뒤 D 누르기', '퀘스트 창 Exit 를 누른 뒤 D 를 누르는 시간 (초)', 2, 0, 0.1],
+                 ['rd_time', '포탈 뒤 D 누르기', '스텔라 포탈 다음 D 를 누르는 시간 (초) — 끝나는 자리가 포션 제작 장소', 2, 0, 0.1]];
 const revTime = m => 4.4 + (m.reset_wait ?? 3.5) + Math.max(m.o_time ?? 2.5, (m.tilt_px ?? 800) / 20 * 0.015)
   + (m.rsd_time ?? 1) + Math.max(m.rs_time ?? 6, m.ra_time ?? 1);
-const questTime = m => 0.6 + (m.q_wait ?? 1.5) + (m.rd_time ?? 2);
+const questTime = m => 0.6 + (m.q_wait ?? 1.5) + (m.qd_time ?? 2) + (m.rd_time ?? 2);
 let lastMove = null;
 const fmtT = t => t == null ? '안 잼' : `${t}초`;
 // 장소의 지점이 전부 지정 · 측정되면 제목 옆에 총 걸리는 시간 — Esc(리셋)부터 도착까지 전부
