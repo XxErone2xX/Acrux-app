@@ -911,25 +911,6 @@ class Bridge:
                    "mmerch": dict(merchant.POS_KEYS), "mcraft": dict(crafter.POS_KEYS), "mmatch": dict(memmatch.POS_KEYS)}
     MPOS_REGIONS = {"base": ("ocr_region", "notice_region"), "mfish": ("panel_region", "reel_region", "result_region", "bar_region"),
                     "mmerch": ("chat_region", "item_region"), "mcraft": ("list_region",), "mmatch": ("note_region",)}
-    # 16:9 위치 템플릿 (로블록스 창 기준 비율) — 스나이프 탭 오토 팝핑 16:9 템플릿과 같은 값
-    # (자동 낚시는 템플릿 대신 낚시 창 · 결과창 영역으로 안쪽 위치를 계산 → fishing.WINDOW_KEYS)
-    MPOS_TEMPLATE = {
-        "base": {"inventory_pos": [0.018, 0.474], "items_pos": [0.663, 0.312], "search_pos": [0.458, 0.34],
-                 "item_pos": [0.443, 0.44], "amount_pos": [0.296, 0.534], "use_pos": [0.356, 0.535],
-                 "ocr_region": [0.418, 0.399, 0.466, 0.484],
-                 # 1080p 기준: 채팅 버튼 (112, 30) · 도감 버튼 (47, 467) · 도감 Exit (382, 126)
-                 "chat_pos": [0.0582, 0.0278], "collection_pos": [0.0245, 0.4324], "collection_close": [0.199, 0.1167],
-                 "dialog_pos": [0.3979, 0.763]},     # NPC 대화창
-        # 판매 (1920x1080 위치) — Sell Fish 버튼은 직접 지정
-        "mfish": {"first_fish_pos": [0.4349, 0.3778], "sell_all_pos": [0.3464, 0.7444],
-                  "confirm_sell_pos": [0.4141, 0.5731], "shop_close_pos": [0.7609, 0.2528]},
-        # 상인 — 1920x1080 전체 화면 스크린샷에서 잰 값
-        "mmerch": {"chat_region": [0.0042, 0.0935, 0.251, 0.3426],
-                   "open_pos": [0.3396, 0.8759], "first_slot": [0.5021, 0.6667], "second_slot": [0.601, 0.6667],
-                   "item_region": [0.5724, 0.3444, 0.9427, 0.3741], "max_pos": [0.6984, 0.5685],
-                   "purchase_pos": [0.6125, 0.613], "close_pos": [0.9422, 0.3213]},
-    }
-
     BANNER_PROGRESS = Path(tempfile.gettempdir()) / f"acrux_banner_{os.getpid()}.txt"
 
     def _banner_progress(self, to, sec=0.3):
@@ -1502,38 +1483,6 @@ class Bridge:
                 c.update(lay)
         self._save()
         return {"region": r["region"], feat: self.data[feat]}
-
-    # 화면 비율 — 로블록스 UI 는 화면 높이에 맞춰 커지고, 낚시 창 · 결과창 · 인벤토리 창은 가로 가운데 기준,
-    # Inventory 버튼(왼쪽 메뉴)은 왼쪽 끝 기준이라고 보고 16:9 값을 바꿈 (16:9 가 아닌 비율은 추정값)
-    MPOS_RATIOS = {"16:9": 16 / 9}           # 다른 비율은 추정값이라 불안정해서 뺌
-    MPOS_LEFT = {"inventory_pos", "chat_pos", "collection_pos", "collection_close", "chat_region"}
-
-    @classmethod
-    def _mpos_scaled(cls, feat, aspect):
-        k = (16 / 9) / aspect
-
-        def fx(key, x):
-            v = x * k if key in cls.MPOS_LEFT else 0.5 + (x - 0.5) * k
-            return round(min(1.0, max(0.0, v)), 4)
-        out = {}
-        for key, v in cls.MPOS_TEMPLATE[feat].items():
-            out[key] = ([fx(key, v[0]), v[1], fx(key, v[2]), v[3]] if len(v) == 4 else [fx(key, v[0]), v[1]])
-        return out
-
-    def api_mpos_template(self, p):
-        feat = str(p.get("feat", ""))
-        if feat not in self.MPOS_TEMPLATE:
-            return {"error": "알 수 없는 항목"}
-        ratio = str(p.get("ratio") or "16:9")
-        if ratio in self.MPOS_RATIOS:
-            aspect, label = self.MPOS_RATIOS[ratio], ratio
-        else:
-            return {"error": "알 수 없는 화면 비율"}
-        t = self._mpos_scaled(feat, aspect)
-        with self.lock:
-            self.data.setdefault(feat, {}).update(t)
-        self._save()
-        return {feat: self.data[feat], "label": label, "guess": abs(aspect - 16 / 9) > 0.02}
 
     def api_mpos_copy_pop(self, _):
         """기준 위치(인벤토리) ← 스나이프 탭 오토 팝핑에 지정한 위치 그대로 복사"""

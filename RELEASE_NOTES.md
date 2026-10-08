@@ -1,11 +1,9 @@
-## Acrux macro V2.0.7 업데이트
-- 매크로 기능 설정 튜토리얼 개편: 칸 전체 대신 눌러야 할 줄 하나만 강조하고, 한 단계에 할 일 하나만 짧게 안내
-- 자동 보정 · 위치 템플릿이 있는 것은 먼저 그걸 해보게 함 → 되면 수동 단계는 알아서 건너뜀 · 안 되거나 직접 하고 싶으면 [다음]을 눌러 한 칸씩 수동 지정
-- 이동 장소는 지점마다 '기준 장소에서 지정' → '시간 재기' 순서로 안내
-- 위쪽 진행 표시를 단계 수 대신 할 일 순서로 (예: 2 / 5 · 낚시 · 판매 장소)
+## Acrux macro V2.0.8 업데이트
+- 매크로 기준 위치 설정의 위치 템플릿 삭제 (통합 위치 · 자동 낚시 · 상인 자동 구매) — 값이 안 맞는 경우가 있어서, 자동 보정이나 직접 지정으로만 설정
+- 스나이프 탭 오토 팝핑의 위치 템플릿은 그대로
+- 매크로 설정 튜토리얼에서도 위치 템플릿 단계 제거
 
-## Acrux macro V2.0.7 Update
-- Reworked the macro feature setup tutorials: only the one row you need to use is highlighted, and each step explains one short task
-- Where auto calibration or a position template exists, you try that first → if it works the manual steps are skipped automatically · if it doesn't (or you'd rather do it yourself), press [Next] to set positions one by one
-- Movement spots are guided point by point: "Set from base spot" → "Measure time"
-- The progress label now shows the task order instead of a step count (e.g. 2 / 5 · Fishing · sell spots)
+## Acrux macro V2.0.8 Update
+- Removed the position templates from Macro base position settings (shared positions · auto fishing · merchant auto buy) — their values didn't always match, so positions are now set only by auto calibration or by hand
+- The snipe tab auto popping position templates are unchanged
+- The macro setup tutorial no longer has a template step

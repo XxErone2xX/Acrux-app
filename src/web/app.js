@@ -1520,9 +1520,9 @@ $('mfAllOff').addEventListener('click', () => setAllFeatures(false));
 
 // ---------------------------------------------------------------- 매크로 기준 위치 설정
 // feat: 설정 묶음 (base = 여러 기능이 같이 쓰는 통합 위치 / mfish = 자동 낚시만) · points: [키, 이름, 설명] · region: [키, 이름, 설명]
-// 저장은 서버(api)에서 · tpl: 화면 비율 위치 템플릿 · windows: 창 영역(드래그) → 안쪽 위치를 서버가 계산 · heads: 그 항목 앞의 소제목
+// 저장은 서버(api)에서 · windows: 창 영역(드래그) → 안쪽 위치를 서버가 계산 · heads: 그 항목 앞의 소제목
 const MPOS = {
-  base: { box: 'mposBase', tpl: true, link: true,
+  base: { box: 'mposBase', link: true,
           points: [...POP_POS.map(([k, n, sub]) => [k, n, sub || '']),
                    ['chat_pos', '채팅 버튼', '왼쪽 위의 채팅 버튼'],
                    ['collection_pos', '도감 버튼', '왼쪽 메뉴의 도감(Collection · 책 모양) 버튼'],
@@ -1530,14 +1530,14 @@ const MPOS = {
                    ['dialog_pos', '대화창', 'NPC 대화를 넘길 곳 (Click to skip.)']],
           regions: [['ocr_region', 'OCR 영역', '검색 결과 아이템 이름·개수 (예: Warp Potion x23)'],
                     ['notice_region', '알림 영역', '오른쪽 알림 카드 자리를 넉넉히 드래그']],
-          // 칸: [id, 이름, 설명, 들어갈 항목, 맨 위에 연동 · 템플릿 줄을 넣을지, 따로 그리는 부분(MPOS_CUSTOM)]
+          // 칸: [id, 이름, 설명, 들어갈 항목, 맨 위에 연동 줄을 넣을지, 따로 그리는 부분(MPOS_CUSTOM)]
           tabs: [['inv', '인벤토리', '레어 바이옴 자동 팝핑 등 인벤토리를 쓰는 기능',
                   [...POP_POS.map(([k]) => k), 'ocr_region'], true],
                  ['notice', '알림', '게임 알림을 보는 기능 (자동 낚시 인벤토리 가득 등)', ['notice_region']],
                  ['ui', '게임 버튼', '여러 기능이 같이 누르는 게임 화면 버튼', ['chat_pos', 'dialog_pos']],
                  ['move', '이동 · 기준 장소', '모든 이동의 출발점 (리셋 → 카메라 정렬 → 걷기 → 줌)',
                   ['collection_pos', 'collection_close'], false, 'movebase']] },
-  mfish: { box: 'mposFish', tpl: true,
+  mfish: { box: 'mposFish',
            windows: [['panel_region', '낚시 대기 창 영역', 'Fish 버튼이 보일 때 창 테두리까지 드래그'],
                      ['reel_region', '낚시 미니게임 창 영역', '미니게임 중에 창 테두리까지 드래그'],
                      ['result_region', '결과창 영역', '결과창이 떠 있을 때 창 테두리까지 드래그']],
@@ -1574,7 +1574,7 @@ MPOS.mmatch = { box: 'mposMatch',
   tabs: [['note', '메모리 매치 창', '실행할 땐 글자로 먼저 찾고, 못 찾으면 이 위치를 씀',
           ['note_region', 'note_close_pos', 'note_btn_pos', 'ad_pos', 'board_close_pos'], false, '', 'matchauto'],
          ['move', '이동', '기준 장소 → 메모리 매치 보드 앞 (E 를 누를 수 있는 곳)', [], false, 'places:mmatch']] };
-MPOS.mmerch = { box: 'mposMerch', tpl: true,
+MPOS.mmerch = { box: 'mposMerch',
   points: [['open_pos', 'Open 선택지', '대화 선택지 Open (글자로 못 찾을 때만)'],
            ['first_slot', '첫 번째 칸', '상점 맨 왼쪽 아이템 칸'],
            ['second_slot', '두 번째 칸', '그 옆 칸 (칸 간격 계산)'],
@@ -1586,8 +1586,6 @@ MPOS.mmerch = { box: 'mposMerch', tpl: true,
   tabs: [['chat', '채팅', '상인 도착 감지 (채팅 OCR)', ['chat_region'], true],
          ['shop', '상점', '자동 보정이 켜져 있으면 비워 둬도 됨',
           ['open_pos', 'first_slot', 'second_slot', 'item_region', 'max_pos', 'purchase_pos', 'close_pos'], false, '', 'merchauto']] };
-const MPOS_RATIOS = [['16:9', '16:9']];                // 다른 비율은 추정값이라 불안정해서 뺌
-let mposRatio = '16:9';
 function renderMpos(feat) {
   const d = MPOS[feat], c = featCfg(feat), box = $(d.box);
   const regions = [...(d.windows || []), ...d.regions];
@@ -1601,10 +1599,6 @@ function renderMpos(feat) {
   const link = d.link ? `
     <label class="row"><span>스나이프 오토 팝핑과 연동<small>켜면 스나이프 오토 팝핑도 이 위치를 씀</small></span>
       <span class="switch"><input type="checkbox" data-mpos-link ${pop().use_base ? 'checked' : ''}><i></i></span></label>` : '';
-  const tpl = d.tpl ? `
-    <div class="row tpl-pick"><span>위치 템플릿<small>화면 비율에 맞는 기본 위치를 한 번에 채움</small></span>
-      <span class="pos"><select data-mpos-ratio>${MPOS_RATIOS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select>
-      <button class="btn mini" type="button" data-mpos-tpl>적용</button></span></div>` : '';
   // 묶음마다 따로 칸(카드)으로 나눠서 보여 줌 · 제목 옆에 지정한 개수 / 전체 개수
   box.innerHTML = d.tabs.map(([id, name, sub, keys, top, custom, pre]) => {
     const n = keys.filter(k => c[k]).length;
@@ -1612,30 +1606,10 @@ function renderMpos(feat) {
     <div class="mpos-group" data-mpos-group="${id}">
       <div class="mpos-card-head"><b>${name}</b>${keys.length ? `<em class="${n === keys.length ? 'done' : ''}">${n}/${keys.length}</em>` : ''}</div>
       <p class="mpos-desc">${sub}</p>
-      <div class="card form mpos-card">${pre ? `<div data-mpos-custom="${pre}"></div>` : ''}${top ? link + tpl : ''}${keys.map(k => items[k] || '').join('')}${custom ? `<div data-mpos-custom="${custom}"></div>` : ''}</div></div>`;
+      <div class="card form mpos-card">${pre ? `<div data-mpos-custom="${pre}"></div>` : ''}${top ? link : ''}${keys.map(k => items[k] || '').join('')}${custom ? `<div data-mpos-custom="${custom}"></div>` : ''}</div></div>`;
   }).join('');
   box.querySelectorAll('[data-mpos-custom]').forEach(renderMoveCustom);
   box.querySelector('[data-mpos-link]')?.addEventListener('change', e => setPopLink(e.target.checked));
-  if (d.tpl) {
-    const sel = box.querySelector('[data-mpos-ratio]');
-    sel.value = mposRatio;
-    sel.addEventListener('change', () => { mposRatio = sel.value; });
-    box.querySelector('[data-mpos-tpl]').addEventListener('click', async e => {
-      const b = e.currentTarget;
-      const set = [...d.points, ...d.regions].some(([k]) => c[k]);
-      if (set && !(b._armed > Date.now())) {             // 이미 지정한 게 있으면 한 번 더 눌러야 덮어씀
-        b._armed = Date.now() + 3000; b.textContent = '한 번 더 누르면 덮어쓰기';
-        setTimeout(() => { b.textContent = '적용'; b._armed = 0; }, 3000);
-        return;
-      }
-      const ratio = sel.value;
-      mposRatio = ratio;
-      const r = await api('mpos_template', { feat, ratio });
-      if (r.error) return toast(r.error);
-      Object.assign(c, r[feat]); mposChanged(feat);
-      toast(r.guess ? `${r.label} 템플릿 적용 · 추정값이라 [상태 확인] 으로 확인` : `${r.label} 템플릿 적용`);
-    });
-  }
   box.querySelectorAll('[data-mpos-pick]').forEach(b => b.addEventListener('click', async () => {
     const k = b.dataset.mposPick, name = d.points.find(x => x[0] === k)[1];
     const r = await pickWith(b, `로블록스 화면에서 ${name} 클릭`, () => api('mpos_point', { feat, key: k }));
@@ -2520,26 +2494,21 @@ const Tutorial = (() => {
     skipMsg: '매크로 기능 설정 튜토리얼을 건너뛰었습니다' });
 
   // ---- 기능마다 필요한 설정 (켤 때 비어 있는 것만 · 강조는 눌러야 할 줄 하나만)
-  // 할 일(TASK)마다: ① 자동 방법(자동 보정 · 위치 템플릿)을 먼저 해보게 하고 → 안 되거나 직접 하고 싶으면 [다음] → ② 수동으로 한 칸씩
+  // 할 일(TASK)마다: ① 자동 보정이 있으면 먼저 해보게 하고 → 안 되거나 직접 하고 싶으면 [다음] → ② 수동으로 한 칸씩
   const placesOk = feat => {
     const mine = (move().places || []).filter(pl => pl.feat === feat);
     return mine.length > 0 && mine.every(pl => pl.points.length && pl.points.every(pt => pt.pos && pt.time != null));
   };
   const SELL_REQ = ['sell_fish_pos', 'first_fish_pos', 'sell_all_pos', 'confirm_sell_pos', 'shop_close_pos'];
   const rowOf = (box, sel) => () => $(box)?.querySelector(sel)?.closest('.row');
-  const tplRow = () => $('mposBase')?.querySelector('.tpl-pick');
   const MANUAL_TIP = '<p class="dim">안 되거나 직접 지정하고 싶으면 <b>다음</b>을 눌러 하나씩 지정합니다.</p>';
   const TASKS = {
     inv: { label: '인벤토리 위치', feat: 'base', sec: 'mp-base', side: '통합 위치',
-      keys: [...POP_POS.map(([k]) => k), 'ocr_region'],
-      auto: { target: tplRow, title: '위치 템플릿을 적용해주세요',
-        body: `<p>16:9 화면이면 <b>적용</b> 한 번으로 인벤토리 위치를 전부 채웁니다.</p>` } },
+      keys: [...POP_POS.map(([k]) => k), 'ocr_region'], },
     notice: { label: '알림 영역', feat: 'base', sec: 'mp-base', side: '통합 위치', keys: ['notice_region'] },
     dialog: { label: '대화창 위치', feat: 'base', sec: 'mp-base', side: '통합 위치', keys: ['dialog_pos'] },
     moveBase: { label: '기준 장소 위치', feat: 'base', sec: 'mp-base', side: '통합 위치',
-      keys: ['chat_pos', 'collection_pos', 'collection_close'],
-      auto: { target: tplRow, title: '위치 템플릿을 적용해주세요',
-        body: `<p>16:9 화면이면 <b>적용</b> 한 번으로 채팅 · 도감 버튼 위치를 채웁니다.</p>` } },
+      keys: ['chat_pos', 'collection_pos', 'collection_close'], },
     fishWin: { label: '낚시 창 위치', feat: 'mfish', sec: 'mp-fish', side: '자동 낚시', keys: MFISH_REQ,
       manual: ['panel_region', 'reel_region', 'result_region'], cal: 'cal_win',
       auto: { target: rowOf('mposFish', '[data-fish-auto]'), title: '낚시 창 자동 보정을 해주세요',
