@@ -736,10 +736,11 @@ class Bridge:
         return out
 
     def _mpop_after_stop(self, found):
-        """화면을 쓰던 기능을 멈추고, 전부 멈춘 게 확인되면 레어 바이옴 팝핑 (60초 안에 안 멈추면 이번 팝핑은 취소)"""
+        """화면을 쓰던 기능을 멈추고, 전부 멈춘 게 확인되면 레어 바이옴 팝핑 (100초 안에 안 멈추면 이번 팝핑은 취소)
+        메모리 매치 광고는 보상을 위해 끝까지 보고 멈추므로 넉넉하게"""
         started = False
         try:
-            names, end = [], time.time() + 60
+            names, end = [], time.time() + 100
             while True:
                 busy = self._screen_users()
                 if not busy:

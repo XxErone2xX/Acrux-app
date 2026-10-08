@@ -1386,7 +1386,8 @@ function renderMmatch() {
     <div class="row"><span>테스트<small>메모리 매치 보드 앞에서 지금 바로</small></span>
       <button class="btn mini" type="button" id="mmatchTest">테스트</button></div>
     <div class="row"><span>다음 확인</span><b id="mmatchNext">-</b></div>
-    <div class="row"><span>이번 실행 횟수</span><b id="mmatchCount">-</b></div>`;
+    <div class="row"><span>이번 실행 횟수</span><b id="mmatchCount">-</b></div>
+    <div class="row"><span>본 광고 (쿨타임 3시간 ↓)</span><b id="mmatchAds">-</b></div>`;
   $('mmatchOn').addEventListener('change', e => setFeature('mmatch', e.target.checked));
   [['mmatchWait', 'e_wait', 0.5], ['mmatchFlip', 'flip_wait', 0.1]].forEach(([id, k, lo]) => $(id).addEventListener('input', e => {
     const n = parseFloat(e.target.value);
@@ -1407,6 +1408,8 @@ function updateMmatch(st) {
   if (t) t.disabled = running;
   const c = $('mmatchCount');
   if (c) c.textContent = st.played;
+  const a = $('mmatchAds');
+  if (a) a.textContent = st.ads ?? 0;
   const nx = $('mmatchNext');
   if (nx) nx.textContent = !mmatch().enabled ? '꺼짐' : running ? '지금' : st.next_in ? `${fmtHM(st.next_in)} 뒤` : '매크로를 켜면 바로';
 }
@@ -1483,7 +1486,7 @@ const MFEATS = [['mpop', '레어 바이옴 자동 팝핑', '내 서버에서 레
   ['mfish', '자동 낚시', '낚시 장소로 가서 낚시 · 가득 차면 판매'],
   ['mitem', '오토 아이템 사용', '아이템 자동 사용'],
   ['mmerch', '상인 자동 구매', '마리 · 제스터가 오면 고른 아이템 구매'], ['mcraft', '포션 자동 제작', 'Auto Crafted 가 뜨면 재료를 다시 채움'],
-  ['mmatch', '오토 메모리 매치', '쿨타임이 끝나면 카드 짝 맞추기']];
+  ['mmatch', '오토 메모리 매치', '쿨타임이 끝나면 카드 짝 맞추기 · 광고로 쿨타임 줄이기']];
 const FEAT_NAME = { mpop: '레어 바이옴 자동 팝핑', mfish: '자동 낚시', mitem: '오토 아이템 사용', mmerch: '상인 자동 구매', mcraft: '포션 자동 제작', mmatch: '오토 메모리 매치' };
 const featCfg = k => ({ mpop, mfish, mitem, mmerch, mcraft, mmatch, base })[k]();
 function setFeature(k, on, quiet) {
