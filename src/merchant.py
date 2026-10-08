@@ -333,7 +333,7 @@ class Merchant(popping.Popper):
         finally:
             # 4. 리셋 (상인 앞에 남지 않게 · 자동 낚시는 다시 시작하면서 낚시 장소로 감)
             self._set(msg="리셋")
-            macro.respawn()
+            macro.respawn(stop)
 
     def _open_shop(self, c, base, stop):
         """선택지가 보일 때까지 대화창 연타 → Open 을 누름 · 못 찾으면 지정한 Open 위치"""

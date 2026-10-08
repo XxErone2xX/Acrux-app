@@ -61,6 +61,8 @@ class PlayClicker:
         self.thread = None
         self.lock = threading.Lock()
         self.state = {"running": False, "msg": "대기", "clicks": 0}
+        self.reason = ""                # 지금(마지막) 클릭 이유: 서버 접속 · 복귀 · 테스트
+        self.gen = 0                    # 시작할 때마다 +1 — 그 사이 새로 시작했으면 옛 클릭의 실패 알림은 버림
 
     def running(self):
         return bool(self.thread and self.thread.is_alive())
@@ -82,15 +84,18 @@ class PlayClicker:
             self.stop()
             self.thread.join(3)
         self.stop_ev = threading.Event()
+        self.reason = reason
+        self.gen += 1
         watch = LogWatch(self.log_dir, new_only=reason != "테스트")   # 실행 직전 로그 위치 기억
-        self.thread = threading.Thread(target=self._run, args=(reason, load_wait, watch, self.stop_ev), daemon=True)
+        self.thread = threading.Thread(target=self._run, args=(reason, load_wait, watch, self.stop_ev, self.gen),
+                                       daemon=True)
         self.thread.start()
         return True
 
     def _sleep(self, sec, stop):
         return stop.wait(max(0.0, sec))
 
-    def _run(self, reason, load_wait, watch, stop):
+    def _run(self, reason, load_wait, watch, stop, gen=0):
         cfg = self.get_cfg() or {}
         pos, skip = cfg.get("pos"), cfg.get("skip_pos")
         if not pos or not skip:
@@ -171,19 +176,23 @@ class PlayClicker:
             if stop.is_set():
                 self.log("Play 클릭 정지", "d")
             self._set(msg="대기")
-            if not watch.hit_file and not stop.is_set() and self.on_fail and reason != "테스트":
-                threading.Thread(target=self.on_fail, args=(reason,), daemon=True).start()
+            if not watch.hit_file and not stop.is_set() and self.on_fail and reason != "테스트" and gen == self.gen:
+                def fail():
+                    if gen == self.gen:             # 그 사이 새 접속(스나이핑)이 시작됐으면 무시
+                        self.on_fail(reason)
+                threading.Thread(target=fail, daemon=True).start()
 
 
 class Returner:
     """매크로 복귀: 모든 로블록스 클라이언트 종료 → 1초 → 내 브섭 링크로 접속 → Play 클릭"""
 
-    def __init__(self, get_cfg, log, play, kill, launch):
+    def __init__(self, get_cfg, log, play, kill, launch, before_launch=None):
         self.get_cfg = get_cfg          # () -> ret 설정 dict
         self.log = log
         self.play = play                # PlayClicker
         self.kill = kill                # () -> 로블록스 전부 종료
         self.launch = launch            # (링크) -> 실행
+        self.before_launch = before_launch   # () — 내 서버 링크를 열기 직전 (바이옴 웹후크 다시 켜기)
         self.stop_ev = threading.Event()
         self.thread = None
         self.lock = threading.Lock()
@@ -225,6 +234,8 @@ class Returner:
                 self.log("매크로 복귀 정지", "d")
                 return
             self._set(msg="내 서버로 접속")
+            if self.before_launch:
+                self.before_launch()
             self.launch(link)
             self.play.start("복귀")
         except Exception as e:

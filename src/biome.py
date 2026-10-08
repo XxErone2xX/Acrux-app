@@ -220,11 +220,24 @@ class BiomeWatcher:
         self.last_player = None
         # 스나이핑(다른 사람 서버) 접속: 그 접속의 로그 파일 동안은 바이옴 웹후크를 안 보냄
         self.mute_pending, self.mute_base, self.muted_file = False, None, None
+        self.mute_at = 0.0
 
     def mute_next_session(self):
         """링크로 다른 서버에 접속할 때 호출 — 다음에 새로 생기는 로그 파일(= 그 접속) 동안 웹후크 끔"""
         self.mute_base = latest_log(self.log_dir)
+        self.mute_at = time.time()
         self.mute_pending = True
+
+    def own_next_session(self):
+        """내 서버로 들어갈 때 호출 (매크로 복귀 · 내 브섭 바로 접속) — 다음 접속은 내 서버라 웹후크를 다시 보냄
+        스나이핑 접속이 로블록스를 못 띄웠으면 '다음 접속은 조용히' 가 남아서 내 서버가 조용해지던 문제를 막음
+        (스나이핑 접속의 로그가 이미 생겼는데 아직 못 읽었으면 그 로그만 조용히)"""
+        if not self.mute_pending:
+            return
+        p = _scan_latest(Path(self.log_dir or LOG_DIR))      # 캐시 말고 지금 폴더 그대로
+        if p and p != self.mute_base:
+            self.muted_file = p
+        self.mute_pending = False
 
     def muted(self):
         return bool(self.file) and self.file == self.muted_file
@@ -273,6 +286,8 @@ class BiomeWatcher:
             return
 
         path = latest_log(self.log_dir)
+        if self.mute_pending and time.time() - self.mute_at > 900:
+            self.mute_pending = False            # 15분 동안 스나이핑 접속이 안 생김 → 접속 못 한 것 (다음 접속을 조용히 하지 않음)
         if path is None:
             self.file = None
             return

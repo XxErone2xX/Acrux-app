@@ -233,7 +233,7 @@ class Matcher(popping.Popper):
         finally:
             if not here:
                 self._set(msg="리셋")
-                macro.respawn()
+                macro.respawn(stop)
 
     def _check_and_play(self, stop):
         self._set(msg="E (메모리 매치 확인)")

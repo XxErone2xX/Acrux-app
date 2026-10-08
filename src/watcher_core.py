@@ -309,6 +309,7 @@ class Bus:
     on_status = staticmethod(lambda state, text="": None)
     on_event = staticmethod(lambda entry: None)
     on_joined = staticmethod(lambda url: None)      # 로블록스 실행 직후 (팝핑 시작용)
+    busy = staticmethod(lambda: False)              # 스나이핑한 서버에서 할 일(입장 · 오토 팝핑)이 도는 중 → 새 링크는 안 탐
 
 
 def log(msg, color=""):
@@ -1382,6 +1383,11 @@ def snipe_skip(url, snipe):
     now = time.time()
     if JOIN["pending"]:
         return "건너뜀"                         # 다른 링크로 접속하는 중
+    try:
+        if Bus.busy():
+            return "건너뜀"                     # 스나이핑한 서버에 들어가는 중 · 오토 팝핑 중 (바이옴 끝날 때까지)
+    except Exception:
+        pass
     if now - JOIN["last"] < float(snipe.get("cooldown_sec", 0)):
         return "건너뜀"                         # 방금 접속함 (연속 접속 최소 간격)
     win = float(snipe.get("same_link_min", 0)) * 60
@@ -1474,7 +1480,7 @@ class Handler:
         elif not ARMED.is_set():
             entry["status"] = "대기"          # 연결·감지는 되지만 시작 전이라 작동 안 함
         elif snipe_skip(url, cfg["snipe"]):
-            entry["status"] = snipe_skip(url, cfg["snipe"])   # 접속 중 · 방금 접속 · 같은 서버 → 안 탐
+            entry["status"] = snipe_skip(url, cfg["snipe"]) or "건너뜀"   # 접속 중 · 팝핑 중 · 방금 접속 · 같은 서버 → 안 탐
         else:
             self.last_fire = time.time()
             self.count += 1

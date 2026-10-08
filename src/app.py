@@ -102,11 +102,11 @@ class Bridge:
         self.fisher = fishing.Fisher(self._mfish_cfg, self._on_log,
                                      on_user_stop=self._macro_user_stop)
         self.mpop = popping.MyServerPopper(lambda: self.data.get("pop", {}), self._mpop_cfg,
-                                           self._on_log, before=lambda: self.fisher.hold(45, who="mpop"),
+                                           self._on_log, before=lambda: self._fish_yield("mpop", 45),
                                            after=lambda: self.fisher.release("mpop"))
         # 이동: 기준 장소(리셋 · 카메라 정렬 · 줌) → 화면의 한 점을 눌러 장소로 걸어감 · 걸리는 시간은 직접 잼
         self.mover = move.Mover(lambda: self.data.get("base", {}), lambda: self.data.get("move", {}), self._on_log,
-                                set_move_time=self._set_move_time, before=lambda: self.fisher.hold(45, who="move"),
+                                set_move_time=self._set_move_time, before=lambda: self._fish_yield("move", 45),
                                 after=lambda: self.fisher.release("move"), banner=self._move_banner,
                                 progress=self._banner_progress)
         # 판매: 자동 낚시 중 인벤토리가 가득 차면 물고기 판매 장소로 가서 팔고 낚시 장소로 돌아옴
@@ -115,7 +115,7 @@ class Bridge:
         # 오토 아이템 사용: 쿨타임마다 Strange Controller · Biome Randomizer 사용 (자동 낚시는 잠깐 비켜줌)
         self.items = popping.ItemUser(lambda: self.data.get("pop", {}), lambda: self.data.get("base", {}),
                                       lambda: self.data.get("mitem", {}), self._on_log,
-                                      before=lambda: self.fisher.hold(90, cancel=False, who="items"),
+                                      before=lambda: self._fish_yield("items", 90, cancel=False),
                                       after=lambda: self.fisher.release("items"))
         # 상인 자동 구매: 일정 간격마다 채팅 확인 → 상인이 오면 Merchant Teleporter 로 가서 구매 (자동 낚시는 멈췄다가 다시 시작)
         self.merchant = merchant.Merchant(lambda: self.data.get("pop", {}), lambda: self.data.get("base", {}),
@@ -140,7 +140,12 @@ class Bridge:
         # 스나이핑하는 동안은 매크로(자동 낚시 등)가 쉬고, 내 서버로 돌아오면 입장 후 대기 뒤 다시 켜짐
         self.resume_at = 0.0                # 이 시각 전엔 매크로를 다시 켜지 않음 (복귀 직후 게임이 다 뜰 때까지)
         self.ret = rejoin.Returner(lambda: self.data.get("ret", {}), self._on_log, self.play,
-                                   kill=core.kill_roblox, launch=core.open_link)
+                                   kill=core.kill_roblox, launch=core.open_link,
+                                   before_launch=self.biome.own_next_session)
+        self.ret_fails, self.ret_watch = 0, None   # 복귀 Play 실패 횟수 · 복귀 실패 뒤 직접 들어갔는지 보는 로그 감시
+        self.craft_busy = False             # Auto Crafted 알림 확인(OCR)이 도는 중
+        core.Bus.busy = self._snipe_busy
+        macro.RESET_WHEN_STOPPED[0] = lambda: self.mpop_wait and bool(self.data.get("macro_on"))
         self.biome.start()                  # 바이옴 변경 콜백이 위 실행기들을 쓰므로 맨 마지막에 시작
         threading.Thread(target=self._macro_loop, daemon=True).start()
         threading.Thread(target=self._hotkey_loop, daemon=True).start()
@@ -391,20 +396,37 @@ class Bridge:
         self.crafter.stop()
         self.matcher.stop()
         self.ret.stop()
+        self.ret_fails, self.ret_watch = 0, None
         self.biome.mute_next_session()
         self.play.start("서버 접속")
+
+    def _snipe_busy(self):
+        """스나이핑한 서버에서 할 일이 도는 중 (Play 클릭으로 입장 중 · 오토 팝핑 중) → 새 링크를 타면 그 서버를 나가 버림"""
+        return self.pop.running() or (self.play.running() and self.play.reason == "서버 접속")
 
     def _on_ingame(self, path, reason):
         if reason == "서버 접속":           # 스나이핑 접속 → 오토 팝핑
             self.pop.start(log_path=path)
         elif reason == "복귀":
+            self.ret_fails, self.ret_watch = 0, None
             wait = float(self.data.get("ret", {}).get("start_wait", 7.5))
             self.resume_at = time.time() + wait      # 게임이 다 뜰 때까지 기다렸다가 매크로 다시 시작
             self._on_log(f"매크로 복귀 완료 — 내 서버 입장 · {wait:g}초 뒤 매크로 다시 시작", "g")
 
+    RET_RETRY = 2                           # 복귀 Play 가 실패했을 때 다시 복귀하는 횟수
+
     def _on_play_fail(self, reason):
         if reason == "서버 접속":           # 스나이핑한 서버에 못 들어감 → 복귀
             self.ret.start("접속 실패")
+        elif reason == "복귀":              # 내 서버 입장을 확인 못 함 → 다시 복귀 (몇 번까지) · 그래도 안 되면 매크로는 멈춘 채로
+            self.ret_fails += 1
+            if self.ret_fails <= self.RET_RETRY:
+                self._on_log(f"매크로 복귀 실패 — 내 서버 입장이 확인되지 않음 · 다시 복귀 ({self.ret_fails}/{self.RET_RETRY})", "y")
+                self.ret.start("복귀 다시 시도")
+                return
+            self.ret_fails = 0
+            self.ret_watch = rejoin.LogWatch()       # 지금부터 게임 입장이 확인되면 매크로 다시 시작
+            self._on_log("매크로 복귀 실패 — 매크로는 멈춘 채로 둠 · 내 서버에 직접 들어가거나 F3 으로 매크로를 다시 켜면 다시 시작", "r")
 
     # ---------------- 매크로 탭 · 자동 낚시 ----------------
     def _macro_loop(self):
@@ -422,7 +444,14 @@ class Bridge:
                 want_craft = bool(self.data.get("macro_on") and (self.data.get("mcraft") or {}).get("enabled"))
                 want_match = bool(self.data.get("macro_on") and (self.data.get("mmatch") or {}).get("enabled"))
                 want = bool(self.data.get("macro_on") and mf.get("enabled")) or want_items or want_merch or want_craft or want_match
-                busy = self.pop.running() or self.ret.running() or self.play.running() or time.time() < self.resume_at
+                rw = self.ret_watch
+                if rw is not None and not self.ret.running() and not self.play.running() and rw.in_game():
+                    self.ret_watch = None                    # 복귀 실패 뒤 직접 게임에 들어감 → 기다렸다가 매크로 다시 시작
+                    wait = float(self.data.get("ret", {}).get("start_wait", 7.5))
+                    self.resume_at = time.time() + wait
+                    self._on_log(f"게임 입장 확인 — {wait:g}초 뒤 매크로 다시 시작", "g")
+                busy = self.pop.running() or self.ret.running() or self.play.running() or time.time() < self.resume_at \
+                    or self.ret_watch is not None
                 sniping = busy or self.biome.muted()
                 if want and sniping and not paused:
                     paused = True
@@ -463,9 +492,10 @@ class Bridge:
                         and now - self.merchant_check_at >= float(mm.get("check_sec", 15)):
                     self.merchant_check_at = now
                     self.merchant.start_job("check")
-                if ok and want_craft and not self.crafter.running() and not self.craft_pending and now - self.craft_check_at >= 2.0:
-                    self.craft_check_at = now
-                    self._craft_notice()
+                if ok and want_craft and not self.crafter.running() and not self.craft_pending and not self.craft_busy \
+                        and now - self.craft_check_at >= 2.0:
+                    self.craft_check_at, self.craft_busy = now, True    # 글자 읽기(OCR)는 오래 걸릴 수 있어서 따로 (매크로 루프가 안 멈추게)
+                    threading.Thread(target=self._craft_notice_bg, daemon=True).start()
                 # ---- 상시 기능: 자동 낚시 (단일성 · 긴급 기능이 없을 때만)
                 want = bool(self.data.get("macro_on") and mf.get("enabled"))
                 ok = ok and want
@@ -505,13 +535,47 @@ class Bridge:
     def _emergency(self):
         return self.mpop.running() or self.mpop_wait
 
+    CALS = (("_autocal_running", "_autocal_stop"), ("_sellcal_running", "_sellcal_stop"),
+            ("_merchcal_running", "_merchcal_stop"), ("_craftcal_running", "_craftcal_stop"))
+
+    def _cal_running(self):
+        return any(getattr(self, flag, False) for flag, _ in self.CALS)
+
     def _single_running(self):
-        """지금 자리를 쓰는 단일성 기능 (이동 테스트 · 자동 보정 등 직접 누른 이동도 포함) → 이름 또는 None"""
+        """지금 자리를 쓰는 단일성 기능 (이동 테스트 · 자동 보정 등 직접 누른 것도 포함) → 이름 또는 None"""
         for name, busy in (("merchant", self.merchant.buying()), ("craft", self.crafter.running()),
-                           ("match", self.matcher.running()), ("items", self.items.running()), ("move", self.mover.running())):
+                           ("match", self.matcher.running()), ("items", self.items.running()), ("move", self.mover.running()),
+                           ("cal", self._cal_running())):
             if busy:
                 return name
         return None
+
+    def _fish_yield(self, who, timeout, cancel=True):
+        """자동 낚시에게 자리를 달라고 함 → 비켜줬으면(또는 안 돌고 있으면) True
+        cancel(급함): 낚시 장소 · 판매 장소로 걷는 중이면 중간에 비켜줄 수 없어서 낚시를 바로 끔
+        시간 안에 안 비켜줘도 낚시를 끔 — 끈 낚시는 그 기능이 끝난 뒤 매크로 루프가 다시 켬 (낚시 장소로 다시 감)"""
+        f = self.fisher
+        if not f.running():
+            return True
+        walking = bool(self.mover.state.get("ext"))
+        if not (cancel and walking):
+            if f.hold(timeout, cancel=cancel, who=who):
+                return True
+            if not f.running():
+                return True
+            self._on_log(f"자동 낚시가 {timeout:g}초 안에 자리를 비켜주지 않음 — 낚시를 끄고 먼저 진행", "y")
+        else:
+            self._on_log("자동 낚시가 이동 · 판매 중 — 낚시를 끄고 먼저 진행 (끝나면 다시 낚시)", "y")
+        walking = bool(self.mover.state.get("ext"))
+        f.stop()
+        t = f.thread
+        if t is not None:
+            t.join(10)
+        if f.running():
+            return False
+        if walking:
+            macro.respawn()                 # 걷다가 · 판매 상점 앞에서 멈춤 → 리셋 (열린 상점 창 닫기)
+        return True
 
     def _single_wants(self, ok, want_merch, want_craft, want_match, want_items):
         """자리를 기다리는 단일성 기능 [(이름, 시작 함수)] — 신호가 온 순서(상인 → 포션 → 메모리 매치 → 아이템)"""
@@ -571,6 +635,7 @@ class Bridge:
     def _set_macro(self, on, why="F3"):
         """매크로 버튼 켜기 · 끄기 (F3 · 화면 버튼과 같음)"""
         self.fish_block, self.fish_fails, self.zero_sells, self.fish_backoff = None, 0, 0, 0
+        self.ret_watch = None               # 복귀 실패로 멈춰 둔 것도 풂
         with self.lock:
             self.data["macro_on"] = bool(on)
         self._save()
@@ -639,25 +704,63 @@ class Bridge:
             return
         if not macro.roblox_window_cached(1.0):
             return                          # 옛 로그 파일 (로블록스가 꺼져 있음)
-        # 레어 바이옴이 먼저 — 아이템 사용 · 상인 구매가 화면을 쓰는 중이면 멈추고 끝난 뒤 팝핑 (같이 클릭하면 꼬임)
-        others = [f for f in (self.items, self.merchant, self.crafter, self.matcher)
-                  if (f.buying() if f is self.merchant else f.running())]
-        if not others:
-            self.mpop.start(found)
+        if self._emergency():
+            self._on_log(f"{found} 감지 — 레어 바이옴 팝핑이 이미 도는 중", "d")
             return
-        for f in others:
-            f.stop()
-
-        def later():
+        # 레어 바이옴이 먼저 — 화면을 쓰는 기능(아이템 사용 · 상인 구매 · 제작 · 메모리 매치 · 이동 · 자동 보정)은 멈추고 끝난 뒤 팝핑
+        # (같이 클릭하면 꼬임) · 기다림 표시를 먼저 걸어서 그 사이 매크로 루프가 다른 기능을 새로 시작하지 않게
+        self.mpop_wait = True
+        if not self._screen_users():
             try:
-                for f in others:
-                    if f.thread:
-                        f.thread.join(8)
                 self.mpop.start(found)
             finally:
                 self.mpop_wait = False
-        self.mpop_wait = True               # 기다리는 동안 매크로 루프가 다른 기능을 새로 시작하지 않게
-        threading.Thread(target=later, daemon=True).start()
+            return
+        # 멈추는 기능이 자동 낚시가 비켜주길 기다리는 중일 수 있음 → 팝핑 이름으로 급하게 비켜 달라고 미리 걸어 둠 (던진 낚시 취소)
+        self.fisher.hold(0, cancel=True, who="mpop")
+        threading.Thread(target=self._mpop_after_stop, args=(found,), daemon=True).start()
+
+    SCREEN_NAMES = {"items": "아이템 사용", "merchant": "상인 구매", "craft": "포션 제작", "match": "메모리 매치",
+                    "move": "이동", "cal": "자동 보정"}
+
+    def _screen_users(self):
+        """지금 화면(마우스 · 키보드)을 쓰는 기능 [(이름, 멈추는 함수)] — 자동 낚시 · 낚시 중 이동 · 판매는 팝핑이 직접 비켜 달라고 함"""
+        out = [(name, f.stop) for name, f in (("items", self.items), ("merchant", self.merchant),
+                                               ("craft", self.crafter), ("match", self.matcher))
+               if (f.buying() if f is self.merchant else f.running())]
+        if self.mover.thread is not None and self.mover.thread.is_alive():
+            out.append(("move", self.mover.stop))
+        for flag, ev in self.CALS:
+            if getattr(self, flag, False) and getattr(self, ev, None) is not None:
+                out.append(("cal", getattr(self, ev).set))
+        return out
+
+    def _mpop_after_stop(self, found):
+        """화면을 쓰던 기능을 멈추고, 전부 멈춘 게 확인되면 레어 바이옴 팝핑 (60초 안에 안 멈추면 이번 팝핑은 취소)"""
+        started = False
+        try:
+            names, end = [], time.time() + 60
+            while True:
+                busy = self._screen_users()
+                if not busy:
+                    break
+                for name, stop in busy:
+                    if name not in names:
+                        names.append(name)
+                        self._on_log(f"{found} 감지 — {self.SCREEN_NAMES.get(name, name)} 멈추고 팝핑 먼저", "y")
+                    stop()
+                if time.time() > end:
+                    left = ", ".join(self.SCREEN_NAMES.get(n, n) for n, _ in busy)
+                    self._on_log(f"{found} 팝핑 취소 — {left} 이(가) 멈추지 않음", "r")
+                    return
+                time.sleep(0.1)
+            started = self.mpop.start(found)
+        except Exception as e:
+            write_crash(f"mpop wait: {e}")
+        finally:
+            if not started:
+                self.fisher.release("mpop")         # 미리 걸어 둔 '비켜 줘' 풀기 (팝핑이 시작됐으면 팝핑이 끝날 때 풂)
+            self.mpop_wait = False
 
     def _on_pop_end(self, stopped):
         if not stopped:                     # 바이옴 종료·접속 끊김 등으로 끝남 → 복귀 (직접 멈춘 경우 제외)
@@ -684,6 +787,8 @@ class Bridge:
         if not link:
             return {"error": "매크로 복귀 설정에 내 브섭 링크가 없음"}
         try:
+            self.biome.own_next_session()
+            self.ret_watch = None
             core.open_link(link)
         except Exception as e:
             return {"error": f"실행 실패: {e}"}
@@ -1525,6 +1630,14 @@ class Bridge:
                     and all(pt.get("pos") and pt.get("time") is not None for pt in pl["points"]):
                 return i
         return None
+
+    def _craft_notice_bg(self):
+        try:
+            self._craft_notice()
+        except Exception as e:
+            write_crash(f"craft notice: {e}")
+        finally:
+            self.craft_check_at, self.craft_busy = time.time(), False
 
     def _craft_notice(self):
         """알림 영역에 하늘색 'Auto Crafted' 알림 → 포션 이름을 읽어서 제작 대기에 올림 (같은 포션은 1분 동안 한 번만)"""

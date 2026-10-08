@@ -76,7 +76,9 @@ class Mover:
         try:
             if self.before:
                 held = True
-                self.before()
+                if self.before() is False:
+                    self.log("이동 취소 — 자동 낚시가 멈추지 않음", "y")
+                    return
             if job == "base":
                 self.plan(self.base_time())
             elif job == "rev":

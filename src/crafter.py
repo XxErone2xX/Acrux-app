@@ -285,7 +285,7 @@ class Crafter(popping.Popper):
                 return self._craft(name, c, stop)
         finally:
             self._set(msg="리셋")
-            macro.respawn()
+            macro.respawn(stop)
 
     def _craft(self, name, c, stop):
         saved = {k: c.get(k) for k in ("search_pos", "list_region", "shop_close_pos", "open_recipe_pos",

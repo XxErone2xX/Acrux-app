@@ -764,12 +764,36 @@ def reset_fresh():
     return _RESET["fresh"]
 
 
-def respawn(wait=None):
-    """Esc → R → Enter (0.5초 간격) → 방금 리셋하고 안 움직였으면 건너뜀 → 리셋했으면 True"""
+# 멈춘 기능도 리셋할지 (앱이 정함) — 레어 바이옴 팝핑 때문에 멈춘 경우는 열린 창(상점 등)을 닫으려고 리셋함
+RESET_WHEN_STOPPED = [lambda: False]
+
+
+def respawn(stop=None):
+    """Esc → R → Enter (0.5초 간격) → 방금 리셋하고 안 움직였으면 건너뜀 → 리셋했으면 True
+    stop: 멈춤 신호 — 멈췄으면(매크로 끔 · 스나이핑 등) · F7 을 누르고 있으면 · 로블록스 창을 앞으로 못 가져오면 키를 안 보냄
+    (다른 창에 Esc · R · Enter 가 들어가지 않게)"""
     import time as _t
-    if reset_fresh():
+
+    def halted():
+        if key_down_now("f7"):
+            return True
+        if stop is not None and stop.is_set():
+            try:
+                return not RESET_WHEN_STOPPED[0]()
+            except Exception:
+                return True
+        return False
+    if reset_fresh() or halted():
+        return False
+    hwnd = roblox_window_cached(1.0)
+    if not hwnd:
         return False
     for k in ("esc", "r", "enter"):
+        if halted():
+            return False
+        focus(hwnd, wait=0.1)
+        if not is_foreground(hwnd):
+            return False
         key_tap(k)
         _t.sleep(0.5)
     mark_reset()
@@ -1232,28 +1256,46 @@ def ocr_item_bgra(data, w, h):
     return text
 
 
-def ocr_bgra(data, w, h):
-    """별도 스레드에서 OCR 실행. 어떤 경우에도 OCR_TIMEOUT 안에 결과 또는 오류를 돌려줌
-    RapidOCR 가 설치돼 있으면 그걸로, 아니면 윈도우 내장 OCR"""
+_OCR_STUCK = []         # 시간 초과로 버려졌지만 아직 안 끝난 OCR 스레드
+OCR_STUCK_MAX = 3
+_OCR_LOCK = threading.Lock()
+
+
+def _run_ocr(fn):
+    """OCR 을 별도 스레드에서 실행 → 결과 (OCR_TIMEOUT 안에 안 끝나면 TimeoutError)
+    시간 초과된 OCR 이 OCR_STUCK_MAX 개 넘게 아직 안 끝났으면 새로 띄우지 않고 바로 실패 → 멈춘 OCR 스레드가 계속 쌓이지 않음"""
+    with _OCR_LOCK:
+        _OCR_STUCK[:] = [t for t in _OCR_STUCK if t.is_alive()]
+        if len(_OCR_STUCK) >= OCR_STUCK_MAX:
+            raise TimeoutError("OCR 응답 없음 (앞의 OCR 이 아직 안 끝남)")
     box = {}
 
     def run():
         try:
-            eng = ocr_engine()
-            if eng is not None:
-                box["text"] = _rapid_worker(eng, data, w, h)
-                return
-            box["text"] = _ocr_worker(data, w, h)
+            box["v"] = fn()
         except BaseException as e:
             box["err"] = e
     t = threading.Thread(target=run, daemon=True)
     t.start()
     t.join(OCR_TIMEOUT + 3)
     if t.is_alive():
+        with _OCR_LOCK:
+            _OCR_STUCK.append(t)
         raise TimeoutError("OCR 응답 없음 (시간 초과)")
     if "err" in box:
         raise box["err"]
-    return box.get("text", "")
+    return box.get("v")
+
+
+def ocr_bgra(data, w, h):
+    """별도 스레드에서 OCR 실행. 어떤 경우에도 OCR_TIMEOUT 안에 결과 또는 오류를 돌려줌
+    RapidOCR 가 설치돼 있으면 그걸로, 아니면 윈도우 내장 OCR"""
+    def run():
+        eng = ocr_engine()
+        if eng is not None:
+            return _rapid_worker(eng, data, w, h)
+        return _ocr_worker(data, w, h)
+    return _run_ocr(run) or ""
 
 
 def _win_boxes(data, w, h):
@@ -1311,30 +1353,18 @@ def ocr_boxes(region_ratio=None):
     x1, y1 = to_screen(min(r[0], r[2]), min(r[1], r[3]), rect)
     x2, y2 = to_screen(max(r[0], r[2]), max(r[1], r[3]), rect)
     data, w, h = grab((x1, y1, x2 - x1, y2 - y1))
-    box = {}
 
     def run():
-        try:
-            eng = ocr_engine()
-            if eng is not None:
-                import numpy as np
-                img = np.frombuffer(data, dtype=np.uint8).reshape(h, w, 4)[:, :, :3].copy()
-                res, _ = eng(img, use_cls=False)
-                box["items"] = [(t, min(p[0] for p in b), min(p[1] for p in b), max(p[0] for p in b), max(p[1] for p in b))
-                                for b, t, _s in (res or [])]
-            else:
-                box["items"] = _win_boxes(data, w, h)
-        except BaseException as e:
-            box["err"] = e
-    t = threading.Thread(target=run, daemon=True)
-    t.start()
-    t.join(OCR_TIMEOUT + 3)
-    if t.is_alive():
-        raise TimeoutError("OCR 응답 없음 (시간 초과)")
-    if "err" in box:
-        raise box["err"]
+        eng = ocr_engine()
+        if eng is not None:
+            import numpy as np
+            img = np.frombuffer(data, dtype=np.uint8).reshape(h, w, 4)[:, :, :3].copy()
+            res, _ = eng(img, use_cls=False)
+            return [(t, min(p[0] for p in b), min(p[1] for p in b), max(p[0] for p in b), max(p[1] for p in b))
+                    for b, t, _s in (res or [])]
+        return _win_boxes(data, w, h)
     out = []
-    for text, a, b, c, d in box.get("items", []):
+    for text, a, b, c, d in _run_ocr(run) or []:
         cx, cy = to_ratio(x1 + (a + c) / 2, y1 + (b + d) / 2, rect)
         out.append((str(text), cx, cy, (c - a) / max(1, rect[2]), (d - b) / max(1, rect[3])))
     return out

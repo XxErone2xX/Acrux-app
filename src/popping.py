@@ -406,8 +406,10 @@ class MyServerPopper(Popper):
             if miss:
                 self.log(f"{self.LABEL} 취소 — 매크로 기준 위치 설정 필요: {', '.join(miss)}", "n")
                 return
-            if self.before and not self.before():
-                self.log(f"{self.LABEL} — 자동 낚시가 자리를 비켜주지 않아 그냥 진행", "y")
+            if self.before and not self.before():      # 낚시가 안 멈췄는데 클릭하면 서로 꼬임 → 이번엔 안 함
+                self.log(f"{self.LABEL} 취소 — 자동 낚시가 멈추지 않음", "r")
+                return
+            self._check(stop)
             with macro.fast_timing():
                 if test:
                     self.log(f"{self.LABEL} 테스트 — {cur} 템플릿", "c")
@@ -500,7 +502,10 @@ class ItemUser(Popper):
             if self.before:
                 held = True
                 if not self.before():
-                    self.log(f"{self.LABEL} — 자동 낚시가 자리를 비켜주지 않아 그냥 진행", "y")
+                    self.retry_at = time.time() + self.RETRY
+                    self.log(f"{self.LABEL} 취소 — 자동 낚시가 멈추지 않음 · 1분 뒤 다시 시도", "y")
+                    return
+            self._check(stop)                       # 기다리는 사이 멈췄으면(레어 바이옴 팝핑 등) 아무것도 안 누름
             with macro.fast_timing():
                 self.log(f"{self.LABEL}{' 테스트' if test else ''} — {', '.join(names[k] for k in keys)}", "c")
                 self._set(msg="Inventory 열기")

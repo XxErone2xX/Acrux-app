@@ -1446,6 +1446,10 @@ const I18N = (() => {
     ['오토 팝핑 종료', 'auto popping finished', 'オートポッピング終了'],
     ['게임 접속 전', 'before game join', 'ゲーム参加前'],
     ['복귀 완료', 'return done', '復帰完了'],
+    ['복귀 다시 시도', 'retrying return', '復帰を再試行'],
+    ['아이템 사용', 'item use', 'アイテム使用'],
+    ['상인 구매', 'merchant buying', '商人の購入'],
+    ['포션 제작', 'potion crafting', 'ポーション製作'],
   ];
 
   // 같은 글자라도 동작 편집기 안에서는 뜻이 다름 (대기 = 상태 '대기' 가 아니라 동작 '기다리기')
@@ -1558,7 +1562,17 @@ const I18N = (() => {
     [/^미니게임이 ([\d.]+)초 넘게 안 끝남 — 멈춘 걸로 보고 닫기$/, 'The minigame did not end within $1s — treating it as stuck and closing it', 'ミニゲームが$1秒以上終わらない — 止まったとみなして閉じる'],
     [/^◇: 미니게임 자리$/, '◇: minigame spot', '◇: ミニゲームの位置'],
     [/^◇: 대기 자리 \(미니게임 아님\)$/, '◇: idle spot (not a minigame)', '◇: 待機の位置（ミニゲームではない）'],
-    [/^레어 바이옴 자동 팝핑 — 자동 낚시가 자리를 비켜주지 않아 그냥 진행$/, 'Rare biome auto popping — auto fishing did not yield, continuing anyway', 'レアバイオーム自動ポッピング — 自動釣りが譲らないためそのまま進行'],
+    [/^레어 바이옴 자동 팝핑 취소 — 자동 낚시가 멈추지 않음$/, 'Rare biome auto popping canceled — auto fishing did not stop', 'レアバイオーム自動ポッピング中止 — 自動釣りが止まらない'],
+    [/^오토 아이템 사용 취소 — 자동 낚시가 멈추지 않음 · 1분 뒤 다시 시도$/, 'Auto item use canceled — auto fishing did not stop · retrying in 1 min', 'オートアイテム使用中止 — 自動釣りが止まらない・1分後に再試行'],
+    [/^자동 낚시가 ([\d.]+)초 안에 자리를 비켜주지 않음 — 낚시를 끄고 먼저 진행$/, 'Auto fishing did not yield within $1 s — stopping fishing and going first', '自動釣りが$1秒以内に譲らない — 釣りを止めて先に進行'],
+    [/^자동 낚시가 이동 · 판매 중 — 낚시를 끄고 먼저 진행 \(끝나면 다시 낚시\)$/, 'Auto fishing is moving / selling — stopping fishing and going first (fishing resumes after)', '自動釣りが移動・売却中 — 釣りを止めて先に進行（終わったら釣り再開）'],
+    [/^(\S+) 감지 — 레어 바이옴 팝핑이 이미 도는 중$/, (g, r) => `${r[1]} detected — rare biome popping is already running`, (g, r) => `${r[1]} 検知 — レアバイオームのポッピングが既に動作中`],
+    [/^(\S+) 감지 — (.+) 멈추고 팝핑 먼저$/, (g, r) => `${r[1]} detected — stopping ${g[2]} to pop first`, (g, r) => `${r[1]} 検知 — ${g[2]}を止めて先にポッピング`],
+    [/^(\S+) 팝핑 취소 — (.+) 이\(가\) 멈추지 않음$/, (g, r) => `${r[1]} popping canceled — ${g[2]} did not stop`, (g, r) => `${r[1]} のポッピング中止 — ${g[2]}が止まらない`],
+    [/^매크로 복귀 실패 — 내 서버 입장이 확인되지 않음 · 다시 복귀 \((\d+)\/(\d+)\)$/, 'Macro return failed — could not confirm joining your server · returning again ($1/$2)', 'マクロ復帰失敗 — 自分のサーバーへの入場を確認できない・再度復帰 ($1/$2)'],
+    [/^매크로 복귀 실패 — 매크로는 멈춘 채로 둠 · 내 서버에 직접 들어가거나 F3 으로 매크로를 다시 켜면 다시 시작$/, 'Macro return failed — the macro stays paused · it restarts once you join your server yourself or turn the macro back on with F3', 'マクロ復帰失敗 — マクロは停止したまま・自分でサーバーに入るかF3でマクロを再度オンにすると再開'],
+    [/^이동 취소 — 자동 낚시가 멈추지 않음$/, 'Movement canceled — auto fishing did not stop', '移動中止 — 自動釣りが止まらない'],
+    [/^게임 입장 확인 — ([\d.]+)초 뒤 매크로 다시 시작$/, 'Joined a game — macro restarts in $1 s', 'ゲーム入場を確認 — $1 秒後にマクロ再開'],
     [/^(.+) \(RapidOCR 없음\)$/, '$1 (no RapidOCR)', '$1（RapidOCRなし）'],
     // 메인 화면 기능별 버튼
     [/^(\d+)개 감지$/, '$1 detected', '$1件検知'],
