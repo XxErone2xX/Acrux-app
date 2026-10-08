@@ -1,7 +1,11 @@
-## Acrux macro V2.0.6 업데이트
-- 기능 설정 튜토리얼에 자동 보정 안내 추가: 낚시 창 · 판매 · 상인 · 포션 제작 창 · 메모리 매치 자동 보정을 어떻게 하는지 단계별로 알려줌
-- 자동 보정을 한 번도 안 했으면, 기능을 켤 때 위치가 다 채워져 있어도 자동 보정 안내가 한 번 뜸 (끝까지 보거나 건너뛰면 다시 안 뜸 · 각 단계는 선택 항목)
+## Acrux macro V2.0.7 업데이트
+- 매크로 기능 설정 튜토리얼 개편: 칸 전체 대신 눌러야 할 줄 하나만 강조하고, 한 단계에 할 일 하나만 짧게 안내
+- 자동 보정 · 위치 템플릿이 있는 것은 먼저 그걸 해보게 함 → 되면 수동 단계는 알아서 건너뜀 · 안 되거나 직접 하고 싶으면 [다음]을 눌러 한 칸씩 수동 지정
+- 이동 장소는 지점마다 '기준 장소에서 지정' → '시간 재기' 순서로 안내
+- 위쪽 진행 표시를 단계 수 대신 할 일 순서로 (예: 2 / 5 · 낚시 · 판매 장소)
 
-## Acrux macro V2.0.6 Update
-- Feature setup tutorials now teach auto calibration step by step: fishing window, selling, merchant, potion craft window and memory match
-- If you have never run an auto calibration, turning a feature on shows the calibration guide once even when all positions are already filled (it won't show again after you finish or skip it · each step is optional)
+## Acrux macro V2.0.7 Update
+- Reworked the macro feature setup tutorials: only the one row you need to use is highlighted, and each step explains one short task
+- Where auto calibration or a position template exists, you try that first → if it works the manual steps are skipped automatically · if it doesn't (or you'd rather do it yourself), press [Next] to set positions one by one
+- Movement spots are guided point by point: "Set from base spot" → "Measure time"
+- The progress label now shows the task order instead of a step count (e.g. 2 / 5 · Fishing · sell spots)

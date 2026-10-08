@@ -2519,76 +2519,61 @@ const Tutorial = (() => {
     needed: () => !doneList().includes('macro') && !macroFeatures(),
     skipMsg: '매크로 기능 설정 튜토리얼을 건너뛰었습니다' });
 
-  // ---- 기능마다 필요한 설정 (켤 때 비어 있는 것만 안내)
-  const groupEl = (box, g) => () => $(box)?.querySelector(`[data-mpos-group="${g}"]`);
+  // ---- 기능마다 필요한 설정 (켤 때 비어 있는 것만 · 강조는 눌러야 할 줄 하나만)
+  // 할 일(TASK)마다: ① 자동 방법(자동 보정 · 위치 템플릿)을 먼저 해보게 하고 → 안 되거나 직접 하고 싶으면 [다음] → ② 수동으로 한 칸씩
   const placesOk = feat => {
     const mine = (move().places || []).filter(pl => pl.feat === feat);
     return mine.length > 0 && mine.every(pl => pl.points.length && pl.points.every(pt => pt.pos && pt.time != null));
   };
   const SELL_REQ = ['sell_fish_pos', 'first_fish_pos', 'sell_all_pos', 'confirm_sell_pos', 'shop_close_pos'];
-  const REQ = {
-    inv: { label: '인벤토리 위치', sec: 'mp-base', side: '통합 위치', target: groupEl('mposBase', 'inv'),
-      ok: () => POP_POS.every(([k]) => base()[k]) && !!base().ocr_region,
-      body: `<p><b>위치 템플릿</b>의 <b>적용</b>으로 한 번에 채우거나, <b>위치 지정</b>으로 하나씩 지정해주세요.</p>
-             <p class="dim">Inventory · Items · Search · 아이템 칸 · 수량 · Use 버튼과 OCR 영역이 필요합니다.</p>` },
-    notice: { label: '알림 영역', sec: 'mp-base', side: '통합 위치', target: groupEl('mposBase', 'notice'),
-      ok: () => !!base().notice_region,
-      body: `<p><b>드래그로 지정</b>을 누른 뒤, 오른쪽에 알림 카드가 뜨는 자리를 넉넉히 드래그해주세요.</p>` },
-    dialog: { label: '대화창 위치', sec: 'mp-base', side: '통합 위치', target: groupEl('mposBase', 'ui'),
-      ok: () => !!base().dialog_pos,
-      body: `<p>NPC 와 대화할 때 <b>Click to skip</b> 이 뜨는 대화창 위치를 지정해주세요.</p>` },
-    moveBase: { label: '기준 장소 위치', sec: 'mp-base', side: '통합 위치', target: groupEl('mposBase', 'move'),
-      ok: () => !!(base().chat_pos && base().collection_pos && base().collection_close),
-      body: `<p>모든 이동의 출발점입니다. <b>도감 버튼</b> · <b>도감 Exit</b> 위치를 지정해주세요.</p>
-             <p class="dim">채팅 버튼은 게임 버튼 칸에 있습니다. 위치 템플릿으로 한 번에 채울 수도 있습니다.</p>` },
-    fishWin: { label: '낚시 창 위치', sec: 'mp-fish', side: '자동 낚시', target: groupEl('mposFish', 'win'),
-      ok: () => MFISH_REQ.every(k => mfish()[k]),
-      body: `<p>낚시 장소에서 <b>Fish</b> 버튼이 보일 때 <b>자동 보정</b>을 눌러주세요.</p>
-             <p class="dim">안 되면 창 영역을 직접 드래그해도 됩니다.</p>` },
-    fishSell: { label: '물고기 판매 위치', sec: 'mp-fish', side: '자동 낚시', target: groupEl('mposFish', 'sell'),
-      ok: () => SELL_REQ.every(k => mfish()[k]),
-      body: `<p><b>판매 자동 보정</b>을 누른 뒤 Captain Flarg 앞에서 <b>E</b> 를 눌러주세요. 실제로 팔지는 않습니다.</p>` },
-    fishAuto: { label: '낚시 창 자동 보정', sec: 'mp-fish', side: '자동 낚시', target: groupEl('mposFish', 'win'), optional: true, cal: true,
-      ok: () => !!mfish().cal_win,
-      body: `<p>낚시 장소에서 <b>Fish</b> 버튼이 보일 때 <b>자동 보정</b>을 눌러주세요. 낚시 창 · 미니게임 창 · 결과창 위치를 전부 맞춥니다.</p>
-             <p class="dim">보정하는 동안(Fish 를 직접 눌러 입질까지) 마우스와 키보드를 건드리지 마세요. F7 로 취소할 수 있습니다. 선택 항목입니다.</p>` },
-    sellAuto: { label: '판매 자동 보정', sec: 'mp-fish', side: '자동 낚시', target: groupEl('mposFish', 'sell'), optional: true, cal: true,
-      ok: () => !!mfish().cal_sell,
-      body: `<p><b>판매 자동 보정</b>을 누른 뒤 Captain Flarg 앞에서 <b>E</b> 를 눌러주세요. 대화창 · Sell Fish · 상점 버튼 위치를 글자로 찾아 맞춥니다.</p>
-             <p class="dim">실제로 팔지는 않습니다. 선택 항목입니다.</p>` },
-    fishPlace: { label: '낚시 · 판매 장소', sec: 'mp-fish', side: '자동 낚시', target: groupEl('mposFish', 'move'),
-      ok: () => placesOk('mfish'),
-      body: `<p>낚시 장소와 물고기 판매 장소의 지점을 <b>기준 장소에서 지정</b>한 뒤, <b>테스트</b>로 걸리는 시간을 재주세요.</p>` },
-    merchChat: { label: '채팅 글자 영역', sec: 'mp-merch', side: '상인 자동 구매', target: groupEl('mposMerch', 'chat'),
-      ok: () => !!mmerch().chat_region,
-      body: `<p>상인 도착 메시지가 뜨는 <b>채팅 글자 영역</b>을 드래그해주세요.</p>` },
-    merchAuto: { label: '상인 자동 보정', sec: 'mp-merch', side: '상인 자동 구매', target: groupEl('mposMerch', 'shop'), optional: true, cal: true,
-      ok: () => !!mmerch().cal_shop,
-      body: `<p><b>상점 위치 자동 보정</b>을 켜 두면 순간이동해서 상점이 열릴 때마다 글자로 위치를 맞춥니다.</p>
-             <p>미리 맞춰 두려면 상인이 와 있을 때 <b>자동 보정</b>을 누른 뒤 상인 앞에서 <b>E</b> 를 눌러주세요. 사지는 않습니다.</p>
-             <p class="dim">선택 항목입니다.</p>` },
-    craftRev: { label: '퀘스트 보드 Exit', sec: 'mp-craft', side: '포션 자동 제작', target: groupEl('mposCraft', 'revbase'),
-      ok: () => !!move().quest_exit_pos,
-      body: `<p>퀘스트 보드 앞에서 <b>E</b> 로 창을 연 뒤 <b>바로 지정</b>을 누르고 <b>Exit</b> 를 클릭해주세요.</p>` },
-    craftPlace: { label: '포션 제작 장소', sec: 'mp-craft', side: '포션 자동 제작', target: groupEl('mposCraft', 'move'),
-      ok: () => placesOk('mcraft'),
-      body: `<p>1번 지점(퀘스트 보드)과 2번 지점(스텔라 포탈)을 지정한 뒤, <b>테스트</b>로 걸리는 시간을 재주세요.</p>` },
-    craftShop: { label: '제작 창 자동 보정', sec: 'mp-craft', side: '포션 자동 제작', target: groupEl('mposCraft', 'shop'), optional: true, cal: true,
-      ok: () => !!mcraft().cal_shop,
-      body: `<p><b>자동 보정</b>을 누른 뒤 Stella 앞에서 <b>F</b> 를 눌러주세요. 위치를 저장해 두면 제작이 빨라집니다.</p>
-             <p class="dim">재료는 넣지 않습니다. 선택 항목입니다.</p>` },
-    matchPlace: { label: '메모리 매치 장소', sec: 'mp-match', side: '오토 메모리 매치', target: groupEl('mposMatch', 'move'),
-      ok: () => placesOk('mmatch'),
-      body: `<p>보드 앞(E 를 누를 수 있는 곳)까지의 지점을 <b>기준 장소에서 지정</b>한 뒤, <b>테스트</b>로 걸리는 시간을 재주세요.</p>` },
-    matchNote: { label: '메모리 매치 자동 보정', sec: 'mp-match', side: '오토 메모리 매치', target: groupEl('mposMatch', 'note'), optional: true, cal: true,
-      ok: () => !!mmatch().cal_note,
-      body: `<p><b>자동 보정</b>을 누른 뒤 메모리 매치 보드 앞에서 <b>E</b> 를 눌러주세요. 창 · 카드 판 위치를 저장해 두면 확인이 빨라집니다.</p>
-             <p class="dim">선택 항목입니다.</p>` },
+  const rowOf = (box, sel) => () => $(box)?.querySelector(sel)?.closest('.row');
+  const tplRow = () => $('mposBase')?.querySelector('.tpl-pick');
+  const MANUAL_TIP = '<p class="dim">안 되거나 직접 지정하고 싶으면 <b>다음</b>을 눌러 하나씩 지정합니다.</p>';
+  const TASKS = {
+    inv: { label: '인벤토리 위치', feat: 'base', sec: 'mp-base', side: '통합 위치',
+      keys: [...POP_POS.map(([k]) => k), 'ocr_region'],
+      auto: { target: tplRow, title: '위치 템플릿을 적용해주세요',
+        body: `<p>16:9 화면이면 <b>적용</b> 한 번으로 인벤토리 위치를 전부 채웁니다.</p>` } },
+    notice: { label: '알림 영역', feat: 'base', sec: 'mp-base', side: '통합 위치', keys: ['notice_region'] },
+    dialog: { label: '대화창 위치', feat: 'base', sec: 'mp-base', side: '통합 위치', keys: ['dialog_pos'] },
+    moveBase: { label: '기준 장소 위치', feat: 'base', sec: 'mp-base', side: '통합 위치',
+      keys: ['chat_pos', 'collection_pos', 'collection_close'],
+      auto: { target: tplRow, title: '위치 템플릿을 적용해주세요',
+        body: `<p>16:9 화면이면 <b>적용</b> 한 번으로 채팅 · 도감 버튼 위치를 채웁니다.</p>` } },
+    fishWin: { label: '낚시 창 위치', feat: 'mfish', sec: 'mp-fish', side: '자동 낚시', keys: MFISH_REQ,
+      manual: ['panel_region', 'reel_region', 'result_region'], cal: 'cal_win',
+      auto: { target: rowOf('mposFish', '[data-fish-auto]'), title: '낚시 창 자동 보정을 해주세요',
+        body: `<p>낚시 장소에서 <b>Fish</b> 버튼이 보일 때 <b>자동 보정</b>을 눌러주세요.</p>
+               <p class="dim">Fish 를 직접 눌러 입질까지 재므로 끝날 때까지 손을 떼주세요. 취소는 F7.</p>` } },
+    fishSell: { label: '물고기 판매 위치', feat: 'mfish', sec: 'mp-fish', side: '자동 낚시', keys: SELL_REQ, cal: 'cal_sell',
+      auto: { target: rowOf('mposFish', '[data-sell-auto]'), title: '판매 자동 보정을 해주세요',
+        body: `<p><b>판매 자동 보정</b>을 누른 뒤 Captain Flarg 앞에서 <b>E</b> 를 눌러주세요.</p>
+               <p class="dim">실제로 팔지는 않습니다.</p>` } },
+    merchChat: { label: '채팅 글자 영역', feat: 'mmerch', sec: 'mp-merch', side: '상인 자동 구매', keys: ['chat_region'] },
+    merchShop: { label: '상인 상점 위치', feat: 'mmerch', sec: 'mp-merch', side: '상인 자동 구매', keys: [], optional: true, cal: 'cal_shop',
+      auto: { target: rowOf('mposMerch', '[data-merch-auto]'), title: '상인 자동 보정을 해주세요',
+        body: `<p>상인이 와 있을 때 <b>자동 보정</b>을 누른 뒤 상인 앞에서 <b>E</b> 를 눌러주세요. 사지는 않습니다.</p>
+               <p class="dim">바로 위 <b>상점 위치 자동 보정</b>이 켜져 있으면 살 때마다 알아서 맞추므로 건너뛰어도 됩니다.</p>` } },
+    craftRev: { label: '퀘스트 보드 Exit', sec: 'mp-craft', side: '포션 자동 제작',
+      steps: [{ title: '퀘스트 보드 Exit 위치를 지정해주세요', target: rowOf('mposCraft', '[data-quest-pick]'),
+        body: `<p>퀘스트 보드 앞에서 <b>E</b> 로 창을 연 뒤 <b>바로 지정</b>을 누르고 <b>Exit</b> 를 클릭해주세요.</p>`,
+        ok: () => !!move().quest_exit_pos }] },
+    craftShop: { label: '제작 창 위치', feat: 'mcraft', sec: 'mp-craft', side: '포션 자동 제작', optional: true, cal: 'cal_shop',
+      keys: ['search_pos', 'list_region', 'shop_close_pos', 'open_recipe_pos', 'add_all_pos', 'craft_pos', 'add_close_pos'],
+      auto: { target: rowOf('mposCraft', '[data-craft-auto]'), title: '제작 창 자동 보정을 해주세요',
+        body: `<p><b>자동 보정</b>을 누른 뒤 Stella 앞에서 <b>F</b> 를 눌러주세요. 재료는 넣지 않습니다.</p>` } },
+    matchNote: { label: '메모리 매치 창 위치', feat: 'mmatch', sec: 'mp-match', side: '오토 메모리 매치', optional: true, cal: 'cal_note',
+      keys: ['note_region', 'note_close_pos', 'note_btn_pos', 'ad_pos', 'board_close_pos'],
+      auto: { target: rowOf('mposMatch', '[data-match-auto]'), title: '메모리 매치 자동 보정을 해주세요',
+        body: `<p><b>자동 보정</b>을 누른 뒤 메모리 매치 보드 앞에서 <b>E</b> 를 눌러주세요. Start · 광고는 누르지 않습니다.</p>` } },
   };
-  // cal: 자동 보정 안내 (선택) — 한 번도 자동 보정을 안 했으면 안내 · 끝까지 보거나 건너뛰면 다시 안 띄움
-  const FEAT_REQ = { mpop: ['inv'], mitem: ['inv'], mmerch: ['merchChat', 'dialog', 'inv', 'merchAuto'],
-    mfish: ['fishWin', 'fishAuto', 'moveBase', 'fishPlace', 'dialog', 'fishSell', 'sellAuto'],
-    mcraft: ['notice', 'moveBase', 'craftRev', 'craftPlace', 'craftShop'], mmatch: ['moveBase', 'matchPlace', 'matchNote'] };
+  for (const [feat, sec, side] of [['mfish', 'mp-fish', '자동 낚시'], ['mcraft', 'mp-craft', '포션 자동 제작'], ['mmatch', 'mp-match', '오토 메모리 매치']])
+    TASKS[feat + 'Place'] = { label: { mfish: '낚시 · 판매 장소', mcraft: '포션 제작 장소', mmatch: '메모리 매치 장소' }[feat], sec, side, places: feat };
+  const FEAT_TASKS = { mpop: ['inv'], mitem: ['inv'],
+    mmerch: ['inv', 'dialog', 'merchChat', 'merchShop'],
+    mfish: ['fishWin', 'moveBase', 'mfishPlace', 'fishSell', 'dialog'],
+    mcraft: ['notice', 'moveBase', 'craftRev', 'mcraftPlace', 'craftShop'],
+    mmatch: ['moveBase', 'mmatchPlace', 'matchNote'] };
   const FEAT_TIP = {
     mpop: '<p class="dim">레어 바이옴이 뜨면 기능 설정의 바이옴별 포션 목록대로 사용합니다.</p>',
     mitem: '<p class="dim">쿨타임마다 아이템을 1개씩 사용합니다.</p>',
@@ -2596,30 +2581,94 @@ const Tutorial = (() => {
     mfish: '<p class="dim">기능 설정의 상태 확인으로 위치가 맞는지 볼 수 있습니다.</p>',
     mcraft: '<p class="dim">기능 설정의 제작 테스트로 바로 확인할 수 있습니다.</p>',
     mmatch: '<p class="dim">보드 앞에서 기능 설정의 테스트로 바로 확인할 수 있습니다.</p>' };
-  const featMissing = k => (FEAT_REQ[k] || []).filter(r => !REQ[r].ok());
+  const taskBox = feat => ({ base: 'mposBase', mfish: 'mposFish', mmerch: 'mposMerch', mcraft: 'mposCraft', mmatch: 'mposMatch' })[feat];
+  // 칸 이름 · 설명 · 지정 방법 (MPOS 표에서)
+  function keyInfo(feat, k) {
+    const d = MPOS[feat];
+    const pt = d.points.find(x => x[0] === k);
+    if (pt) return { name: pt[1], sub: pt[2] || '', region: false };
+    const rg = [...(d.windows || []), ...d.regions].find(x => x[0] === k);
+    return rg ? { name: rg[1], sub: rg[2] || '', region: true } : { name: k, sub: '', region: false };
+  }
+  const taskCalDone = t => !t.cal || !!featCfg(t.feat)[t.cal];
+  const taskKeysOk = t => {
+    if (t.places) return placesOk(t.places);
+    if (t.steps) return t.steps.every(q => q.ok());
+    return (t.keys || []).every(k => featCfg(t.feat)[k]);
+  };
+  // 이 할 일을 안내해야 하는지: 비어 있거나 · 자동 보정을 한 번도 안 했으면 (자동 보정 안내는 기능마다 한 번)
+  const taskNeeded = (t, k) => !taskKeysOk(t) || (!taskCalDone(t) && !doneList().includes('cal_' + k));
+  const taskRequired = t => !t.optional && !taskKeysOk(t);
+  function taskSteps(id, t) {
+    const sideId = 'side_' + id, out = [];
+    out.push({ id: sideId, ...secStep(mposPage, t.sec, t.side), done: () => mpSec(t.sec), needs: 'card' });
+    const opt = !!t.optional;
+    if (t.auto) {
+      const done = () => (t.cal ? taskCalDone(t) : false) || ((t.keys || []).length > 0 && taskKeysOk(t));
+      out.push({ id: 'auto_' + id, title: t.auto.title, body: t.auto.body + ((t.keys || []).length ? MANUAL_TIP : ''),
+        target: t.auto.target, input: true, done, needs: sideId, optional: opt, skipTo: 'end_' + id });
+    }
+    if (t.places) {
+      const all = move().places || [];
+      const mine = all.map((pl, i) => [pl, i]).filter(([pl]) => (pl.feat || 'mfish') === t.places);
+      if (!mine.length) {
+        out.push({ title: `${t.label}${eul(t.label)} 지정해주세요`, target: () => $(taskBox(t.places))?.querySelector(`[data-mpos-custom="places:${t.places}"]`),
+          body: `<p>지점을 <b>기준 장소에서 지정</b>한 뒤 <b>시간 재기</b>로 걸리는 시간을 재주세요.</p>`,
+          input: true, requires: () => placesOk(t.places), done: () => placesOk(t.places), needs: sideId });
+      }
+      for (const [pl, i] of mine) pl.points.forEach((pt0, j) => {
+        const name = pl.name || t.label, row = rowOf(taskBox(t.places), `[data-move-pick="${i},${j},1"]`);
+        const pt = () => (move().places || [])[i]?.points?.[j] || {};
+        out.push({ title: `${name} · ${j + 1}번 지점을 지정해주세요`, target: row, input: true,
+          body: `<p><b>기준 장소에서 지정</b>을 누르면 캐릭터가 기준 장소로 갑니다. 도착하면 로블록스 화면에서 걸어갈 곳을 클릭해주세요.</p>`,
+          requires: () => !!pt().pos, done: () => !!pt().pos, needs: sideId });
+        out.push({ title: `${name} · ${j + 1}번 지점 시간을 재주세요`, target: row, input: true,
+          body: `<p><b>시간 재기</b>를 누르면 기준 장소에서 그 지점까지 걸어갑니다. 캐릭터가 도착하면 <b>F6</b> 을 눌러주세요.</p>`,
+          requires: () => pt().time != null, done: () => pt().time != null, needs: sideId });
+      });
+    }
+    for (const q of t.steps || [])
+      out.push({ title: q.title, body: q.body, target: q.target, input: true, requires: q.ok, done: q.ok, needs: sideId });
+    for (const k of t.manual || t.keys || []) {
+      const { name, sub, region } = keyInfo(t.feat, k);
+      const has = () => !!featCfg(t.feat)[k];
+      // 수동 칸은 자동 방법이 끝났으면 건너뜀 (자동 보정이 안쪽 위치를 다 채움)
+      const done = () => has() || (!!t.auto && taskKeysOk(t));
+      out.push({ title: region ? `${name}${eul(name)} 지정해주세요` : `${name} 위치를 지정해주세요`, input: true,
+        target: rowOf(taskBox(t.feat), `[data-mpos-${region ? 'region' : 'pick'}="${k}"]`),
+        body: (region ? `<p><b>드래그로 지정</b>을 누른 뒤 로블록스 화면에서 드래그해주세요.</p>`
+                      : `<p><b>위치 지정</b>을 누른 뒤 로블록스 화면에서 클릭해주세요.</p>`) + (sub ? `<p class="dim">${sub}</p>` : ''),
+        requires: opt ? null : done, done, optional: opt, skipTo: opt ? 'end_' + id : undefined, needs: sideId });
+    }
+    return out;
+  }
   function featSteps(k) {
-    const reqs = FEAT_REQ[k] || [], miss = featMissing(k);
+    const ids = FEAT_TASKS[k] || [];
+    const todo = ids.filter(id => taskNeeded(TASKS[id], k));
     const steps = [
       { title: `${FEAT_NAME[k]} 설정`,
-        body: `<p>이 기능에 필요한 설정입니다. 비어 있는 것만 차례대로 안내합니다.</p>
-               <ul class="tut-req">${reqs.map(r => `<li class="${REQ[r].ok() ? 'ok' : ''}">${REQ[r].label}${REQ[r].optional ? ' (선택)' : ''}</li>`).join('')}</ul>`,
-        later: true },
+        body: `<p>이 기능에 필요한 것만 차례대로 안내합니다.</p>
+               <ul class="tut-req">${ids.map(id => `<li class="${taskKeysOk(TASKS[id]) && taskCalDone(TASKS[id]) ? 'ok' : ''}">${TASKS[id].label}${TASKS[id].optional ? ' (선택)' : ''}</li>`).join('')}</ul>
+               <p class="dim">자동 보정이 있는 것은 자동 보정부터 해보고, 안 되면 수동으로 진행합니다.</p>`,
+        later: true, task: '' },
       { id: 'card', title: '매크로 기준 위치 설정을 눌러주세요',
-        body: `<p>강조된 <b>매크로 기준 위치 설정</b> 버튼을 직접 눌러주세요.</p>`,
+        body: `<p>강조된 <b>매크로 기준 위치 설정</b> 버튼을 눌러주세요.</p>`,
         target: () => document.querySelector('.menu-card[data-key="mpos"]'),
-        done: () => current === 'mpos' }];
-    for (const r of miss) {
-      const q = REQ[r];
-      steps.push({ id: 'side_' + r, ...secStep(mposPage, q.sec, q.side), done: () => mpSec(q.sec), needs: 'card' });
-      steps.push({ title: `${q.label}${eul(q.label)} ${q.cal ? '해주세요' : '지정해주세요'}`, body: q.body, target: q.target, input: true,
-        optional: !!q.optional, requires: q.optional ? null : q.ok, done: q.ok, needs: 'side_' + r });
-    }
-    steps.push({ title: '설정이 완료되었습니다',
+        done: () => current === 'mpos', task: '' }];
+    const groups = todo.map(id => taskSteps(id, TASKS[id]));
+    groups.forEach((g, n) => {
+      for (const s of g) s.task = `${n + 1} / ${groups.length} · ${TASKS[todo[n]].label}`;   // 단계 수 대신 할 일 순서
+      // 건너뛰기 → 다음 할 일의 첫 단계로
+      const nextId = n + 1 < groups.length ? groups[n + 1][0].id : 'final';
+      for (const s of g) if (s.skipTo === 'end_' + todo[n]) s.skipTo = nextId;
+      steps.push(...g);
+    });
+    steps.push({ id: 'final', task: '', title: '설정이 완료되었습니다',
       body: `<p>메인 화면 <b>매크로</b> 버튼이나 <b>F3</b>으로 켜면 작동합니다. 정지는 <b>F7</b> 입니다.</p>${FEAT_TIP[k] || ''}` });
     return steps;
   }
-  for (const k of Object.keys(FEAT_REQ))
-    TUTORIALS.push({ id: 'feat_' + k, name: `${FEAT_NAME[k]} 설정`, steps: featSteps(k), skipAll: true, menu: 'mpos',
+  for (const k of Object.keys(FEAT_TASKS))
+    TUTORIALS.push({ id: 'feat_' + k, name: `${FEAT_NAME[k]} 설정`, steps: [], skipAll: true, menu: 'mpos',
       needed: () => false, skipMsg: '설정 안내를 건너뛰었습니다 · 기능 설정에서 다시 볼 수 있습니다' });
 
   // 단계 참조(needs · skipTo)를 이름으로 쓸 수 있게 → 번호로 바꿈 (단계를 추가해도 번호가 안 꼬임)
@@ -2719,7 +2768,7 @@ const Tutorial = (() => {
     el.classList.remove('passive');
     card.classList.remove('in');
     const last = i === STEPS.length - 1;
-    $('tutStep').textContent = `${i + 1} / ${STEPS.length}`;
+    $('tutStep').textContent = s.task ?? `${i + 1} / ${STEPS.length}`;
     const left = remaining() - (last && !doneList().includes(tut.id) && !skipped.has(tut.id) ? 1 : 0);   // 마지막 단계에선 이번 것 제외
     $('tutLeft').textContent = left > 0 ? `남은 튜토리얼 ${left}개` : '모든 튜토리얼 완료';
     $('tutTop').style.display = i === 0 ? '' : 'none';   // 각 튜토리얼 첫 단계에서만 표시 (없으면 그만큼 줄어듦)
@@ -2891,12 +2940,12 @@ const Tutorial = (() => {
     isOpen: () => !el.hidden,
     // 기능을 켰을 때: 그 기능에 비어 있는 설정이 있으면 맞춤 튜토리얼 (force: 다 돼 있어도 보기)
     featureOn(k, force) {
-      if (!FEAT_REQ[k]) return;
+      if (!FEAT_TASKS[k]) return;
       if (!el.hidden && tut.id === 'macro') { markDone('macro'); end(); }
       else if (!el.hidden) return;
-      const miss = featMissing(k);
-      const calLeft = miss.some(r => REQ[r].cal) && !doneList().includes('cal_' + k);   // 자동 보정을 아직 안내 안 함
-      if (force || miss.some(r => !REQ[r].optional) || calLeft) start('feat_' + k);
+      const tasks = FEAT_TASKS[k].map(id => TASKS[id]);
+      // 필수가 비어 있거나 · 자동 보정을 아직 한 번도 안내 안 했으면
+      if (force || tasks.some(taskRequired) || tasks.some(t => taskNeeded(t, k))) start('feat_' + k);
     },
     // 화면이 다시 그려졌거나(위치 지정 후) 필수 값이 바뀌었을 때: 강조 대상·[다음] 상태 갱신 · 끝난 단계면 다음으로
     refresh() {
