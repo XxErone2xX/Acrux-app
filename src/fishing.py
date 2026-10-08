@@ -46,7 +46,7 @@ FINISH_GAP = 0.1         # 낚은 뒤 Fish 버튼이 다시 보일 때까지 결
 FINISH_MAX = 10.0        # 그래도 Fish 버튼이 안 보이면 이 시간 뒤 다시 상태 확인부터
 HOLD_MAX = 600          # 다른 기능에 자리를 비켜 주는 최대 시간 (초) — 넘으면 낚시를 이어감
 RELOC_AFTER = 30        # 낚시 화면(Fish · Exit · 미니게임)이 이만큼(초) 안 보이면 낚시 장소로 다시 이동
-FIND_X_AFTER = 5.0       # 낚은 뒤 이 시간 동안 Fish 버튼이 안 보이면 결과창 X 를 화면에서 찾아서 누름 (결과창이 다른 높이에 뜰 때)
+FIND_X_AFTER = 2.0       # 낚은 뒤 이 시간 동안 Fish 버튼이 안 보이면 결과창 X 를 화면에서 찾아서 누름 (결과창이 다른 자리에 뜨거나 깨질 때)
 FULL_WORDS = ("cannot fish", "inventory space", "not have enough", "inventory")   # 인벤토리 가득 알림 글자
 POS_KEYS = (("fish_btn", "Fish 버튼"), ("close_pos", "결과창 X"), ("title_pos", "결과창 제목"))
 
@@ -79,40 +79,56 @@ def _np(data, w, h):
     return np.frombuffer(data, dtype=np.uint8).reshape(h, w, 4)[:, :, 2::-1].astype(np.int16)   # BGRA → RGB
 
 
-def find_close_x(rgb, H):
-    """세로 띠 화면(RGB) 안에서 흰 × 버튼 → (가운데 x, y) 또는 None · H = 창 높이
-    결과창이 가끔 지정한 자리보다 위 · 아래에 떠서 X 자리가 바뀜 → X 가 있는 세로줄을 훑어서 찾음 (가벼운 픽셀 검사)"""
+def find_close_x(rgb, H, want=None):
+    """화면(RGB) 안에서 흰 × 버튼 → (가운데 x, y) 또는 None · H = 창 높이 · want: 원래 X 자리 (있으면 가장 가까운 것)
+    결과창이 가끔 지정한 자리보다 위 · 아래 · 옆에 뜨거나, 낚시 창과 겹쳐서 깨진 채로(작게 · 흐리게 · 테두리에 붙어서) 뜸
+    → 테두리 선 · 큰 덩어리는 빼고, 작은 × 모양 중 어두운 창 바탕 위에 있는 것만 찾음 (가벼운 픽셀 검사)"""
     import numpy as np
     try:
         import cv2
     except ImportError:
         return None
-    white = rgb.min(axis=2) > 190
-    _n, _lab, stats, _c = cv2.connectedComponentsWithStats(white.astype(np.uint8), connectivity=8)
-    best = None
-    for x1, y1, bw, bh, n in stats[1:]:
-        x2, y2 = x1 + bw - 1, y1 + bh - 1
-        if not (0.007 * H <= bw <= 0.035 * H and 0.007 * H <= bh <= 0.035 * H and 0.7 <= bw / bh <= 1.4):
+    white = rgb.min(axis=2) > 150
+    _n, lab, stats, _c = cv2.connectedComponentsWithStats(white.astype(np.uint8), connectivity=8)
+    # 창 테두리(긴 선) · 하늘 같은 큰 밝은 덩어리는 빼고 봄 (X 바로 옆에 테두리가 붙어 있어도 찾게)
+    big = np.zeros(len(stats), bool)
+    big[1:] = (np.maximum(stats[1:, 2], stats[1:, 3]) > 0.05 * H) | (stats[1:, 4] > (0.04 * H) ** 2)
+    clean = white & ~big[lab]
+    dark = rgb.max(axis=2) < 95
+    best, best_d = None, None
+    for i in range(1, len(stats)):
+        x1, y1, bw, bh, n = stats[i]
+        if big[i]:
             continue
-        if not 0.15 <= n / (bw * bh) <= 0.6:                   # 가는 대각선 두 줄
+        x2, y2 = x1 + bw - 1, y1 + bh - 1
+        if not (0.004 * H <= bw <= 0.035 * H and 0.004 * H <= bh <= 0.035 * H and 0.7 <= bw / bh <= 1.4):
+            continue
+        if not 0.15 <= n / (bw * bh) <= 0.65:                  # 가는 대각선 두 줄
             continue
         m = max(bw, bh)                                        # 글자 x 가 아니라 따로 떨어진 버튼인지 (둘레가 비어 있어야 함)
-        ring = white[max(0, y1 - m):y2 + m + 1, max(0, x1 - m):x2 + m + 1]
+        ring = clean[max(0, y1 - m):y2 + m + 1, max(0, x1 - m):x2 + m + 1]
         if int(ring.sum()) - n > 0.15 * n:
             continue
-        sub = white[y1:y2 + 1, x1:x2 + 1]
+        sub = lab[y1:y2 + 1, x1:x2 + 1] == i
 
         def diag(flip, k=9):
             hit = 0
-            for i in range(1, k):
-                t = i / k
+            for j in range(1, k):
+                t = j / k
                 yy, xx = int(t * (bh - 1)), int((1 - t if flip else t) * (bw - 1))
                 hit += bool(sub[max(0, yy - 1):yy + 2, max(0, xx - 1):xx + 2].any())
             return hit / (k - 1)
-        if diag(False) >= 0.85 and diag(True) >= 0.85:
-            c = ((x1 + x2) / 2, (y1 + y2) / 2)
-            if best is None or c[1] < best[1]:
-                best = c
+        if diag(False) < 0.85 or diag(True) < 0.85:
+            continue
+        # 창 안쪽 X 는 어두운 창 바탕 위에 있음 (왼쪽이나 아래가 어두움) → 게임 화면 속 비슷한 무늬는 뺌
+        left = dark[y1:y2 + 1, max(0, x1 - 5 * m):max(0, x1 - m)]
+        below = dark[y2 + m:y2 + 5 * m, x1:x2 + 1]
+        if not ((left.size and left.mean() > 0.6) or (below.size and below.mean() > 0.6)):
+            continue
+        c = ((x1 + x2) / 2, (y1 + y2) / 2)
+        d = ((c[0] - want[0]) ** 2 + (c[1] - want[1]) ** 2) if want else c[1]
+        if best is None or d < best_d:
+            best, best_d = c, d
     return best
 
 
@@ -829,16 +845,21 @@ class Fisher:
             self._wait(0.1, stop)
 
     def _click_found_x(self, sct, rect, cfg, stop):
-        """결과창 X 를 지정한 X 의 세로줄에서 찾아서 누름 → 눌렀으면 True"""
-        x, _y = macro.to_screen(cfg["close_pos"][0], 0, rect)
+        """결과창 X 를 화면 가운데 넓은 영역에서 찾아서 누름 (원래 X 자리에서 가장 가까운 것) → 눌렀으면 True
+        결과창이 다른 자리에 뜨거나, 낚시 창과 겹쳐 깨져서 X 가 작아지고 옆으로 밀린 경우"""
+        x, y = macro.to_screen(cfg["close_pos"][0], cfg["close_pos"][1], rect)
         half = max(10, int(rect[3] * 0.06))
+        left = min(x - half, rect[0] + int(rect[2] * 0.2))
+        right = max(x + half, rect[0] + int(rect[2] * 0.8))
         top, h = rect[1] + int(rect[3] * 0.05), int(rect[3] * 0.7)
-        img = sct.grab({"left": x - half, "top": top, "width": 2 * half, "height": h})
-        found = find_close_x(_np(bytes(img.bgra), img.width, img.height), rect[3])
+        img = sct.grab({"left": left, "top": top, "width": max(1, right - left), "height": h})
+        found = find_close_x(_np(bytes(img.bgra), img.width, img.height), rect[3], want=(x - left, y - top))
         if not found:
             return False
-        fx, fy = x - half + found[0], top + found[1]
-        self.log("결과창이 다른 자리에 뜸 — X 를 찾아서 누름", "d")
+        fx, fy = left + found[0], top + found[1]
+        self.log("결과창이 다른 자리에 뜨거나 깨짐 — X 를 찾아서 누름", "d")
+        macro.move_to(int(fx) + 3, int(fy) + 3)         # 로블록스 버튼이 마우스를 인식하도록 근처로 옮겼다가
+        time.sleep(0.03)
         macro.click(int(fx), int(fy))
         return True
 

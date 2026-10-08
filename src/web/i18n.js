@@ -419,6 +419,7 @@ const I18N = (() => {
     ['<b>자동 보정</b>을 누른 뒤 메모리 매치 보드 앞에서 <b>E</b> 를 눌러주세요. 창 · 카드 판 위치를 저장해 두면 확인이 빨라집니다.', 'Click <b>Auto calibrate</b>, then press <b>E</b> in front of the memory match board. Saved window and card board positions make checks faster.', '<b>自動補正</b>を押してからメモリーマッチのボードの前で<b>E</b>を押してください。ウィンドウ・カード盤の位置を保存すると確認が速くなります。'],
     ['오토 메모리 매치 — 광고를 다 봄 (오늘은 더 볼 수 없음)', 'Auto memory match — watched all ads (no more today)', 'オートメモリーマッチ — 広告を全部視聴（今日はもう見られない）'],
     ['카드 판 준비 확인 중', 'Checking that the card board is ready', 'カード盤の準備を確認中'],
+    ['결과창이 다른 자리에 뜨거나 깨짐 — X 를 찾아서 누름', 'Result window opened elsewhere or broken — found and clicked its X', '結果ウィンドウが別の位置に出たか崩れた — X を探して押す'],
     ['포션 제작 자동 보정 취소 중', 'Cancelling potion craft calibration', 'ポーション製作の自動補正をキャンセル中'],
     ['포션 제작 자동 보정 취소됨', 'Potion craft calibration cancelled', 'ポーション製作の自動補正をキャンセルしました'],
     ['제작 창 찾음 — 이제 만지지 마세요', 'Crafting window found — hands off now', '製作ウィンドウを検出 — もう触らないでください'],
