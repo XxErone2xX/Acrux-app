@@ -229,7 +229,7 @@ class Crafter(popping.Popper):
 
     # ---- 화면 읽기
     def _shop(self, stop, timeout):
-        """제작 창 위치들 (글자로 · 못 읽으면 None)"""
+        """제작 창 위치들 (화면 전체 글자로 · 못 읽으면 None) — 보정을 안 했을 때만 씀 (느림)"""
         end = time.time() + timeout
         while True:
             lay = shop_layout(macro.ocr_boxes(None), self._rect(stop))
@@ -237,31 +237,34 @@ class Crafter(popping.Popper):
                 return lay
             self._wait(0.4, stop)
 
+    def _list_open(self, stop, region, timeout):
+        """목록 칸에 카드 글자가 보이면 제작 창이 열린 것 (목록 칸만 읽어서 빠름)"""
+        end = time.time() + timeout
+        while True:
+            if any(len(sell._norm(b[0])) >= 4 for b in macro.ocr_boxes(region)):
+                return True
+            if time.time() > end:
+                return False
+            self._wait(0.25, stop)
+
     def _pick_result(self, stop, shop, name, query):
-        """검색창에 query 입력 → 결과 카드 중 그 포션을 누름 → True"""
+        """검색창에 query 입력 → Enter → 결과 카드 중 그 포션을 누름 → True"""
         self._click(shop["search_pos"], stop)
-        self._wait(0.2, stop)
+        self._wait(0.15, stop)
         macro.key_combo(["ctrl", "a"])
-        self._wait(0.1, stop)
+        self._wait(0.05, stop)
         macro.paste_text(query)
-        self._wait(0.8, stop)
-        b = pick_card(macro.ocr_boxes(shop["list_region"]), name)
+        self._wait(0.1, stop)
+        macro.key_tap("enter")
+        end = time.time() + 2.0
+        while True:
+            self._wait(0.3, stop)
+            b = pick_card(macro.ocr_boxes(shop["list_region"]), name)
+            if b or time.time() > end:
+                break
         if b:
             self._click([b[1], b[2]], stop)
         return bool(b)
-
-    def _teal(self, rect, pos):
-        """Auto 버튼이 켜졌는지 (켜지면 바탕이 청록색)"""
-        try:
-            import numpy as np
-            x, y = macro.to_screen(pos[0], pos[1], rect)
-            w, h = max(8, int(rect[3] * 0.05)), max(6, int(rect[3] * 0.02))
-            data, gw, gh = macro.grab((x - w // 2, y - h // 2, w, h))
-            px = np.frombuffer(data, np.uint8).reshape(gh, gw, 4).astype(np.int16)
-            b, g, r = px[..., 0], px[..., 1], px[..., 2]
-            return float(((g > 60) & (b > 50) & (r < 50) & (abs(g - b) < 45)).mean()) > 0.3
-        except Exception:
-            return None
 
     # ---- 전체 순서
     def _run(self, name, stop):
@@ -287,19 +290,27 @@ class Crafter(popping.Popper):
     def _craft(self, name, c, stop):
         saved = {k: c.get(k) for k in ("search_pos", "list_region", "shop_close_pos", "open_recipe_pos",
                                        "add_all_pos", "craft_pos", "add_close_pos")}
-        # 2. F → Stella's Workshop (대화창 없이 바로 제작 창)
+        cal = all(saved[k] for k in ("search_pos", "list_region", "shop_close_pos"))
+        # 2. F → Stella's Workshop (대화창 없이 바로 제작 창) — 보정했으면 목록 칸만 읽어서 열렸는지 봄 (빠름)
         self._set(msg="F (Stella's Workshop)")
         macro.key_tap("f")
-        shop = self._shop(stop, float(c.get("f_wait", 2.5)))
-        if not shop:
-            macro.key_tap("f")                               # 한 번 더 (멀거나 씹힘)
-            shop = self._shop(stop, 3.0)
-        if not shop and all(saved[k] for k in ("search_pos", "list_region", "shop_close_pos")):
-            shop = saved                                     # 글자를 못 읽음 → 보정한 위치로
+        shop = None
+        if cal:
+            if self._list_open(stop, saved["list_region"], float(c.get("f_wait", 2.5))):
+                shop = saved
+            else:
+                macro.key_tap("f")                           # 한 번 더 (멀거나 씹힘)
+                if self._list_open(stop, saved["list_region"], 2.5):
+                    shop = saved
+        if not shop:                                         # 보정 안 함 · 목록이 안 보임 → 화면 전체 글자로
+            shop = self._shop(stop, 1.0 if cal else float(c.get("f_wait", 2.5)))
+            if not shop and not cal:
+                macro.key_tap("f")
+                shop = self._shop(stop, 3.0)
         if not shop:
             self.log(f"{self.LABEL} — 제작 창(Stella's Workshop)이 안 열림 (포션 제작 장소 확인)", "y")
             return False
-        # 3. 검색 → 결과 누르기 (번호가 있으면 번호 없이 검색 · I II III 순서로 고름)
+        # 3. 검색 → Enter → 결과 누르기 (번호가 있으면 번호 없이 검색 · I II III 순서로 고름)
         self._set(msg=f"{name} 검색")
         base, _n = split_roman(name)
         found = self._pick_result(stop, shop, name, base)
@@ -309,26 +320,23 @@ class Crafter(popping.Popper):
             self.log(f"{self.LABEL} — 목록에서 '{name}' 을 못 찾음", "y")
             self._click(shop["shop_close_pos"], stop)
             return False
-        self._wait(0.6, stop)
-        # 4. Open Recipe (Auto 가 꺼져 보이면 알림)
-        rect = self._rect(stop)
-        boxes = macro.ocr_boxes(None)
-        orc = open_recipe(boxes) or saved["open_recipe_pos"]
-        auto = next((b for b in boxes if sell._norm(b[0]) == "outo"), None)
-        if auto and self._teal(rect, [auto[1], auto[2]]) is False:    # 잘못 읽고 눌러서 꺼 버리지 않게 알리기만
-            self.log(f"{name} — Auto 가 꺼져 보임 (재료만 채움 · 자동 제작은 Stella 에서 Auto 를 켜 두기)", "y")
+        # 4. Open Recipe — 보정한 위치가 있으면 바로 누름 (없으면 화면 전체 글자로 찾음)
+        self._wait(0.35, stop)
+        orc = saved["open_recipe_pos"] or open_recipe(macro.ocr_boxes(None))
         if not orc:
             self.log(f"{self.LABEL} — Open Recipe 버튼을 못 찾음", "y")
             return False
         self._set(msg="Open Recipe")
         self._click(orc, stop)
         # 5. Add Ingredients 창 → Add Everything → Craft → Add Everything
-        add, end = None, time.time() + 3
-        while not add and time.time() < end:
-            self._wait(0.4, stop)
-            add = add_layout(macro.ocr_boxes(None), self._rect(stop))
-        if not add and all(saved[k] for k in ("add_all_pos", "craft_pos", "add_close_pos")):
+        if all(saved[k] for k in ("add_all_pos", "craft_pos", "add_close_pos")):
             add = saved
+            self._wait(0.5, stop)
+        else:
+            add, end = None, time.time() + 3
+            while not add and time.time() < end:
+                self._wait(0.3, stop)
+                add = add_layout(macro.ocr_boxes(None), self._rect(stop))
         if not add:
             self.log(f"{self.LABEL} — Add Ingredients 창을 못 찾음", "y")
             return False
@@ -338,7 +346,7 @@ class Crafter(popping.Popper):
         self._click(add["craft_pos"], stop)
         self._wait(0.25, stop)
         self._click(add["add_all_pos"], stop)
-        self._wait(0.5, stop)
+        self._wait(0.4, stop)
         # 6. 창은 안 닫고 그 자리에서 리셋 (_run 의 finally)
         self.crafted += 1
         self.log(f"{self.LABEL} 완료 — {name} 재료 다시 채움", "g")
