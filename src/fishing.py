@@ -44,6 +44,7 @@ DIAMOND_IDLE_R = (0.8735, 0.8239)        # 미니게임 창 기준
 DIAMOND_REEL_R = (0.9317, 0.8310)        # 미니게임 창 기준
 FINISH_GAP = 0.1         # 낚은 뒤 Fish 버튼이 다시 보일 때까지 결과창 X 를 누르는 간격 (초)
 FINISH_MAX = 10.0        # 그래도 Fish 버튼이 안 보이면 이 시간 뒤 다시 상태 확인부터
+RELOC_AFTER = 30        # 낚시 화면(Fish · Exit · 미니게임)이 이만큼(초) 안 보이면 낚시 장소로 다시 이동
 FIND_X_AFTER = 5.0       # 낚은 뒤 이 시간 동안 Fish 버튼이 안 보이면 결과창 X 를 화면에서 찾아서 누름 (결과창이 다른 높이에 뜰 때)
 FULL_WORDS = ("cannot fish", "inventory space", "not have enough", "inventory")   # 인벤토리 가득 알림 글자
 POS_KEYS = (("fish_btn", "Fish 버튼"), ("close_pos", "결과창 X"), ("title_pos", "결과창 제목"))
@@ -779,10 +780,21 @@ class Fisher:
             else:                                    # 알 수 없음 (다른 창이 가림 · 로딩 등)
                 unknown_at = unknown_at or now
                 self._set(msg="낚시 화면 확인 중")
-                # 20초 동안 낚시 화면이 한 번도 안 보임 → 낚시 장소에 못 간 것 → 다시 이동 (2번까지)
-                if self.on_start and not self.hold_req.is_set() and now - known_at > 20 and relocs < 2:
+                # 다른 기능이 자리를 달라는데 낚시 화면이 2초 넘게 안 보임 = 낚는 중이 아님 → 바로 비켜줌 (못 비켜서 같이 멈춰 있지 않게)
+                if self.hold_req.is_set() and now - unknown_at > 2.0:
+                    self._hold_point(stop)
+                    known_at = progress_at = time.time()
+                    unknown_at = None
+                    continue
+                # 30초 동안 낚시 화면이 한 번도 안 보임 → 낚시 장소에 못 간 것 → 다시 이동 (2번까지 · 그래도 안 되면 멈춤)
+                if self.on_start and not self.hold_req.is_set() and now - known_at > RELOC_AFTER:
+                    if relocs >= 2:
+                        self.log("낚시 장소로 다시 가도 낚시 화면이 안 보임 — 자동 낚시 멈춤 (낚시 자리 · 위치 설정 확인)", "r")
+                        self.failed = True
+                        self.stop_ev.set()
+                        raise Stopped()
                     relocs += 1
-                    self.log(f"낚시 화면이 안 보임 — 낚시 장소로 다시 이동 ({relocs}/2)", "y")
+                    self.log(f"{RELOC_AFTER}초 동안 낚시 화면이 안 보임 — 낚시 장소로 다시 이동 ({relocs}/2)", "y")
                     self._set(msg="낚시 장소로 다시 가는 중")
                     self.on_start(stop)
                     known_at = progress_at = time.time()
