@@ -1,17 +1,25 @@
-## Acrux macro V1.32.0 업데이트
-- 새 기능: 오토 메모리 매치
-  - 매크로를 켜면 메모리 매치 장소로 가서 E 로 확인
-  - 할 수 있으면 바로 시작해서 카드 짝 맞추기 (본 카드를 기억해서 짝이 보이면 바로 맞춤)
-  - 쿨타임이면 남은 시간을 읽어 두고, 끝나면 다시 가서 확인
-  - 매크로 기준 위치 설정 → 오토 메모리 매치 → 이동에서 메모리 매치 장소를 지정 · 시간 재기
-  - 보드 앞에서 바로 해 보는 테스트 버튼
-- 자동 낚시 로그 영어 · 일본어 번역 추가
+## Acrux macro V1.33.0 업데이트
+- 매크로 튜토리얼 추가
+  - 매크로 기능 설정: 기능을 켜고 끄는 방법만 안내
+  - 기능을 켜면 그 기능에 필요한 설정 중 비어 있는 것만 골라서 하나씩 안내 (맞춤형)
+  - 각 기능 칸의 "설정 안내" 버튼으로 언제든 다시 보기
+- 화면 왼쪽 목록에서 칸을 바꿀 때 부드럽게 넘어가는 애니메이션 추가
+- 안정화
+  - 다른 기능이 자동 낚시에게 자리를 비켜 달라고 한 뒤 돌려주지 않으면, 10분 뒤 낚시를 알아서 이어감
+  - 레어 바이옴 자동 팝핑이 오토 메모리 매치 중에도 먼저 실행되도록 수정
+- 최적화
+  - 로블록스를 하는 중(Acrux 창이 뒤에 있을 때)에는 화면 갱신을 줄여서 렉 감소 · 매크로 동작 속도는 그대로
+  - 튜토리얼이 꺼져 있을 때 계속 돌던 화면 계산 제거
 
-## Acrux macro V1.32.0 Update
-- New feature: Auto memory match
-  - When the macro starts, goes to the memory match spot and checks with E
-  - If available, starts right away and matches card pairs (remembers seen cards and matches as soon as a pair is known)
-  - On cooldown, reads the remaining time and checks again when it ends
-  - Set the memory match spot and measure its time in Macro base position settings → Auto memory match → Movement
-  - Test button to try it right in front of the board
-- Added English · Japanese translations for auto fishing logs
+## Acrux macro V1.33.0 Update
+- Added macro tutorials
+  - Macro feature settings: only explains turning features on and off
+  - Turning a feature on explains only the settings it still needs, one by one (personalized)
+  - See it again anytime with the "Setup guide" button in each feature section
+- Added a smooth animation when switching sections in the left list
+- Stability
+  - If another feature asks auto fishing to make room and never gives it back, fishing resumes on its own after 10 minutes
+  - Rare biome auto popping now runs first even during auto memory match
+- Optimization
+  - Less screen updating while you play Roblox (Acrux window in the background) to reduce lag · macro speed unchanged
+  - Removed a screen calculation that kept running while no tutorial was open

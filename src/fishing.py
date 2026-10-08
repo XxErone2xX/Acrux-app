@@ -44,6 +44,7 @@ DIAMOND_IDLE_R = (0.8735, 0.8239)        # 미니게임 창 기준
 DIAMOND_REEL_R = (0.9317, 0.8310)        # 미니게임 창 기준
 FINISH_GAP = 0.1         # 낚은 뒤 Fish 버튼이 다시 보일 때까지 결과창 X 를 누르는 간격 (초)
 FINISH_MAX = 10.0        # 그래도 Fish 버튼이 안 보이면 이 시간 뒤 다시 상태 확인부터
+HOLD_MAX = 600          # 다른 기능에 자리를 비켜 주는 최대 시간 (초) — 넘으면 낚시를 이어감
 RELOC_AFTER = 30        # 낚시 화면(Fish · Exit · 미니게임)이 이만큼(초) 안 보이면 낚시 장소로 다시 이동
 FIND_X_AFTER = 5.0       # 낚은 뒤 이 시간 동안 Fish 버튼이 안 보이면 결과창 X 를 화면에서 찾아서 누름 (결과창이 다른 높이에 뜰 때)
 FULL_WORDS = ("cannot fish", "inventory space", "not have enough", "inventory")   # 인벤토리 가득 알림 글자
@@ -303,7 +304,6 @@ def find_bar_rows(rgb, guess_top, bar_h):
     """릴링 바 테두리로 바의 실제 위치 찾기 → (바 안쪽 맨 윗줄, 바 안쪽 높이, 바 왼쪽 끝 x, 오른쪽 끝 x) 또는 None
     바 위 · 아래엔 가로로 쭉 이어진 회색 테두리 줄이 있음 (위: 밝은 회색 · 아래: 밝거나 어두운 회색)
     지정한 영역이 몇 px 어긋나면 바 위의 ◇ 찾는 칸에 바 속 숫자(흰 글자)가 들어가 내 위치로 잘못 읽혔음 → 매번 맞춤"""
-    import numpy as np
     h = rgb.shape[0]
     lo, hi = max(0, int(guess_top - bar_h)), min(h - 2, int(guess_top + bar_h))
     best = None
@@ -569,7 +569,12 @@ class Fisher:
             return
         self._set(msg="다른 기능에 자리 양보 중")
         self.holding.set()
+        end = time.time() + HOLD_MAX
         while self.hold_req.is_set():
+            if time.time() > end:                 # 비켜 달라던 기능이 끝났는데 신호를 안 풀었음 → 낚시를 이어감
+                self.log(f"다른 기능이 {HOLD_MAX // 60}분 넘게 자리를 안 돌려줌 — 낚시 이어감", "y")
+                self.hold_req.clear()
+                break
             self._wait(0.2, stop)
         self.holding.clear()
 
@@ -585,7 +590,8 @@ class Fisher:
         raise RuntimeError("로블록스 창을 찾을 수 없음")
 
     def _click_ratio(self, pos, stop):
-        while self.no_focus:                       # 위치 지정 창이 떠 있으면 끝날 때까지 안 누름 (드래그를 망치지 않게)
+        end = time.time() + 330
+        while self.no_focus and time.time() < end:   # 위치 지정 창이 떠 있으면 끝날 때까지 안 누름 (드래그를 망치지 않게 · 창은 최대 5분)
             self._wait(0.1, stop)
         rect = self._rect(stop)
         x, y = macro.to_screen(pos[0], pos[1], rect)

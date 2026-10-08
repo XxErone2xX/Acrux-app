@@ -344,6 +344,10 @@ table.events { width: 100%; border-collapse: collapse; font-size: 13px; table-la
 .tut-body p { margin: 0 0 6px; }
 .tut-body ol { margin: 0 0 6px; padding-left: 20px; }
 .tut-body .dim { color: var(--muted); font-size: 12px; }
+.tut-body .tut-req { list-style: none; margin: 0 0 6px; padding: 0; }
+.tut-body .tut-req li::before { content: '✗'; display: inline-block; width: 18px; color: var(--yellow); font-weight: 700; }
+.tut-body .tut-req li.ok { color: var(--muted); }
+.tut-body .tut-req li.ok::before { content: '✓'; color: var(--green); }
 .tut-btns { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
 .tut-btns .grow { flex: 1; }
 .tut-btns .btn:not(.ghost) { background: var(--tc); }
