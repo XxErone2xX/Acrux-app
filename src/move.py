@@ -3,7 +3,7 @@
 이동 — 기준 장소에서 화면의 한 점을 눌러(Click to Move) 원하는 장소로 걸어감
 외부 앱이라 게임 안 좌표를 모르므로, 매번 '같은 화면'을 만든 뒤 그 화면의 같은 점을 누름:
   1. 기준 장소: 리셋(Esc → R → Enter) → / · 채팅 · 도감 열고 닫기 · / · Enter (카메라 정렬)
-     → W 1초 → W+A 7초 → A 0.75초 → W 0.25초 (구석으로 걸어가 항상 같은 자리) → 우클릭 드래그(위에서 내려다보기) → O 2.5초 (최대 줌)
+     → W 1초 → W+A 7초 → A 1초 (0.75초 뒤부터 W 0.25초 같이) (구석으로 걸어가 항상 같은 자리) → 우클릭 드래그(위에서 내려다보기) → O 2.5초 (최대 줌)
   2. 장소마다 지점 목록: [누를 곳, 걸리는 시간] — 지점이 여러 개면 앞 지점에 도착한 화면에서 다음 지점을 누름
   3. 걸리는 시간은 직접 잼: 누른 순간부터 사용자가 '도착'(F6 또는 화면의 버튼)을 누를 때까지
 """
@@ -114,7 +114,7 @@ class Mover:
         """기준 장소까지 예상 시간 (go_base 순서 · 화면의 총 시간과 같은 계산)"""
         m = self.get_move() or {}
         return 4.9 + float(m.get("reset_wait", 3.5)) + float(m.get("w_time", 1.0)) + float(m.get("wa_time", 7.0)) \
-            + float(m.get("a_time", 0.75)) + float(m.get("w2_time", 0.25)) \
+            + max(float(m.get("a_time", 1.0)), float(m.get("w2_time", 0.25))) \
             + max(float(m.get("o_time", 2.5)), float(m.get("tilt_px", 800)) / 20 * 0.015)
 
     def place_time(self, i, upto=None):
@@ -211,6 +211,28 @@ class Mover:
         return None
 
     # ---- 1. 기준 장소 (사용자가 정한 순서)
+    def _hold_with(self, key, sec, extra, extra_sec):
+        """key 를 sec 초 동안 계속 누르고, 끝나기 extra_sec 초 전부터 extra 도 같이 누름 (key 는 중간에 안 뗌)"""
+        macro.mark_moved()
+        sec, extra_sec = max(0.0, float(sec)), max(0.0, float(extra_sec))
+        start = time.time()
+        end, extra_at = start + max(sec, extra_sec), start + max(0.0, sec - extra_sec)
+        keys = [key]
+        try:
+            macro.key_down(key)
+            while time.time() < end:
+                self._check()
+                if extra not in keys and time.time() >= extra_at:
+                    keys.append(extra)
+                    macro.key_down(extra)
+                time.sleep(min(0.033, max(0.0, min(end, extra_at if extra not in keys else end) - time.time())))
+                if time.time() < end:
+                    for k in keys:
+                        macro.key_down(k)          # 자동 반복 (A 는 계속 눌린 채로)
+        finally:
+            for k in reversed(keys):
+                macro.key_up(k)
+
     def _hold(self, keys, sec):
         """키들을 sec 초 동안 누르고 있다가 뗌 (멈추면 바로 뗌)
         진짜 키보드처럼 누르는 동안 '누름' 신호를 계속 다시 보냄 (약 30번/초) — 한 번만 보내면
@@ -312,7 +334,7 @@ class Mover:
 
     def go_base(self):
         """Esc → R → Enter (리셋 · 0.5초 간격) → 3.5초 → / → 채팅 버튼 → 도감 버튼 → 도감 Exit → / → Enter (각 0.5초)
-        → W 1초 → W+A 7초 → A 0.75초 → W 0.25초 → 0.5초 → O 2.5초 (최대 줌) 누르는 동안 동시에 우클릭 드래그로 위에서 내려다보기"""
+        → W 1초 → W+A 7초 → A 1초 (0.75초 뒤부터 W 0.25초 같이) → 0.5초 → O 2.5초 (최대 줌) 누르는 동안 동시에 우클릭 드래그로 위에서 내려다보기"""
         mv = self.get_move() or {}
         miss = self.base_missing()
         if miss:
@@ -336,8 +358,8 @@ class Mover:
         self._rect()
         self._hold(("w",), float(mv.get("w_time", 1.0)))
         self._hold(("w", "a"), float(mv.get("wa_time", 7.0)))
-        self._hold(("a",), float(mv.get("a_time", 0.75)))
-        self._hold(("w",), float(mv.get("w2_time", 0.25)))
+        # A 를 a_time 동안 누르고, A 를 누르기 시작한 지 (a_time - w2_time) 뒤부터 끝까지 W 도 같이 (기본: A 1초 · 0.75초 뒤 W 0.25초)
+        self._hold_with("a", float(mv.get("a_time", 1.0)), "w", float(mv.get("w2_time", 0.25)))
         self._wait(0.5)
         self._set(msg="기준 장소로 이동 · 내려다보기 + 최대 줌 (우클릭 드래그 + O)")
         self._tilt_and_zoom(int(mv.get("tilt_px", 800)), float(mv.get("o_time", 2.5)))

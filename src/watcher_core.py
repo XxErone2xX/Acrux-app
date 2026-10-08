@@ -127,12 +127,12 @@ MOVE_TEMPLATES = {"mfish": (("fish_spot", "낚시 장소"), ("sell_spot", "물�
 MOVE_DEFAULT = {
     # 기준 장소로 가기 (사용자가 정한 순서):
     #  Esc → R → Enter (리셋 · 0.5초 간격) → 3.5초 → / → 채팅 버튼 → 도감 버튼 → 도감 Exit → / → Enter (각 0.5초)
-    #  → W 1초 → W+A 7초 → A 0.75초 → W 0.25초 → 0.5초 → 우클릭 드래그(위에서 내려다보기) → O 2.5초 (최대 줌) → 갈 곳 우클릭
+    #  → W 1초 → W+A 7초 → A 1초 (0.75초 뒤부터 W 0.25초 같이) → 0.5초 → 우클릭 드래그(위에서 내려다보기) → O 2.5초 (최대 줌) → 갈 곳 우클릭
     "reset_wait": 3.5,            # 리셋 후 대기 (초)
     "w_time": 1.0,                # W 누르기 (초)
     "wa_time": 7.0,               # W + A 같이 누르기 (초)
-    "a_time": 0.75,               # 그 다음 A 만 누르기 (초)
-    "w2_time": 0.25,              # 그 다음 W 만 누르기 (초)
+    "a_time": 1.0,                # 그 다음 A 누르기 (초)
+    "w2_time": 0.25,              # A 를 누르는 마지막 이 시간 동안 W 도 같이 (초) — A 를 누른 지 a_time - w2_time 뒤에 시작
     "tilt_px": 800,               # 우클릭을 누른 채 마우스를 아래로 끄는 거리 (px) — 위에서 내려다보기
     "o_time": 2.5,                # O 누르기 (초) — 최대 줌
     "button": "right",            # 이동할 곳을 누를 마우스 버튼 (Click to Move)
@@ -407,6 +407,8 @@ def normalize(raw):
             mv["wa_time"] = max(0.0, float(mv.get("wa_time", 8.0)) - 1.0)
         except (TypeError, ValueError):
             mv["wa_time"] = 7.0
+    if not mv.get("v131") and mv.get("a_time") == 0.75:        # A 뒤에 W 를 따로 누르던 방식 → A 1초 안에 W 를 겹쳐 누름 (한 번)
+        mv["a_time"] = 1.0
     for k, lo, hi, cast in (("reset_wait", 0.5, 15, float), ("w_time", 0, 30, float), ("wa_time", 0, 60, float),
                             ("a_time", 0, 30, float), ("w2_time", 0, 30, float),
                             ("o_time", 0, 15, float), ("tilt_px", 0, 5000, int), ("margin", 0, 5, float)):
@@ -447,7 +449,7 @@ def normalize(raw):
                 out.append({"name": name, "feat": feat, "key": key, "points": [{"pos": None, "time": None}]})
     mv["places"] = out
     d["move"] = {k: mv[k] for k in MOVE_DEFAULT}
-    d["move"]["v18"] = d["move"]["v129"] = d["move"]["v130"] = True
+    d["move"]["v18"] = d["move"]["v129"] = d["move"]["v130"] = d["move"]["v131"] = True
     mp = dict(MPOP_DEFAULT)
     mp.update(old_mp)
     for k in (*BASE_INV_KEYS, "ocr_region"):
