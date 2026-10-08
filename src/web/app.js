@@ -1330,7 +1330,7 @@ function renderMcraft() {
     <label class="row"><span>F 누른 뒤 대기<small>제작 창이 뜰 때까지 (초)</small></span>
       <input type="number" min="0.5" step="0.5" id="mcraftWait" value="${m.f_wait ?? 2.5}"></label>
     <div class="row"><span>제작 테스트<small>입력한 포션으로 지금 한 번 (예: Fortune Potion I)</small></span>
-      <span class="pos"><input type="text" id="mcraftName" placeholder="포션 이름" maxlength="40">
+      <span class="pos nowrap"><input type="text" id="mcraftName" placeholder="포션 이름" maxlength="40">
       <button class="btn mini" type="button" id="mcraftTest">테스트</button></span></div>
     <div class="row"><span>이번 실행 제작 횟수</span><b id="mcraftCount">-</b></div>`;
   $('mcraftOn').addEventListener('change', e => setFeature('mcraft', e.target.checked));
