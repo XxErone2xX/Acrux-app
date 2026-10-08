@@ -336,6 +336,8 @@ const I18N = (() => {
     ['<b>내 브섭 링크</b>는 꼭 입력해야 합니다. 돌아가면 켜 둔 매크로(자동 낚시 등)가 다시 시작됩니다.', 'You must enter <b>your private server link</b>. When you return, the macros you turned on (auto fishing etc.) start again.', '<b>自分のプラベサーバーリンク</b>は必須です。戻ると、オンにしたマクロ（自動釣りなど）が再開します。'],
     ['오토 아이템 사용', 'Auto item use', 'オートアイテム使用'],
     ['Exit 뒤 D 누르기', 'Press D after Exit', 'Exit の後に D を押す'],
+    ['D 뒤 대기', 'Wait after D', 'D の後に待つ'],
+    ['Exit 뒤 D 를 누른 다음 기다리는 시간 (초)', 'Time to wait after pressing D following Exit (s)', 'Exit の後に D を押してから待つ時間（秒）'],
     ['퀘스트 창 Exit 를 누른 뒤 D 를 누르는 시간 (초)', 'Time to press D after the quest window Exit (s)', 'クエストウィンドウの Exit の後に D を押す時間（秒）'],
     ['포탈 뒤 D 누르기', 'Press D after the portal', 'ポータルの後に D を押す'],
     ['1번 퀘스트 보드 → E → 대기 → Exit → D → 2번 스텔라 포탈 → D = 포션 제작 장소', 'Point 1 quest board → E → wait → Exit → D → point 2 Stella portal → D = potion crafting spot', '地点1 クエストボード → E → 待機 → Exit → D → 地点2 ステラのポータル → D = ポーション製作場所'],
