@@ -133,6 +133,14 @@ MOVE_DEFAULT = {
     "w_time": 1.0,                # W 누르기 (초)
     "wa_time": 7.0,               # W + A 같이 누르기 (초)
     "a_time": 1.0,                # 그 다음 A 누르기 (초)
+    # 반대쪽 기준 장소 (포션 제작 장소 · 낚시와 정반대 방향): 리셋 · 카메라 정렬 · 내려다보기+줌 → S+D → S (끝에 A 같이)
+    "rsd_time": 1.0,              # S + D 같이 누르기 (초)
+    "rs_time": 7.0,               # 그 다음 S 누르기 (초)
+    "ra_time": 1.0,               # S 를 누르는 마지막 이 시간 동안 A 도 같이 (초) — 기본: S 누른 지 6초 뒤부터 1초
+    # 반대쪽 길 1번 지점(퀘스트 보드)에 도착한 뒤: E → q_wait 초 → 퀘스트 창 Exit 클릭 → D rd_time 초
+    "q_wait": 1.5,
+    "rd_time": 2.0,
+    "quest_exit_pos": None,       # 퀘스트 창 Exit 버튼 [x, y]
     "w2_time": 0.25,              # A 를 누르는 마지막 이 시간 동안 W 도 같이 (초) — A 를 누른 지 a_time - w2_time 뒤에 시작
     "tilt_px": 800,               # 우클릭을 누른 채 마우스를 아래로 끄는 거리 (px) — 위에서 내려다보기
     "o_time": 2.5,                # O 누르기 (초) — 최대 줌
@@ -425,13 +433,15 @@ def normalize(raw):
     if not mv.get("v131") and mv.get("a_time") == 0.75:        # A 뒤에 W 를 따로 누르던 방식 → A 1초 안에 W 를 겹쳐 누름 (한 번)
         mv["a_time"] = 1.0
     for k, lo, hi, cast in (("reset_wait", 0.5, 15, float), ("w_time", 0, 30, float), ("wa_time", 0, 60, float),
-                            ("a_time", 0, 30, float), ("w2_time", 0, 30, float),
+                            ("a_time", 0, 30, float), ("w2_time", 0, 30, float), ("rsd_time", 0, 30, float),
+                            ("rs_time", 0, 60, float), ("ra_time", 0, 30, float), ("q_wait", 0, 15, float), ("rd_time", 0, 30, float),
                             ("o_time", 0, 15, float), ("tilt_px", 0, 5000, int), ("margin", 0, 5, float)):
         try:
             mv[k] = cast(min(hi, max(lo, float(mv.get(k, MOVE_DEFAULT[k])))))
         except (TypeError, ValueError):
             mv[k] = MOVE_DEFAULT[k]
     mv["button"] = "left" if mv.get("button") == "left" else "right"
+    mv["quest_exit_pos"] = _ratio_list(mv.get("quest_exit_pos"), 2)
     places = []
     for pl in (mv.get("places") if isinstance(mv.get("places"), list) else [])[:30]:
         if not isinstance(pl, dict):
