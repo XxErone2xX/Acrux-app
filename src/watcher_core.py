@@ -166,7 +166,7 @@ MPOP_DEFAULT = {
     "biomes_on": {},              # 켜진 바이옴에서만 (기본 전부 켜짐)
 }
 MITEM_DEFAULT = {
-    # 매크로 탭 · 오토 아이템 사용 — 쿨타임마다 인벤토리에서 아이템 사용 (스크립트 매크로와 같은 간격)
+    # 매크로 탭 · 오토 아이템 사용 — 쿨타임마다 인벤토리에서 아이템 사용
     # 위치 · OCR 영역은 매크로 기준 위치(base), 딜레이 · 일치율은 오토 팝핑(pop) 설정을 같이 씀
     "enabled": False,
     "strange": True,              # Strange Controller 사용
@@ -195,7 +195,7 @@ MMATCH_DEFAULT = {
     "e_wait": 2.0,                # E 누른 뒤 알림 창이 뜰 때까지 (초)
     "flip_wait": 0.35,            # 카드를 누른 뒤 앞면을 읽기까지 (초)
 }
-# 상인 아이템 (스크립트 매크로의 상인 아이템 설정과 같은 목록)
+# 상인 아이템
 MERCHANT_ITEMS = {
     "Jester": ("Oblivion Potion", "Heavenly Potion", "Potion of Bound", "Rune of Everything", "Random Potion Sack",
                "Stella's Candle", "Lucky Potion"),
@@ -203,7 +203,7 @@ MERCHANT_ITEMS = {
 }
 MMERCH_DEFAULT = {
     # 매크로 탭 · 상인 자동 구매 — 채팅에 상인 도착이 뜨면 Merchant Teleporter 로 가서 고른 아이템 구매
-    # 위치는 Noteab 매크로(Apache 2.0)의 1920x1080 값을 템플릿으로 씀 · 대화창 · 인벤토리는 통합 위치
+    # 위치 템플릿은 1920x1080 값 · 대화창 · 인벤토리는 통합 위치
     "enabled": False,
     "check_sec": 15.0,            # 채팅창 확인 간격 (초)
     "teleport_wait": 3.0,         # Merchant Teleporter 사용 후 대기 (초)
@@ -243,7 +243,7 @@ MFISH_DEFAULT = {
     "click_v3": False,            # 클릭 기준을 '구간 왼쪽 변 이하'(목표 0 · 미리 누르기 0)로 바꾼 것 적용했는지 (한 번만)
 }
 POP_BIOMES = ("CYBERSPACE", "GLITCHED", "DREAMSPACE")
-# 기본 템플릿 — 얼로니 SolsRNG 스크립트의 레어 바이옴 자동 팝핑(_RareBiomePotionTable) 그대로
+# 기본 템플릿 — 레어 바이옴 자동 팝핑
 # (처음 한 번만 채워짐 · 이후엔 플레이어가 추가/삭제/순서 변경)
 _STD = [("Warp Potion", 1), ("Oblivion Potion", "ALL"), ("Godlike Potion", "ALL"),
         ("Heavenly Potion", "ALL"), ("Potion of Bound", "ALL"), ("Popping Potion", "ALL")]
@@ -434,7 +434,7 @@ def normalize(raw):
     d["base"] = {k: base[k] for k in BASE_DEFAULT}
     mv = dict(MOVE_DEFAULT)
     mv.update(d.get("move") if isinstance(d.get("move"), dict) else {})
-    if not mv.get("v18") and mv.get("reset_wait") == 2.6:      # 예전(FishSol 방식) 기본값이면 새 기본값으로 한 번
+    if not mv.get("v18") and mv.get("reset_wait") == 2.6:      # 예전기본값이면 새 기본값으로 한 번
         mv["reset_wait"] = 3.5
     if not mv.get("v129") and mv.get("w_time") == 0.85:        # 예전 기본값이면 새 기본값(1초)으로 한 번
         mv["w_time"] = 1.0

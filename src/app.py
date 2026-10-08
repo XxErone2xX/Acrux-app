@@ -102,12 +102,12 @@ class Bridge:
         self.fisher = fishing.Fisher(self._mfish_cfg, self._on_log,
                                      on_user_stop=self._macro_user_stop)
         self.mpop = popping.MyServerPopper(lambda: self.data.get("pop", {}), self._mpop_cfg,
-                                           self._on_log, before=lambda: self.fisher.hold(45),
-                                           after=self.fisher.release)
+                                           self._on_log, before=lambda: self.fisher.hold(45, who="mpop"),
+                                           after=lambda: self.fisher.release("mpop"))
         # 이동: 기준 장소(리셋 · 카메라 정렬 · 줌) → 화면의 한 점을 눌러 장소로 걸어감 · 걸리는 시간은 직접 잼
         self.mover = move.Mover(lambda: self.data.get("base", {}), lambda: self.data.get("move", {}), self._on_log,
-                                set_move_time=self._set_move_time, before=lambda: self.fisher.hold(45),
-                                after=self.fisher.release, banner=self._move_banner,
+                                set_move_time=self._set_move_time, before=lambda: self.fisher.hold(45, who="move"),
+                                after=lambda: self.fisher.release("move"), banner=self._move_banner,
                                 progress=self._banner_progress)
         # 판매: 자동 낚시 중 인벤토리가 가득 차면 물고기 판매 장소로 가서 팔고 낚시 장소로 돌아옴
         self.seller = sell.Seller(self.mover, self._mfish_cfg, lambda: self.data.get("move", {}), self._on_log)
@@ -115,7 +115,8 @@ class Bridge:
         # 오토 아이템 사용: 쿨타임마다 Strange Controller · Biome Randomizer 사용 (자동 낚시는 잠깐 비켜줌)
         self.items = popping.ItemUser(lambda: self.data.get("pop", {}), lambda: self.data.get("base", {}),
                                       lambda: self.data.get("mitem", {}), self._on_log,
-                                      before=lambda: self.fisher.hold(90, cancel=False), after=self.fisher.release)
+                                      before=lambda: self.fisher.hold(90, cancel=False, who="items"),
+                                      after=lambda: self.fisher.release("items"))
         # 상인 자동 구매: 일정 간격마다 채팅 확인 → 상인이 오면 Merchant Teleporter 로 가서 구매 (자동 낚시는 멈췄다가 다시 시작)
         self.merchant = merchant.Merchant(lambda: self.data.get("pop", {}), lambda: self.data.get("base", {}),
                                           lambda: self.data.get("mmerch", {}), self._on_log, on_done=self._on_merchant_done,
@@ -131,6 +132,7 @@ class Bridge:
                                         lambda: self._place_of("mmatch", "match_spot"))
         # 자동 낚시가 계속 헛돌면(낚시 자리를 못 찾음 · 팔 물고기가 없는데 가득 참) 멈춰 둠 — F3 으로 매크로를 다시 켜면 풀림
         self.fish_block, self.fish_fails, self.zero_sells = None, 0, 0
+        self.fish_retry_at, self.fish_backoff = 0.0, 0     # 막혔을 때 다시 시도할 시각 · 쉬는 시간 (초)
         self.fisher.on_start = self._on_fish_start
         self.play = rejoin.PlayClicker(lambda: self.data.get("play", {}), self._on_log,
                                        on_ingame=self._on_ingame, on_fail=self._on_play_fail)
@@ -430,66 +432,41 @@ class Bridge:
                     if want:
                         self._on_log("내 서버 — 매크로 다시 시작", "g")
                 ok = want and not sniping and bool(macro.roblox_window_cached(2.0))
-                # 오토 아이템 사용: 쿨타임이 찼고 이동 · 판매 · 팝핑 중이 아니면 (낚시는 안전한 곳에서 잠깐 비켜줌)
-                # 상인 자동 구매: 상인이 왔으면 낚시를 멈추고 구매 · 아니면 간격마다 채팅 확인
-                others = self.items.running() or (self.mpop.running() or self.mpop_wait) or self.mover.running() or self.merchant.running() \
-                    or self.crafter.running() or bool(self.craft_pending) or self.matcher.running()
-                if self.merchant_pending and time.time() - self.merchant_pending[1] > 180:
+                now = time.time()
+                if self.merchant_pending and now - self.merchant_pending[1] > 180:
                     self.merchant_pending = None             # 상인이 떠났을 시간
-                if ok and want_merch and not others:
-                    if self.merchant_pending:
-                        if self.fisher.running():
-                            self.fisher.stop()               # 상인한테 갔다가 낚시 장소로 다시 가야 해서 낚시는 끝냄
-                        else:
-                            name = self.merchant_pending[0]
-                            self.merchant_pending = None
-                            self.merchant.start_job("buy", name)
-                        continue
-                    if time.time() - self.merchant_check_at >= float(mm.get("check_sec", 15)):
-                        self.merchant_check_at = time.time()
-                        self.merchant.start_job("check")
-                elif self.merchant.running() and self.merchant.job == "buy" and (sniping or not want_merch):
-                    self.merchant.stop()
-                # 포션 자동 제작: 2초마다 알림 영역(하늘색 'Auto Crafted') 확인 → 낚시를 멈추고 제작 장소로
-                if self.craft_pending and time.time() - self.craft_pending[1] > 300:
+                if self.craft_pending and now - self.craft_pending[1] > 300:
                     self.craft_pending = None
-                if ok and want_craft and not self.crafter.running():
-                    busy_other = self.items.running() or self.mpop.running() or self.mpop_wait or self.mover.running() \
-                        or self.merchant.buying() or self.merchant_pending or self.matcher.running()
-                    if self.craft_pending and not busy_other:
-                        if self.fisher.running():
-                            self.fisher.stop()
-                        else:
-                            name = self.craft_pending[0]
-                            self.craft_pending = None
-                            self.crafter.start_job(name)
-                        continue
-                    if not self.craft_pending and time.time() - self.craft_check_at >= 2.0:
-                        self.craft_check_at = time.time()
-                        self._craft_notice()
-                elif self.crafter.running() and not self.crafter.test and (sniping or not want_craft):
+                # 끄거나 스나이핑하러 가면 하던 기능을 멈춤 (테스트는 끝까지)
+                if self.merchant.running() and self.merchant.job == "buy" and (sniping or not want_merch):
+                    self.merchant.stop()
+                if self.crafter.running() and not self.crafter.test and (sniping or not want_craft):
                     self.crafter.stop()
-                # 오토 메모리 매치: 다음 확인 시각이 되면 (켤 때 바로 한 번) 낚시를 멈추고 메모리 매치 장소로
-                if ok and want_match and not self.matcher.running():
-                    busy_other = self.items.running() or self.mpop.running() or self.mpop_wait or self.mover.running() \
-                        or self.merchant.buying() or self.merchant_pending or self.crafter.running() or self.craft_pending
-                    if time.time() >= self.matcher.next_at and self._place_of("mmatch", "match_spot") is None:
-                        self.matcher.next_at = time.time() + 600     # 장소가 없으면 낚시를 멈추지 않고 알림만 (10분마다)
-                        self._on_log("오토 메모리 매치 안 함 — 매크로 기준 위치 설정 → 오토 메모리 매치 → 이동에서 장소 지정 · 시간 재기", "n")
-                    elif time.time() >= self.matcher.next_at and not busy_other:
-                        if self.fisher.running():
-                            self.fisher.stop()
-                        else:
-                            self.matcher.start_job()
-                        continue
-                elif self.matcher.running() and not self.matcher.test and (sniping or not want_match):
+                if self.matcher.running() and not self.matcher.test and (sniping or not want_match):
                     self.matcher.stop()
-                if ok and want_items and not self.items.running() and not (self.mpop.running() or self.mpop_wait) and not self.mover.running() \
-                        and not self.merchant.buying() and not self.merchant_pending and not self.crafter.running() and not self.craft_pending \
-                        and not self.matcher.running():
-                    self.items.start(self.items.due())
-                elif self.items.running() and not self.items.test and (sniping or not want_items):
+                if self.items.running() and not self.items.test and (sniping or not want_items):
                     self.items.stop()
+                if ok and want_match and now >= self.matcher.next_at and self._place_of("mmatch", "match_spot") is None:
+                    self.matcher.next_at = now + 600         # 장소가 없으면 낚시를 멈추지 않고 알림만 (10분마다)
+                    self._on_log("오토 메모리 매치 안 함 — 매크로 기준 위치 설정 → 오토 메모리 매치 → 이동에서 장소 지정 · 시간 재기", "n")
+                # ---- 단일성 기능: 자리가 비어 있고 긴급(레어 바이옴 팝핑)이 없으면 신호가 온 순서대로 하나만
+                holder, wants = self._single_running(), self._single_wants(ok, want_merch, want_craft, want_match, want_items) if ok else []
+                if wants and holder is None and not self._emergency():
+                    name, start = wants[0]
+                    if name != "items" and self.fisher.running():
+                        self.fisher.stop()                   # 다른 곳으로 가야 해서 낚시는 끝냄 (돌아오면 낚시 장소로 다시 감)
+                    else:
+                        start()
+                    continue
+                # ---- 가벼운 확인 (자리를 안 씀): 상인 도착 채팅 · Auto Crafted 알림
+                if ok and want_merch and holder is None and not self._emergency() and not self.merchant.running() \
+                        and now - self.merchant_check_at >= float(mm.get("check_sec", 15)):
+                    self.merchant_check_at = now
+                    self.merchant.start_job("check")
+                if ok and want_craft and not self.crafter.running() and not self.craft_pending and now - self.craft_check_at >= 2.0:
+                    self.craft_check_at = now
+                    self._craft_notice()
+                # ---- 상시 기능: 자동 낚시 (단일성 · 긴급 기능이 없을 때만)
                 want = bool(self.data.get("macro_on") and mf.get("enabled"))
                 ok = ok and want
                 if want and fishing.Fisher.missing(mf):
@@ -500,26 +477,68 @@ class Bridge:
                         self._on_log(f"자동 낚시 안 함 — 매크로 기준 위치 설정 필요: {miss}", "n")
                 else:
                     warned = None
-                if self.fisher.reels != getattr(self, "_reels_seen", 0):   # 낚시가 잘 되면 실패 횟수는 처음부터
-                    self._reels_seen, self.fish_fails, self.zero_sells = self.fisher.reels, 0, 0
+                if self.fisher.reels != getattr(self, "_reels_seen", 0):   # 낚시가 잘 되면 실패 횟수 · 다시 시도 간격은 처음부터
+                    self._reels_seen, self.fish_fails, self.zero_sells, self.fish_backoff = self.fisher.reels, 0, 0, 0
+                if self.fish_block and ok and now >= self.fish_retry_at:   # 막힌 뒤 기다렸으면: 리셋 → 낚시 장소로 다시 가서 시도
+                    self._on_log(f"자동 낚시 다시 시도 ({self.fish_block}) — 리셋하고 낚시 장소로 다시 이동", "c")
+                    self.fish_block, self.fish_fails, self.zero_sells = None, 0, 0
                 if self.fish_block:
                     ok = False
-                if ok and not self.fisher.running() and self.fisher.failed:     # 낚시 화면을 못 찾고 멈췄음 → 다시 켜기는 한 번만
+                if ok and not self.fisher.running() and self.fisher.failed:     # 낚시 화면을 못 찾고 멈췄음 → 바로 다시 켜기는 한 번만
                     self.fisher.failed = False
                     self.fish_fails += 1
                     if self.fish_fails >= 2:
-                        self.fish_block = "낚시 화면 없음"
-                        self._on_log("낚시 화면을 계속 못 찾음 — 자동 낚시 멈춤 (F3 로 다시 켜면 다시 시도)", "r")
+                        self._block_fish("낚시 화면 없음")
                         ok = False
-                if ok and not self.fisher.running() and not (self.mpop.running() or self.mpop_wait) and not self.mover.running() \
-                        and not self.items.running() and not self.merchant.buying() and not self.merchant_pending \
-                        and not self.crafter.running() and not self.craft_pending and not self.matcher.running() \
-                        and not (want_match and time.time() >= self.matcher.next_at):
+                if ok and not self.fisher.running() and holder is None and not wants and not self._emergency():
                     self.fisher.start()
                 elif not ok and self.fisher.running():
                     self.fisher.stop()
             except Exception as e:
                 write_crash(f"macro loop: {e}")
+
+    # 기능 분류
+    #  · 긴급: 레어 바이옴 자동 팝핑 — 하던 단일성 기능을 멈추고 먼저 (끝나면 다시)
+    #  · 상시: 자동 낚시 — 켜 두면 계속 · 단일성 · 긴급 기능이 자리를 쓰는 동안은 비켜 줌
+    #  · 단일성: 상인 자동 구매 · 포션 자동 제작 · 오토 메모리 매치 · 오토 아이템 사용
+    #           신호가 오면 한 번 하고 끝 · 자리는 하나라서 한 번에 하나만 (먼저 온 것부터, 끝날 때까지 다른 건 대기)
+    def _emergency(self):
+        return self.mpop.running() or self.mpop_wait
+
+    def _single_running(self):
+        """지금 자리를 쓰는 단일성 기능 (이동 테스트 · 자동 보정 등 직접 누른 이동도 포함) → 이름 또는 None"""
+        for name, busy in (("merchant", self.merchant.buying()), ("craft", self.crafter.running()),
+                           ("match", self.matcher.running()), ("items", self.items.running()), ("move", self.mover.running())):
+            if busy:
+                return name
+        return None
+
+    def _single_wants(self, ok, want_merch, want_craft, want_match, want_items):
+        """자리를 기다리는 단일성 기능 [(이름, 시작 함수)] — 신호가 온 순서(상인 → 포션 → 메모리 매치 → 아이템)"""
+        out, now = [], time.time()
+        if want_merch and self.merchant_pending:
+            def merch(name=self.merchant_pending[0]):
+                self.merchant_pending = None
+                self.merchant.start_job("buy", name)
+            out.append(("merchant", merch))
+        if want_craft and self.craft_pending:
+            def craft(name=self.craft_pending[0]):
+                self.craft_pending = None
+                self.crafter.start_job(name)
+            out.append(("craft", craft))
+        if want_match and now >= self.matcher.next_at and self._place_of("mmatch", "match_spot") is not None:
+            out.append(("match", self.matcher.start_job))
+        if want_items:
+            due = self.items.due(now)
+            if due:
+                out.append(("items", lambda: self.items.start(due)))
+        return out
+
+    def _block_fish(self, why):
+        """자동 낚시가 계속 헛돎 → 잠깐 쉬었다가 리셋 · 낚시 장소로 다시 가서 시도 (쉬는 시간은 30초부터 실패할수록 늘림 · 최대 5분)"""
+        self.fish_backoff = min(300, max(30, self.fish_backoff * 2))
+        self.fish_block, self.fish_retry_at = why, time.time() + self.fish_backoff
+        self._on_log(f"자동 낚시 멈춤 ({why}) — {self.fish_backoff}초 뒤 리셋하고 낚시 장소로 다시 가서 시도", "r")
 
     # 사용자 수: Acrux 가 켜져 있는 동안 몇 분마다 '켜져 있음' 신호 (설치마다 만든 무작위 번호만 보냄)
     # 집계에 참여하지 않으면 신호 없이 숫자만 받아 봄 · 서버 코드는 server/online
@@ -551,7 +570,7 @@ class Bridge:
 
     def _set_macro(self, on, why="F3"):
         """매크로 버튼 켜기 · 끄기 (F3 · 화면 버튼과 같음)"""
-        self.fish_block, self.fish_fails, self.zero_sells = None, 0, 0
+        self.fish_block, self.fish_fails, self.zero_sells, self.fish_backoff = None, 0, 0, 0
         with self.lock:
             self.data["macro_on"] = bool(on)
         self._save()
@@ -791,13 +810,13 @@ class Bridge:
         "base": {"inventory_pos": [0.018, 0.474], "items_pos": [0.663, 0.312], "search_pos": [0.458, 0.34],
                  "item_pos": [0.443, 0.44], "amount_pos": [0.296, 0.534], "use_pos": [0.356, 0.535],
                  "ocr_region": [0.418, 0.399, 0.466, 0.484],
-                 # 1080p 기준: 채팅 버튼 (112, 30) · 도감 버튼 (47, 467) · 도감 Exit (382, 126) — FishSol 에서 쓰는 자리
+                 # 1080p 기준: 채팅 버튼 (112, 30) · 도감 버튼 (47, 467) · 도감 Exit (382, 126)
                  "chat_pos": [0.0582, 0.0278], "collection_pos": [0.0245, 0.4324], "collection_close": [0.199, 0.1167],
-                 "dialog_pos": [0.3979, 0.763]},     # NPC 대화창 (Noteab 매크로 1080p 프리셋 · Apache 2.0)
-        # 판매 (Noteab 매크로의 1920x1080 위치 프리셋 · Apache 2.0) — Sell Fish 버튼은 직접 지정
+                 "dialog_pos": [0.3979, 0.763]},     # NPC 대화창
+        # 판매 (1920x1080 위치) — Sell Fish 버튼은 직접 지정
         "mfish": {"first_fish_pos": [0.4349, 0.3778], "sell_all_pos": [0.3464, 0.7444],
                   "confirm_sell_pos": [0.4141, 0.5731], "shop_close_pos": [0.7609, 0.2528]},
-        # 상인 — 1920x1080 전체 화면 스크린샷에서 잰 값 (채팅 위치는 Noteab 매크로 1080p 프리셋 · Apache 2.0)
+        # 상인 — 1920x1080 전체 화면 스크린샷에서 잰 값
         "mmerch": {"chat_region": [0.0042, 0.0935, 0.251, 0.3426],
                    "open_pos": [0.3396, 0.8759], "first_slot": [0.5021, 0.6667], "second_slot": [0.601, 0.6667],
                    "item_region": [0.5724, 0.3444, 0.9427, 0.3741], "max_pos": [0.6984, 0.5685],
@@ -853,7 +872,7 @@ class Bridge:
         back = macro.foreground()
         banner = None
         try:
-            if not self.fisher.hold(45):             # 자동 낚시 중이면 안전한 곳(Fish 버튼)에서 잠깐 멈춤
+            if not self.fisher.hold(45, who="cal"):             # 자동 낚시 중이면 안전한 곳(Fish 버튼)에서 잠깐 멈춤
                 return {"error": "자동 낚시가 멈추지 않음 — 낚시를 끄고 다시 눌러주세요"}
             banner = self._banner_proc("autocal")
             result = self._autocal_run(hwnd)
@@ -864,7 +883,7 @@ class Bridge:
         finally:
             if banner and banner.poll() is None:
                 banner.kill()
-            self.fisher.release()
+            self.fisher.release("cal")
             if not self.fisher.running():
                 self.fisher._set(msg="대기")
             self._autocal_running = False
@@ -1056,8 +1075,8 @@ class Bridge:
             # 팔 물고기가 없었음 = 인벤토리가 가득 찬 게 아니라 낚시 자리가 아니었던 것 (Fish 가 반응 없음)
             self.zero_sells += 1
             if self.zero_sells >= 2:
-                self.fish_block = "팔 물고기 없음"
-                self._on_log("판매하러 갔는데 두 번 연속 팔 물고기가 없음 — 낚시 자리 문제로 보고 자동 낚시 멈춤 (F3 로 다시 켜면 다시 시도)", "r")
+                self._on_log("판매하러 갔는데 두 번 연속 팔 물고기가 없음 — 낚시 자리 문제로 봄", "y")
+                self._block_fish("팔 물고기 없음")
                 return False
             self._on_log("판매하러 갔는데 팔 물고기가 없음 — 낚시 자리를 다시 잡고 이어감", "y")
             return True
@@ -1120,7 +1139,7 @@ class Bridge:
                 self._banner_progress(*step)
 
         try:
-            if not self.fisher.hold(45):
+            if not self.fisher.hold(45, who="cal"):
                 return {"error": "자동 낚시가 멈추지 않음 — 낚시를 끄고 다시 눌러주세요"}
             set_banner("sellcal")
             macro.focus(hwnd, wait=0.3)
@@ -1132,7 +1151,7 @@ class Bridge:
             error, notes = f"판매 자동 보정 실패: {e}", []
         finally:
             set_banner(None)
-            self.fisher.release()
+            self.fisher.release("cal")
             self._sellcal_running = False
             macro.focus_back(back)
         if found:                                    # 멈추기 전까지 찾은 위치는 저장
@@ -1204,7 +1223,7 @@ class Bridge:
 
         found, error = {}, None
         try:
-            if not self.fisher.hold(45):
+            if not self.fisher.hold(45, who="cal"):
                 return {"error": "자동 낚시가 멈추지 않음 — 낚시를 끄고 다시 눌러주세요"}
             set_banner("merchcal")
             macro.focus(hwnd, wait=0.3)
@@ -1216,7 +1235,7 @@ class Bridge:
             error = f"상인 자동 보정 실패: {e}"
         finally:
             set_banner(None)
-            self.fisher.release()
+            self.fisher.release("cal")
             self._merchcal_running = False
             macro.focus_back(back)
         if found:
@@ -1239,7 +1258,7 @@ class Bridge:
 
         def run():
             try:
-                if not self.fisher.hold(45):
+                if not self.fisher.hold(45, who="cal"):
                     self._on_log("자동 낚시가 멈추지 않아 판매 테스트를 못 함", "n")
                     return
                 self.seller.run()
@@ -1248,7 +1267,7 @@ class Bridge:
             except Exception as e:
                 self._on_log(f"판매 실패: {e}", "n")
             finally:
-                self.fisher.release()
+                self.fisher.release("cal")
         threading.Thread(target=run, daemon=True).start()
         return {"ok": True}
 
@@ -1595,7 +1614,7 @@ class Bridge:
 
         found, error = {}, None
         try:
-            if not self.fisher.hold(45):
+            if not self.fisher.hold(45, who="cal"):
                 return {"error": "자동 낚시가 멈추지 않음 — 낚시를 끄고 다시 눌러주세요"}
             set_banner("craftcal")
             macro.focus(hwnd, wait=0.3)
@@ -1606,7 +1625,7 @@ class Bridge:
             error = f"포션 제작 자동 보정 실패: {e}"
         finally:
             set_banner(None)
-            self.fisher.release()
+            self.fisher.release("cal")
             self._craftcal_running = False
             macro.focus_back(back)
         if found:

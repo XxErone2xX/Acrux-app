@@ -10,7 +10,7 @@
   · 릴링 바: 왼쪽부터 차는 막대 끝(◇ 표시) = 내 위치, 막대 색이 아닌 색 덩어리 = 물고기 구간
     (바가 떠 있는지는 색 있는 칸으로 봄 — 막대가 거의 비어도 구간은 보임 · 막대는 청록 ~ 파랑 폭넓게)
     막대와 구간이 겹친 부분은 구간 색이 밝게 보임 · 클릭하면 내 위치가 오른쪽으로, 안 누르면 왼쪽으로 떨어짐
-    → 구간 왼쪽 끝 근처로 떨어질 때만 눌러서 구간 안에 붙잡아 둠 (FishSol 등 다른 낚시 매크로도 같은 방식)
+    → 구간 왼쪽 끝 근처로 떨어질 때만 눌러서 구간 안에 붙잡아 둠
   · 결과창 제목 색: 하늘색 = 성공 / 회색 = 쓰레기 / 빨강 = 실패
 - 위치는 전부 로블록스 창 기준 비율 → 창 크기가 바뀌어도 그대로
 """
@@ -34,10 +34,10 @@ REEL_FRAME = 0.008       # 릴링 중 화면 읽는 최소 간격 (초)
 RISE_GAIN = 2.0          # 목표까지 거리(px) × 이 값 = 허용하는 올라가는 속도 (px/초)
 RISE_MAX = 0.5           # 허용하는 올라가는 속도 최대 (바 폭 × 이 값 / 초)
 CLICK_SETTLE = 0.2       # 누른 뒤 효과가 보일 때까지 다시 안 누르는 최대 시간 (초)
-REEL_MAX = 15.0          # 미니게임 최대 길이 (초) — 넘으면 멈춘 걸로 보고 닫기 (FishSol 은 9초)
+REEL_MAX = 15.0          # 미니게임 최대 길이 (초) — 넘으면 멈춘 걸로 보고 닫기
 REEL_GONE = 0.6          # 바 · ◇ 신호가 둘 다 이만큼 안 보여야 미니게임 끝으로 봄 (초)
 # 낚시 창 ◇ 표시 (낚시 창 영역 안 비율) — 대기 땐 왼쪽(IDLE) 자리, 미니게임 땐 창이 넓어지며 오른쪽(REEL) 자리로 옮겨감
-# Noteab 보정값 fishing_detect_pixel (1175,836) · FishSol 도 같은 자리로 미니게임 시작을 봄 / 대기 자리는 스크린샷에서 (1146,835)
+# 1920x1080 에서 미니게임 자리 (1175,836) · 대기 자리 (1146,835)
 DIAMOND_IDLE = (0.9268, 0.8264)          # 대기 창 기준
 DIAMOND_REEL = (0.9931, 0.8333)          # 대기 창 기준 (미니게임 창을 따로 지정 안 했을 때)
 DIAMOND_IDLE_R = (0.8735, 0.8239)        # 미니게임 창 기준
@@ -55,7 +55,7 @@ POS_KEYS = (("fish_btn", "Fish 버튼"), ("close_pos", "결과창 X"), ("title_p
 # 결과창(흰 꺾쇠 테두리) (780,316)~(1140,765) · 창 크기가 바뀌어도 안쪽 배치는 같은 비율이라고 봄
 PANEL_LAYOUT = {"fish_btn": (0.2494, 0.8264), "bar_region": (0.0389, 0.2847, 0.9703, 0.4722)}
 # 미니게임 창은 대기 창보다 넓음 (1920x1080 에서 (711,718)~(1209,860)) → 따로 지정하면 릴링 바를 이 창 기준으로 계산
-# 릴링 바는 Noteab 보정값 fishing_bar_region (758,757)~(1165,784) 기준
+# 릴링 바는 1920x1080 에서 (758,757)~(1165,784)
 REEL_LAYOUT = {"bar_region": (0.0944, 0.2746, 0.9116, 0.4648)}
 RESULT_LAYOUT = {"close_pos": (0.9222, 0.0579), "title_pos": (0.4972, 0.0913)}
 WINDOW_KEYS = {"panel_region": PANEL_LAYOUT, "reel_region": REEL_LAYOUT, "result_region": RESULT_LAYOUT}
@@ -497,6 +497,8 @@ class Fisher:
         self.failed = False                 # 낚시 화면을 끝내 못 찾고 멈췄는지 (앱이 계속 다시 켜지 않게)
         self.reels = 0                      # 미니게임을 시작한 횟수 (낚시가 잘 되고 있는지)
         self.hold_cancel = True             # 비켜줄 때 던진 낚시를 Exit 로 취소할지 (급한 것만 · 아이템 사용은 끝날 때까지 기다림)
+        self.holders = {}                   # 자리를 달라고 한 기능 {이름: 급한지} — 전부 돌려줘야 낚시를 이어감
+        self.hold_lock = threading.Lock()
         self.diamond_ok = False             # 낚시 창 ◇ 가 미니게임 자리로 옮겨가는 걸 한 번이라도 봤는지 (◇ 위치가 맞음)
         self.no_focus = False               # 위치 지정 창이 떠 있는 동안: 로블록스를 앞으로 끌어오지 않음 (선택 창을 가리지 않게)
 
@@ -523,7 +525,9 @@ class Fisher:
         if self.running():
             return False
         self.stop_ev = threading.Event()
-        self.hold_req.clear()
+        with self.hold_lock:
+            self.holders.clear()
+            self.hold_req.clear()
         self.holding.clear()
         self.thread = threading.Thread(target=self._run, args=(self.stop_ev,), daemon=True)
         self.thread.start()
@@ -532,18 +536,25 @@ class Fisher:
     def stop(self):
         self.stop_ev.set()
 
-    def hold(self, timeout=30.0, cancel=True):
+    def hold(self, timeout=30.0, cancel=True, who="other"):
         """다른 기능이 쓰는 동안 안전한 곳(릴링이 끝난 뒤)에서 멈춰 기다리게 함 — 멈췄으면 True
         cancel: 입질을 기다리는 중이면 Exit 로 취소하고 바로 비켜줌 (레어 바이옴 팝핑 등 급한 것)
-                / False 면 지금 던진 낚시가 끝날 때까지(입질 → 릴링 → 결과) 기다렸다가 비켜줌 (오토 아이템 사용)"""
+                / False 면 지금 던진 낚시가 끝날 때까지(입질 → 릴링 → 결과) 기다렸다가 비켜줌 (오토 아이템 사용)
+        who: 자리를 달라는 기능 이름 — 여러 기능이 같이 달라고 하면, 전부 release 해야 낚시를 이어감"""
         if not self.running():
             return True
-        self.hold_cancel = cancel
-        self.hold_req.set()
+        with self.hold_lock:
+            self.holders[who] = cancel
+            self.hold_cancel = any(self.holders.values())
+            self.hold_req.set()
         return self.holding.wait(timeout)
 
-    def release(self):
-        self.hold_req.clear()
+    def release(self, who="other"):
+        with self.hold_lock:
+            self.holders.pop(who, None)
+            self.hold_cancel = any(self.holders.values())
+            if not self.holders:
+                self.hold_req.clear()
 
     # ---- 도우미
     def _check(self, stop):
@@ -573,7 +584,9 @@ class Fisher:
         while self.hold_req.is_set():
             if time.time() > end:                 # 비켜 달라던 기능이 끝났는데 신호를 안 풀었음 → 낚시를 이어감
                 self.log(f"다른 기능이 {HOLD_MAX // 60}분 넘게 자리를 안 돌려줌 — 낚시 이어감", "y")
-                self.hold_req.clear()
+                with self.hold_lock:
+                    self.holders.clear()
+                    self.hold_req.clear()
                 break
             self._wait(0.2, stop)
         self.holding.clear()

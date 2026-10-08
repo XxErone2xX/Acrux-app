@@ -169,7 +169,7 @@ class Seller:
                 mv._set(msg=f"판매 · 파는 중 ({sold}종류)")
                 if mv._acc + per <= acc0 + pre + 6 * per + 0.01:   # 어림한 것보다 많으면 게이지는 거기서 기다림
                     mv._advance(per)
-                # 시간은 직접 만든 스크립트 매크로와 같게: 첫 칸 0.5초 → Sell All → 확인 1.5초 (목록이 당겨질 때까지)
+                # 시간: 첫 칸 0.5초 → Sell All → 확인 1.5초 (목록이 당겨질 때까지)
                 # 다 팔았는지: Sell All 뒤에 확인창(초록 Sell 버튼)이 안 뜨면 물고기가 없는 것 — 버튼 자리 작은 칸의 픽셀만 봄
                 mv._click(cfg["first_fish_pos"])
                 mv._wait(0.5 + d)
