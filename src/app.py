@@ -461,7 +461,7 @@ class Bridge:
                     if not self.craft_pending and time.time() - self.craft_check_at >= 2.0:
                         self.craft_check_at = time.time()
                         self._craft_notice()
-                elif self.crafter.running() and (sniping or not want_craft):
+                elif self.crafter.running() and not self.crafter.test and (sniping or not want_craft):
                     self.crafter.stop()
                 if ok and want_items and not self.items.running() and not (self.mpop.running() or self.mpop_wait) and not self.mover.running() \
                         and not self.merchant.buying() and not self.merchant_pending and not self.crafter.running() and not self.craft_pending:
@@ -1511,7 +1511,7 @@ class Bridge:
         if self.crafter.running() or self.mover.running():
             return {"error": "다른 동작이 도는 중"}
         self.fisher.stop()
-        self.crafter.start_job(name)
+        self.crafter.start_job(name, test=True)
         return {"ok": True, "name": name}
 
     def api_mcraft_autocal(self, _):
