@@ -79,23 +79,28 @@ class Mover:
                 self.before()
             if job == "base":
                 self.plan(self.base_time())
+            elif job == "rev":
+                self.plan(self.rev_time())
             elif job == "place":
-                self.plan(self.base_time() + self.place_time(args[0]))
+                self.plan(self.start_time(args[0]) + self.place_time(args[0]))
             elif job in ("test", "prep") and (job == "prep" or (args[2] if len(args) > 2 else True)):
-                self.plan(self.base_time() + self.place_time(args[0], upto=args[1]))
+                self.plan(self.start_time(args[0]) + self.place_time(args[0], upto=args[1]))
             else:
                 self.plan(0)
             self._banner("move")
             if job == "base":
                 self.go_base()
                 self.log("기준 장소 도착", "g")
+            elif job == "rev":
+                self.go_base_rev()
+                self.log("반대쪽 기준 장소 도착", "g")
             elif job == "place":
                 self.go_place(*args)
             elif job == "test":
                 self.measure(*args)
             elif job == "prep":                     # 지점 지정 준비: 기준 장소 → 앞 지점들까지
                 i, j = args
-                self.go_base()
+                self.go_start(i)
                 self.walk(i, upto=j)
         except Stopped:
             self.log("이동 멈춤", "y")
@@ -117,6 +122,26 @@ class Mover:
             + max(float(m.get("a_time", 1.0)), float(m.get("w2_time", 0.25))) \
             + max(float(m.get("o_time", 2.5)), float(m.get("tilt_px", 800)) / 20 * 0.015)
 
+    def rev_time(self):
+        """반대쪽 기준 장소까지 예상 시간 (go_base_rev 순서)"""
+        m = self.get_move() or {}
+        return 4.4 + float(m.get("reset_wait", 3.5)) + max(float(m.get("o_time", 2.5)), float(m.get("tilt_px", 800)) / 20 * 0.015) \
+            + float(m.get("rsd_time", 1.0)) + max(float(m.get("rs_time", 7.0)), float(m.get("ra_time", 1.0)))
+
+    def quest_time(self):
+        m = self.get_move() or {}
+        return 0.2 + float(m.get("q_wait", 1.5)) + 0.4 + float(m.get("rd_time", 2.0))
+
+    def is_rev(self, i):
+        """반대쪽 기준 장소에서 출발하는 장소 (포션 제작 장소 — 낚시와 정반대 방향)"""
+        try:
+            return self._place(i).get("feat") == "mcraft"
+        except RuntimeError:
+            return False
+
+    def start_time(self, i):
+        return self.rev_time() if self.is_rev(i) else self.base_time()
+
     def place_time(self, i, upto=None):
         m = self.get_move() or {}
         try:
@@ -124,7 +149,8 @@ class Mover:
         except RuntimeError:
             return 0.0
         pts = pts[:upto] if upto is not None else pts
-        return sum(float(pt.get("time") or 0) + float(m.get("margin", 0.3)) for pt in pts)
+        t = sum(float(pt.get("time") or 0) + float(m.get("margin", 0.3)) for pt in pts)
+        return t + (self.quest_time() if self.is_rev(i) and pts else 0.0)
 
     def plan(self, total):
         """이번 이동 전체 예상 시간 (0 = 게이지 안 씀)"""
@@ -208,6 +234,9 @@ class Mover:
                 return f"{pl['name'] or '장소'} · {n}번 지점 위치가 없음"
             if pt.get("time") is None:
                 return f"{pl['name'] or '장소'} · {n}번 지점 시간을 먼저 재야 함 (테스트)"
+        walked = len(pl["points"][:upto] if upto is not None else pl["points"])
+        if pl.get("feat") == "mcraft" and walked and not (self.get_move() or {}).get("quest_exit_pos"):
+            return "퀘스트 보드 Exit 위치를 먼저 지정 (매크로 기준 위치 설정 → 포션 자동 제작 → 이동)"
         return None
 
     # ---- 1. 기준 장소 (사용자가 정한 순서)
@@ -341,17 +370,7 @@ class Mover:
             raise RuntimeError(miss)
         self._set(msg="기준 장소로 이동 · 리셋")
         self._advance(self.base_time())
-        self._release_keys()
-        self._rect()
-        self._wait(0.2)
-        if macro.reset_fresh():                  # 방금 리셋하고 안 움직였음 → 또 리셋하지 않음 (리셋 쿨타임)
-            self.log("방금 리셋함 — 리셋 건너뜀", "d")
-        else:
-            for k in ("esc", "r", "enter"):
-                macro.key_tap(k)
-                self._wait(0.5)
-            macro.mark_reset()
-            self._wait(max(0.0, float(mv.get("reset_wait", 3.5)) - 0.5))
+        self._reset(mv)
         self._set(msg="기준 장소로 이동 · 카메라 정렬 (채팅 · 도감)")
         self.align_camera()
         self._set(msg="기준 장소로 이동 · 걷기 (W → W+A → A → W)")
@@ -364,6 +383,62 @@ class Mover:
         self._set(msg="기준 장소로 이동 · 내려다보기 + 최대 줌 (우클릭 드래그 + O)")
         self._tilt_and_zoom(int(mv.get("tilt_px", 800)), float(mv.get("o_time", 2.5)))
         self._wait(0.3)
+
+    def _reset(self, mv):
+        self._release_keys()
+        self._rect()
+        self._wait(0.2)
+        if macro.reset_fresh():                  # 방금 리셋하고 안 움직였음 → 또 리셋하지 않음 (리셋 쿨타임)
+            self.log("방금 리셋함 — 리셋 건너뜀", "d")
+        else:
+            for k in ("esc", "r", "enter"):
+                macro.key_tap(k)
+                self._wait(0.5)
+            macro.mark_reset()
+            self._wait(max(0.0, float(mv.get("reset_wait", 3.5)) - 0.5))
+
+    def go_base_rev(self):
+        """반대쪽 기준 장소 (포션 제작처럼 낚시와 정반대 방향으로 갈 때)
+        리셋 → 카메라 정렬(채팅 · 도감) → 내려다보기 + 최대 줌 → S+D 1초 → S 7초 (6초 뒤부터 A 1초 같이)"""
+        mv = self.get_move() or {}
+        miss = self.base_missing()
+        if miss:
+            raise RuntimeError(miss)
+        self._set(msg="반대쪽 기준 장소로 이동 · 리셋")
+        self._advance(self.rev_time())
+        self._reset(mv)
+        self._set(msg="반대쪽 기준 장소로 이동 · 카메라 정렬 (채팅 · 도감)")
+        self.align_camera()
+        self._set(msg="반대쪽 기준 장소로 이동 · 내려다보기 + 최대 줌 (우클릭 드래그 + O)")
+        self._tilt_and_zoom(int(mv.get("tilt_px", 800)), float(mv.get("o_time", 2.5)))
+        self._wait(0.3)
+        self._set(msg="반대쪽 기준 장소로 이동 · 걷기 (S+D → S → S+A)")
+        self._rect()
+        self._hold(("s", "d"), float(mv.get("rsd_time", 1.0)))
+        # S 를 rs_time 동안 누르고, 끝나기 ra_time 초 전부터 A 도 같이 (기본: S 7초 · 6초 뒤 A 1초)
+        self._hold_with("s", float(mv.get("rs_time", 7.0)), "a", float(mv.get("ra_time", 1.0)))
+        self._wait(0.5)
+
+    def go_start(self, i):
+        """장소 i 의 출발점: 포션 제작 장소는 반대쪽 기준 장소 · 나머지는 기준 장소"""
+        if self.is_rev(i):
+            self.go_base_rev()
+        else:
+            self.go_base()
+
+    def _quest_step(self):
+        """반대쪽 길의 1번 지점(퀘스트 보드) 다음: E → 1.5초 → 퀘스트 창 Exit → D 2초 (그 뒤는 직접 지정한 지점)"""
+        mv = self.get_move() or {}
+        pos = mv.get("quest_exit_pos")
+        if not pos:
+            raise RuntimeError("퀘스트 보드 Exit 위치를 먼저 지정 (매크로 기준 위치 설정 → 포션 자동 제작 → 이동)")
+        self._set(msg="퀘스트 보드 · E → Exit → D")
+        self._advance(self.quest_time())
+        macro.key_tap("e")
+        self._wait(float(mv.get("q_wait", 1.5)))
+        self._click(pos)
+        self._wait(0.4)
+        self._hold(("d",), float(mv.get("rd_time", 2.0)))
 
     # ---- 2. 장소로
     def _place(self, i):
@@ -385,10 +460,12 @@ class Mover:
             self._advance(float(pt["time"]) + float(mv.get("margin", 0.3)))
             self._click(pt["pos"], mv.get("button", "right"))
             self._wait(float(pt["time"]) + float(mv.get("margin", 0.3)))
+            if n == 1 and self.is_rev(i):          # 반대쪽 길: 퀘스트 보드에 도착한 뒤 정해진 동작
+                self._quest_step()
 
     def go_place(self, i):
         pl = self._place(i)
-        self.go_base()
+        self.go_start(i)
         self.walk(i)
         self.log(f"{pl['name'] or '장소'} 도착", "g")
 
@@ -400,7 +477,7 @@ class Mover:
         if not 0 <= j < len(pl["points"]) or not pl["points"][j].get("pos"):
             raise RuntimeError("지점 위치를 먼저 지정")
         if from_base:
-            self.go_base()
+            self.go_start(i)
             self.walk(i, upto=j)
         self.arrive_ev.clear()
         self._banner("measure")

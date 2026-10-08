@@ -1232,6 +1232,25 @@ class Bridge:
             return {"error": "이동이 이미 도는 중"}
         return {"ok": True}
 
+    def api_move_base_rev(self, _):
+        """반대쪽 기준 장소로 (포션 제작 장소 출발점) — 테스트용"""
+        miss = self.mover.base_missing()
+        if miss:
+            return {"error": miss}
+        if not self.mover.start("rev"):
+            return {"error": "이동이 이미 도는 중"}
+        return {"ok": True}
+
+    def api_move_quest_pick(self, _):
+        """퀘스트 보드 Exit 버튼 위치 — 퀘스트 보드 앞에서 E 를 눌러 창을 연 뒤 화면에서 Exit 클릭"""
+        r = self._pick_overlay("--pick-point")
+        if r.get("error"):
+            return r
+        with self.lock:
+            self.data.setdefault("move", {})["quest_exit_pos"] = [round(r["x"], 4), round(r["y"], 4)]
+        self._save()
+        return {"move": self.data["move"]}
+
     def api_move_place(self, p):
         i = int(p.get("place", -1))
         miss = self.mover.base_missing() or self.mover.path_missing(i)
@@ -1487,6 +1506,8 @@ class Bridge:
             return {"error": "포션 이름을 입력해 주세요"}
         if self._place_of("mcraft", "craft_spot") is None:
             return {"error": "이동 탭에서 '포션 제작 장소' 를 먼저 지정 · 시간 재기"}
+        if not (self.data.get("move") or {}).get("quest_exit_pos"):
+            return {"error": "퀘스트 보드 Exit 위치를 먼저 지정 (매크로 기준 위치 설정 → 포션 자동 제작 → 이동)"}
         if self.crafter.running() or self.mover.running():
             return {"error": "다른 동작이 도는 중"}
         self.fisher.stop()
