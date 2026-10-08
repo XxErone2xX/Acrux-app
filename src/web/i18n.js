@@ -434,6 +434,7 @@ const I18N = (() => {
     ['포션 자동 제작 안 함 — 매크로 기준 위치 설정 → 통합 위치 → 알림 영역을 지정해 주세요', 'No potion auto craft — set Macro base position settings → Shared positions → Notice area', 'ポーション自動製作なし — マクロ基準位置設定 → 統合位置 → 通知範囲を指定してください'],
     ['그 다음 A 를 누르는 시간 (초)', 'Then press A for (s)', 'その後 A を押す時間（秒）'],
     ['W 같이 누르기', 'Also press W', 'W も一緒に押す'],
+    ['그 다음 S 와 D 를 같이 누르는 시간 (초)', 'Then press S and D together for this long (s)', 'その後 S と D を一緒に押す時間（秒）'],
     ['A 를 누르는 마지막 이 시간 동안 W 도 같이 (초)', 'Also press W for this last part of the A press (s)', 'A を押す最後のこの時間は W も一緒に（秒）'],
     ['A 누르기', 'Press A', 'A を押す'],
     ['그 다음 A 만 누르는 시간 (초)', 'Then press only A for (s)', 'その後 A だけ押す時間（秒）'],
