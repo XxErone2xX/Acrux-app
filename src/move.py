@@ -119,7 +119,7 @@ class Mover:
         """기준 장소까지 예상 시간 (go_base 순서 · 화면의 총 시간과 같은 계산)"""
         m = self.get_move() or {}
         return 4.9 + float(m.get("reset_wait", 3.5)) + float(m.get("w_time", 1.0)) + float(m.get("wa_time", 7.0)) \
-            + max(float(m.get("a_time", 1.0)), float(m.get("w2_time", 0.25))) \
+            + max(float(m.get("a_time", 1.0)), float(m.get("w2_time", 0.25))) + float(m.get("sd_time", 0.25)) \
             + max(float(m.get("o_time", 2.5)), float(m.get("tilt_px", 800)) / 20 * 0.015)
 
     def rev_time(self):
@@ -367,7 +367,7 @@ class Mover:
 
     def go_base(self):
         """Esc → R → Enter (리셋 · 0.5초 간격) → 3.5초 → / → 채팅 버튼 → 도감 버튼 → 도감 Exit → / → Enter (각 0.5초)
-        → W 1초 → W+A 7초 → A 1초 (0.75초 뒤부터 W 0.25초 같이) → 0.5초 → O 2.5초 (최대 줌) 누르는 동안 동시에 우클릭 드래그로 위에서 내려다보기"""
+        → W 1초 → W+A 7초 → A 1초 (0.75초 뒤부터 W 0.25초 같이) → S+D 0.25초 → 0.5초 → O 2.5초 (최대 줌) 누르는 동안 동시에 우클릭 드래그로 위에서 내려다보기"""
         mv = self.get_move() or {}
         miss = self.base_missing()
         if miss:
@@ -377,12 +377,13 @@ class Mover:
         self._reset(mv)
         self._set(msg="기준 장소로 이동 · 카메라 정렬 (채팅 · 도감)")
         self.align_camera()
-        self._set(msg="기준 장소로 이동 · 걷기 (W → W+A → A → W)")
+        self._set(msg="기준 장소로 이동 · 걷기 (W → W+A → A → W → S+D)")
         self._rect()
         self._hold(("w",), float(mv.get("w_time", 1.0)))
         self._hold(("w", "a"), float(mv.get("wa_time", 7.0)))
         # A 를 a_time 동안 누르고, A 를 누르기 시작한 지 (a_time - w2_time) 뒤부터 끝까지 W 도 같이 (기본: A 1초 · 0.75초 뒤 W 0.25초)
         self._hold_with("a", float(mv.get("a_time", 1.0)), "w", float(mv.get("w2_time", 0.25)))
+        self._hold(("s", "d"), float(mv.get("sd_time", 0.25)))     # 그 다음 S + D 같이
         self._wait(0.5)
         self._set(msg="기준 장소로 이동 · 내려다보기 + 최대 줌 (우클릭 드래그 + O)")
         self._tilt_and_zoom(int(mv.get("tilt_px", 800)), float(mv.get("o_time", 2.5)))

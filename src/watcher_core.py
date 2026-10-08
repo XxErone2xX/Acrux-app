@@ -145,6 +145,7 @@ MOVE_DEFAULT = {
     "qd_wait": 0.65,              # 그 D 뒤 대기 (초)
     "rd_time": 2.0,
     "quest_exit_pos": None,       # 퀘스트 창 Exit 버튼 [x, y]
+    "sd_time": 0.25,              # 그 다음 S + D 같이 누르기 (초)
     "w2_time": 0.25,              # A 를 누르는 마지막 이 시간 동안 W 도 같이 (초) — A 를 누른 지 a_time - w2_time 뒤에 시작
     "tilt_px": 800,               # 우클릭을 누른 채 마우스를 아래로 끄는 거리 (px) — 위에서 내려다보기
     "o_time": 2.5,                # O 누르기 (초) — 최대 줌
@@ -439,7 +440,7 @@ def normalize(raw):
     if not mv.get("v131") and mv.get("a_time") == 0.75:        # A 뒤에 W 를 따로 누르던 방식 → A 1초 안에 W 를 겹쳐 누름 (한 번)
         mv["a_time"] = 1.0
     for k, lo, hi, cast in (("reset_wait", 0.5, 15, float), ("w_time", 0, 30, float), ("wa_time", 0, 60, float),
-                            ("a_time", 0, 30, float), ("w2_time", 0, 30, float), ("rsd_time", 0, 30, float),
+                            ("a_time", 0, 30, float), ("w2_time", 0, 30, float), ("sd_time", 0, 30, float), ("rsd_time", 0, 30, float),
                             ("rs_time", 0, 60, float), ("ra_time", 0, 30, float), ("q_wait", 0, 15, float), ("qd_time", 0, 30, float), ("qd_wait", 0, 15, float), ("rd_time", 0, 30, float),
                             ("o_time", 0, 15, float), ("tilt_px", 0, 5000, int), ("margin", 0, 5, float)):
         try:
