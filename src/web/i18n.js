@@ -1574,7 +1574,7 @@ const I18N = (() => {
     [/^매크로 기준 위치 설정 필요: (.+)$/, 'Macro base position settings needed: $1', 'マクロ基準位置の設定が必要: $1'],
     [/^레어 바이옴 자동 팝핑 오류: (.+)$/, 'Rare biome auto popping error: $1', 'レアバイオーム自動ポッピングのエラー: $1'],
     [/^(\S+) 감지 — 스나이핑 접속이라 내 서버 팝핑 안 함$/, '$1 detected — sniping join, so no popping in your server', '$1を検知 — スナイプ参加のため自分のサーバーでのポッピングなし'],
-    [/^(\S+) 감지 — 다른 매크로가 도는 중이라 내 서버 팝핑 안 함$/, '$1 detected — another macro is running, so no popping', '$1を検知 — 他のマクロが動作中のためポッピングなし'],
+    [/^(\S+) 감지 — 다른 기능이 도는 중이라 내 서버 팝핑 안 함$/, '$1 detected — another feature is running, so no popping', '$1を検知 — 他の機能が動作中のためポッピングなし'],
     [/^(\S+) 감지 — 매크로 탭 팝핑 바이옴에서 꺼져 있음$/, '$1 detected — turned off in the Macro tab popping biomes', '$1を検知 — マクロタブのポッピングバイオームでオフ'],
     [/^시작 전 대기 ([\d.]+)초$/, 'Waiting $1s before start', '開始前に$1秒待機'],
     [/^(\S+) 템플릿 적용$/, '$1 template applied', '$1テンプレートを適用'],

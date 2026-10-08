@@ -542,7 +542,7 @@ class Bridge:
 
     # 사용자 수: Acrux 가 켜져 있는 동안 몇 분마다 '켜져 있음' 신호 (설치마다 만든 무작위 번호만 보냄)
     # 집계에 참여하지 않으면 신호 없이 숫자만 받아 봄 · 서버 코드는 server/online
-    ONLINE_URL = "https://acrux.pentagration.com/"   # 사용자 수 서버 (Server hosted by shebern_park)
+    ONLINE_URL = "https://acrux.pentagration.com/"   # 사용자 수 서버
 
     def _online_loop(self):
         """1분마다 /count 로 사용자 수를 읽어 표시 · 집계에 참여하면 서버가 알려준 간격(기본 5분)마다 /ping 신호
@@ -632,7 +632,7 @@ class Bridge:
             self._on_log(f"{found} 감지 — 스나이핑 접속이라 내 서버 팝핑 안 함", "d")
             return
         if self.pop.running() or self.ret.running() or self.play.running():
-            self._on_log(f"{found} 감지 — 다른 매크로가 도는 중이라 내 서버 팝핑 안 함", "y")
+            self._on_log(f"{found} 감지 — 다른 기능이 도는 중이라 내 서버 팝핑 안 함", "y")
             return
         if not (mp.get("biomes_on") or {}).get(found, True):
             self._on_log(f"{found} 감지 — 매크로 탭 팝핑 바이옴에서 꺼져 있음", "y")

@@ -1214,7 +1214,6 @@ def has_word(text, word):
 
 
 # ---------------------------------------------------------------- 딥링크 변환 + 실행
-# (roblox_link_catcher_service.py 의 변환 방식 — Made By RN_Gelidness [ 얼로니 ])
 import urllib.parse as _up
 
 _CODE = r"([A-Za-z0-9_-]{1,200})"
