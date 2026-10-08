@@ -1,9 +1,11 @@
-## Acrux macro V2.0.9 업데이트
-- 물고기 판매: 선택지가 떴는데도 팔지 않고 창이 닫히던 문제 수정 — 대화를 넘길 때 따로 연타하던 걸, 누를 때마다 선택지가 떴는지 먼저 확인하도록 바꿈 (선택지가 뜬 뒤에 더 눌려서 다른 선택지가 눌리지 않게)
-- 물고기 판매: Sell All 뒤 확인창이 지정한 자리에 안 보이거나 늦게 뜨면, 바로 '물고기 없음' 으로 보고 닫던 것 → 글자(Sell · Cancel)로 한 번 더 찾아서 누름
-- 상인 자동 구매의 대화 넘기기도 같은 방식으로 바뀜
+## Acrux macro V2.0.10 업데이트
+- 물고기 판매 루프 수정: Sell All 뒤 확인창(Sell · Cancel)이 떠도 '물고기 없음' 으로 보고 상점을 닫던 문제
+  - 확인창을 초록 픽셀(0.8초)만 보던 것 → 초록 픽셀 + 글자(Sell · Cancel)로 2.5초 동안 확인 · 픽셀 기준도 넉넉하게
+  - 확인창 Sell 을 누른 뒤 창이 닫혔는지 확인하고, 안 닫혔으면 다시 누름 (최대 3번)
+  - Sell All · Sell 버튼은 마우스를 근처로 옮겼다가 누름 (클릭이 씹히지 않게)
 
-## Acrux macro V2.0.9 Update
-- Fish selling: fixed the dialog closing without selling even though the choices appeared — dialog skipping no longer spam-clicks in the background; it checks for the choices after every click (so no extra click lands on another choice)
-- Fish selling: if the confirm window after Sell All is late or not at the saved position, it no longer assumes there are no fish and closes — it looks for the Sell · Cancel text once more and clicks Sell
-- Merchant auto buy uses the same dialog skipping
+## Acrux macro V2.0.10 Update
+- Fixed the fish selling loop closing the shop as "no fish" even though the Sell · Cancel confirm window appeared
+  - The confirm window was checked only by green pixels for 0.8 s → now green pixels + the Sell · Cancel text for up to 2.5 s, with a looser pixel check
+  - After pressing Sell it checks that the confirm window closed, and presses again if not (up to 3 times)
+  - Sell All and Sell are pressed after moving the mouse next to them first (so clicks don't get dropped)

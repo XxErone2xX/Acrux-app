@@ -75,40 +75,50 @@ class Seller:
             data, gw, gh = macro.grab((x - w // 2, y - h // 2, w, h))
             px = np.frombuffer(data, np.uint8).reshape(gh, gw, 4).astype(np.int16)
             b, g, r = px[..., 0], px[..., 1], px[..., 2]
-            return float(((g > 170) & (g > r + 40) & (g > b + 40)).mean())
+            return float(((g > 120) & (g > r + 30) & (g > b + 30)).mean())   # 화면 밝기 · 색감이 달라도 잡히게 넉넉히
         except Exception:
             return None
 
-    def _confirm_shown(self, pos, before, timeout, mv):
-        """Sell All 뒤 확인창이 떴는지 — 뜨면 바로 True (기다림 없음) · timeout 초 동안 안 뜨면 False (물고기 없음)
-        픽셀을 못 보면 예전처럼 떴다고 봄 (판매 반복 최대에서 멈춤)"""
+    def _wait_confirm(self, pos, before, timeout, mv):
+        """Sell All 뒤 확인창(Sell · Cancel)이 떴는지 → 누를 Sell 위치 (안 뜨면 None = 물고기 없음)
+        ① 지정한 Sell 자리의 초록 픽셀 (빠름) ② 글자 Sell · Cancel (0.5초마다 · 자리가 달라도 찾음) 둘 중 하나라도 보이면 뜬 것
+        (예전엔 초록 픽셀만 0.8초 봐서, 확인창이 늦게 뜨거나 색 · 자리가 조금 다르면 '물고기 없음' 으로 보고 상점을 닫았음)"""
         import time
-        end = time.time() + timeout
+        end, ocr_at = time.time() + timeout, time.time() + 0.3
         while True:
             g = self._green(pos)
-            if g is None:
-                mv._wait(0.5)
-                return True
-            if g >= CONFIRM_GREEN and g >= (before or 0) + 0.05:   # 확인창이 새로 떴는지
-                return True
-            if time.time() >= end:
-                return False
-            mv._wait(0.03)
-
-    def _confirm_by_text(self, mv, timeout):
-        """확인창(Sell Confirm)을 글자로 찾음 → 초록 Sell 위치 또는 None (timeout 초 동안)"""
-        import time
-        end = time.time() + timeout
-        while True:
-            try:
-                conf = find_confirm(macro.ocr_boxes(None))
-            except Exception:
-                conf = None
-            if conf:
-                return conf[0]
+            if g is not None and g >= CONFIRM_GREEN and g >= (before or 0) + 0.03:
+                return pos
+            if time.time() >= ocr_at:
+                ocr_at = time.time() + 0.5
+                try:
+                    conf = find_confirm(macro.ocr_boxes(None))
+                except Exception:
+                    conf = None
+                if conf:
+                    return conf[0]
             if time.time() >= end:
                 return None
-            mv._wait(0.2)
+            mv._wait(0.05)
+
+    def _confirm_open(self, pos, before):
+        """확인창이 아직 떠 있는지 (Sell 을 눌렀는데 안 닫혔는지) — 초록 픽셀 · 글자로"""
+        g = self._green(pos)
+        if g is not None and g >= CONFIRM_GREEN and g >= (before or 0) + 0.03:
+            return True
+        try:
+            return bool(find_confirm(macro.ocr_boxes(None)))
+        except Exception:
+            return False
+
+    @staticmethod
+    def _press(mv, pos):
+        """게임 버튼 누르기 — 로블록스 버튼이 마우스를 인식하도록 근처로 옮겼다가 누름 (바로 누르면 씹힐 때가 있음)"""
+        rect = mv._rect()
+        x, y = macro.to_screen(pos[0], pos[1], rect)
+        macro.move_to(x + 3, y + 3)
+        mv._wait(0.05)
+        macro.click(x, y)
 
     @contextlib.contextmanager
     def _borrow(self, stop):
@@ -188,23 +198,25 @@ class Seller:
                 # 다 팔았는지: Sell All 뒤에 확인창(초록 Sell 버튼)이 안 뜨면 물고기가 없는 것 — 버튼 자리 작은 칸의 픽셀만 봄
                 mv._click(cfg["first_fish_pos"])
                 mv._wait(0.5 + d)
-                sell_pos = cfg["confirm_sell_pos"]
-                before = self._green(sell_pos)
-                if before is None or before < CONFIRM_GREEN:      # 확인창이 이미 떠 있으면 (클릭이 늦게 먹힘 등) 바로 Sell
-                    mv._click(cfg["sell_all_pos"])
-                    if not self._confirm_shown(sell_pos, before, 0.8 + d, mv):
-                        # 지정한 자리에 초록 버튼이 안 보임 → 확인창이 늦게 떴거나 다른 자리에 뜬 것일 수 있음
-                        # → 글자(Sell · Cancel)로 한 번 더 찾고, 그래도 없으면 그때 물고기가 없는 걸로 봄
-                        conf = self._confirm_by_text(mv, 1.5 + d)
-                        if not conf:
-                            break
-                        sell_pos = conf
-                        if not warned:
-                            warned = True
-                            self.log("확인창 Sell 이 지정한 자리에 없어서 글자로 찾아 누름 — 판매 자동 보정을 다시 해주세요", "y")
-                mv._wait(0.1 + d)
-                mv._click(sell_pos)
-                mv._wait(1.5 + d)
+                before = self._green(cfg["confirm_sell_pos"])
+                self._press(mv, cfg["sell_all_pos"])
+                sell_pos = self._wait_confirm(cfg["confirm_sell_pos"], before, 2.5 + d, mv)
+                if not sell_pos:                              # Sell All 을 눌러도 확인창이 없음 = 팔 물고기가 없음
+                    break
+                if sell_pos != cfg["confirm_sell_pos"] and not warned:
+                    warned = True
+                    self.log("확인창 Sell 이 지정한 자리와 달라서 글자로 찾아 누름 — 판매 자동 보정을 다시 해주세요", "y")
+                mv._wait(0.15 + d)
+                # Sell → 확인창이 닫힐 때까지 (안 닫히면 다시 · 최대 3번)
+                for _try in range(3):
+                    self._press(mv, sell_pos)
+                    mv._wait(1.2 + d)
+                    if not self._confirm_open(sell_pos, before):
+                        break
+                else:
+                    self.log("확인창 Sell 을 눌러도 안 닫힘 — 판매 위치를 확인해 주세요", "y")
+                    break
+                mv._wait(0.3 + d)
                 sold += 1
             self.log(f"물고기 판매 완료 ({sold}종류)", "g")
             mv._acc = acc0 + pre + 6 * per
