@@ -95,6 +95,21 @@ class Seller:
                 return False
             mv._wait(0.03)
 
+    def _confirm_by_text(self, mv, timeout):
+        """확인창(Sell Confirm)을 글자로 찾음 → 초록 Sell 위치 또는 None (timeout 초 동안)"""
+        import time
+        end = time.time() + timeout
+        while True:
+            try:
+                conf = find_confirm(macro.ocr_boxes(None))
+            except Exception:
+                conf = None
+            if conf:
+                return conf[0]
+            if time.time() >= end:
+                return None
+            mv._wait(0.2)
+
     @contextlib.contextmanager
     def _borrow(self, stop):
         """이동기를 이 스레드에서 빌려 씀 (화면 위 안내 띠 · 상태) — stop: 같이 볼 멈춤 신호 (자동 낚시가 꺼지면 같이 멈춤)"""
@@ -159,12 +174,12 @@ class Seller:
             mv._set(msg="판매 · 대화")
             macro.key_tap("e")
             mv._wait(0.2)
-            # 선택지 [Sell Fish] 가 보일 때까지 대화창 연타 → 보이면 그 글자를 누름 (못 찾으면 지정한 위치)
+            # 선택지 [Sell Fish] 가 보일 때까지 대화 넘기기 (누를 때마다 확인) → 보이면 그 글자를 누름 (못 찾으면 지정한 위치)
             sf = skip_dialog(lambda: mv._click(cfg["dialog_pos"]), macro.ocr_boxes, ("sellfish",), mv._wait)
             mv._wait(0.15 + d)
             mv._click([sf[1], sf[2]] if sf else cfg["sell_fish_pos"])
             mv._wait(1.0 + d)
-            sold = 0
+            sold, warned = 0, False
             for _ in range(int(cfg.get("sell_max", 100))):
                 mv._set(msg=f"판매 · 파는 중 ({sold}종류)")
                 if mv._acc + per <= acc0 + pre + 6 * per + 0.01:   # 어림한 것보다 많으면 게이지는 거기서 기다림
@@ -173,13 +188,22 @@ class Seller:
                 # 다 팔았는지: Sell All 뒤에 확인창(초록 Sell 버튼)이 안 뜨면 물고기가 없는 것 — 버튼 자리 작은 칸의 픽셀만 봄
                 mv._click(cfg["first_fish_pos"])
                 mv._wait(0.5 + d)
-                before = self._green(cfg["confirm_sell_pos"])
+                sell_pos = cfg["confirm_sell_pos"]
+                before = self._green(sell_pos)
                 if before is None or before < CONFIRM_GREEN:      # 확인창이 이미 떠 있으면 (클릭이 늦게 먹힘 등) 바로 Sell
                     mv._click(cfg["sell_all_pos"])
-                    if not self._confirm_shown(cfg["confirm_sell_pos"], before, 0.8 + d, mv):
-                        break
+                    if not self._confirm_shown(sell_pos, before, 0.8 + d, mv):
+                        # 지정한 자리에 초록 버튼이 안 보임 → 확인창이 늦게 떴거나 다른 자리에 뜬 것일 수 있음
+                        # → 글자(Sell · Cancel)로 한 번 더 찾고, 그래도 없으면 그때 물고기가 없는 걸로 봄
+                        conf = self._confirm_by_text(mv, 1.5 + d)
+                        if not conf:
+                            break
+                        sell_pos = conf
+                        if not warned:
+                            warned = True
+                            self.log("확인창 Sell 이 지정한 자리에 없어서 글자로 찾아 누름 — 판매 자동 보정을 다시 해주세요", "y")
                 mv._wait(0.1 + d)
-                mv._click(cfg["confirm_sell_pos"])
+                mv._click(sell_pos)
                 mv._wait(1.5 + d)
                 sold += 1
             self.log(f"물고기 판매 완료 ({sold}종류)", "g")
@@ -296,38 +320,28 @@ DIALOG_AREA = [0.0, 0.4, 1.0, 1.0]                           # 대화창 · 선�
 SKIP_GAP = 0.1                                               # 대화 넘기기 연타 간격 (초)
 
 
-def skip_dialog(click, ocr, keys, wait, timeout=10.0, exact=False, pick=None):
-    """NPC 대화 넘기기 — 선택지(keys 글자)가 보일 때까지 대화창을 SKIP_GAP 초마다 연타 (Click to skip)
+SKIP_SETTLE = 0.35                                           # 대화창을 누른 뒤 다음 대사 · 선택지가 뜰 때까지 (초)
+
+
+def skip_dialog(click, ocr, keys, wait, timeout=12.0, exact=False, pick=None):
+    """NPC 대화 넘기기 — 선택지(keys 글자)가 보일 때까지: 글자 확인 → 없으면 대화창 한 번 누름 → 잠깐 기다림 → 다시 확인
+    (예전엔 따로 연타했더니 선택지가 뜬 뒤에도 글자를 읽는 동안 몇 번 더 눌려서, 그 자리의 다른 선택지
+     — 대화 끝내기 등 — 가 눌려 창이 닫히고 팔지 못했음 → 누를 때마다 선택지가 떴는지 먼저 확인)
     click() → 대화창 한 번 클릭 · ocr(영역) → 덩어리 목록 · wait(초) → 멈춤 확인 포함 대기
     pick(덩어리 목록) → 찾은 것 또는 None : keys 대신 직접 찾기
     → 찾은 선택지 덩어리 (못 찾으면 None)"""
     import time
-    done, err = threading.Event(), []
 
-    def spam():
-        try:
-            while not done.is_set():
-                click()
-                done.wait(SKIP_GAP)
-        except Exception as e:                              # 멈춤(F7) 등 — 아래에서 다시 알림
-            err.append(e)
-            done.set()
-    t = threading.Thread(target=spam, daemon=True)
-    t.start()
-    try:
-        end = time.time() + timeout
-        while time.time() < end and not done.is_set():
-            boxes = ocr(DIALOG_AREA)
-            b = pick(boxes) if pick else find_text(boxes, *keys, exact=exact)
-            if b:
-                return b
-            wait(0.05)
-    finally:
-        done.set()
-        t.join(1.0)
-    if err:
-        raise err[0]
-    return None
+    def find():
+        boxes = ocr(DIALOG_AREA)
+        return pick(boxes) if pick else find_text(boxes, *keys, exact=exact)
+    end = time.time() + timeout
+    b = find()
+    while not b and time.time() < end:
+        click()
+        wait(SKIP_SETTLE)
+        b = find()
+    return b
 
 
 def autocal(ocr, click, wait, aspect, found, status, wait_dialog=120.0):
@@ -358,7 +372,7 @@ def autocal(ocr, click, wait, aspect, found, status, wait_dialog=120.0):
     if not sf:
         if not found.get("dialog_pos"):
             raise RuntimeError("대화창을 못 찾음")
-        sf = skip_dialog(lambda: click(found["dialog_pos"]), ocr, ("sellfish",), wait)      # 선택지가 뜰 때까지 연타
+        sf = skip_dialog(lambda: click(found["dialog_pos"]), ocr, ("sellfish",), wait)      # 선택지가 뜰 때까지 넘기기
     if not sf:
         raise RuntimeError("[Sell Fish] 버튼을 못 찾음")
     found["sell_fish_pos"] = [round(sf[1], 4), round(sf[2], 4)]
