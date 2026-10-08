@@ -68,6 +68,7 @@ DEFAULT_CONFIG = {
     "mitem": {},              # 매크로 탭 · 오토 아이템 사용 (아래 MITEM_DEFAULT)
     "mcraft": {},             # 매크로 탭 · 포션 자동 제작 (아래 MCRAFT_DEFAULT)
     "mmerch": {},             # 매크로 탭 · 상인 자동 구매 (아래 MMERCH_DEFAULT)
+    "mmatch": {},             # 매크로 탭 · 오토 메모리 매치 (아래 MMATCH_DEFAULT)
     "mpop": {},               # 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버) (아래 MPOP_DEFAULT)
     "base": {},               # 매크로 기준 위치 — 여러 기능이 같이 쓰는 위치 (아래 BASE_DEFAULT)
     "move": {},               # 이동 — 기준 장소로 가는 방법 · 장소별 경로 (아래 MOVE_DEFAULT)
@@ -122,9 +123,10 @@ BASE_DEFAULT = {
     "collection_close": None,     # 도감 Exit 버튼
     "dialog_pos": None,           # NPC 대화창 (눌러서 대화 넘기기 · 물고기 판매 등 여러 기능이 같이 씀)
 }
-MOVE_FEATS = ("mfish", "mpop", "mcraft")    # 장소를 따로 둘 수 있는 기능 (매크로 기준 위치 설정의 각 기능 칸)
+MOVE_FEATS = ("mfish", "mpop", "mcraft", "mmatch")    # 장소를 따로 둘 수 있는 기능 (매크로 기준 위치 설정의 각 기능 칸)
 # 기능마다 정해진 장소 (사용자가 만들거나 지우지 않음 · 지점 위치와 시간만 지정)
-MOVE_TEMPLATES = {"mfish": (("fish_spot", "낚시 장소"), ("sell_spot", "물고기 판매 장소")), "mcraft": (("craft_spot", "포션 제작 장소"),)}
+MOVE_TEMPLATES = {"mfish": (("fish_spot", "낚시 장소"), ("sell_spot", "물고기 판매 장소")), "mcraft": (("craft_spot", "포션 제작 장소"),),
+                  "mmatch": (("match_spot", "메모리 매치 장소"),)}
 # 지점 수가 정해진 장소 (포션 제작 장소: 1번 퀘스트 보드 · 2번 스텔라 포탈)
 MOVE_FIXED_POINTS = {("mcraft", "craft_spot"): 2}
 MOVE_DEFAULT = {
@@ -186,6 +188,12 @@ MCRAFT_DEFAULT = {
     "add_all_pos": None,          # Add Everything
     "craft_pos": None,            # Craft
     "add_close_pos": None,        # Add Ingredients 창 X
+}
+MMATCH_DEFAULT = {
+    # 매크로 탭 · 오토 메모리 매치 — 메모리 매치 장소로 가서 E · 할 수 있으면 카드 짝 맞추기 · 쿨타임이면 남은 시간 뒤에 다시
+    "enabled": False,
+    "e_wait": 2.0,                # E 누른 뒤 알림 창이 뜰 때까지 (초)
+    "flip_wait": 0.35,            # 카드를 누른 뒤 앞면을 읽기까지 (초)
 }
 # 상인 아이템 (스크립트 매크로의 상인 아이템 설정과 같은 목록)
 MERCHANT_ITEMS = {
@@ -547,6 +555,15 @@ def normalize(raw):
         mc[k] = _ratio_list(mc.get(k), 2)
     mc["list_region"] = _ratio_list(mc.get("list_region"), 4)
     d["mcraft"] = {k: mc[k] for k in MCRAFT_DEFAULT}
+    mt = dict(MMATCH_DEFAULT)
+    mt.update(d.get("mmatch") if isinstance(d.get("mmatch"), dict) else {})
+    mt["enabled"] = bool(mt.get("enabled"))
+    for k, lo, hi in (("e_wait", 0.5, 10), ("flip_wait", 0.1, 3)):
+        try:
+            mt[k] = min(hi, max(lo, float(mt.get(k))))
+        except (TypeError, ValueError):
+            mt[k] = MMATCH_DEFAULT[k]
+    d["mmatch"] = {k: mt[k] for k in MMATCH_DEFAULT}
     d["macro_on"] = bool(d.get("macro_on"))
     mf = dict(MFISH_DEFAULT)
     mf.update(d.get("mfish") if isinstance(d.get("mfish"), dict) else {})

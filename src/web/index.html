@@ -471,7 +471,13 @@
         <p class="hint">알림에 Auto Crafted 가 뜨면 Stella 에게 가서 그 포션의 재료를 다시 채움 · 정지: F7</p>
         <div class="card form" id="mcraftForm"></div>
       </div>
-      <div class="sec" data-sec="mf-memory"><div class="sec-head"><h2>오토 메모리 매치</h2></div><div class="empty">준비 중</div></div>
+      <div class="sec" data-sec="mf-memory">
+        <div class="sec-head"><h2>오토 메모리 매치</h2>
+          <span class="status-mini mpop-status"><span class="dot" id="mmatchDot"></span><span id="mmatchState">대기</span></span>
+          <button class="btn ghost" id="mmatchStop">정지</button></div>
+        <p class="hint">매크로를 켜면 메모리 매치 장소로 가서 확인 · 쿨타임이면 남은 시간 뒤에 다시 · 정지: F7</p>
+        <div class="card form" id="mmatchForm"></div>
+      </div>
     </div>
   </div>
 </section>
@@ -487,6 +493,7 @@
       <button class="item deco" data-sec="mp-fish"><b>자동 낚시</b><span>Fish 버튼 · 릴링 바 · 결과창</span></button>
       <button class="item deco" data-sec="mp-merch"><b>상인 자동 구매</b><span>채팅 · 상점</span></button>
       <button class="item deco" data-sec="mp-craft"><b>포션 자동 제작</b><span>제작 창 · 제작 장소</span></button>
+      <button class="item deco" data-sec="mp-match"><b>오토 메모리 매치</b><span>메모리 매치 장소</span></button>
     </nav>
     <div class="content">
       <div class="sec" data-sec="mp-base">
@@ -508,6 +515,10 @@
       <div class="sec" data-sec="mp-craft">
         <div class="sec-head"><h2>포션 자동 제작</h2></div>
         <div class="mpos-cards" id="mposCraft"></div>
+      </div>
+      <div class="sec" data-sec="mp-match">
+        <div class="sec-head"><h2>오토 메모리 매치</h2></div>
+        <div class="mpos-cards" id="mposMatch"></div>
       </div>
     </div>
   </div>

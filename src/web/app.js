@@ -485,7 +485,7 @@ function fillFields() {
 }
 
 let pending = {}, saveTimer = null;
-const LOCAL_KEYS = ['play', 'biome', 'pop', 'ret', 'snipe', 'mpop', 'mfish', 'mitem', 'mmerch', 'mcraft', 'base', 'move'];
+const LOCAL_KEYS = ['play', 'biome', 'pop', 'ret', 'snipe', 'mpop', 'mfish', 'mitem', 'mmerch', 'mcraft', 'mmatch', 'base', 'move'];
 function queueSave(patch) {
   Object.assign(pending, patch);
   // 팝핑·바이옴·매크로 탭 설정은 화면 쪽 객체가 원본 (폼이 그 객체를 직접 고치므로 복사본으로 바꾸면 이후 수정이 사라짐)
@@ -767,8 +767,8 @@ $('mgMacro').addEventListener('click', () => {
 document.querySelectorAll('[data-tab-go]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tabGo, true)));
 
 // 켜진 매크로 탭 기능 수
-const macroFeatures = () => [mpop().enabled, mfish().enabled, mitem().enabled, mmerch().enabled, mcraft().enabled].filter(Boolean).length;
-let lastBio = null, lastMpop = null, lastMfish = null, lastMitem = null, lastMmerch = null, lastMcraft = null;
+const macroFeatures = () => [mpop().enabled, mfish().enabled, mitem().enabled, mmerch().enabled, mcraft().enabled, mmatch().enabled].filter(Boolean).length;
+let lastBio = null, lastMpop = null, lastMfish = null, lastMitem = null, lastMmerch = null, lastMcraft = null, lastMmatch = null;
 function syncMainTiles() {
   const bOn = !!bio().enabled;
   setTile('biome', bOn);
@@ -785,6 +785,7 @@ function syncMainTiles() {
     : lastMitem && lastMitem.running ? (lastMitem.msg || '아이템 사용 중')
     : lastMmerch && lastMmerch.running && lastMmerch.job === 'buy' ? (lastMmerch.msg || '상인 구매 중')
     : lastMcraft && lastMcraft.running ? (lastMcraft.msg || '포션 제작 중')
+    : lastMmatch && lastMmatch.running ? (lastMmatch.msg || '메모리 매치 중')
     : lastMfish && lastMfish.running ? (lastMfish.msg || '낚시 중')
     : sniping ? '스나이핑 중이라 대기'
     : n ? `작동 중 · 기능 ${n}개` : '켜진 기능 없음';
@@ -815,9 +816,10 @@ async function poll() {
     updateMpop(r.mpop);
     updateMfish(r.mfish);
     updateMove(r.move);
-    lastBio = r.biome; lastMpop = r.mpop; lastMfish = r.mfish; lastMitem = r.mitem; lastMmerch = r.mmerch; lastMcraft = r.mcraft;
+    lastBio = r.biome; lastMpop = r.mpop; lastMfish = r.mfish; lastMitem = r.mitem; lastMmerch = r.mmerch; lastMcraft = r.mcraft; lastMmatch = r.mmatch;
     updateMitem(r.mitem);
     updateMcraft(r.mcraft);
+    updateMmatch(r.mmatch);
     updateMmerch(r.mmerch);
     updateOnline(r.online);
     $('acOnline').closest('.row').hidden = !r.online_on;   // 사용자 수 서버가 아직 없으면 스위치도 숨김
@@ -1355,6 +1357,51 @@ function updateMcraft(st) {
 }
 $('mcraftStop').addEventListener('click', () => api('mcraft_stop'));
 
+// ---------------------------------------------------------------- 매크로 탭 · 오토 메모리 매치
+const mmatch = () => (config.mmatch ||= {});
+const saveMmatch = () => queueSave({ mmatch: JSON.parse(JSON.stringify(mmatch())) });
+const matchPlaceOk = () => (move().places || []).some(pl => pl.feat === 'mmatch' && pl.points.length && pl.points.every(pt => pt.pos && pt.time != null));
+const fmtHM = s => s >= 3600 ? `${Math.floor(s / 3600)}시간 ${Math.floor(s % 3600 / 60)}분` : s >= 60 ? `${Math.floor(s / 60)}분` : `${s}초`;
+function renderMmatch() {
+  const m = mmatch(), placeOk = matchPlaceOk();
+  $('mmatchForm').innerHTML = `
+    <label class="row"><span>켜기<small>매크로를 켤 때마다 한 번 확인</small></span>
+      <span class="switch"><input type="checkbox" id="mmatchOn" ${m.enabled ? 'checked' : ''}><i></i></span></label>
+    <div class="row"><span>메모리 매치 장소<small>매크로 기준 위치 설정 → 오토 메모리 매치</small></span>
+      <span class="${placeOk ? '' : 'warn'}">${placeOk ? '지정됨' : '지정 · 시간 재기 필요'}</span></div>
+    <label class="row"><span>E 누른 뒤 대기<small>알림 창이 뜰 때까지 (초)</small></span>
+      <input type="number" min="0.5" step="0.5" id="mmatchWait" value="${m.e_wait ?? 2}"></label>
+    <label class="row"><span>카드 뒤집힌 뒤 대기<small>앞면을 읽기까지 (초)</small></span>
+      <input type="number" min="0.1" step="0.05" id="mmatchFlip" value="${m.flip_wait ?? 0.35}"></label>
+    <div class="row"><span>테스트<small>메모리 매치 보드 앞에서 지금 바로</small></span>
+      <button class="btn mini" type="button" id="mmatchTest">테스트</button></div>
+    <div class="row"><span>다음 확인</span><b id="mmatchNext">-</b></div>
+    <div class="row"><span>이번 실행 횟수</span><b id="mmatchCount">-</b></div>`;
+  $('mmatchOn').addEventListener('change', e => setFeature('mmatch', e.target.checked));
+  [['mmatchWait', 'e_wait', 0.5], ['mmatchFlip', 'flip_wait', 0.1]].forEach(([id, k, lo]) => $(id).addEventListener('input', e => {
+    const n = parseFloat(e.target.value);
+    if (Number.isFinite(n) && n >= lo) { m[k] = n; saveMmatch(); }
+  }));
+  $('mmatchTest').addEventListener('click', async () => {
+    const r = await api('mmatch_test');
+    toast(r.error || '메모리 매치 테스트 시작 · 정지: F7');
+  });
+  if (lastMmatch) updateMmatch(lastMmatch);
+}
+function updateMmatch(st) {
+  if (!st) return;
+  const running = !!st.running;
+  $('mmatchDot').dataset.s = running ? 'flux' : '';
+  $('mmatchState').textContent = running ? (st.msg || '메모리 매치 중') : '대기';
+  const t = $('mmatchTest');
+  if (t) t.disabled = running;
+  const c = $('mmatchCount');
+  if (c) c.textContent = st.played;
+  const nx = $('mmatchNext');
+  if (nx) nx.textContent = !mmatch().enabled ? '꺼짐' : running ? '지금' : st.next_in ? `${fmtHM(st.next_in)} 뒤` : '매크로를 켜면 바로';
+}
+$('mmatchStop').addEventListener('click', () => api('mmatch_stop'));
+
 // ---------------------------------------------------------------- 매크로 탭 · 상인 자동 구매
 const mmerch = () => (config.mmerch ||= {});
 const saveMmerch = () => queueSave({ mmerch: JSON.parse(JSON.stringify(mmerch())) });
@@ -1425,9 +1472,10 @@ $('mmerchStop').addEventListener('click', () => api('mmerch_stop'));
 const MFEATS = [['mpop', '레어 바이옴 자동 팝핑', '내 서버에서 레어 바이옴이 뜨면 포션 사용'],
   ['mfish', '자동 낚시', '낚시 장소로 가서 낚시 · 가득 차면 판매'],
   ['mitem', '오토 아이템 사용', '아이템 자동 사용'],
-  ['mmerch', '상인 자동 구매', '마리 · 제스터가 오면 고른 아이템 구매'], ['mcraft', '포션 자동 제작', 'Auto Crafted 가 뜨면 재료를 다시 채움'], [null, '오토 메모리 매치', '준비 중']];
-const FEAT_NAME = { mpop: '레어 바이옴 자동 팝핑', mfish: '자동 낚시', mitem: '오토 아이템 사용', mmerch: '상인 자동 구매', mcraft: '포션 자동 제작' };
-const featCfg = k => ({ mpop, mfish, mitem, mmerch, mcraft, base })[k]();
+  ['mmerch', '상인 자동 구매', '마리 · 제스터가 오면 고른 아이템 구매'], ['mcraft', '포션 자동 제작', 'Auto Crafted 가 뜨면 재료를 다시 채움'],
+  ['mmatch', '오토 메모리 매치', '쿨타임이 끝나면 카드 짝 맞추기']];
+const FEAT_NAME = { mpop: '레어 바이옴 자동 팝핑', mfish: '자동 낚시', mitem: '오토 아이템 사용', mmerch: '상인 자동 구매', mcraft: '포션 자동 제작', mmatch: '오토 메모리 매치' };
+const featCfg = k => ({ mpop, mfish, mitem, mmerch, mcraft, mmatch, base })[k]();
 function setFeature(k, on, quiet) {
   const c = featCfg(k);
   c.enabled = !!on;
@@ -1435,6 +1483,7 @@ function setFeature(k, on, quiet) {
   if (k === 'mfish' && !on) api('mfish_stop');
   if (k === 'mmerch' && !on) api('mmerch_stop');
   if (k === 'mcraft' && !on) api('mcraft_stop');
+  if (k === 'mmatch' && !on) api('mmatch_stop');
   // 다시 그리지 않고 같은 기능의 스위치만 맞춤 (다시 그리면 누른 스위치가 새로 생겨서 움직이는 애니메이션이 안 보임)
   document.querySelectorAll(`#${k}On, [data-feat="${k}"]`).forEach(i => { i.checked = !!on; });
   syncMainTiles();
@@ -1502,6 +1551,8 @@ MPOS.mcraft = { box: 'mposCraft',
           ['search_pos', 'list_region', 'shop_close_pos', 'open_recipe_pos', 'add_all_pos', 'craft_pos', 'add_close_pos'], false, '', 'craftauto'],
          ['revbase', '반대쪽 기준 장소', '낚시와 정반대 방향 · 리셋 → 카메라 정렬 → 내려다보기+줌 → S+D → S (끝에 A 같이)', [], false, 'movebaserev'],
          ['move', '이동', '1번 퀘스트 보드 → E → 대기 → Exit → D → 2번 스텔라 포탈 → D = 포션 제작 장소', [], false, 'places:mcraft']] };
+MPOS.mmatch = { box: 'mposMatch', points: [], regions: [],
+  tabs: [['move', '이동', '기준 장소 → 메모리 매치 보드 앞 (E 를 누를 수 있는 곳)', [], false, 'places:mmatch']] };
 MPOS.mmerch = { box: 'mposMerch', tpl: true,
   points: [['open_pos', 'Open 선택지', '대화 선택지 Open (글자로 못 찾을 때만)'],
            ['first_slot', '첫 번째 칸', '상점 맨 왼쪽 아이템 칸'],
@@ -1610,7 +1661,7 @@ const placeTotal = pl => {
   const m = move(), t = (rev ? revTime(m) + questTime(m) : baseTime(m)) + pl.points.reduce((a, pt) => a + pt.time + (m.margin ?? 0.3), 0);
   return `<em class="move-total">총 ${Math.round(t * 10) / 10}초</em>`;
 };
-const MOVE_FIXED = ['mfish', 'mcraft'];                            // 자동 낚시: 낚시 장소 · 물고기 판매 장소 (서버 MOVE_TEMPLATES)
+const MOVE_FIXED = ['mfish', 'mcraft', 'mmatch'];                            // 자동 낚시: 낚시 장소 · 물고기 판매 장소 (서버 MOVE_TEMPLATES)
 const moveCall = async (name, args, msg) => { const r = await api(name, args); toast(r.error || msg); return r; };
 // data-mpos-custom: 'movebase' (통합 위치 → 기준 장소) / 'places:기능' (그 기능이 가는 장소)
 function renderMoveCustom(el) {
@@ -1620,7 +1671,7 @@ function renderMoveCustom(el) {
   else if (kind === 'fishauto' || kind === 'sellauto' || kind === 'merchauto' || kind === 'craftauto' || kind === 'movebaserev') MPOS_CUSTOM[kind](el);
   else MPOS_CUSTOM.places(el, feat);
 }
-function rerenderMove() { document.querySelectorAll('[data-mpos-custom]').forEach(renderMoveCustom); if (config.mcraft) renderMcraft(); }
+function rerenderMove() { document.querySelectorAll('[data-mpos-custom]').forEach(renderMoveCustom); if (config.mcraft) renderMcraft(); if (config.mmatch) renderMmatch(); }
 const SELL_SET = [['sell_delay', '클릭 사이 추가 대기', '렉이 있으면 늘림 (초)', 0, 0, 0.1],
                   ['sell_max', '판매 반복 최대', '클릭이 씹혀 끝없이 도는 것만 막음', 100, 1, 1]];
 let sellcalBusy = false;
@@ -1863,6 +1914,7 @@ function mposChanged(feat) {
   if (feat === 'base') { renderMpop(); renderPopSet(); renderMitem(); renderMmerch(); renderMcraft(); }
   else if (feat === 'mmerch') renderMmerch();
   else if (feat === 'mcraft') renderMcraft();
+  else if (feat === 'mmatch') renderMmatch();
   else renderMfish();
 }
 // 스나이프 탭 오토 팝핑 ↔ 통합 위치 연동 (양쪽 화면에서 같은 스위치)
@@ -2696,9 +2748,9 @@ const Tutorial = (() => {
   fillBiome();
   fillMpop();
   renderMfish();
-  renderMitem(); renderMmerch(); renderMcraft();
+  renderMitem(); renderMmerch(); renderMcraft(); renderMmatch();
   renderMfAll();
-  renderMpos('base'); renderMpos('mfish'); renderMpos('mmerch'); renderMpos('mcraft');
+  renderMpos('base'); renderMpos('mfish'); renderMpos('mmerch'); renderMpos('mcraft'); renderMpos('mmatch');
   fillAcrux();
   renderSummary();
   setStatus(s.status);

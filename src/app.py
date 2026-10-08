@@ -32,6 +32,7 @@ import move
 import sell
 import merchant
 import crafter
+import memmatch
 from version import VERSION
 
 
@@ -125,6 +126,9 @@ class Bridge:
         self.crafter = crafter.Crafter(lambda: self.data.get("mcraft", {}), self._on_log, self.seller._borrow,
                                        lambda: self._place_of("mcraft", "craft_spot"))
         self.craft_pending, self.craft_check_at, self.craft_seen, self.craft_warned = None, 0.0, {}, False
+        # 오토 메모리 매치: 매크로를 켜면 메모리 매치 장소로 가서 확인 · 쿨타임이면 남은 시간 뒤에 다시 (자동 낚시는 멈췄다가 다시 시작)
+        self.matcher = memmatch.Matcher(lambda: self.data.get("mmatch", {}), self._on_log, self.seller._borrow,
+                                        lambda: self._place_of("mmatch", "match_spot"))
         # 자동 낚시가 계속 헛돌면(낚시 자리를 못 찾음 · 팔 물고기가 없는데 가득 참) 멈춰 둠 — F3 으로 매크로를 다시 켜면 풀림
         self.fish_block, self.fish_fails, self.zero_sells = None, 0, 0
         self.fisher.on_start = self._on_fish_start
@@ -326,7 +330,7 @@ class Bridge:
             return {"seq": self.seq, "logs": logs, "events": events, "status": list(self.status),
                     "running": self.running(), "armed": core.ARMED.is_set(),
                     "play": play, "pop": pop, "ret": ret, "mpop": mpop, "mfish": mfish, "roblox": roblox,
-                    "move": mv, "mitem": self.items.snapshot(), "mmerch": self.merchant.snapshot(), "mcraft": self.crafter.snapshot(), "macro_on": bool(self.data.get("macro_on")), "online": self.online, "online_on": bool(self.ONLINE_URL),
+                    "move": mv, "mitem": self.items.snapshot(), "mmerch": self.merchant.snapshot(), "mcraft": self.crafter.snapshot(), "mmatch": self.matcher.snapshot(), "macro_on": bool(self.data.get("macro_on")), "online": self.online, "online_on": bool(self.ONLINE_URL),
                     "crash": {"left": max(0.0, self.crash["until"] - time.time())} if self.crash else None,
                     "biome": bio,
                     "count": self.handler.count, "names": self.data.get("names", {}),
@@ -383,6 +387,7 @@ class Bridge:
         self.items.stop()
         self.merchant.stop()
         self.crafter.stop()
+        self.matcher.stop()
         self.ret.stop()
         self.biome.mute_next_session()
         self.play.start("서버 접속")
@@ -413,7 +418,8 @@ class Bridge:
                 mm = self.data.get("mmerch", {})
                 want_merch = bool(self.data.get("macro_on") and mm.get("enabled"))
                 want_craft = bool(self.data.get("macro_on") and (self.data.get("mcraft") or {}).get("enabled"))
-                want = bool(self.data.get("macro_on") and mf.get("enabled")) or want_items or want_merch or want_craft
+                want_match = bool(self.data.get("macro_on") and (self.data.get("mmatch") or {}).get("enabled"))
+                want = bool(self.data.get("macro_on") and mf.get("enabled")) or want_items or want_merch or want_craft or want_match
                 busy = self.pop.running() or self.ret.running() or self.play.running() or time.time() < self.resume_at
                 sniping = busy or self.biome.muted()
                 if want and sniping and not paused:
@@ -427,7 +433,7 @@ class Bridge:
                 # 오토 아이템 사용: 쿨타임이 찼고 이동 · 판매 · 팝핑 중이 아니면 (낚시는 안전한 곳에서 잠깐 비켜줌)
                 # 상인 자동 구매: 상인이 왔으면 낚시를 멈추고 구매 · 아니면 간격마다 채팅 확인
                 others = self.items.running() or (self.mpop.running() or self.mpop_wait) or self.mover.running() or self.merchant.running() \
-                    or self.crafter.running() or bool(self.craft_pending)
+                    or self.crafter.running() or bool(self.craft_pending) or self.matcher.running()
                 if self.merchant_pending and time.time() - self.merchant_pending[1] > 180:
                     self.merchant_pending = None             # 상인이 떠났을 시간
                 if ok and want_merch and not others:
@@ -449,7 +455,7 @@ class Bridge:
                     self.craft_pending = None
                 if ok and want_craft and not self.crafter.running():
                     busy_other = self.items.running() or self.mpop.running() or self.mpop_wait or self.mover.running() \
-                        or self.merchant.buying() or self.merchant_pending
+                        or self.merchant.buying() or self.merchant_pending or self.matcher.running()
                     if self.craft_pending and not busy_other:
                         if self.fisher.running():
                             self.fisher.stop()
@@ -463,8 +469,24 @@ class Bridge:
                         self._craft_notice()
                 elif self.crafter.running() and not self.crafter.test and (sniping or not want_craft):
                     self.crafter.stop()
+                # 오토 메모리 매치: 다음 확인 시각이 되면 (켤 때 바로 한 번) 낚시를 멈추고 메모리 매치 장소로
+                if ok and want_match and not self.matcher.running():
+                    busy_other = self.items.running() or self.mpop.running() or self.mpop_wait or self.mover.running() \
+                        or self.merchant.buying() or self.merchant_pending or self.crafter.running() or self.craft_pending
+                    if time.time() >= self.matcher.next_at and self._place_of("mmatch", "match_spot") is None:
+                        self.matcher.next_at = time.time() + 600     # 장소가 없으면 낚시를 멈추지 않고 알림만 (10분마다)
+                        self._on_log("오토 메모리 매치 안 함 — 매크로 기준 위치 설정 → 오토 메모리 매치 → 이동에서 장소 지정 · 시간 재기", "n")
+                    elif time.time() >= self.matcher.next_at and not busy_other:
+                        if self.fisher.running():
+                            self.fisher.stop()
+                        else:
+                            self.matcher.start_job()
+                        continue
+                elif self.matcher.running() and not self.matcher.test and (sniping or not want_match):
+                    self.matcher.stop()
                 if ok and want_items and not self.items.running() and not (self.mpop.running() or self.mpop_wait) and not self.mover.running() \
-                        and not self.merchant.buying() and not self.merchant_pending and not self.crafter.running() and not self.craft_pending:
+                        and not self.merchant.buying() and not self.merchant_pending and not self.crafter.running() and not self.craft_pending \
+                        and not self.matcher.running():
                     self.items.start(self.items.due())
                 elif self.items.running() and not self.items.test and (sniping or not want_items):
                     self.items.stop()
@@ -491,7 +513,8 @@ class Bridge:
                         ok = False
                 if ok and not self.fisher.running() and not (self.mpop.running() or self.mpop_wait) and not self.mover.running() \
                         and not self.items.running() and not self.merchant.buying() and not self.merchant_pending \
-                        and not self.crafter.running() and not self.craft_pending:
+                        and not self.crafter.running() and not self.craft_pending and not self.matcher.running() \
+                        and not (want_match and time.time() >= self.matcher.next_at):
                     self.fisher.start()
                 elif not ok and self.fisher.running():
                     self.fisher.stop()
@@ -539,6 +562,9 @@ class Bridge:
             self.merchant.stop()
             self.crafter.stop()
             self.craft_pending = None
+            self.matcher.stop()
+        else:
+            self.matcher.next_at = 0.0          # 켤 때마다 메모리 매치를 한 번 확인
         self._on_log(f"{why} — 매크로 {'켜짐' if on else '꺼짐'}", "y" if not on else "g")
 
     def _hotkey_loop(self):
@@ -558,7 +584,8 @@ class Bridge:
                 other = (getattr(self, "_mv_banner", None) is not None and self._mv_banner.poll() is None) \
                     or getattr(self, "_autocal_running", False) or getattr(self, "_sellcal_running", False)
                 want = bool(self.data.get("macro_on")) and (self.fisher.running() or self.mpop.running() or self.items.running()
-                                                          or self.merchant.running() or self.crafter.running()) and not other
+                                                          or self.merchant.running() or self.crafter.running()
+                                                          or self.matcher.running()) and not other
                 alive = banner is not None and banner.poll() is None
                 if want and not alive:
                     banner = self._banner_proc("macro")
@@ -1588,6 +1615,18 @@ class Bridge:
             return {"error": error, "mcraft": self.data.get("mcraft")}
         self._on_log("포션 제작 자동 보정 완료", "g")
         return {"mcraft": self.data.get("mcraft")}
+
+    def api_mmatch_test(self, _):
+        """메모리 매치 테스트: 지금 자리에서 (메모리 매치 보드 앞) E → 확인 → 할 수 있으면 짝 맞추기"""
+        if self.matcher.running() or self.mover.running():
+            return {"error": "다른 동작이 도는 중"}
+        self.fisher.stop()
+        self.matcher.start_job(here=True, test=True)
+        return {"ok": True}
+
+    def api_mmatch_stop(self, _):
+        self.matcher.stop()
+        return {"ok": True}
 
     def api_mcraft_stop(self, _):
         self.crafter.stop()
