@@ -1571,7 +1571,7 @@ MPOS.mmatch = { box: 'mposMatch',
            ['ad_pos', 'Watch AD 칸', '창 아래 Watch AD to lower the cooltime'],
            ['board_close_pos', '카드 판 Close 버튼', '게임이 끝나면 카드 판 아래 뜨는 Close']],
   regions: [['note_region', '알림 창 영역', 'Notification 창부터 Watch AD 칸까지 (이 영역만 읽어서 빠름)']],
-  tabs: [['note', '메모리 매치 창', '실행할 땐 글자로 먼저 찾고, 못 찾으면 이 위치를 씀',
+  tabs: [['note', '메모리 매치 창', '지정한 위치를 누름 · 비어 있으면 글자로 찾은 자리를 누름',
           ['note_region', 'note_close_pos', 'note_btn_pos', 'ad_pos', 'board_close_pos'], false, '', 'matchauto'],
          ['move', '이동', '기준 장소 → 메모리 매치 보드 앞 (E 를 누를 수 있는 곳)', [], false, 'places:mmatch']] };
 MPOS.mmerch = { box: 'mposMerch',
@@ -2505,7 +2505,7 @@ const Tutorial = (() => {
   const TASKS = {
     inv: { label: '인벤토리 위치', feat: 'base', sec: 'mp-base', side: '통합 위치',
       keys: [...POP_POS.map(([k]) => k), 'ocr_region'], },
-    notice: { label: '알림 영역', feat: 'base', sec: 'mp-base', side: '통합 위치', keys: ['notice_region'] },
+    notice: { label: '알림 영역', feat: 'base', sec: 'mp-base', side: '통합 위치', keys: ['notice_region'] },   // 낚시 Cannot Fish · Auto Crafted 알림
     dialog: { label: '대화창 위치', feat: 'base', sec: 'mp-base', side: '통합 위치', keys: ['dialog_pos'] },
     moveBase: { label: '기준 장소 위치', feat: 'base', sec: 'mp-base', side: '통합 위치',
       keys: ['chat_pos', 'collection_pos', 'collection_close'], },
@@ -2540,7 +2540,7 @@ const Tutorial = (() => {
     TASKS[feat + 'Place'] = { label: { mfish: '낚시 · 판매 장소', mcraft: '포션 제작 장소', mmatch: '메모리 매치 장소' }[feat], sec, side, places: feat };
   const FEAT_TASKS = { mpop: ['inv'], mitem: ['inv'],
     mmerch: ['inv', 'dialog', 'merchChat', 'merchShop'],
-    mfish: ['fishWin', 'moveBase', 'mfishPlace', 'fishSell', 'dialog'],
+    mfish: ['fishWin', 'notice', 'moveBase', 'mfishPlace', 'fishSell', 'dialog'],
     mcraft: ['notice', 'moveBase', 'craftRev', 'mcraftPlace', 'craftShop'],
     mmatch: ['moveBase', 'mmatchPlace', 'matchNote'] };
   const FEAT_TIP = {

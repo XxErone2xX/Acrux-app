@@ -415,6 +415,7 @@ const I18N = (() => {
     ['알림 창 영역', 'Notification window area', '通知ウィンドウの範囲'],
     ['Notification 창부터 Watch AD 칸까지 (이 영역만 읽어서 빠름)', 'From the Notification window down to the Watch AD bar (only this area is read, so it is faster)', 'Notification ウィンドウから Watch AD 欄まで（この範囲だけ読むので速い）'],
     ['메모리 매치 창', 'Memory match window', 'メモリーマッチのウィンドウ'],
+    ['지정한 위치를 누름 · 비어 있으면 글자로 찾은 자리를 누름', 'Clicks the saved positions · if empty, clicks where the text was found', '指定した位置を押す・空なら文字で見つけた場所を押す'],
     ['메모리 매치 창 위치', 'Memory match window positions', 'メモリーマッチのウィンドウ位置'],
     ['<b>자동 보정</b>을 누른 뒤 메모리 매치 보드 앞에서 <b>E</b> 를 눌러주세요. 창 · 카드 판 위치를 저장해 두면 확인이 빨라집니다.', 'Click <b>Auto calibrate</b>, then press <b>E</b> in front of the memory match board. Saved window and card board positions make checks faster.', '<b>自動補正</b>を押してからメモリーマッチのボードの前で<b>E</b>を押してください。ウィンドウ・カード盤の位置を保存すると確認が速くなります。'],
     ['오토 메모리 매치 — 광고를 다 봄 (오늘은 더 볼 수 없음)', 'Auto memory match — watched all ads (no more today)', 'オートメモリーマッチ — 広告を全部視聴（今日はもう見られない）'],

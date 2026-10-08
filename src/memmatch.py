@@ -329,8 +329,14 @@ class Matcher(popping.Popper):
         rect = self._rect(stop)
         st = notice_state(macro.ocr_boxes(c["note_region"]), rect) if c.get("note_region") else None
         st = st or notice_state(macro.ocr_boxes(None), rect)
-        if st and not st["head"] and c.get("note_close_pos"):
-            st["close_pos"] = list(c["note_close_pos"])
+        if st:
+            # 보정(자동 · 수동)한 위치가 있으면 그 위치를 누름 — 글자는 창 상태(시작 · 대기 · 광고 칸 유무)를 읽는 데만 씀
+            if c.get("note_close_pos"):
+                st["close_pos"] = list(c["note_close_pos"])
+            if c.get("note_btn_pos"):
+                st["pos"] = list(c["note_btn_pos"])
+            if st.get("ad_pos") and c.get("ad_pos"):
+                st["ad_pos"] = list(c["ad_pos"])
         return st
 
     def _notice(self, stop, timeout):
@@ -471,12 +477,14 @@ class Matcher(popping.Popper):
         self._play(lay, stop)
         self.played += 1
         self._set(msg="Close")
-        close = lay["close_pos"]
+        saved = (self.get_mcfg() or {}).get("board_close_pos")
+        close = list(saved) if saved else lay["close_pos"]
         end = time.time() + 8
-        while time.time() < end:
+        while time.time() < end:                             # Close 가 뜰 때까지 (보정한 위치가 없으면 글자 자리를 누름)
             b = next((b for b in macro.ocr_boxes(None) if sell._norm(b[0]) in ("close", "c1ose", "lose")), None)
             if b:
-                close = [b[1], b[2]]
+                if not saved:
+                    close = [b[1], b[2]]
                 break
             self._wait(0.5, stop)
         self._wait(1.0, stop)                                # Close 가 뜨고 1초 뒤 (스크립트 매크로와 같음)
