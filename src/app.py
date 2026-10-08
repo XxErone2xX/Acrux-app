@@ -1120,6 +1120,7 @@ class Bridge:
             apply("result_region", result)
             done.append("결과창")
         mf = self.data["mfish"]
+        mf["cal_win"] = True                         # 자동 보정을 한 번이라도 끝냄 (튜토리얼 안내 완료)
         # 결과창 닫기 (Fish 버튼이 다시 보일 때까지 X)
         if mf.get("close_pos"):
             with macro.ScreenGrabber() as sct:
@@ -1274,6 +1275,10 @@ class Bridge:
             self._on_log(error + (f" (찾은 것: {done})" if done else ""), "n")
             res["error"] = error
         else:
+            with self.lock:
+                self.data.setdefault("mfish", {})["cal_sell"] = True
+            self._save()
+            res["mfish"] = self.data.get("mfish")
             self._on_log(f"판매 자동 보정 완료: {done}" + (" · " + " · ".join(notes) if notes else ""), "g")
             res["done"] = done
             res["notes"] = notes
@@ -1347,7 +1352,7 @@ class Bridge:
             macro.focus_back(back)
         if found:
             with self.lock:
-                self.data.setdefault("mmerch", {}).update(found)
+                self.data.setdefault("mmerch", {}).update(found, **({} if error else {"cal_shop": True}))
             self._save()
         if error:
             self._on_log(error, "n")
@@ -1745,7 +1750,7 @@ class Bridge:
             macro.focus_back(back)
         if found:
             with self.lock:
-                self.data.setdefault("mcraft", {}).update(found)
+                self.data.setdefault("mcraft", {}).update(found, **({} if error else {"cal_shop": True}))
             self._save()
         if error:
             self._on_log(error, "n")
@@ -1819,7 +1824,7 @@ class Bridge:
             macro.focus_back(back)
         if found:
             with self.lock:
-                self.data.setdefault("mmatch", {}).update(found)
+                self.data.setdefault("mmatch", {}).update(found, **({} if error else {"cal_note": True}))
             self._save()
         if error:
             self._on_log(error, "n")
