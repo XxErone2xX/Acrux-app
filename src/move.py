@@ -131,7 +131,7 @@ class Mover:
     def quest_time(self):
         """퀘스트 보드 동작(E → 대기 → Exit → D) + 마지막 D"""
         m = self.get_move() or {}
-        return 0.6 + float(m.get("q_wait", 1.5)) + float(m.get("qd_time", 2.0)) + float(m.get("rd_time", 2.0))
+        return 0.6 + float(m.get("q_wait", 1.5)) + float(m.get("qd_time", 2.0)) + float(m.get("qd_wait", 0.65)) + float(m.get("rd_time", 2.0))
 
     def is_rev(self, i):
         """반대쪽 기준 장소에서 출발하는 장소 (포션 제작 장소 — 낚시와 정반대 방향)"""
@@ -152,7 +152,7 @@ class Mover:
         pts = pts[:upto] if upto is not None else pts
         t = sum(float(pt.get("time") or 0) + float(m.get("margin", 0.3)) for pt in pts)
         if self.is_rev(i):                         # 1번 뒤 E → Exit · 2번 뒤 D
-            t += (0.6 + float(m.get("q_wait", 1.5)) + float(m.get("qd_time", 2.0)) if len(pts) >= 1 else 0) \
+            t += (0.6 + float(m.get("q_wait", 1.5)) + float(m.get("qd_time", 2.0)) + float(m.get("qd_wait", 0.65)) if len(pts) >= 1 else 0) \
                 + (float(m.get("rd_time", 2.0)) if len(pts) >= 2 else 0)
         return t
 
@@ -431,18 +431,19 @@ class Mover:
             self.go_base()
 
     def _quest_step(self):
-        """반대쪽 길의 1번 지점(퀘스트 보드) 다음: E → 1.5초 → 퀘스트 창 Exit → D 2초 (그 뒤 2번 지점 = 스텔라 포탈)"""
+        """반대쪽 길의 1번 지점(퀘스트 보드) 다음: E → 1.5초 → 퀘스트 창 Exit → D 2초 → 0.65초 대기 (그 뒤 2번 지점 = 스텔라 포탈)"""
         mv = self.get_move() or {}
         pos = mv.get("quest_exit_pos")
         if not pos:
             raise RuntimeError("퀘스트 보드 Exit 위치를 먼저 지정 (매크로 기준 위치 설정 → 포션 자동 제작 → 이동)")
         self._set(msg="퀘스트 보드 · E → Exit → D")
-        self._advance(0.6 + float(mv.get("q_wait", 1.5)) + float(mv.get("qd_time", 2.0)))
+        self._advance(0.6 + float(mv.get("q_wait", 1.5)) + float(mv.get("qd_time", 2.0)) + float(mv.get("qd_wait", 0.65)))
         macro.key_tap("e")
         self._wait(float(mv.get("q_wait", 1.5)))
         self._click(pos)
         self._wait(0.4)
         self._hold(("d",), float(mv.get("qd_time", 2.0)))
+        self._wait(float(mv.get("qd_wait", 0.65)))
 
     def _final_step(self):
         """반대쪽 길의 2번 지점(스텔라 포탈) 다음: D 2초 → 포션 제작 장소"""
