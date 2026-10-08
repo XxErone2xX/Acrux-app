@@ -335,6 +335,10 @@ const I18N = (() => {
     ['내 서버 — 매크로 다시 시작', 'Your server — macro restarted', '自分のサーバー — マクロを再開'],
     ['<b>내 브섭 링크</b>는 꼭 입력해야 합니다. 돌아가면 켜 둔 매크로(자동 낚시 등)가 다시 시작됩니다.', 'You must enter <b>your private server link</b>. When you return, the macros you turned on (auto fishing etc.) start again.', '<b>自分のプラベサーバーリンク</b>は必須です。戻ると、オンにしたマクロ（自動釣りなど）が再開します。'],
     ['오토 아이템 사용', 'Auto item use', 'オートアイテム使用'],
+    ['1번 퀘스트 보드 → E → 대기 → Exit → 2번 스텔라 포탈 → D = 포션 제작 장소', 'Point 1 quest board → E → wait → Exit → point 2 Stella portal → D = potion crafting spot', '地点1 クエストボード → E → 待機 → Exit → 地点2 ステラのポータル → D = ポーション製作場所'],
+    ['스텔라 포탈 다음 D 를 누르는 시간 (초) — 끝나는 자리가 포션 제작 장소', 'Time to press D after the Stella portal (s) — where it ends is the crafting spot', 'ステラのポータルの後に D を押す時間（秒）— 止まった所が製作場所'],
+    ['퀘스트 보드 · E → Exit', 'Quest board · E → Exit', 'クエストボード・E → Exit'],
+    ['포션 제작 장소로 · D', 'To the potion crafting spot · D', 'ポーション製作場所へ · D'],
     ['A 같이 누르기', 'Also press A', 'A も一緒に押す'],
     ['반대쪽 기준 장소', 'Reverse starting point', '反対側の基準地点'],
     ['낚시와 정반대 방향 · 리셋 → 카메라 정렬 → 내려다보기+줌 → S+D → S (끝에 A 같이)', 'Opposite direction from fishing · reset → camera align → look down + zoom → S+D → S (A at the end)', '釣りと正反対の方向・リセット → カメラ調整 → 見下ろし+ズーム → S+D → S（最後に A も）'],
@@ -1370,6 +1374,7 @@ const I18N = (() => {
   const R = [
     [/^(.+) · (\d+)번 지점 저장 · 이제 \[시간 재기\]$/, 'Point $2 saved · now [Measure time]', '$2番目の地点を保存・次は［時間を計る］'],
     [/^(\d+)번 지점 \(퀘스트 보드\)$/, 'Point $1 (quest board)', '地点$1（クエストボード）'],
+    [/^(\d+)번 지점 \(스텔라 포탈\)$/, 'Point $1 (Stella portal)', '地点$1（ステラのポータル）'],
     [/^(\d+)번 지점 저장 · 이제 \[시간 재기\]$/, 'Point $1 saved · now [Measure time]', '$1番目の地点を保存・次は［時間を計る］'],
     [/^(\d+)번 지점$/, 'Point $1', '地点 $1'],
     [/^누를 곳 (.+) · 걸린 시간 (.+)$/, 'click at $1 · time $2', '押す場所 $1・所要時間 $2'],
