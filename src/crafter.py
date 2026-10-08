@@ -91,6 +91,11 @@ def pick_card(boxes, name):
     return cards[n - 1] if len(cards) >= n else None
 
 
+def _box(boxes, key):
+    """key 가 들어간 글자 덩어리 (덩어리 전체의 가운데 = 버튼 가운데)"""
+    return next((b for b in boxes if key in sell._norm(b[0])), None)
+
+
 def _r(rect, x, y):
     return [round(min(1.0, max(0.0, x / rect[2])), 4), round(min(1.0, max(0.0, y / rect[3])), 4)]
 
@@ -112,8 +117,8 @@ def shop_layout(boxes, rect):
 
 def add_layout(boxes, rect):
     """Add Ingredients 창 글자들 → {add_all_pos, craft_pos, add_close_pos} 또는 None"""
-    title = sell.find_text(boxes, "addlngredlents")
-    add = sell.find_text(boxes, "addeverythlng")
+    title = _box(boxes, "ngredlents")                  # 'Add Ingredients' · 'Add Everything' 도 앞 글자는 안 봄
+    add = _box(boxes, "everythlng")
     if not (title and add):
         return None
     W, H = rect[2], rect[3]
@@ -124,7 +129,8 @@ def add_layout(boxes, rect):
 
 
 def open_recipe(boxes):
-    b = sell.find_text(boxes, "openreclpe")
+    """Open Recipe 버튼 — 작은 창에선 첫 글자를 잘못 읽기도 해서 ('Dpen Recipe') 첫 글자는 안 봄"""
+    b = _box(boxes, "penreclpe")
     return [round(b[1], 4), round(b[2], 4)] if b else None
 
 
