@@ -406,10 +406,20 @@ document.addEventListener('keydown', e => {
   stepTab(e.key === 'ArrowLeft' ? -1 : 1);
 });
 
+const REDUCE_MOTION = matchMedia('(prefers-reduced-motion: reduce)');
 function selectSection(page, sec) {
   if (!sec) return;
-  page.querySelectorAll('.side .item').forEach(i => i.classList.toggle('active', i.dataset.sec === sec));
+  const items = [...page.querySelectorAll('.side .item')];
+  const from = items.findIndex(i => i.classList.contains('active')), to = items.findIndex(i => i.dataset.sec === sec);
+  items.forEach(i => i.classList.toggle('active', i.dataset.sec === sec));
   page.querySelectorAll('.content .sec').forEach(s => s.classList.toggle('active', s.dataset.sec === sec));
+  // 칸을 바꿀 때: 새 칸이 누른 방향(위 · 아래)에서 살짝 미끄러지며 나타남
+  const el = page.querySelector(`.content .sec[data-sec="${sec}"]`);
+  if (el && from >= 0 && from !== to && !REDUCE_MOTION.matches) {
+    el.getAnimations().forEach(a => a.cancel());
+    el.animate([{ opacity: 0, transform: `translateY(${to > from ? 14 : -14}px)` }, { opacity: 1, transform: 'none' }],
+      { duration: 240, easing: 'cubic-bezier(.22, 1, .36, 1)' });
+  }
   if (sec === 'log') scrollLog(true);
   if (typeof Tutorial !== 'undefined') Tutorial.onSection();
 }
@@ -833,7 +843,7 @@ async function poll() {
     setStatus(['error', '프로그램과 연결 끊김']);
   }
   // 창이 최소화돼 있거나 Play 클릭 중이면 덜 자주 받아옴 (그동안 CPU 를 매크로에 양보)
-  setTimeout(poll, document.hidden ? 1500 : (playBusy ? 800 : 300));
+  setTimeout(poll, document.hidden ? 1500 : (playBusy ? 800 : (document.hasFocus() ? 300 : 700)));
 }
 
 // ---------------------------------------------------------------- 오토 팝핑 (Play 버튼)
@@ -1488,6 +1498,7 @@ function setFeature(k, on, quiet) {
   document.querySelectorAll(`#${k}On, [data-feat="${k}"]`).forEach(i => { i.checked = !!on; });
   syncMainTiles();
   if (!quiet) toast(`${FEAT_NAME[k]} ${on ? '켜짐' : '꺼짐'}`);
+  if (on && !quiet) Tutorial.featureOn(k);
 }
 function renderMfAll() {
   $('mfAllForm').innerHTML = MFEATS.map(([k, name, sub]) => k ? `
@@ -1671,7 +1682,7 @@ function renderMoveCustom(el) {
   else if (kind === 'fishauto' || kind === 'sellauto' || kind === 'merchauto' || kind === 'craftauto' || kind === 'movebaserev') MPOS_CUSTOM[kind](el);
   else MPOS_CUSTOM.places(el, feat);
 }
-function rerenderMove() { document.querySelectorAll('[data-mpos-custom]').forEach(renderMoveCustom); if (config.mcraft) renderMcraft(); if (config.mmatch) renderMmatch(); }
+function rerenderMove() { document.querySelectorAll('[data-mpos-custom]').forEach(renderMoveCustom); if (config.mcraft) renderMcraft(); if (config.mmatch) renderMmatch(); Tutorial.refresh(); }
 const SELL_SET = [['sell_delay', '클릭 사이 추가 대기', '렉이 있으면 늘림 (초)', 0, 0, 0.1],
                   ['sell_max', '판매 반복 최대', '클릭이 씹혀 끝없이 도는 것만 막음', 100, 1, 1]];
 let sellcalBusy = false;
@@ -1911,6 +1922,7 @@ function updateMove(st) {
 // 위치는 서버가 이미 저장함 → 화면만 다시 그림
 function mposChanged(feat) {
   renderMpos(feat);
+  setTimeout(() => Tutorial.refresh(), 0);
   if (feat === 'base') { renderMpop(); renderPopSet(); renderMitem(); renderMmerch(); renderMcraft(); }
   else if (feat === 'mmerch') renderMmerch();
   else if (feat === 'mcraft') renderMcraft();
@@ -2456,8 +2468,118 @@ const Tutorial = (() => {
   TUTORIALS.push({ id: 'snipe', name: '스나이핑 안정성 설정', steps: SNIPE_STEPS, menu: 'snipe',
     needed: () => !(config.tutorials_done || []).includes('snipe') && !snipeTouched() });
 
+  // ---- 매크로: 기능 켜기 · 끄기만 안내 (기능을 켜면 그 기능에 맞춘 튜토리얼이 따로 뜸)
+  const mfeatPage = () => $('page-mfeat'), mposPage = () => $('page-mpos');
+  const mfSec = sec => current === 'mfeat' && sectionIs(sec, mfeatPage());
+  const mpSec = sec => current === 'mpos' && sectionIs(sec, mposPage());
+  const MACRO_STEPS = [
+    { title: '매크로 기능 설정',
+      body: `<p>내 서버에서 돌리는 기능들입니다. 쓸 기능만 켜고, 메인 화면 <b>매크로</b> 버튼(F3)으로 시작합니다.</p>
+             <p>기능을 켜면 그 기능에 필요한 설정만 골라서 따로 안내합니다.</p>`,
+      later: true },
+    { id: 'card', title: '매크로 기능 설정을 눌러주세요',
+      body: `<p>강조된 <b>매크로 기능 설정</b> 버튼을 직접 눌러주세요.</p>`,
+      target: () => document.querySelector('.menu-card[data-key="mfeat"]'),
+      done: () => current === 'mfeat' },
+    { id: 'side', ...secStep(mfeatPage, 'mf-all', '기능 켜기 · 끄기'), done: () => mfSec('mf-all'), needs: 'card' },
+    { title: '쓸 기능을 켜주세요',
+      body: `<p>쓸 기능의 스위치를 켜주세요. 켜는 순간 그 기능에 필요한 설정을 하나씩 안내합니다.</p>
+             <p class="dim">위쪽 <b>전부 켜기</b> · <b>전부 끄기</b>로 한 번에 바꿀 수도 있습니다.</p>`,
+      target: () => $('mfAllForm'), input: true, needs: 'side' },
+    { title: '설정이 완료되었습니다',
+      body: `<p>메인 화면 <b>매크로</b> 버튼이나 <b>F3</b>으로 켜고 끕니다. 정지는 <b>F7</b> 입니다.</p>` },
+  ];
+  TUTORIALS.push({ id: 'macro', name: '매크로 기능 설정', steps: MACRO_STEPS, skipAll: true, menu: 'mfeat',
+    needed: () => !doneList().includes('macro') && !macroFeatures(),
+    skipMsg: '매크로 기능 설정 튜토리얼을 건너뛰었습니다' });
+
+  // ---- 기능마다 필요한 설정 (켤 때 비어 있는 것만 안내)
+  const groupEl = (box, g) => () => $(box)?.querySelector(`[data-mpos-group="${g}"]`);
+  const placesOk = feat => {
+    const mine = (move().places || []).filter(pl => pl.feat === feat);
+    return mine.length > 0 && mine.every(pl => pl.points.length && pl.points.every(pt => pt.pos && pt.time != null));
+  };
+  const SELL_REQ = ['sell_fish_pos', 'first_fish_pos', 'sell_all_pos', 'confirm_sell_pos', 'shop_close_pos'];
+  const REQ = {
+    inv: { label: '인벤토리 위치', sec: 'mp-base', side: '통합 위치', target: groupEl('mposBase', 'inv'),
+      ok: () => POP_POS.every(([k]) => base()[k]) && !!base().ocr_region,
+      body: `<p><b>위치 템플릿</b>의 <b>적용</b>으로 한 번에 채우거나, <b>위치 지정</b>으로 하나씩 지정해주세요.</p>
+             <p class="dim">Inventory · Items · Search · 아이템 칸 · 수량 · Use 버튼과 OCR 영역이 필요합니다.</p>` },
+    notice: { label: '알림 영역', sec: 'mp-base', side: '통합 위치', target: groupEl('mposBase', 'notice'),
+      ok: () => !!base().notice_region,
+      body: `<p><b>드래그로 지정</b>을 누른 뒤, 오른쪽에 알림 카드가 뜨는 자리를 넉넉히 드래그해주세요.</p>` },
+    dialog: { label: '대화창 위치', sec: 'mp-base', side: '통합 위치', target: groupEl('mposBase', 'ui'),
+      ok: () => !!base().dialog_pos,
+      body: `<p>NPC 와 대화할 때 <b>Click to skip</b> 이 뜨는 대화창 위치를 지정해주세요.</p>` },
+    moveBase: { label: '기준 장소 위치', sec: 'mp-base', side: '통합 위치', target: groupEl('mposBase', 'move'),
+      ok: () => !!(base().chat_pos && base().collection_pos && base().collection_close),
+      body: `<p>모든 이동의 출발점입니다. <b>도감 버튼</b> · <b>도감 Exit</b> 위치를 지정해주세요.</p>
+             <p class="dim">채팅 버튼은 게임 버튼 칸에 있습니다. 위치 템플릿으로 한 번에 채울 수도 있습니다.</p>` },
+    fishWin: { label: '낚시 창 위치', sec: 'mp-fish', side: '자동 낚시', target: groupEl('mposFish', 'win'),
+      ok: () => MFISH_REQ.every(k => mfish()[k]),
+      body: `<p>낚시 장소에서 <b>Fish</b> 버튼이 보일 때 <b>자동 보정</b>을 눌러주세요.</p>
+             <p class="dim">안 되면 창 영역을 직접 드래그해도 됩니다.</p>` },
+    fishSell: { label: '물고기 판매 위치', sec: 'mp-fish', side: '자동 낚시', target: groupEl('mposFish', 'sell'),
+      ok: () => SELL_REQ.every(k => mfish()[k]),
+      body: `<p><b>판매 자동 보정</b>을 누른 뒤 Captain Flarg 앞에서 <b>E</b> 를 눌러주세요. 실제로 팔지는 않습니다.</p>` },
+    fishPlace: { label: '낚시 · 판매 장소', sec: 'mp-fish', side: '자동 낚시', target: groupEl('mposFish', 'move'),
+      ok: () => placesOk('mfish'),
+      body: `<p>낚시 장소와 물고기 판매 장소의 지점을 <b>기준 장소에서 지정</b>한 뒤, <b>테스트</b>로 걸리는 시간을 재주세요.</p>` },
+    merchChat: { label: '채팅 글자 영역', sec: 'mp-merch', side: '상인 자동 구매', target: groupEl('mposMerch', 'chat'),
+      ok: () => !!mmerch().chat_region,
+      body: `<p>상인 도착 메시지가 뜨는 <b>채팅 글자 영역</b>을 드래그해주세요.</p>` },
+    craftRev: { label: '퀘스트 보드 Exit', sec: 'mp-craft', side: '포션 자동 제작', target: groupEl('mposCraft', 'revbase'),
+      ok: () => !!move().quest_exit_pos,
+      body: `<p>퀘스트 보드 앞에서 <b>E</b> 로 창을 연 뒤 <b>바로 지정</b>을 누르고 <b>Exit</b> 를 클릭해주세요.</p>` },
+    craftPlace: { label: '포션 제작 장소', sec: 'mp-craft', side: '포션 자동 제작', target: groupEl('mposCraft', 'move'),
+      ok: () => placesOk('mcraft'),
+      body: `<p>1번 지점(퀘스트 보드)과 2번 지점(스텔라 포탈)을 지정한 뒤, <b>테스트</b>로 걸리는 시간을 재주세요.</p>` },
+    craftShop: { label: '제작 창 위치', sec: 'mp-craft', side: '포션 자동 제작', target: groupEl('mposCraft', 'shop'), optional: true,
+      ok: () => !!(mcraft().search_pos && mcraft().list_region && mcraft().open_recipe_pos),
+      body: `<p><b>자동 보정</b>을 누른 뒤 Stella 앞에서 <b>F</b> 를 눌러주세요. 위치를 저장해 두면 제작이 빨라집니다.</p>
+             <p class="dim">선택 항목입니다.</p>` },
+    matchPlace: { label: '메모리 매치 장소', sec: 'mp-match', side: '오토 메모리 매치', target: groupEl('mposMatch', 'move'),
+      ok: () => placesOk('mmatch'),
+      body: `<p>보드 앞(E 를 누를 수 있는 곳)까지의 지점을 <b>기준 장소에서 지정</b>한 뒤, <b>테스트</b>로 걸리는 시간을 재주세요.</p>` },
+  };
+  const FEAT_REQ = { mpop: ['inv'], mitem: ['inv'], mmerch: ['merchChat', 'dialog', 'inv'],
+    mfish: ['fishWin', 'moveBase', 'fishPlace', 'dialog', 'fishSell'],
+    mcraft: ['notice', 'moveBase', 'craftRev', 'craftPlace', 'craftShop'], mmatch: ['moveBase', 'matchPlace'] };
+  const FEAT_TIP = {
+    mpop: '<p class="dim">레어 바이옴이 뜨면 기능 설정의 바이옴별 포션 목록대로 사용합니다.</p>',
+    mitem: '<p class="dim">쿨타임마다 아이템을 1개씩 사용합니다.</p>',
+    mmerch: '<p class="dim">기능 설정에서 살 아이템을 골라주세요.</p>',
+    mfish: '<p class="dim">기능 설정의 상태 확인으로 위치가 맞는지 볼 수 있습니다.</p>',
+    mcraft: '<p class="dim">기능 설정의 제작 테스트로 바로 확인할 수 있습니다.</p>',
+    mmatch: '<p class="dim">보드 앞에서 기능 설정의 테스트로 바로 확인할 수 있습니다.</p>' };
+  const featMissing = k => (FEAT_REQ[k] || []).filter(r => !REQ[r].ok());
+  function featSteps(k) {
+    const reqs = FEAT_REQ[k] || [], miss = featMissing(k);
+    const steps = [
+      { title: `${FEAT_NAME[k]} 설정`,
+        body: `<p>이 기능에 필요한 설정입니다. 비어 있는 것만 차례대로 안내합니다.</p>
+               <ul class="tut-req">${reqs.map(r => `<li class="${REQ[r].ok() ? 'ok' : ''}">${REQ[r].label}${REQ[r].optional ? ' (선택)' : ''}</li>`).join('')}</ul>`,
+        later: true },
+      { id: 'card', title: '매크로 기준 위치 설정을 눌러주세요',
+        body: `<p>강조된 <b>매크로 기준 위치 설정</b> 버튼을 직접 눌러주세요.</p>`,
+        target: () => document.querySelector('.menu-card[data-key="mpos"]'),
+        done: () => current === 'mpos' }];
+    for (const r of miss) {
+      const q = REQ[r];
+      steps.push({ id: 'side_' + r, ...secStep(mposPage, q.sec, q.side), done: () => mpSec(q.sec), needs: 'card' });
+      steps.push({ title: `${q.label}${eul(q.label)} 지정해주세요`, body: q.body, target: q.target, input: true,
+        optional: !!q.optional, requires: q.optional ? null : q.ok, done: q.ok, needs: 'side_' + r });
+    }
+    steps.push({ title: '설정이 완료되었습니다',
+      body: `<p>메인 화면 <b>매크로</b> 버튼이나 <b>F3</b>으로 켜면 작동합니다. 정지는 <b>F7</b> 입니다.</p>${FEAT_TIP[k] || ''}` });
+    return steps;
+  }
+  for (const k of Object.keys(FEAT_REQ))
+    TUTORIALS.push({ id: 'feat_' + k, name: `${FEAT_NAME[k]} 설정`, steps: featSteps(k), skipAll: true, menu: 'mpos',
+      needed: () => false, skipMsg: '설정 안내를 건너뛰었습니다 · 기능 설정에서 다시 볼 수 있습니다' });
+
   // 단계 참조(needs · skipTo)를 이름으로 쓸 수 있게 → 번호로 바꿈 (단계를 추가해도 번호가 안 꼬임)
-  for (const t of TUTORIALS) {
+  function resolveRefs(t) {
     const idx = {};
     t.steps.forEach((s, n) => { if (s.id) idx[s.id] = n; });
     for (const s of t.steps) for (const k of ['needs', 'skipTo']) {
@@ -2467,6 +2589,7 @@ const Tutorial = (() => {
       }
     }
   }
+  TUTORIALS.forEach(resolveRefs);
 
   let tut = TUTORIALS[0];
   let STEPS = tut.steps;
@@ -2574,6 +2697,7 @@ const Tutorial = (() => {
     // 탭이 미끄러져 들어오는 동안 강조 박스는 아래 follow 가 따라가며 제자리를 잡음
     if (tabEl && !tabEl.classList.contains('on')) setTab(tabEl.dataset.tab);
     place(!first);
+    startFollow();
     requestAnimationFrame(() => card.classList.add('in'));
   }
 
@@ -2642,9 +2766,10 @@ const Tutorial = (() => {
   }
   addEventListener('resize', () => { if (!el.hidden) requestAnimationFrame(() => place(false)); });
   // 강조할 곳이 움직이면(탭이 미끄러져 들어옴 · 글자 길이 변화 · 화면 배치 변경 등) 강조 박스 · 안내창이 따라감
-  let lastRect = '';
-  (function follow() {
-    if (!el.hidden && focusEl && !busy) {
+  let lastRect = '', following = false;
+  function follow() {
+    if (el.hidden) { following = false; lastRect = ''; return; }     // 튜토리얼이 닫히면 멈춤 (매 프레임 돌지 않게)
+    if (focusEl && !busy) {
       const r = focusEl.getBoundingClientRect();
       const key = [r.left, r.top, r.width, r.height].map(v => Math.round(v)).join(',');
       if (key !== lastRect) {
@@ -2654,7 +2779,8 @@ const Tutorial = (() => {
       }
     } else lastRect = '';
     requestAnimationFrame(follow);
-  })();
+  }
+  const startFollow = () => { if (!following) { following = true; requestAnimationFrame(follow); } };
 
   // 튜토리얼 중에는 안내창과 강조된 곳만 누를 수 있음 (나머지 버튼·단축키 차단)
   const allowed = t => card.contains(t) || !!t.closest?.('.lang') || (!el.classList.contains('passive') && focusEl && focusEl.contains(t));
@@ -2679,6 +2805,10 @@ const Tutorial = (() => {
   $('popTutorialBtn').addEventListener('click', () => start('popping'));
   $('retTutorialBtn').addEventListener('click', () => start('return'));
   $('snTutorialBtn').addEventListener('click', () => start('snipe'));
+  $('mfTutorialBtn').addEventListener('click', () => start('macro'));
+  document.querySelectorAll('[data-feat-tut]').forEach(b => b.addEventListener('click', () => {
+    end(); Tutorial.featureOn(b.dataset.featTut, true);
+  }));
 
   // 튜토리얼은 항상 메인 화면에서 시작 (다른 화면이 열려 있으면 먼저 닫음)
   // chain: 자동으로 뜬 경우만 끝난 뒤 남은 튜토리얼로 이어감 ([튜토리얼 보기] 등 직접 연 경우는 그것만)
@@ -2687,6 +2817,7 @@ const Tutorial = (() => {
     chain = autoChain;
     skipped.delete(id);
     tut = TUTORIALS.find(t => t.id === id) || TUTORIALS[0];
+    if (id.startsWith('feat_')) { tut.steps = featSteps(id.slice(5)); resolveRefs(tut); }
     STEPS = tut.steps;
     // 색 테마: 그 기능 버튼의 색으로
     el.style.setProperty('--tc', [...MENU, SNIPE_ENTRY].find(m => m.key === tut.menu)?.color || 'var(--accent)');
@@ -2707,10 +2838,18 @@ const Tutorial = (() => {
       if (first) start(first.id, true);
     },
     isOpen: () => !el.hidden,
-    // 화면이 다시 그려졌거나(위치 지정 후) 필수 값이 바뀌었을 때: 강조 대상·[다음] 상태 갱신
+    // 기능을 켰을 때: 그 기능에 비어 있는 설정이 있으면 맞춤 튜토리얼 (force: 다 돼 있어도 보기)
+    featureOn(k, force) {
+      if (!FEAT_REQ[k]) return;
+      if (!el.hidden && tut.id === 'macro') { markDone('macro'); end(); }
+      else if (!el.hidden) return;
+      if (force || featMissing(k).some(r => !REQ[r].optional)) start('feat_' + k);
+    },
+    // 화면이 다시 그려졌거나(위치 지정 후) 필수 값이 바뀌었을 때: 강조 대상·[다음] 상태 갱신 · 끝난 단계면 다음으로
     refresh() {
-      if (el.hidden || i < 0) return;
+      if (el.hidden || i < 0 || busy) return;
       const s = STEPS[i];
+      if (s.done && s.done() && i < STEPS.length - 1) return show(i + 1);
       if (s.target) focusEl = s.target();
       updateReq();
       place();

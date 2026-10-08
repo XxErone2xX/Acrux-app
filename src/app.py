@@ -621,7 +621,8 @@ class Bridge:
         if not macro.roblox_window_cached(1.0):
             return                          # 옛 로그 파일 (로블록스가 꺼져 있음)
         # 레어 바이옴이 먼저 — 아이템 사용 · 상인 구매가 화면을 쓰는 중이면 멈추고 끝난 뒤 팝핑 (같이 클릭하면 꼬임)
-        others = [f for f in (self.items, self.merchant, self.crafter) if (f.buying() if f is self.merchant else f.running())]
+        others = [f for f in (self.items, self.merchant, self.crafter, self.matcher)
+                  if (f.buying() if f is self.merchant else f.running())]
         if not others:
             self.mpop.start(found)
             return
@@ -1522,7 +1523,9 @@ class Bridge:
             text = macro.notice_check(sct, rect, region, ("crafted", "crofted"), color="blue", min_ratio=0.006)
         name = crafter.crafted_name(text) if text else None
         if name and time.time() - self.craft_seen.get(name, 0) > 60:
-            self.craft_seen[name] = time.time()
+            now = time.time()
+            self.craft_seen = {k: t for k, t in self.craft_seen.items() if now - t < 600}   # 오래된 기록은 버림
+            self.craft_seen[name] = now
             self.craft_pending = (name, time.time())
             self._on_log(f"Auto Crafted 알림 — {name}", "g")
 
