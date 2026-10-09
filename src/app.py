@@ -1781,6 +1781,26 @@ class Bridge:
         self._on_log("메모리 매치 자동 보정 완료" + (" · " + " · ".join(notes) if notes else ""), "g")
         return {"mmatch": self.data.get("mmatch"), "notes": notes}
 
+    def api_mmatch_boardcal(self, _):
+        """카드 판 자동 보정: 메모리 매치 카드 판이 떠 있을 때 누르면 카드 20장 · 남은 기회 · Close 자리를 글자로 재서 저장"""
+        if self.matcher.running():
+            return {"error": "오토 메모리 매치가 도는 중 — 멈춘 뒤 눌러주세요"}
+        hwnd = macro.roblox_window_cached(1.0)
+        rect = macro.client_rect(hwnd) if hwnd else None
+        if not rect:
+            return {"error": "로블록스 창 없음"}
+        try:
+            macro.focus(hwnd, wait=0.3)
+            found = memmatch.board_autocal(lambda r: macro.ocr_boxes(r), macro.client_rect(hwnd))
+        except Exception as e:
+            self._on_log(f"카드 판 자동 보정 실패: {e}", "n")
+            return {"error": f"카드 판 자동 보정 실패: {e}"}
+        with self.lock:
+            self.data.setdefault("mmatch", {}).update(found)
+        self._save()
+        self._on_log("카드 판 자동 보정 완료", "g")
+        return {"mmatch": self.data.get("mmatch")}
+
     def api_mmatch_test(self, _):
         """메모리 매치 테스트: 지금 자리에서 (메모리 매치 보드 앞) E → 확인 → 할 수 있으면 짝 맞추기"""
         if self.matcher.running() or self.mover.running():

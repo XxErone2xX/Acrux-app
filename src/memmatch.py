@@ -28,6 +28,7 @@ CARD_Y0, CARD_DY = 94, 121.3          # 첫 칸 세로(카드 가운데) · 줄 
 CARD_W, CARD_H = 84, 92               # 카드 (테두리 안쪽)
 TEXT_DY, TEXT_W, TEXT_H = 38, 104, 34  # 카드 가운데 → 개수 글자 · 글자 영역 크기
 CLOSE_DY = 549                        # 제목 → 게임이 끝나면 뜨는 Close 버튼
+CHANCE_X, CHANCE_Y, CHANCE_W, CHANCE_H = -288, 74, 110, 66   # 제목 → 남은 기회 숫자 (가운데 · 크기)
 # 알림 창 ('Notification' 제목 가운데 기준 px · 1080p)
 NOTE_CLOSE = (271, -3)                # 오른쪽 위 X
 NOTE_BTN_DY = 157                     # 제목 → Start Memory Match / Available after 버튼
@@ -75,7 +76,11 @@ def board_at(tx, ty, k, rect):
             cboxes.append(_r(rect, x - CARD_W * k / 2, y - CARD_H * k / 2) + _r(rect, x + CARD_W * k / 2, y + CARD_H * k / 2))
             texts.append(_r(rect, x - TEXT_W * k / 2, y + (TEXT_DY - TEXT_H / 2) * k)
                          + _r(rect, x + TEXT_W * k / 2, y + (TEXT_DY + TEXT_H / 2) * k))
-    return {"cards": cards, "boxes": cboxes, "texts": texts, "close_pos": _r(rect, tx, ty + CLOSE_DY * k)}
+    return {"cards": cards, "boxes": cboxes, "texts": texts, "close_pos": _r(rect, tx, ty + CLOSE_DY * k),
+            "title": _r(rect, tx, ty), "k": round(k * 1080 / rect[3], 4),
+            # 왼쪽 큰 숫자 (남은 기회 · CHANCES 위)
+            "chances": _r(rect, tx + (CHANCE_X - CHANCE_W / 2) * k, ty + (CHANCE_Y - CHANCE_H / 2) * k)
+            + _r(rect, tx + (CHANCE_X + CHANCE_W / 2) * k, ty + (CHANCE_Y + CHANCE_H / 2) * k)}
 
 
 def saved_board(cfg, rect):
@@ -169,6 +174,14 @@ def measure(boxes, rect):
             "board_close_pos": _r(rect, hx, hy + (NOTE_BOARD_DY + CLOSE_DY) * k)}, st
 
 
+def board_autocal(ocr, rect):
+    """카드 판 자동 보정 — 메모리 매치 카드 판이 떠 있을 때: 제목 · CHANCES 글자로 카드 20장 · 남은 기회 · Close 자리를 잼"""
+    lay = board_layout(ocr(None), rect)
+    if not lay:
+        raise RuntimeError("카드 판이 안 보임 — 메모리 매치를 시작해서 카드 판이 떠 있을 때 눌러주세요")
+    return {"board_title": lay["title"], "board_k": lay["k"], "board_close_pos": lay["close_pos"], "cal_board": True}
+
+
 def autocal(ocr, click, wait, rect, status, wait_e=120.0):
     """메모리 매치 자동 보정 — 플레이어가 보드 앞에서 E 를 직접 누르면 알림 창을 글자로 재서 자리를 저장하고 창을 닫음
     (Start · 광고는 안 누름) → ({키: 값}, 알림 글)"""
@@ -244,6 +257,24 @@ def card_img(box, rect):
     x2, y2 = macro.to_screen(box[2], box[3], rect)
     data, w, h = macro.grab((x1, y1, max(4, x2 - x1), max(4, y2 - y1)))
     return np.frombuffer(data, np.uint8).reshape(h, w, 4)[:, :, :3]
+
+
+def card_feat(img):
+    """카드 앞면 → (그림의 밝은 부분 평균 색, 그 비율) — 카드 뒷배경 무늬는 빼고 아이템 그림만 (위쪽 62%)
+    같은 아이템이면 거의 같음 (동전 = 흰색 · 물약 = 파랑 / 연두 / 진초록 · 수정 = 보라 / 청록)"""
+    import numpy as np
+    h, w = img.shape[:2]
+    ic = img[int(h * 0.08):max(int(h * 0.08) + 1, int(h * 0.62)), int(w * 0.15):max(int(w * 0.15) + 1, int(w * 0.85))]
+    ic = ic.reshape(-1, 3).astype(np.float32)
+    m = ic.max(axis=1) > 90
+    return (ic[m].mean(axis=0) if m.any() else None), float(m.mean())
+
+
+def same_feat(a, b):
+    import numpy as np
+    if a is None or b is None or a[0] is None or b[0] is None:
+        return False
+    return float(np.abs(a[0] - b[0]).max()) < 28 and abs(a[1] - b[1]) < 0.12
 
 
 def card_sig(img):
@@ -492,7 +523,10 @@ class Matcher(popping.Popper):
             st = cur
             self.log(f"{self.LABEL} — 시작 버튼이 안 눌림 · 다시 누름 ({n + 2}/3)", "d")
             self._wait(1.0, stop)
-        lay = lay or saved_board(self.get_mcfg() or {}, self._rect(stop))
+        c = self.get_mcfg() or {}
+        if lay and c.get("cal_board"):                       # 카드 판을 자동 보정했으면 그 자리를 씀
+            lay = saved_board(c, self._rect(stop)) or lay
+        lay = lay or saved_board(c, self._rect(stop))
         # 판이 새로 깔릴 때까지: 최소 5.5초 + 카드가 전부 뒷면 (바로 뒤엔 지난 판이 그대로 보일 수 있음 · 최대 30초)
         self._set(msg="카드 판 준비 확인 중")
         self._wait(max(0.0, READY_MIN - (time.time() - t0)), stop)
@@ -575,31 +609,69 @@ class Matcher(popping.Popper):
         ref = (np.median([g[0] for g in sigs], axis=0), np.median([g[1] for g in sigs], axis=0))
         return all(sig_diff(g, ref) < 8 and green_ratio_sig(g) for g in sigs)
 
+    def _press_card(self, lay, i, stop):
+        """카드 누르기 — 근처로 옮겼다가 0.1초 꾹 (스크립트 매크로와 같은 누름 시간 · 짧게 누르면 씹힐 때가 있음)"""
+        rect = self._rect(stop)
+        x, y = macro.to_screen(lay["cards"][i][0], lay["cards"][i][1], rect)
+        macro.move_to(x + 4, y + 4)
+        self._wait(0.05, stop)
+        macro.click(x, y, hold_ms=100)
+
+    def _ocr_digits(self, box, stop, scale=1, pad=0):
+        """창 비율 영역 → 그 안의 숫자 (키우기 · 둘레 여백을 붙여 읽음 — 큰 글씨 하나만 있으면 여백이 있어야 읽힘)"""
+        try:
+            import cv2
+            import numpy as np
+            rect = self._rect(stop)
+            x1, y1 = macro.to_screen(box[0], box[1], rect)
+            x2, y2 = macro.to_screen(box[2], box[3], rect)
+            data, w, h = macro.grab((x1, y1, max(4, x2 - x1), max(4, y2 - y1)))
+            img = np.frombuffer(data, np.uint8).reshape(h, w, 4)
+            if scale != 1:
+                img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_CUBIC)
+            if pad:
+                img = cv2.copyMakeBorder(img, pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=(30, 30, 30, 255))
+            img = np.ascontiguousarray(img)
+            return digits(macro.ocr_bgra(img.tobytes(), img.shape[1], img.shape[0]))
+        except Exception:
+            return ""
+
+    def _digits(self, lay, i, stop):
+        """카드 아래 개수 글자 → 숫자 (작은 글자라 3배로 키워서 읽음) · 못 읽으면 ''"""
+        return self._ocr_digits(lay["texts"][i], stop, scale=3, pad=12)
+
+    def _read_chances(self, lay, stop):
+        """왼쪽 큰 숫자 (남은 기회) → 0~10 또는 None"""
+        d = self._ocr_digits(lay["chances"], stop, pad=30) if lay.get("chances") else ""
+        return int(d) if d and int(d) <= 10 else None
+
     def _reveal(self, lay, i, hidden, stop):
-        """카드를 눌러 앞면을 읽음 → (그림 서명, 개수 글자)"""
-        c = self.get_mcfg() or {}
-        self._click(lay["cards"][i], stop)
-        self._wait(float(c.get("flip_wait", 0.35)), stop)
-        prev, sig, end = None, None, time.time() + 2.5
-        while time.time() < end:
-            s = card_sig(self._grab(lay, i, stop))
-            if sig_diff(s, hidden[i]) > 12 and prev is not None and sig_diff(s, prev) < 4:
-                sig = s                              # 뒤집히는 애니메이션이 끝나 그림이 멈춤
+        """카드를 눌러 앞면을 읽음 → (그림 특징, 개수 글자) · 안 뒤집히면(클릭이 씹힘) 한 번 더 누름"""
+        self._press_card(lay, i, stop)
+        t0, pressed, prev, got = time.time(), 1, None, None
+        while time.time() - t0 < 3.5:
+            self._wait(0.1, stop)
+            img = self._grab(lay, i, stop)
+            s = card_sig(img)
+            if sig_diff(s, hidden[i]) <= 12:                 # 아직 뒷면
+                prev = None
+                if time.time() - t0 > 1.0 * pressed and pressed < 3:   # 1초가 지나도 그대로 → 다시 누름 (최대 3번)
+                    self._press_card(lay, i, stop)
+                    pressed += 1
+                continue
+            if prev is not None and sig_diff(s, prev) < 4:  # 뒤집히는 애니메이션(흰 번쩍임)이 끝나 그림이 멈춤
+                got = img
                 break
             prev = s
-            self._wait(0.12, stop)
-        sig = sig or prev
-        try:
-            txt = " ".join(b[0] for b in macro.ocr_boxes(lay["texts"][i]))
-        except Exception:
-            txt = ""
-        return sig, digits(txt)
+        if got is None:
+            return None
+        return card_feat(got), self._digits(lay, i, stop)
 
     @staticmethod
     def _same(a, b):
-        if not (a and b and a[0] is not None and b[0] is not None):
+        if not (a and b):
             return False
-        return same_icon(a[0], b[0]) and (a[1] == b[1] or not a[1] or not b[1])
+        return same_feat(a[0], b[0]) and (a[1] == b[1] or not a[1] or not b[1])
 
     def _settle(self, lay, pair, hidden, stop):
         """두 장을 뒤집은 뒤: 맞으면 초록 · 틀리면 다시 뒷면이 될 때까지 → 맞았으면 True"""
@@ -614,48 +686,67 @@ class Matcher(popping.Popper):
         return False
 
     def _play(self, lay, stop):
+        """스크립트 매크로와 같은 방식:
+        이미 아는 두 장이 같으면 그 두 장 → 아니면 안 뒤집은 카드 하나 → 그게 아는 카드와 같으면 그 카드 · 아니면 안 뒤집은 카드 하나 더
+        뒤집은 카드는 전부 기억 (틀려서 다시 덮여도) · 맞춘 카드(초록)는 다시 안 누름 · 기회가 0 이 되면 끝"""
         n = len(lay["cards"])
         self._wait(1.0, stop)
         hidden = {i: card_sig(self._grab(lay, i, stop)) for i in range(n)}
-        known, done, chances = {}, set(), 10
-        bad = set()                                  # 짝이라고 봤는데 아니었던 두 장 (다시 안 고름)
-        while chances > 0 and len(done) < n:
-            for i in range(n):                      # 이미 맞춘 카드 (초록)
+        known, done, bad = {}, set(), set()
+        chances, start, stuck = 10, time.time(), 0
+        while time.time() - start < 600:
+            for i in range(n):                              # 맞춘 카드 (초록)
                 if i not in done and green_ratio(self._grab(lay, i, stop)) > 0.5:
                     done.add(i)
                     known.pop(i, None)
-            if len(done) >= n:
+            seen = self._read_chances(lay, stop)
+            if seen is not None and abs(seen - chances) <= 1:  # 화면 숫자로 맞춤 (잘못 읽은 건 무시 — 세던 값과 1 넘게 다르면)
+                chances = seen
+            if chances <= 0 or len(done) >= n:
                 break
+            self._set(msg=f"카드 짝 맞추기 · 남은 기회 {chances} · 맞춤 {len(done) // 2}")
+            self._wait(0.3, stop)
             pair = next(((a, b) for a in known for b in known
                          if a < b and (a, b) not in bad and self._same(known[a], known[b])), None)
-            self._set(msg=f"카드 짝 맞추기 · 남은 기회 {chances}")
-            if pair:
-                for i in pair:
-                    self._click(lay["cards"][i], stop)
-                    self._wait(0.5, stop)
+            flipped = True
+            if pair:                                        # 이미 아는 짝 (뒤집혔는지 확인하며 하나씩)
+                flipped = self._reveal(lay, pair[0], hidden, stop) is not None \
+                    and self._reveal(lay, pair[1], hidden, stop) is not None
             else:
                 unknown = [i for i in range(n) if i not in done and i not in known]
                 if not unknown:
                     break
                 a = random.choice(unknown)
-                known[a] = self._reveal(lay, a, hidden, stop)
+                ra = self._reveal(lay, a, hidden, stop)
+                if ra is None:                              # 세 번 눌러도 안 뒤집힘
+                    stuck += 1
+                    if stuck >= 3:                          # 계속 안 뒤집힘 → 그 판은 끝난 것
+                        self.log(f"{self.LABEL} — 카드가 안 뒤집힘 · 판 끝으로 봄", "y")
+                        break
+                    continue
+                stuck = 0
+                known[a] = ra
                 b = next((j for j in known if j != a and (min(a, j), max(a, j)) not in bad
                           and self._same(known[a], known[j])), None)
-                if b is not None:
-                    self._click(lay["cards"][b], stop)
-                    self._wait(0.5, stop)
+                if b is not None:                           # 방금 뒤집은 카드의 짝을 앎
+                    flipped = self._reveal(lay, b, hidden, stop) is not None
                 else:
-                    rest = [i for i in unknown if i != a] or [j for j in known if j != a]
+                    rest = [i for i in unknown if i != a] or [j for j in known if j != a and j not in done]
                     if not rest:
                         break
                     b = random.choice(rest)
-                    known[b] = self._reveal(lay, b, hidden, stop)
+                    rb = self._reveal(lay, b, hidden, stop)
+                    flipped = rb is not None
+                    if rb is not None:
+                        known[b] = rb
                 pair = (a, b)
-            if self._settle(lay, pair, hidden, stop):         # 맞추면 기회가 안 줄어듦
+            if self._settle(lay, pair, hidden, stop):        # 맞추면 기회가 안 줄어듦
                 for i in pair:
                     done.add(i)
                     known.pop(i, None)
-            else:
+            elif flipped:
                 chances -= 1
                 bad.add((min(pair), max(pair)))
-            self._wait(0.3, stop)
+                self._wait(0.8, stop)                       # 다시 덮이는 애니메이션이 끝날 때까지
+            else:
+                self._wait(1.0, stop)
