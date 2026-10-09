@@ -1,7 +1,7 @@
-## Acrux macro V2.0.12 업데이트
-- 오토 메모리 매치: 'Available after Ready!' 를 시작 버튼으로 잘못 보고 눌러서, 판이 안 뜨자 그냥 끝내던 문제 수정 → 창을 닫고 E 로 새로고침해서 Start Memory Match 가 뜨면 시작 (최대 3번)
-- 오토 메모리 매치: 광고를 본 뒤 · 메모리 매치를 한 뒤에는 떠 있는 창을 X 로 닫고 E 로 다시 열어서(새로고침) 바뀐 상태를 읽음 · 창이 뜬 뒤 조금 기다렸다가 한 번 더 읽음 (스크립트 매크로와 같은 방식)
+## Acrux macro V2.0.13 업데이트
+- 오토 메모리 매치: 'Available after Ready!' 도 시작 버튼으로 바로 누름 (V2.0.12 에서 새로고침하던 것 되돌림)
+- 오토 메모리 매치: 시작 버튼이 안 눌려서 그냥 끝나던 문제 수정 → 창이 뜨고 조금 기다렸다가 누르고, 카드 판이 안 뜨고 창이 그대로면 다시 누름 (최대 3번)
 
-## Acrux macro V2.0.12 Update
-- Auto memory match: fixed 'Available after Ready!' being taken for the start button, clicked, and the run ending when no board appeared → it now closes the window and refreshes with E until Start Memory Match shows (up to 3 times)
-- Auto memory match: after watching an ad and after playing, the open window is closed with X and reopened with E (refresh) before reading the new state · it waits a moment after the window opens and reads it once more (same as the script macro)
+## Acrux macro V2.0.13 Update
+- Auto memory match: 'Available after Ready!' is pressed right away as the start button (reverts the V2.0.12 refresh)
+- Auto memory match: fixed the run ending because the start button press didn't register → it waits a moment after the window opens, presses, and presses again if the board doesn't appear while the window is still there (up to 3 times)

@@ -123,9 +123,8 @@ def notice_state(boxes, rect):
     k0 = H / 1080
     head = next((b for b in boxes if is_head(b[0])), None)
     starts = [b for b in boxes if sell._norm(b[0]).endswith("tortmemorymotch")]
-    # 'Available after Ready!' · 'Available for Ready!' = 쿨타임은 끝났는데 창이 아직 새로고침 안 됨
-    # (이 글자를 눌러도 시작이 안 됨 → 창을 닫고 E 로 다시 열면 Start Memory Match 가 뜸)
-    ready = next((b for b in boxes if "ovolloble" in sell._norm(b[0]) and "reody" in sell._norm(b[0])), None)
+    # 'Available after Ready!' · 'Available for Ready!' 도 시작 버튼 (Start Memory Match 와 같은 자리)
+    starts += [b for b in boxes if "ovolloble" in sell._norm(b[0]) and "reody" in sell._norm(b[0])]
     starts.sort(key=lambda b: b[2])
     avail = next((b for b in boxes if "fter" in b[0].lower() and parse_wait(b[0]) is not None), None)
     ad = next((b for b in boxes if is_ad_text(b[0])), None)
@@ -136,8 +135,8 @@ def notice_state(boxes, rect):
         starts = [b for b in starts if 0 <= (ad[2] - b[2]) * H < 100 * k0]
     if not head and not ad and len(starts) > 1:
         starts = [max(starts, key=lambda b: b[2])]
-    btn = None if (avail or ready) else (starts[-1] if starts else None)    # 남은 시간 · Ready 가 보이면 아직 못 누름
-    low = btn or avail or ready
+    btn = None if avail else (starts[-1] if starts else None)    # 남은 시간이 보이면 아직 못 함
+    low = btn or avail
     if not low:
         return None
     if head:
@@ -153,8 +152,6 @@ def notice_state(boxes, rect):
             "k": k, "head_xy": (hx, hy)}
     if btn:
         return dict(base, kind="start")
-    if ready and not avail:
-        return dict(base, kind="ready")
     return dict(base, kind="wait", sec=parse_wait(avail[0]))
 
 
@@ -426,22 +423,8 @@ class Matcher(popping.Popper):
             self.log(f"{self.LABEL} — 메모리 매치 창이 안 뜸 (메모리 매치 장소 확인) · 10분 뒤 다시", "y")
             self.next_at = time.time() + 600
             return
-        ads = ad_fail = ready = 0
+        ads = ad_fail = 0
         for _ in range(ROUND_MAX):
-            if st["kind"] == "ready":                       # 쿨타임은 끝났는데 창이 아직 'Available after Ready!'
-                ready += 1
-                if ready <= 3:
-                    self._set(msg="창 새로고침 (Ready)")
-                    self.log(f"{self.LABEL} — Available after Ready · 창을 닫고 E 로 새로고침 ({ready}/3)", "d")
-                    st = self._refresh(stop, settle=2.0 + ready * 1.5)
-                    if not st:
-                        self.next_at = time.time() + 600
-                        return
-                    continue
-                self.log(f"{self.LABEL} — 새로고침해도 계속 Ready · 1분 뒤 다시 확인", "y")
-                self.next_at = time.time() + 60
-                self._close_notice(st, stop)
-                break
             if st["kind"] == "start":                       # 할 수 있으면 광고보다 먼저
                 if not self._play_round(st, stop):
                     return
@@ -464,12 +447,12 @@ class Matcher(popping.Popper):
                     self.log(f"{self.LABEL} — 광고 뒤에 메모리 매치 창이 안 뜸 · 10분 뒤 다시", "y")
                     self.next_at = time.time() + 600
                     return
-                got = nxt["kind"] in ("start", "ready") or (before is not None and nxt.get("sec") is not None
+                got = nxt["kind"] == "start" or (before is not None and nxt.get("sec") is not None
                                                  and nxt["sec"] < before - 1800)
                 if got:
                     ad_fail = 0
                     self.ads += 1
-                    left = "지금 할 수 있음" if nxt["kind"] in ("start", "ready") else \
+                    left = "지금 할 수 있음" if nxt["kind"] == "start" else \
                         f"남은 쿨타임 {nxt['sec'] // 3600}시간 {nxt['sec'] % 3600 // 60}분"
                     self.log(f"{self.LABEL} — 광고 보상 받음 · {left}", "g")
                 else:
@@ -492,12 +475,23 @@ class Matcher(popping.Popper):
     def _play_round(self, st, stop):
         """Start Memory Match → 카드 짝 맞추기 → Close · 판이 안 보이면 False"""
         self._set(msg="Start Memory Match")
-        self._click(st["pos"], stop)
-        t0 = time.time()
-        lay, end = None, t0 + 12
-        while not lay and time.time() < end:
-            self._wait(0.5, stop)
-            lay = board_layout(macro.ocr_boxes(None), self._rect(stop))
+        self._wait(1.5, stop)                                # 창이 뜨고 버튼이 눌리게 될 때까지 (스크립트 매크로는 E 뒤 4.5초)
+        lay, t0 = None, time.time()
+        for n in range(3):
+            # 시작 버튼 (Start Memory Match · Available after Ready!) — 안 눌렸으면(판이 안 뜨고 창이 그대로) 다시 누름
+            self._click(st["pos"], stop)
+            t0, end = time.time(), time.time() + 5
+            while not lay and time.time() < end:
+                self._wait(0.5, stop)
+                lay = board_layout(macro.ocr_boxes(None), self._rect(stop))
+            if lay:
+                break
+            cur = self._read_notice(stop)
+            if not cur or cur["kind"] != "start":
+                break
+            st = cur
+            self.log(f"{self.LABEL} — 시작 버튼이 안 눌림 · 다시 누름 ({n + 2}/3)", "d")
+            self._wait(1.0, stop)
         lay = lay or saved_board(self.get_mcfg() or {}, self._rect(stop))
         # 판이 새로 깔릴 때까지: 최소 5.5초 + 카드가 전부 뒷면 (바로 뒤엔 지난 판이 그대로 보일 수 있음 · 최대 30초)
         self._set(msg="카드 판 준비 확인 중")
