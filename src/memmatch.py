@@ -584,7 +584,15 @@ class Matcher(popping.Popper):
                 break
             self._wait(0.5, stop)
         self._wait(1.0, stop)                                # Close 가 뜨고 1초 뒤 (스크립트 매크로와 같음)
-        self._click(close, stop)
+        for _ in range(3):                                   # Close → 카드 판이 닫혔는지 확인 (안 닫혔으면 다시)
+            self._click(close, stop)
+            self._wait(1.0, stop)
+            boxes = macro.ocr_boxes(None)
+            b = next((b for b in boxes if sell._norm(b[0]) in ("close", "c1ose", "lose")), None)
+            if not b and not board_layout(boxes, self._rect(stop)):
+                break
+            if b:
+                close = [b[1], b[2]]                         # 보정한 자리가 어긋났으면 글자 자리로
         self.log(f"{self.LABEL} — 한 판 끝", "g")
         return True
 
@@ -727,13 +735,25 @@ class Matcher(popping.Popper):
         hidden = {i: card_sig(self._grab(lay, i, stop)) for i in range(n)}
         known, done, bad = {}, set(), set()
         chances, start, stuck = 10, time.time(), 0
+        zero = 0
         while time.time() - start < 600:
-            for i in range(n):                              # 맞춘 카드 (초록)
-                if i not in done and green_ratio(self._grab(lay, i, stop)) > 0.5:
+            up = 0
+            for i in range(n):                              # 맞춘 카드 (초록) · 앞면인 카드
+                if i in done:
+                    continue
+                img = self._grab(lay, i, stop)
+                if green_ratio(img) > 0.5:
                     done.add(i)
                     known.pop(i, None)
+                elif sig_diff(card_sig(img), hidden[i]) > 12:
+                    up += 1
+            # 게임이 끝나면 남은 카드가 전부 앞면으로 공개됨 (평소엔 이 시점에 앞면인 카드가 없음) → 판 끝
+            if up >= 3:
+                self.log(f"{self.LABEL} — 카드가 전부 공개됨 · 판 끝", "d")
+                break
             seen = self._read_chances(lay, stop)
-            if seen is not None and abs(seen - chances) <= 1:  # 화면 숫자로 맞춤 (잘못 읽은 건 무시 — 세던 값과 1 넘게 다르면)
+            zero = zero + 1 if seen == 0 else 0
+            if seen is not None and (abs(seen - chances) <= 1 or zero >= 2):   # 화면 숫자로 맞춤 (0 은 두 번 연속이면 믿음)
                 chances = seen
             if chances <= 0 or len(done) >= n:
                 break

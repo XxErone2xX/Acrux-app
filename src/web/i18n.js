@@ -430,6 +430,7 @@ const I18N = (() => {
     ['카드 판이 안 보임 — 메모리 매치를 시작해서 카드 판이 떠 있을 때 눌러주세요', 'Card board not visible — press while a memory match card board is open', 'カード盤が見えない — メモリーマッチを始めてカード盤が出ているときに押してください'],
     ['메모리 매치를 시작해서 <b>카드 판</b>이 떠 있을 때 <b>자동 보정</b>을 눌러주세요. 카드 20장 · 남은 기회 · Close 자리를 맞춥니다.', 'Click <b>Auto calibrate</b> while a memory match <b>card board</b> is open. It sets the 20 cards, the chances counter and Close.', 'メモリーマッチを始めて<b>カード盤</b>が出ているときに<b>自動補正</b>を押してください。カード20枚・残りチャンス・Close の位置を合わせます。'],
     ['안 해도 글자로 카드 판을 찾습니다. 선택 항목입니다.', 'Without it the board is found by its text. Optional.', 'しなくても文字でカード盤を探します。任意項目です。'],
+    ['오토 메모리 매치 — 카드가 전부 공개됨 · 판 끝', 'Auto memory match — all cards revealed · round over', 'オートメモリーマッチ — カードがすべて公開・終了'],
     ['오토 메모리 매치 — 카드가 안 뒤집힘 · 판 끝으로 봄', 'Auto memory match — cards no longer flip · treating the round as over', 'オートメモリーマッチ — カードがめくれない・終了とみなす'],
     ['안 되거나 직접 지정하고 싶으면 <b>다음</b>을 눌러 하나씩 지정합니다.', "If it doesn't work or you'd rather set them yourself, press <b>Next</b> to set them one by one.", 'うまくいかない場合や自分で指定したい場合は<b>次へ</b>を押して1つずつ指定します。'],
     ['낚시 장소에서 <b>Fish</b> 버튼이 보일 때 <b>자동 보정</b>을 눌러주세요.', 'Click <b>Auto calibrate</b> while the <b>Fish</b> button is visible at the fishing spot.', '釣り場で<b>Fish</b>ボタンが見えているときに<b>自動補正</b>を押してください。'],
