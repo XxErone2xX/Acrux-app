@@ -270,6 +270,17 @@ def card_feat(img):
     return (ic[m].mean(axis=0) if m.any() else None), float(m.mean())
 
 
+def card_back(img):
+    """카드 뒷면인지 — 어두운 바탕(절반 넘게) + 가운데 흰 별"""
+    h, w = img.shape[:2]
+    if h < 6 or w < 6:
+        return False
+    mx, mn = img.max(axis=2), img.min(axis=2)
+    mid = mn[h // 4:3 * h // 4, w // 4:3 * w // 4]
+    white = float((mid > 200).mean())
+    return float((mx < 80).mean()) > 0.4 and 0.01 < white < 0.5
+
+
 def same_feat(a, b):
     import numpy as np
     if a is None or b is None or a[0] is None or b[0] is None:
@@ -507,23 +518,42 @@ class Matcher(popping.Popper):
         """Start Memory Match → 카드 짝 맞추기 → Close · 판이 안 보이면 False"""
         self._set(msg="Start Memory Match")
         self._wait(1.5, stop)                                # 창이 뜨고 버튼이 눌리게 될 때까지 (스크립트 매크로는 E 뒤 4.5초)
+        c = self.get_mcfg() or {}
+        rect = self._rect(stop)
+        # 카드 판 자리 후보: 카드 판 자동 보정값 → 없으면 방금 읽은 알림 창 자리로 계산 (둘 다 화면 가운데 · 같은 크기 비율)
+        hx, hy = st.get("head_xy") or (None, None)
+        est = saved_board(c, rect) if c.get("cal_board") else None
+        if est is None and hx is not None and st.get("k"):
+            est = board_at(hx, hy + NOTE_BOARD_DY * st["k"], st["k"], rect)
         lay, t0 = None, time.time()
         for n in range(3):
             # 시작 버튼 (Start Memory Match · Available after Ready!) — 안 눌렸으면(판이 안 뜨고 창이 그대로) 다시 누름
             self._click(st["pos"], stop)
-            t0, end = time.time(), time.time() + 5
+            t0, end, note = time.time(), time.time() + 6, None
             while not lay and time.time() < end:
                 self._wait(0.5, stop)
-                lay = board_layout(macro.ocr_boxes(None), self._rect(stop))
+                boxes = macro.ocr_boxes(None)
+                lay = board_layout(boxes, self._rect(stop))     # 글자(Memory Match · CHANCES)로 찾음
+                if lay:
+                    break
+                note = notice_state(boxes, self._rect(stop))
+                # 글자로 못 찾아도: 알림 창이 사라졌고 후보 자리에 카드 20장(같은 뒷면)이 보이면 카드 판
+                if note is None and est is not None and self._all_hidden(est, stop):
+                    lay = est
             if lay:
                 break
-            cur = self._read_notice(stop)
-            if not cur or cur["kind"] != "start":
+            if not note or note["kind"] != "start":
                 break
-            st = cur
+            st = dict(note, pos=list(c["note_btn_pos"])) if c.get("note_btn_pos") else note
             self.log(f"{self.LABEL} — 시작 버튼이 안 눌림 · 다시 누름 ({n + 2}/3)", "d")
             self._wait(1.0, stop)
-        c = self.get_mcfg() or {}
+        if not lay and est is not None:
+            # 알림 창은 사라졌는데 판을 아직 못 찾음 → 판이 늦게 뜰 수 있어서 조금 더 봄 (바로 리셋하면 진행 중인 판을 날림)
+            end = time.time() + 15
+            while not lay and time.time() < end:
+                self._wait(0.7, stop)
+                lay = board_layout(macro.ocr_boxes(None), self._rect(stop)) or \
+                    (est if self._all_hidden(est, stop) else None)
         if lay and c.get("cal_board"):                       # 카드 판을 자동 보정했으면 그 자리를 씀
             lay = saved_board(c, self._rect(stop)) or lay
         lay = lay or saved_board(c, self._rect(stop))
@@ -605,7 +635,10 @@ class Matcher(popping.Popper):
     def _all_hidden(self, lay, stop):
         """카드 20장이 전부 같은 뒷면(별)인지 — 새 판이 깔렸는지"""
         import numpy as np
-        sigs = [card_sig(self._grab(lay, i, stop)) for i in range(len(lay["boxes"]))]
+        imgs = [self._grab(lay, i, stop) for i in range(len(lay["boxes"]))]
+        if not all(card_back(im) for im in imgs):           # 카드 뒷면 = 어두운 바탕 + 가운데 흰 별 (게임 화면을 판으로 잘못 보지 않게)
+            return False
+        sigs = [card_sig(im) for im in imgs]
         ref = (np.median([g[0] for g in sigs], axis=0), np.median([g[1] for g in sigs], axis=0))
         return all(sig_diff(g, ref) < 8 and green_ratio_sig(g) for g in sigs)
 
