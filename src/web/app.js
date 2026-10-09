@@ -14,6 +14,30 @@ async function api(name, payload = {}) {
   return r.json();
 }
 
+// ---------------------------------------------------------------- 브라우저 기능 막기
+// 화면이 Edge 앱 창이라, F3 · Ctrl+F(찾기) · Ctrl+P(인쇄) · Ctrl+S(저장) · Ctrl+U(소스) · F5 · Ctrl+R(새로고침) · F12(개발자 도구) ·
+// Ctrl + 휠(확대) · 우클릭 메뉴 · 마우스 뒤로 가기 같은 브라우저 기능이 뜨지 않게 막음
+// (F3 · F6 · F7 은 매크로 단축키라 게임 중에도 자주 눌림 · 입력칸에서는 복사 · 붙여넣기 등 편집 단축키와 우클릭 메뉴는 그대로)
+(function blockBrowserUi() {
+  const editing = t => !!t?.closest?.('input, textarea, select, [contenteditable="true"]');
+  const EDIT_KEYS = new Set(['a', 'c', 'v', 'x', 'z', 'y']);
+  addEventListener('keydown', e => {
+    const k = String(e.key || ''), low = k.toLowerCase();
+    let block = /^F([1-9]|1[0-2])$/.test(k);                       // F1 ~ F12
+    if (e.ctrlKey || e.metaKey) {
+      block = !(EDIT_KEYS.has(low) && !e.altKey && (editing(e.target) || low === 'c'));   // 편집 단축키 · 복사만 허용
+    }
+    if (e.altKey && ['ArrowLeft', 'ArrowRight', 'Home'].includes(k)) block = true;      // 뒤로 · 앞으로 · 홈
+    if (k === 'BrowserBack' || k === 'BrowserForward' || k === 'BrowserRefresh' || k === 'BrowserSearch') block = true;
+    if (block) e.preventDefault();
+  }, true);
+  addEventListener('contextmenu', e => { if (!editing(e.target)) e.preventDefault(); }, true);
+  addEventListener('wheel', e => { if (e.ctrlKey) e.preventDefault(); }, { capture: true, passive: false });
+  for (const type of ['mouseup', 'mousedown', 'auxclick'])                         // 마우스 옆 버튼(뒤로 · 앞으로)
+    addEventListener(type, e => { if (e.button === 3 || e.button === 4) e.preventDefault(); }, true);
+  addEventListener('dragstart', e => { if (!editing(e.target)) e.preventDefault(); }, true);   // 이미지 · 글자 끌어다 놓기
+})();
+
 // ---------------------------------------------------------------- 아이콘 (직접 그린 SVG)
 const ICONS = {
   play: '<svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z" fill="currentColor" stroke="none"/></svg>',

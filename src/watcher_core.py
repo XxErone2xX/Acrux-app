@@ -188,12 +188,23 @@ MCRAFT_DEFAULT = {
     "add_all_pos": None,          # Add Everything
     "craft_pos": None,            # Craft
     "add_close_pos": None,        # Add Ingredients 창 X
+    "cal_shop": False,            # 제작 창 자동 보정을 끝냈는지 (튜토리얼 안내용)
 }
 MMATCH_DEFAULT = {
     # 매크로 탭 · 오토 메모리 매치 — 메모리 매치 장소로 가서 E · 할 수 있으면 카드 짝 맞추기 · 쿨타임이면 남은 시간 뒤에 다시
     "enabled": False,
     "e_wait": 2.0,                # E 누른 뒤 알림 창이 뜰 때까지 (초)
     "flip_wait": 0.35,            # 카드를 누른 뒤 앞면을 읽기까지 (초)
+    # 메모리 매치 창 · 카드 판 위치 (자동 보정 · 직접 지정) — 있으면 그 자리를 누름
+    "note_region": None,          # 알림 창 영역 [x1, y1, x2, y2] (이 영역만 읽음)
+    "note_close_pos": None,       # 알림 창 X
+    "note_btn_pos": None,         # Start Memory Match / Available 버튼
+    "ad_pos": None,               # Watch AD 칸
+    "board_close_pos": None,      # 카드 판 Close
+    "board_title": None,          # 카드 판 제목 'Memory Match' 가운데 (카드 자리 계산 기준)
+    "board_k": None,              # 카드 판 크기 (1080p 대비)
+    "cal_note": False,            # 메모리 매치 창 자동 보정을 한 번이라도 끝냈는지 (튜토리얼 안내용)
+    "cal_board": False,           # 카드 판 자동 보정을 끝냈는지 (끝냈으면 카드 자리를 그 값으로 씀)
 }
 # 상인 아이템
 MERCHANT_ITEMS = {
@@ -209,6 +220,7 @@ MMERCH_DEFAULT = {
     "teleport_wait": 3.0,         # Merchant Teleporter 사용 후 대기 (초)
     "buy": {},                    # {"Mari_Void Coin": 1, ...} — 고른 아이템만 (개수는 Set to Max)
     "auto_cal": True,             # 상점이 열리면 Purchase 글자로 상점 위치를 자동 보정
+    "cal_shop": False,            # 상인 자동 보정(지금 보정)을 끝냈는지 (튜토리얼 안내용)
     "chat_region": None,          # 채팅 글자 영역 [x1, y1, x2, y2]
     "open_pos": None,             # 대화 선택지 Open (글자로 못 찾을 때)
     "first_slot": None,           # 상점 첫 번째 칸
@@ -241,6 +253,8 @@ MFISH_DEFAULT = {
     "sell_max": 100,              # 판매 반복 최대 (클릭이 씹혀 끝없이 도는 것만 막음)
     "debug_log": False,           # 릴링 기록(fishing_log.csv) 저장 — 문제 확인용
     "click_v3": False,            # 클릭 기준을 '구간 왼쪽 변 이하'(목표 0 · 미리 누르기 0)로 바꾼 것 적용했는지 (한 번만)
+    "cal_win": False,             # 낚시 창 자동 보정을 끝냈는지 (튜토리얼 안내용)
+    "cal_sell": False,            # 판매 자동 보정을 끝냈는지 (튜토리얼 안내용)
 }
 POP_BIOMES = ("CYBERSPACE", "GLITCHED", "DREAMSPACE")
 # 기본 템플릿 — 레어 바이옴 자동 팝핑
@@ -533,6 +547,7 @@ def normalize(raw):
         mm[k] = _ratio_list(mm.get(k), 2)
     for k in ("chat_region", "item_region"):
         mm[k] = _ratio_list(mm.get(k), 4)
+    mm["cal_shop"] = bool(mm.get("cal_shop"))
     d["mmerch"] = {k: mm[k] for k in MMERCH_DEFAULT}
     d["mmerch"]["v129"] = True
     mi = dict(MITEM_DEFAULT)
@@ -555,6 +570,7 @@ def normalize(raw):
     for k in ("search_pos", "shop_close_pos", "open_recipe_pos", "add_all_pos", "craft_pos", "add_close_pos"):
         mc[k] = _ratio_list(mc.get(k), 2)
     mc["list_region"] = _ratio_list(mc.get("list_region"), 4)
+    mc["cal_shop"] = bool(mc.get("cal_shop"))
     d["mcraft"] = {k: mc[k] for k in MCRAFT_DEFAULT}
     mt = dict(MMATCH_DEFAULT)
     mt.update(d.get("mmatch") if isinstance(d.get("mmatch"), dict) else {})
@@ -564,6 +580,15 @@ def normalize(raw):
             mt[k] = min(hi, max(lo, float(mt.get(k))))
         except (TypeError, ValueError):
             mt[k] = MMATCH_DEFAULT[k]
+    for k in ("note_close_pos", "note_btn_pos", "ad_pos", "board_close_pos", "board_title"):
+        mt[k] = _ratio_list(mt.get(k), 2)
+    mt["note_region"] = _ratio_list(mt.get("note_region"), 4)
+    try:
+        mt["board_k"] = min(5.0, max(0.2, float(mt["board_k"]))) if mt.get("board_k") is not None else None
+    except (TypeError, ValueError):
+        mt["board_k"] = None
+    for k in ("cal_note", "cal_board"):
+        mt[k] = bool(mt.get(k))
     d["mmatch"] = {k: mt[k] for k in MMATCH_DEFAULT}
     d["macro_on"] = bool(d.get("macro_on"))
     mf = dict(MFISH_DEFAULT)
@@ -598,6 +623,8 @@ def normalize(raw):
         mf["sell_v2"] = True
     mf["cast_retry"] = int(mf["cast_retry"])
     mf["sell_max"] = int(mf["sell_max"])
+    for k in ("cal_win", "cal_sell"):
+        mf[k] = bool(mf.get(k))
     d["mfish"] = {k: mf[k] for k in MFISH_DEFAULT}
     if d.get("ocr_engine") not in ("auto", "rapid", "windows"):
         d["ocr_engine"] = "auto"

@@ -1,11 +1,9 @@
-## Acrux macro V2.0.15 업데이트
-- 오토 메모리 매치: 시작을 누른 뒤 카드 판을 못 찾고 리셋해버려서(진행 중인 판이 날아가고) 다른 기능까지 꼬이던 문제 수정
-  - 카드 판을 글자(Memory Match · CHANCES)로 못 읽어도, 알림 창이 사라졌고 그 자리(알림 창 위치로 계산 · 카드 판 자동 보정값)에 카드 20장 뒷면이 보이면 카드 판으로 봄
-  - 그래도 못 찾으면 바로 리셋하지 않고 15초 더 확인
-  - 카드 뒷면(어두운 바탕 + 흰 별)인지 같이 확인해서 게임 화면을 판으로 잘못 보지 않게 함
+## Acrux macro V2.0.16 업데이트
+- 메모리 매치 위치(알림 창 · 버튼 · 광고 칸 · 카드 판)를 지정하거나 자동 보정해도 저장되지 않던 문제 수정 — 설정을 저장할 때 정리하는 과정에서 이 값들이 지워지고 있었음
+  - 낚시 · 판매 · 상인 · 포션 제작 자동 보정을 끝낸 기록도 같은 이유로 지워져서 튜토리얼이 자동 보정 안내를 계속 띄우던 것도 같이 고침
+- Acrux 화면에서 F3 · Ctrl+F(찾기) · Ctrl+P(인쇄) · Ctrl+S · Ctrl+U · F5 · Ctrl+R · F12 · Ctrl + 휠(확대) · 우클릭 메뉴 · 마우스 뒤로 가기 같은 브라우저 기능이 뜨지 않게 막음 (입력칸의 복사 · 붙여넣기 · 우클릭은 그대로)
 
-## Acrux macro V2.0.15 Update
-- Auto memory match: fixed the board not being found after pressing Start, which reset the character (throwing away the running round) and tangled other features
-  - Even if the board's text (Memory Match · CHANCES) can't be read, it counts as the board once the notification is gone and 20 face-down cards are visible where the board should be (worked out from the notification position, or the card board calibration)
-  - If it still can't find it, it checks for 15 more seconds instead of resetting right away
-  - Face-down cards (dark card + white star) are checked so the game world isn't mistaken for the board
+## Acrux macro V2.0.16 Update
+- Fixed memory match positions (notification · button · ad bar · card board) not being saved after setting them or running auto calibration — they were being dropped when the settings were cleaned up on save
+  - The "auto calibration done" records for fishing, selling, merchant and potion craft were dropped the same way, which kept the tutorial showing the calibration guide — fixed too
+- Browser features no longer pop up in the Acrux window: F3 · Ctrl+F (find) · Ctrl+P (print) · Ctrl+S · Ctrl+U · F5 · Ctrl+R · F12 · Ctrl + wheel (zoom) · right-click menu · mouse back button (copy, paste and right-click still work in text fields)
