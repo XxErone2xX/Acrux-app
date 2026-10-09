@@ -1,7 +1,7 @@
-## Acrux macro V2.0.11 업데이트
-- 오토 메모리 매치: 자동 보정 · 직접 지정한 위치(알림 창 X · Start / Available 버튼 · Watch AD 칸 · 카드 판 Close)가 실제로는 안 쓰이던 문제 수정 → 지정한 위치가 있으면 그 위치를 누름 (글자는 창 상태를 읽는 데만 씀)
-- 자동 낚시 설정 튜토리얼에 알림 영역 단계 추가 (Cannot Fish 알림으로 인벤토리 가득을 바로 알아챔)
+## Acrux macro V2.0.12 업데이트
+- 오토 메모리 매치: 'Available after Ready!' 를 시작 버튼으로 잘못 보고 눌러서, 판이 안 뜨자 그냥 끝내던 문제 수정 → 창을 닫고 E 로 새로고침해서 Start Memory Match 가 뜨면 시작 (최대 3번)
+- 오토 메모리 매치: 광고를 본 뒤 · 메모리 매치를 한 뒤에는 떠 있는 창을 X 로 닫고 E 로 다시 열어서(새로고침) 바뀐 상태를 읽음 · 창이 뜬 뒤 조금 기다렸다가 한 번 더 읽음 (스크립트 매크로와 같은 방식)
 
-## Acrux macro V2.0.11 Update
-- Auto memory match: fixed calibrated / manually set positions (Notification X · Start / Available button · Watch AD bar · card board Close) not actually being used → saved positions are now clicked (the text is only used to read the window state)
-- The auto fishing setup tutorial now includes the notification area step (used to spot "Cannot Fish" right away when the inventory is full)
+## Acrux macro V2.0.12 Update
+- Auto memory match: fixed 'Available after Ready!' being taken for the start button, clicked, and the run ending when no board appeared → it now closes the window and refreshes with E until Start Memory Match shows (up to 3 times)
+- Auto memory match: after watching an ad and after playing, the open window is closed with X and reopened with E (refresh) before reading the new state · it waits a moment after the window opens and reads it once more (same as the script macro)

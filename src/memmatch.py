@@ -123,8 +123,9 @@ def notice_state(boxes, rect):
     k0 = H / 1080
     head = next((b for b in boxes if is_head(b[0])), None)
     starts = [b for b in boxes if sell._norm(b[0]).endswith("tortmemorymotch")]
-    # 'Available for Ready!' · 'Available after Ready!' = 바로 할 수 있음 (버튼 자리 같음)
-    starts += [b for b in boxes if "ovolloble" in sell._norm(b[0]) and "reody" in sell._norm(b[0])]
+    # 'Available after Ready!' · 'Available for Ready!' = 쿨타임은 끝났는데 창이 아직 새로고침 안 됨
+    # (이 글자를 눌러도 시작이 안 됨 → 창을 닫고 E 로 다시 열면 Start Memory Match 가 뜸)
+    ready = next((b for b in boxes if "ovolloble" in sell._norm(b[0]) and "reody" in sell._norm(b[0])), None)
     starts.sort(key=lambda b: b[2])
     avail = next((b for b in boxes if "fter" in b[0].lower() and parse_wait(b[0]) is not None), None)
     ad = next((b for b in boxes if is_ad_text(b[0])), None)
@@ -135,8 +136,8 @@ def notice_state(boxes, rect):
         starts = [b for b in starts if 0 <= (ad[2] - b[2]) * H < 100 * k0]
     if not head and not ad and len(starts) > 1:
         starts = [max(starts, key=lambda b: b[2])]
-    btn = None if avail else (starts[-1] if starts else None)    # 남은 시간이 보이면 아직 못 함
-    low = btn or avail
+    btn = None if (avail or ready) else (starts[-1] if starts else None)    # 남은 시간 · Ready 가 보이면 아직 못 누름
+    low = btn or avail or ready
     if not low:
         return None
     if head:
@@ -152,6 +153,8 @@ def notice_state(boxes, rect):
             "k": k, "head_xy": (hx, hy)}
     if btn:
         return dict(base, kind="start")
+    if ready and not avail:
+        return dict(base, kind="ready")
     return dict(base, kind="wait", sec=parse_wait(avail[0]))
 
 
@@ -339,13 +342,16 @@ class Matcher(popping.Popper):
                 st["ad_pos"] = list(c["ad_pos"])
         return st
 
-    def _notice(self, stop, timeout):
+    def _notice(self, stop, timeout, settle=None):
+        """알림 창이 뜰 때까지 → 뜨면 settle 초 기다렸다가 한 번 더 읽음 (창 내용이 서버에서 늦게 바뀔 수 있어서 마지막 상태)"""
         end = time.time() + timeout
         while True:
             st = self._read_notice(stop)
             if st or time.time() > end:
                 if st:
-                    self._wait(float((self.get_mcfg() or {}).get("click_wait", 1.0)), stop)   # 창이 다 뜰 때까지
+                    wait = float((self.get_mcfg() or {}).get("click_wait", 1.0)) if settle is None else settle
+                    self._wait(wait, stop)
+                    st = self._read_notice(stop) or st
                 return st
             self._wait(0.4, stop)
 
@@ -355,6 +361,24 @@ class Matcher(popping.Popper):
         for _ in range(2):
             macro.key_tap("e")
             st = self._notice(stop, float(c.get("e_wait", 2.0)) + 1.5)
+            if st:
+                return st
+        return None
+
+    def _refresh(self, stop, settle=3.0):
+        """창 새로고침 (광고를 본 뒤 · 메모리 매치를 한 뒤 · Ready 일 때 — 스크립트 매크로처럼):
+        떠 있는 창을 X 로 닫고 → E 로 다시 열고 → 내용이 바뀔 때까지 기다렸다가 읽음"""
+        st = self._read_notice(stop)
+        if st:
+            self._close_notice(st, stop)
+            end = time.time() + 3
+            while time.time() < end and self._read_notice(stop):
+                self._wait(0.4, stop)
+        self._wait(1.0, stop)
+        c = self.get_mcfg() or {}
+        for _ in range(2):
+            macro.key_tap("e")
+            st = self._notice(stop, float(c.get("e_wait", 2.0)) + 1.5, settle=settle)
             if st:
                 return st
         return None
@@ -402,13 +426,27 @@ class Matcher(popping.Popper):
             self.log(f"{self.LABEL} — 메모리 매치 창이 안 뜸 (메모리 매치 장소 확인) · 10분 뒤 다시", "y")
             self.next_at = time.time() + 600
             return
-        ads = ad_fail = 0
+        ads = ad_fail = ready = 0
         for _ in range(ROUND_MAX):
+            if st["kind"] == "ready":                       # 쿨타임은 끝났는데 창이 아직 'Available after Ready!'
+                ready += 1
+                if ready <= 3:
+                    self._set(msg="창 새로고침 (Ready)")
+                    self.log(f"{self.LABEL} — Available after Ready · 창을 닫고 E 로 새로고침 ({ready}/3)", "d")
+                    st = self._refresh(stop, settle=2.0 + ready * 1.5)
+                    if not st:
+                        self.next_at = time.time() + 600
+                        return
+                    continue
+                self.log(f"{self.LABEL} — 새로고침해도 계속 Ready · 1분 뒤 다시 확인", "y")
+                self.next_at = time.time() + 60
+                self._close_notice(st, stop)
+                break
             if st["kind"] == "start":                       # 할 수 있으면 광고보다 먼저
                 if not self._play_round(st, stop):
                     return
                 self._wait(1.5, stop)
-                st = self._open_notice(stop)                 # 메모리 매치를 한 뒤에도 E 를 다시
+                st = self._refresh(stop)                     # 메모리 매치를 한 뒤엔 창을 닫고 E 로 새로고침
                 if not st:
                     self.next_at = time.time() + 600
                     return
@@ -420,18 +458,18 @@ class Matcher(popping.Popper):
                 self.log(f"{self.LABEL} — 광고 보기 ({ads}번째 · 쿨타임 3시간 줄이기)", "c")
                 shown = self._watch_ad(st["ad_pos"], stop)
                 self._check(stop)
-                self._wait(1.5, stop)
-                nxt = self._open_notice(stop)                # 광고 뒤엔 E 를 다시 눌러야 창을 쓸 수 있음
+                self._wait(3.0, stop)                        # 광고가 닫히고 3초 (스크립트 매크로와 같음)
+                nxt = self._refresh(stop)                    # 광고 뒤엔 창을 닫고 E 로 새로고침해야 바뀐 쿨타임이 보임
                 if not nxt:
                     self.log(f"{self.LABEL} — 광고 뒤에 메모리 매치 창이 안 뜸 · 10분 뒤 다시", "y")
                     self.next_at = time.time() + 600
                     return
-                got = nxt["kind"] == "start" or (before is not None and nxt.get("sec") is not None
+                got = nxt["kind"] in ("start", "ready") or (before is not None and nxt.get("sec") is not None
                                                  and nxt["sec"] < before - 1800)
                 if got:
                     ad_fail = 0
                     self.ads += 1
-                    left = "지금 할 수 있음" if nxt["kind"] == "start" else \
+                    left = "지금 할 수 있음" if nxt["kind"] in ("start", "ready") else \
                         f"남은 쿨타임 {nxt['sec'] // 3600}시간 {nxt['sec'] % 3600 // 60}분"
                     self.log(f"{self.LABEL} — 광고 보상 받음 · {left}", "g")
                 else:
