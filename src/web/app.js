@@ -430,19 +430,33 @@ document.addEventListener('keydown', e => {
   stepTab(e.key === 'ArrowLeft' ? -1 : 1);
 });
 
-const REDUCE_MOTION = matchMedia('(prefers-reduced-motion: reduce)');
+// 왼쪽 목록(탭)으로 칸을 바꿀 때: 나가는 칸은 잠깐 겹쳐 둔 채 흐려지며 빠지고,
+// 들어오는 칸은 누른 방향(위 · 아래)에서 줄마다 조금씩 늦게 미끄러져 들어옴 (윈도우 애니메이션 효과 설정과 상관없이)
 function selectSection(page, sec) {
   if (!sec) return;
   const items = [...page.querySelectorAll('.side .item')];
   const from = items.findIndex(i => i.classList.contains('active')), to = items.findIndex(i => i.dataset.sec === sec);
+  const old = page.querySelector('.content .sec.active');
+  const el = page.querySelector(`.content .sec[data-sec="${sec}"]`);
+  const move = !!(el && old && el !== old && from >= 0 && from !== to);
+  // 앞에서 빠지던 칸이 남아 있으면 정리 (빠르게 여러 번 누른 경우)
+  page.querySelectorAll('.content .sec.leaving').forEach(x => {
+    x.getAnimations({ subtree: true }).forEach(a => a.cancel());
+    x.classList.remove('leaving');
+  });
+  if (move) old.classList.add('leaving');
   items.forEach(i => i.classList.toggle('active', i.dataset.sec === sec));
   page.querySelectorAll('.content .sec').forEach(s => s.classList.toggle('active', s.dataset.sec === sec));
-  // 칸을 바꿀 때: 새 칸이 누른 방향(위 · 아래)에서 살짝 미끄러지며 나타남
-  const el = page.querySelector(`.content .sec[data-sec="${sec}"]`);
-  if (el && from >= 0 && from !== to && !REDUCE_MOTION.matches) {
-    el.getAnimations().forEach(a => a.cancel());
-    el.animate([{ opacity: 0, transform: `translateY(${to > from ? 14 : -14}px)` }, { opacity: 1, transform: 'none' }],
-      { duration: 240, easing: 'cubic-bezier(.22, 1, .36, 1)' });
+  if (move) {
+    const d = to > from ? 1 : -1;
+    old.getAnimations({ subtree: true }).forEach(a => a.cancel());
+    const out = old.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translateY(${-d * 12}px)` }],
+      { duration: 120, easing: 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' });
+    out.onfinish = () => { old.classList.remove('leaving'); out.cancel(); };
+    el.getAnimations({ subtree: true }).forEach(a => a.cancel());
+    [...el.children].slice(0, 10).forEach((c, n) => c.animate(
+      [{ opacity: 0, transform: `translateY(${d * 22}px)` }, { opacity: 1, transform: 'none' }],
+      { duration: 380, delay: 100 + n * 45, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'backwards' }));
   }
   if (sec === 'log') scrollLog(true);
   if (typeof Tutorial !== 'undefined') Tutorial.onSection();

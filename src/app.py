@@ -140,10 +140,12 @@ class Bridge:
         # 매크로 복귀: 로블록스 전부 종료 → 1초 → 내 브섭 링크 → Play
         # 스나이핑하는 동안은 매크로(자동 낚시 등)가 쉬고, 내 서버로 돌아오면 입장 후 대기 뒤 다시 켜짐
         self.resume_at = 0.0                # 이 시각 전엔 매크로를 다시 켜지 않음 (복귀 직후 게임이 다 뜰 때까지)
-        self.ret = rejoin.Returner(lambda: self.data.get("ret", {}), self._on_log, self.play,
+        self.ret = rejoin.Returner(self._ret_cfg, self._on_log, self.play,
                                    kill=core.kill_roblox, launch=core.open_link,
                                    before_launch=self.biome.own_next_session)
         self.ret_fails, self.ret_watch = 0, None   # 복귀 Play 실패 횟수 · 복귀 실패 뒤 직접 들어갔는지 보는 로그 감시
+        self.ret_cause = None               # "crash": 로블록스가 꺼져서 하는 복구 (끝나면 하던 대로 · 커스텀 매크로는 안 돌림)
+        self.crash_warned = None            # 자동 복구를 못 하는 이유를 한 번만 알림
         # 커스텀 매크로: [스나이핑이 끝나고 매크로 실행] 이 꺼져 있으면 복귀 후 원래 매크로 대신 이것을 실행
         # custom_hold: 커스텀 매크로 쪽으로 돌아온 뒤 — 원래 매크로는 멈춘 채로 (매크로를 다시 켜거나 토글을 켜면 풀림)
         self.steps = stepmod.StepRunner(lambda: self.data.get("ret", {}).get("steps", []), self._on_log)
@@ -260,10 +262,26 @@ class Bridge:
                     "status": list(self.status),
                     "count": self.handler.count, "version": VERSION}
 
-    # ---------------- 로블록스가 갑자기 꺼짐 (매크로 작동 중) ----------------
-    # 시작 버튼이 켜져 있고, 매크로가 일부러 끈 게 아닌데 로블록스 창이 사라지면:
-    #   오른쪽 아래 알림 + 소리 → 10초 뒤 매크로 복귀. 그 전에 [대기] 를 누르면 일부러 끈 걸로 보고 복귀 안 함
+    # ---------------- 로블록스가 갑자기 꺼짐 (오토 스나이핑 · 매크로 작동 중) ----------------
+    # 오토 스나이핑(시작 버튼)이나 매크로(F3)가 켜져 있고, 매크로가 일부러 끈 게 아닌데 로블록스 창이 사라지면:
+    #   오른쪽 아래 알림 + 소리 → 10초 뒤 자동 복구(매크로 복귀). 그 전에 [대기] 를 누르면 일부러 끈 걸로 보고 복귀 안 함
+    #   복구가 끝나면 하던 대로 (매크로가 켜져 있으면 다시 시작)
     CRASH_WAIT = 10.0
+
+    def _ret_cfg(self):
+        """매크로 복귀 설정 — 내 브섭 링크가 비어 있으면 바이옴 매크로 설정의 브섭 링크를 씀"""
+        r = dict(self.data.get("ret") or {})
+        if not (r.get("ps_link") or "").strip():
+            r["ps_link"] = ((self.data.get("biome") or {}).get("ps_link") or "").strip()
+        return r
+
+    def _recover_missing(self):
+        """자동 복구에 필요한데 비어 있는 설정"""
+        pl = self.data.get("play") or {}
+        miss = [n for n, ok in (("내 브섭 링크 (매크로 복귀 설정)", self._ret_cfg().get("ps_link")),
+                                ("Play 버튼 위치 (오토 팝핑 매크로 설정 → 게임 접속)", pl.get("pos")),
+                                ("Click to skip 버튼 위치 (오토 팝핑 매크로 설정 → 게임 접속)", pl.get("skip_pos"))) if not ok]
+        return miss
 
     def _crash_watch(self):
         seen, gone_since = False, None
@@ -275,6 +293,7 @@ class Bridge:
                     seen, gone_since = False, None
                 now = time.time()
                 present = bool(macro.roblox_window_cached(0.5))
+                active = core.ARMED.is_set() or bool(self.data.get("macro_on"))
                 busy = (self.ret.running() or self.play.running() or self.pop.running() or self.mpop.running()
                         or now < core.EXPECT_CLOSE["until"])
                 if present:
@@ -282,24 +301,33 @@ class Bridge:
                     if self.crash:                     # 다시 켜짐 → 알림 취소
                         self.crash = None
                     continue
-                if not core.ARMED.is_set() or busy:
+                if not active or busy:
                     seen, gone_since = False, None     # 꺼진 상태 · 매크로가 일부러 끄는 중엔 감시 안 함
-                    if self.crash and not core.ARMED.is_set():
+                    if self.crash and not active:
                         self.crash = None
                     continue
                 if self.crash:
                     if now >= self.crash["until"]:
                         self.crash = None
                         seen = False
-                        self._on_log("로블록스가 다시 켜지지 않음 — 매크로 복귀 실행", "y")
+                        self._on_log("로블록스가 다시 켜지지 않음 — 자동 복구 (매크로 복귀) 실행", "y")
+                        self.ret_cause = "crash"
                         self.ret.start("로블록스 꺼짐")
                     continue
                 if not seen:
                     continue
                 gone_since = gone_since or now
                 if now - gone_since >= 1.5:            # 잠깐 사라졌다 다시 뜨는 경우는 무시
+                    miss = self._recover_missing()
+                    if miss:                           # 복구할 방법이 없으면 알림만 (한 번)
+                        seen = False
+                        if self.crash_warned != miss:
+                            self.crash_warned = miss
+                            self._on_log("로블록스가 꺼짐 — 자동 복구 안 함 · 필요한 설정: " + ", ".join(miss), "n")
+                        continue
+                    self.crash_warned = None
                     self.crash = {"until": now + self.CRASH_WAIT}
-                    self._on_log(f"로블록스가 갑자기 꺼짐 — {self.CRASH_WAIT:g}초 뒤 매크로 복귀 (대기를 누르면 취소)", "y")
+                    self._on_log(f"로블록스가 갑자기 꺼짐 — {self.CRASH_WAIT:g}초 뒤 자동 복구 (대기를 누르면 취소)", "y")
                     self._alarm()
             except Exception as e:
                 write_crash(f"crash watch: {e}")
@@ -404,7 +432,7 @@ class Bridge:
         self.matcher.stop()
         self.steps.stop()
         self.ret.stop()
-        self.ret_fails, self.ret_watch = 0, None
+        self.ret_fails, self.ret_watch, self.ret_cause = 0, None, None
         self.biome.mute_next_session()
         self.play.start("서버 접속")
 
@@ -426,6 +454,11 @@ class Bridge:
         wait = float(r.get("start_wait", 7.5))
         self.resume_at = time.time() + wait          # 게임이 다 뜰 때까지 기다렸다가
         self.afk_at = time.time()
+        cause, self.ret_cause = self.ret_cause, None
+        if cause == "crash":                         # 로블록스가 꺼져서 복구함 → 하던 대로 (커스텀 매크로는 다시 안 돌림)
+            on = bool(self.data.get("macro_on")) and not self.custom_hold
+            self._on_log("자동 복구 완료 — 내 서버 입장" + (f" · {wait:g}초 뒤 매크로 다시 시작" if on else ""), "g")
+            return
         if r.get("after_macro", True):
             self.custom_hold = False
             self._on_log(f"{head} · {wait:g}초 뒤 매크로 다시 시작", "g")
@@ -440,6 +473,7 @@ class Bridge:
 
     def _on_play_fail(self, reason):
         if reason == "서버 접속":           # 스나이핑한 서버에 못 들어감 → 복귀
+            self.ret_cause = None
             self.ret.start("접속 실패")
         elif reason == "복귀":              # 내 서버 입장을 확인 못 함 → 다시 복귀 (몇 번까지) · 그래도 안 되면 매크로는 멈춘 채로
             self.ret_fails += 1
@@ -848,6 +882,7 @@ class Bridge:
 
     def _on_pop_end(self, stopped):
         if not stopped:                     # 바이옴 종료·접속 끊김 등으로 끝남 → 복귀 (직접 멈춘 경우 제외)
+            self.ret_cause = None
             self.ret.start("오토 팝핑 종료")
 
     def api_list_windows(self, _):
@@ -897,9 +932,10 @@ class Bridge:
         return {"ok": True}
 
     def api_ret_test(self, _):
-        if not (self.data.get("ret", {}).get("ps_link")):
+        if not self._ret_cfg().get("ps_link"):
             return {"error": "복귀할 브섭 링크 먼저 입력"}
         self.pop.stop()
+        self.ret_cause = None
         return {"ok": self.ret.start("테스트")} if not self.ret.running() else {"error": "이미 복귀 중"}
 
     def api_play_test(self, _):
