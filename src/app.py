@@ -722,11 +722,15 @@ class Bridge:
                 or time.time() < self.resume_at)
         return not busy
 
+    AFK_GAP = 0.8                           # 컴퓨터를 쓰는 중이면 입력이 이만큼 멈춘 틈에 점프 (치던 글자가 로블록스로 안 들어가게)
+    AFK_GAP_WAIT = 20.0                     # 틈을 이만큼 기다려도 안 나면 그냥 점프
+
     def _afk_loop(self):
-        """동작이 끝나고 5분 동안 컴퓨터에 입력이 없으면 로블록스에서 점프(Space) 한 번 → 다시 5분 … (Acrux 를 켜 둔 동안만)
-        사람이 컴퓨터를 쓰는 중이면 안 함 · 다른 창을 보고 있었으면 점프 뒤 그 창으로 돌아감"""
+        """동작이 끝나고 5분이 지나면 로블록스에서 점프(Space) 한 번 → 다시 5분 … (Acrux 를 켜 둔 동안만)
+        컴퓨터를 쓰는 중이어도 점프 · 다른 창을 보고 있었으면 잠깐 로블록스로 갔다가 그 창으로 바로 돌아감
+        로블록스를 직접 하고 있으면(로블록스가 맨 앞 + 입력 있음) 튕길 일이 없어서 안 함"""
         while True:
-            time.sleep(5.0)
+            time.sleep(2.0)
             try:
                 if not (core.ARMED.is_set() or self.data.get("macro_on")):
                     continue
@@ -734,17 +738,25 @@ class Bridge:
                 if not self._afk_idle():
                     self.afk_at = now                # 동작이 끝난 때부터 다시 셈
                     continue
-                if now - self.afk_at < self.AFK_EVERY or macro.idle_seconds() < self.AFK_EVERY:
+                if now - self.afk_at < self.AFK_EVERY:
                     continue
                 hwnd = macro.roblox_window_cached(2.0)
                 if not hwnd:
                     continue
+                if macro.is_foreground(hwnd) and macro.idle_seconds() < self.AFK_EVERY:
+                    self.afk_at = now                # 로블록스를 직접 하는 중
+                    continue
+                end = now + self.AFK_GAP_WAIT        # 키보드 · 마우스 입력이 잠깐 멈춘 틈을 기다림
+                while macro.idle_seconds() < self.AFK_GAP and time.time() < end:
+                    time.sleep(0.05)
+                if not self._afk_idle():
+                    continue
                 back = macro.foreground()
-                macro.focus(hwnd, wait=0.2)
+                macro.focus(hwnd, wait=0.15)
                 if self._afk_idle():                 # 앞으로 가져오는 사이에 다른 동작이 시작됐으면 안 누름
                     macro.key_tap("space", 80)
                     self._on_log("AFK 방지 — 점프 (5분마다 · 20분 튕김 방지)", "d")
-                    time.sleep(0.2)
+                    time.sleep(0.1)
                     macro.focus_back(back)
                 self.afk_at = time.time()
             except Exception as e:
