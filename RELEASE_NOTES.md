@@ -1,5 +1,7 @@
-## Acrux macro V2.2.4 업데이트
-- 칸(탭) 바꾸기 애니메이션 수정: 디스코드 감지 설정처럼 칸 위에 다른 줄(감시 대상)이 있는 화면에서, 나가는 칸이 위로 튀어 올라 그 줄을 덮던 문제 — 이제 나가는 칸은 원래 자리 그대로에서 흐려지며 빠짐
+## Acrux macro V2.2.5 업데이트
+- Singularity: 스나이핑으로 서버에 들어간 뒤 팝핑을 할지 고를 수 있음 (오토 팝핑 매크로 설정 → 팝핑 바이옴 설정 · 기본 꺼짐) — 꺼져 있으면 팝핑 없이 바이옴이 끝날 때까지 서버에 머물렀다가 복귀
+- 디스코드 감지 설정 → 필터의 바이옴 설정에 Singularity 추가
 
-## Acrux macro V2.2.4 Update
-- Fixed the section (tab) switch animation: on screens with a line above the sections (such as the watch list line in Discord detection settings), the outgoing section jumped up and covered that line — it now fades out right where it was
+## Acrux macro V2.2.5 Update
+- Singularity: you can now choose whether to pop after joining a server by sniping (Auto popping macro settings → Popping biome settings · off by default) — while it is off, the macro stays in the server without popping until the biome ends, then returns
+- Added Singularity to the biome filter in Discord detection settings → Filter

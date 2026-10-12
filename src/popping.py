@@ -130,6 +130,7 @@ class SessionBiome:
 
 
 # ---------------------------------------------------------------- 실행기
+STAY_BIOMES = ("SINGULARITY",)   # 팝핑이 꺼져 있어도 바로 돌아가지 않고, 팝핑 없이 바이옴이 끝날 때까지 머무는 바이옴
 BIOME_WAIT_MAX = 1800      # 오토 팝핑 후 바이옴이 끝나길 기다리는 최대 시간 (초) — 넘으면 끝내고 복귀
 
 
@@ -251,6 +252,7 @@ class Popper:
     def _sequence(self, cfg, d, log_path, test_biome, stop):
         templates = cfg.get("templates") or {}
         tracker = SessionBiome(log_path)
+        stay = False                    # 팝핑 없이 바이옴이 끝날 때까지 머묾 (Singularity 팝핑이 꺼져 있을 때)
         if test_biome:
             cur = test_biome
             self.log(f"오토 팝핑 테스트 — {cur} 템플릿", "c")
@@ -258,15 +260,22 @@ class Popper:
             self._set(msg=f"입장 후 대기 {d['after_join']:g}초")
             self._wait(d["after_join"], stop)
             cur = tracker.update()
-            if cur and cur in (cfg.get("biomes_on") or {}) and not cfg["biomes_on"].get(cur):
+            on = cfg.get("biomes_on") or {}
+            tpl = templates.get(cur or "") or {}
+            if cur in STAY_BIOMES and not (on.get(cur) and tpl.get("items")):
+                # Singularity: 팝핑은 고를 수 있음 (기본 꺼짐) — 안 하면 포션 없이 바이옴이 끝날 때까지 서버에 머묾
+                why = "팝핑 바이옴 설정에서 꺼져 있음" if not on.get(cur) else "포션 목록이 비어 있음"
+                self.log(f"{cur.title()} — 팝핑 안 함 ({why}) · 바이옴이 끝날 때까지 머묾", "c")
+                stay = True
+            elif cur and cur in on and not on.get(cur):
                 self.log(f"오토 팝핑 안 함 — {cur} 는 팝핑 바이옴 설정에서 꺼져 있음", "y")
                 return
-            tpl = templates.get(cur or "") or {}
-            if not cur or not tpl.get("items"):
+            elif not cur or not tpl.get("items"):
                 self.log(f"오토 팝핑 안 함 — 현재 바이옴 {cur or '알 수 없음'} (템플릿 없음)", "y")
                 return
-            self.log(f"오토 팝핑 시작 — {cur}", "g")
-        if self._use_template(cfg, d, cur, stop) is None:
+            else:
+                self.log(f"오토 팝핑 시작 — {cur}", "g")
+        if not stay and self._use_template(cfg, d, cur, stop) is None:
             return
 
         if test_biome:

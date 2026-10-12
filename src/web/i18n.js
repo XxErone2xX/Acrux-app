@@ -1096,6 +1096,15 @@ const I18N = (() => {
     ['바이옴 매크로 설정 → 기본 설정에 입력한 링크를 가져옴', 'Copies the link from Biome macro settings → Basic settings', 'バイオームマクロ設定 → 基本設定のリンクを取得'],
     ['가져오기', 'Import', '取り込む'],
     ['내 서버 입장 후 순서대로 실행', 'Runs in order after entering your server', '自分のサーバーに入った後、順番に実行'],
+    // Singularity: 팝핑은 고를 수 있음 (기본 꺼짐)
+    ['켜면 Singularity 서버에 들어가서 포션 사용 · 꺼져 있으면 팝핑 없이 바이옴이 끝날 때까지 머묾 (기본 꺼짐)',
+     'When on, uses potions in Singularity servers · when off, stays without popping until the biome ends (off by default)',
+     'オンにすると Singularity のサーバーでポーションを使用・オフならポッピングせずにバイオームが終わるまで滞在（初期設定はオフ）'],
+    ['Singularity 는 기본으로 꺼져 있고, 꺼져 있으면 팝핑 없이 바이옴이 끝날 때까지 서버에 머뭅니다.',
+     'Singularity is off by default; while it is off, the macro stays in the server without popping until the biome ends.',
+     'Singularity は初期設定でオフで、オフの間はポッピングせずにバイオームが終わるまでサーバーに滞在します。'],
+    ['팝핑 바이옴 설정에서 꺼져 있음', 'off in popping biome settings', 'ポッピングバイオーム設定でオフ'],
+    ['포션 목록이 비어 있음', 'the potion list is empty', 'ポーションリストが空'],
     // 포션 자동 제작 · 제작할 포션 (직접 입력)
     ['매크로가 켜져 있는 동안 Auto Crafted 알림을 확인', 'Checks for Auto Crafted notifications while the macro is on', 'マクロがオンの間、Auto Crafted の通知を確認'],
     ['제작할 포션', 'Potion to craft', '作るポーション'],
@@ -1890,6 +1899,7 @@ const I18N = (() => {
     [/^(\d+)초 동안 게임 입장이 확인되지 않아 Play 클릭 중지$/, 'Not in game after $1s — Play clicking stopped', '$1秒間ゲーム参加を確認できずPlayクリックを停止'],
     [/^매크로 복귀 시작(?: \((.+)\))? — 로블록스 종료$/, g => `Macro return started${opt(g[1], v => ` (${v})`)} — closing Roblox`, g => `マクロ復帰開始${opt(g[1], v => `（${v}）`)} — Robloxを終了`],
     [/^모르는 키: (.*)$/, 'Unknown key: $1', '不明なキー: $1'],
+    [/^(.+) — 팝핑 안 함 \((.+)\) · 바이옴이 끝날 때까지 머묾$/, '$1 — no popping ($2) · staying until the biome ends', '$1 — ポッピングなし（$2）・バイオームが終わるまで滞在'],
     [/^커스텀 매크로 오류: (.*)$/, 'Custom macro error: $1', 'カスタムマクロのエラー: $1'],
     [/^커스텀 매크로 · (.+)$/, g => `Custom macro · ${g[1]}`, g => `カスタムマクロ・${g[1]}`],
     [/^(.+) · ([\d.]+)초 뒤 매크로 다시 시작$/, g => `${g[1]} · macro restarts in ${g[2]} s`, g => `${g[1]}・${g[2]} 秒後にマクロ再開`],

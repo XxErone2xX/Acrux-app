@@ -585,7 +585,7 @@ function bindFields() {
 }
 
 // 바이옴 설정 — 템플릿을 눌러 켜고 끄기, 직접 추가도 가능
-const BIOME_TEMPLATES = ['Cyberspace', 'Glitched', 'Dreamspace'];
+const BIOME_TEMPLATES = ['Cyberspace', 'Glitched', 'Dreamspace', 'Singularity'];
 function renderBiomes() {
   const box = $('biomeChips');
   const sel = config.keywords || [];
@@ -1193,9 +1193,12 @@ function renderPopBiomes() {
   const on = (pop().biomes_on ||= {});
   const box = $('popBiomeForm');
   const label = { CYBERSPACE: 'Cyberspace', GLITCHED: 'Glitched', DREAMSPACE: 'Dreamspace', SINGULARITY: 'Singularity' };
+  // Singularity: 팝핑은 고를 수 있음 (기본 꺼짐) — 꺼져 있으면 들어가서 팝핑 없이 바이옴이 끝날 때까지 머묾
+  const stay = b => b === 'SINGULARITY';
   box.innerHTML = SNIPE_BIOMES.map(b => `
-    <label class="row"><span>${label[b]}<small>켜져 있어야 이 바이옴에서 오토 팝핑 · 포션 목록은 ${label[b]} 탭</small></span>
-      <span class="switch"><input type="checkbox" data-pop-on="${b}" ${on[b] !== false ? 'checked' : ''}><i></i></span></label>`).join('');
+    <label class="row"><span>${label[b]}<small>${stay(b) ? '켜면 Singularity 서버에 들어가서 포션 사용 · 꺼져 있으면 팝핑 없이 바이옴이 끝날 때까지 머묾 (기본 꺼짐)'
+                                                    : `켜져 있어야 이 바이옴에서 오토 팝핑 · 포션 목록은 ${label[b]} 탭`}</small></span>
+      <span class="switch"><input type="checkbox" data-pop-on="${b}" ${(stay(b) ? on[b] === true : on[b] !== false) ? 'checked' : ''}><i></i></span></label>`).join('');
   box.querySelectorAll('[data-pop-on]').forEach(i => i.addEventListener('change', () => {
     on[i.dataset.popOn] = i.checked; savePop();
   }));
@@ -2775,7 +2778,8 @@ const Tutorial = (() => {
              <p class="dim">선택 항목입니다. 기본은 세 바이옴 모두 켜져 있습니다.</p>`,
       done: () => popSec('pop-biomes'), optional: true, skipTo: 'delaySide', needs: 'card' },
     { title: '팝핑할 바이옴을 켜고 꺼주세요',
-      body: `<p>켜진 바이옴에서만 오토 팝핑을 합니다. 꺼진 바이옴에 들어가면 팝핑 없이 바로 매크로 복귀를 합니다.</p>`,
+      body: `<p>켜진 바이옴에서만 오토 팝핑을 합니다. 꺼진 바이옴에 들어가면 팝핑 없이 바로 매크로 복귀를 합니다.</p>
+             <p class="dim">Singularity 는 기본으로 꺼져 있고, 꺼져 있으면 팝핑 없이 바이옴이 끝날 때까지 서버에 머뭅니다.</p>`,
       target: () => $('popBiomeForm'), input: true, optional: true, needs: 'bioSide' },
     // 딜레이 (선택)
     { id: 'delaySide', ...secStep(popPage, 'pop-delay', '오토 팝핑 딜레이 설정'),

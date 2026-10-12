@@ -260,6 +260,7 @@ MFISH_DEFAULT = {
 POP_BIOMES = ("CYBERSPACE", "GLITCHED", "DREAMSPACE")
 STEP_TYPES = ("key", "combo", "click", "wait", "text", "scroll", "run", "focus", "kill")   # 커스텀 매크로 동작 종류
 SNIPE_BIOMES = POP_BIOMES + ("SINGULARITY",)     # 스나이핑(오토 팝핑) 바이옴 — 내 서버 팝핑보다 하나 더
+POP_OFF_DEFAULT = ("SINGULARITY",)                # 팝핑 바이옴 설정에서 기본으로 꺼져 있는 바이옴 (꺼져 있으면 들어가서 팝핑 없이 머묾)
 # 기본 템플릿 — 레어 바이옴 자동 팝핑
 # (처음 한 번만 채워짐 · 이후엔 플레이어가 추가/삭제/순서 변경)
 _STD = [("Warp Potion", 1), ("Oblivion Potion", "ALL"), ("Godlike Potion", "ALL"),
@@ -431,6 +432,9 @@ def normalize(raw):
                 pass
     pop["delays"] = dl
     pop["templates"], pop["biomes_on"] = _norm_templates(pop, SNIPE_BIOMES)
+    if not pop.get("sing_off"):             # Singularity 팝핑은 기본 꺼짐 — 예전에 켜진 채로 저장된 것도 한 번 끔
+        pop["biomes_on"]["SINGULARITY"] = False
+        pop["sing_off"] = True
     pop["seeded"] = True                    # 기본 템플릿은 한 번만 (지운 건 다시 안 채움)
     pop["use_base"] = bool(pop.get("use_base"))   # 스나이프 오토 팝핑도 매크로 기준 위치를 씀
     d["pop"] = pop
@@ -718,7 +722,7 @@ def _norm_templates(src_cfg, biomes=POP_BIOMES):
             items.append({"name": str(it.get("name") or "").strip(), "amount": amt, "min_have": mh})
         tpls[b] = {"mode": "one" if t.get("mode") == "one" else "all", "items": items}
     on = src_cfg.get("biomes_on") if isinstance(src_cfg.get("biomes_on"), dict) else {}
-    return tpls, {b: bool(on.get(b, True)) for b in biomes}
+    return tpls, {b: bool(on.get(b, b not in POP_OFF_DEFAULT)) for b in biomes}
 
 
 def load_config():
