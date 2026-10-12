@@ -179,6 +179,7 @@ MCRAFT_DEFAULT = {
     # 매크로 탭 · 포션 자동 제작 — 알림에 "Auto Crafted" 가 뜨면 Stella 에게 가서 그 포션을 다시 채워 둠
     # (검색 → Open Recipe → Add Everything → Craft → Add Everything) · 알림 영역은 통합 위치, 가는 길은 이동 탭
     "enabled": False,
+    "potion": "",                 # 제작할 포션 (직접 입력) — 있으면 알림이 뜰 때 이 포션 · 비워 두면 알림에서 이름을 읽음 (OCR)
     "f_wait": 2.5,                # F 누른 뒤 제작 창이 뜰 때까지 (초)
     # 제작 창 위치 (자동 보정 · 직접 지정) — 실행 중엔 글자로 먼저 찾고, 못 찾을 때 이 값을 씀
     "search_pos": None,           # 검색창
@@ -566,6 +567,7 @@ def normalize(raw):
     mc = dict(MCRAFT_DEFAULT)
     mc.update(d.get("mcraft") if isinstance(d.get("mcraft"), dict) else {})
     mc["enabled"] = bool(mc.get("enabled"))
+    mc["potion"] = " ".join(str(mc.get("potion") or "").split())[:40]
     try:
         mc["f_wait"] = min(15.0, max(0.5, float(mc.get("f_wait"))))
     except (TypeError, ValueError):

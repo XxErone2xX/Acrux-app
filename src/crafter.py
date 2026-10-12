@@ -58,6 +58,29 @@ def fix_name(name):
     return " ".join(out)
 
 
+_ARABIC = {"1": "I", "2": "II", "3": "III", "4": "IV", "5": "V"}
+
+
+def typed_name(text):
+    """플레이어가 직접 입력한 포션 이름 → 검색에 쓸 이름 ('fortune potion 2' → 'Fortune Potion II') · 비었으면 ''
+    띄어쓰기 정리 · 아는 낱말은 게임 표기로 · 끝의 숫자 1~5 는 로마 숫자로"""
+    w = " ".join(str(text or "").split()).split()
+    if not w:
+        return ""
+    if len(w) > 1 and w[-1] in _ARABIC:
+        w[-1] = _ARABIC[w[-1]]
+    elif len(w) > 1 and w[-1].upper() in ROMAN:
+        w[-1] = w[-1].upper()
+    out = []
+    for n, x in enumerate(w):
+        if n == len(w) - 1 and x in ROMAN:
+            out.append(x)
+            continue
+        hit = next((k for k in WORDS if len(k) > 2 and k.lower() == x.lower()), None)   # Of · The · 로마 숫자는 입력한 그대로
+        out.append(hit or x)
+    return " ".join(out)
+
+
 def safe_query(name):
     """OCR 이 헷갈리는 글자(a o i l)가 없는 가장 긴 조각 — 고친 이름으로 검색이 안 될 때 씀"""
     parts = re.split(r"[aoilAOIL]", name)

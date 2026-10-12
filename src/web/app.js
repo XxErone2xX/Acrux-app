@@ -181,6 +181,7 @@ function setDeco(el, m) {
 function setupPage(m) {
   const page = document.getElementById('page-' + m.key);
   setDeco(page, m);
+  page.style.setProperty('--pc', m.color);          // 화면 색: 선택된 목록 · 제목 · 입력칸 강조 (style.css 가독성 · 비주얼)
   page.querySelector('[data-head]').innerHTML = headHTML(m);
   page.querySelectorAll('.side .item').forEach((it, i) => {
     it.style.setProperty('--i', i);
@@ -1356,28 +1357,53 @@ $('mitemStop').addEventListener('click', () => api('mitem_stop'));
 const mcraft = () => (config.mcraft ||= {});
 const saveMcraft = () => queueSave({ mcraft: JSON.parse(JSON.stringify(mcraft())) });
 const craftPlaceOk = () => (move().places || []).some(pl => pl.feat === 'mcraft' && pl.points.length && pl.points.every(pt => pt.pos && pt.time != null));
+// 제작할 포션: 직접 입력한 이름 → 게임에서 찾을 이름 (서버 crafter.typed_name 과 같게: 띄어쓰기 정리 · 끝 숫자 1~5 → 로마 숫자)
+const ROMAN_NUM = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V' };
+function potionName(v) {
+  const w = String(v || '').split(/\s+/).filter(Boolean);
+  if (w.length > 1 && ROMAN_NUM[w[w.length - 1]]) w[w.length - 1] = ROMAN_NUM[w[w.length - 1]];
+  else if (w.length > 1 && Object.values(ROMAN_NUM).includes(w[w.length - 1].toUpperCase())) w[w.length - 1] = w[w.length - 1].toUpperCase();
+  return w.join(' ');
+}
 function renderMcraft() {
   const m = mcraft(), noticeOk = !!base().notice_region, placeOk = craftPlaceOk();
   $('mcraftForm').innerHTML = `
-    <label class="row"><span>켜기<small>매크로가 켜져 있는 동안 알림을 확인</small></span>
+    <label class="row"><span>켜기<small>매크로가 켜져 있는 동안 Auto Crafted 알림을 확인</small></span>
       <span class="switch"><input type="checkbox" id="mcraftOn" ${m.enabled ? 'checked' : ''}><i></i></span></label>
+    <div class="row potion-row"><span>제작할 포션<small>입력하면 알림이 뜰 때 이 포션을 채움 · 비워 두면 알림에서 포션 이름을 읽음 (OCR)</small></span>
+      <span class="potion-in"><input type="text" id="mcraftPotion" placeholder="예: Fortune Potion I" maxlength="40" spellcheck="false" autocomplete="off">
+      <span class="potion-mode" id="mcraftMode"></span></span></div>
     <div class="row"><span>알림 영역<small>매크로 기준 위치 설정 → 통합 위치 → 알림</small></span>
-      <span class="${noticeOk ? '' : 'warn'}">${noticeOk ? '지정됨' : '지정 안 됨'}</span></div>
+      <span class="${noticeOk ? 'ok-text' : 'warn'}">${noticeOk ? '지정됨' : '지정 안 됨'}</span></div>
     <div class="row"><span>포션 제작 장소<small>매크로 기준 위치 설정 → 포션 자동 제작</small></span>
-      <span class="${placeOk ? '' : 'warn'}">${placeOk ? '지정됨' : '지정 · 시간 재기 필요'}</span></div>
+      <span class="${placeOk ? 'ok-text' : 'warn'}">${placeOk ? '지정됨' : '지정 · 시간 재기 필요'}</span></div>
     <label class="row"><span>F 누른 뒤 대기<small>제작 창이 뜰 때까지 (초)</small></span>
       <input type="number" min="0.5" step="0.5" id="mcraftWait" value="${m.f_wait ?? 2.5}"></label>
-    <div class="row"><span>제작 테스트<small>입력한 포션으로 지금 한 번 (예: Fortune Potion I)</small></span>
-      <span class="pos nowrap"><input type="text" id="mcraftName" placeholder="포션 이름" maxlength="40">
-      <button class="btn mini" type="button" id="mcraftTest">테스트</button></span></div>
+    <div class="row"><span>제작 테스트<small>위에 입력한 포션으로 지금 한 번 · 포션 제작 장소로 가서 재료를 채움</small></span>
+      <button class="btn mini" type="button" id="mcraftTest">테스트</button></div>
     <div class="row"><span>이번 실행 제작 횟수</span><b id="mcraftCount">-</b></div>`;
+  const inp = $('mcraftPotion');
+  inp.value = m.potion || '';
+  const showMode = () => {
+    const n = potionName(inp.value);
+    const chip = $('mcraftMode');
+    chip.textContent = n ? '입력한 포션' : '알림에서 읽기 (OCR)';
+    chip.title = n ? n : '';
+    chip.classList.toggle('on', !!n);
+  };
+  showMode();
+  inp.addEventListener('input', () => { m.potion = inp.value; saveMcraft(); showMode(); });
+  inp.addEventListener('change', () => {           // 다 쓰고 나면 게임에서 찾을 이름으로 맞춰서 보여줌
+    const n = potionName(inp.value);
+    if (n !== inp.value) { inp.value = n; m.potion = n; saveMcraft(); showMode(); }
+  });
   $('mcraftOn').addEventListener('change', e => setFeature('mcraft', e.target.checked));
   $('mcraftWait').addEventListener('input', e => {
     const n = parseFloat(e.target.value);
     if (Number.isFinite(n) && n >= 0.5) { m.f_wait = n; saveMcraft(); }
   });
   $('mcraftTest').addEventListener('click', async () => {
-    const r = await api('mcraft_test', { name: $('mcraftName').value });
+    const r = await api('mcraft_test', { name: potionName(inp.value) });
     toast(r.error || `제작 테스트 시작 — ${r.name} · 정지: F7`);
   });
   if (lastMcraft) updateMcraft(lastMcraft);
@@ -2905,6 +2931,25 @@ const Tutorial = (() => {
     mfish: '<p class="dim">기능 설정의 상태 확인으로 위치가 맞는지 볼 수 있습니다.</p>',
     mcraft: '<p class="dim">기능 설정의 제작 테스트로 바로 확인할 수 있습니다.</p>',
     mmatch: '<p class="dim">보드 앞에서 기능 설정의 테스트로 바로 확인할 수 있습니다.</p>' };
+  // 기능 소개 (첫 안내 위쪽)
+  const FEAT_INTRO = {
+    mcraft: `<p>게임 오른쪽 알림에 <b>Auto Crafted</b> 가 뜨면 Stella 에게 가서 포션 재료를 다시 채웁니다
+             (<b>Add Everything → Craft → Add Everything</b>).</p>
+             <p><b>제작할 포션</b>을 입력해 두면 그 포션을, 비워 두면 알림에서 읽은 포션을 채웁니다.</p>` };
+  // 위치를 다 하고 나서 매크로 기능 설정 → 그 기능 칸에서 할 것 (기능마다 한 번은 꼭 안내)
+  const FEAT_SET = {
+    mcraft: { sec: 'mf-craft', side: '포션 자동 제작',
+      items: [['제작할 포션', () => !!(mcraft().potion || '').trim()]],
+      steps: () => [
+        { title: '제작할 포션을 입력해주세요', target: rowOf('mcraftForm', '#mcraftPotion'), input: true,
+          body: `<p>Auto Crafted 알림이 뜨면 여기에 입력한 포션의 재료를 다시 채웁니다. 예: <b>Fortune Potion I</b></p>
+                 <p>비워 두면 알림 글자(OCR)에서 포션 이름을 읽습니다. 이름을 잘못 읽을 때는 입력해 두는 것이 정확합니다.</p>
+                 <p class="dim">끝의 숫자는 1 · 2 · 3 으로 써도 됩니다 (Fortune Potion 2 → Fortune Potion II). 선택 항목입니다.</p>` },
+        { title: '제작 테스트로 확인해보세요', target: rowOf('mcraftForm', '#mcraftTest'), input: true,
+          body: `<p><b>테스트</b>를 누르면 위에 입력한 포션으로 지금 한 번 Stella 에게 가서 재료를 채웁니다.</p>
+                 <p class="dim">끝날 때까지 손을 떼주세요. 정지는 F7 입니다. 제작할 포션이 비어 있으면 테스트할 수 없습니다. 선택 항목입니다.</p>` },
+      ] },
+  };
   const taskBox = feat => ({ base: 'mposBase', mfish: 'mposFish', mmerch: 'mposMerch', mcraft: 'mposCraft', mmatch: 'mposMatch' })[feat];
   // 칸 이름 · 설명 · 지정 방법 (MPOS 표에서)
   function keyInfo(feat, k) {
@@ -2969,26 +3014,43 @@ const Tutorial = (() => {
   function featSteps(k) {
     const ids = FEAT_TASKS[k] || [];
     const todo = ids.filter(id => taskNeeded(TASKS[id], k));
+    const fs = FEAT_SET[k];
+    const reqList = ids.map(id => `<li class="${taskKeysOk(TASKS[id]) && taskCalDone(TASKS[id]) ? 'ok' : ''}">${TASKS[id].label}${TASKS[id].optional ? ' (선택)' : ''}</li>`)
+      .concat((fs?.items || []).map(([label, ok]) => `<li class="${ok() ? 'ok' : ''}">${label} (선택)</li>`));
     const steps = [
       { title: `${FEAT_NAME[k]} 설정`,
-        body: `<p>이 기능에 필요한 것만 차례대로 안내합니다.</p>
-               <ul class="tut-req">${ids.map(id => `<li class="${taskKeysOk(TASKS[id]) && taskCalDone(TASKS[id]) ? 'ok' : ''}">${TASKS[id].label}${TASKS[id].optional ? ' (선택)' : ''}</li>`).join('')}</ul>
+        body: (FEAT_INTRO[k] || '') + `<p>이 기능에 필요한 것만 차례대로 안내합니다.</p>
+               <ul class="tut-req">${reqList.join('')}</ul>
                <p class="dim">자동 보정이 있는 것은 자동 보정부터 해보고, 안 되면 수동으로 진행합니다.</p>`,
-        later: true, task: '' },
-      { id: 'card', title: '매크로 기준 위치 설정을 눌러주세요',
+        later: true, task: '' }];
+    const groups = todo.map(id => taskSteps(id, TASKS[id]));
+    const total = groups.length + (fs ? 1 : 0);
+    if (groups.length || !fs)
+      steps.push({ id: 'card', title: '매크로 기준 위치 설정을 눌러주세요',
         body: `<p>강조된 <b>매크로 기준 위치 설정</b> 버튼을 눌러주세요.</p>`,
         target: () => document.querySelector('.menu-card[data-key="mpos"]'),
-        done: () => current === 'mpos', task: '' }];
-    const groups = todo.map(id => taskSteps(id, TASKS[id]));
+        done: () => current === 'mpos', task: '' });
     groups.forEach((g, n) => {
-      for (const s of g) s.task = `${n + 1} / ${groups.length} · ${TASKS[todo[n]].label}`;   // 단계 수 대신 할 일 순서
+      for (const s of g) s.task = `${n + 1} / ${total} · ${TASKS[todo[n]].label}`;   // 단계 수 대신 할 일 순서
       // 건너뛰기 → 다음 할 일의 첫 단계로
-      const nextId = n + 1 < groups.length ? groups[n + 1][0].id : 'final';
+      const nextId = n + 1 < groups.length ? groups[n + 1][0].id : fs ? (groups.length ? 'fx_back' : 'fx_card') : 'final';
       for (const s of g) if (s.skipTo === 'end_' + todo[n]) s.skipTo = nextId;
       steps.push(...g);
     });
+    if (fs) {
+      const task = `${total} / ${total} · 기능 설정`;
+      if (groups.length)
+        steps.push({ id: 'fx_back', task, title: '뒤로 가주세요',
+          body: `<p>위치 설정이 끝났습니다. 왼쪽 위 강조된 <b>뒤로</b>를 눌러 메인 화면으로 돌아가주세요.</p>`,
+          target: () => mposPage().querySelector('[data-back]'), done: () => current !== 'mpos' });
+      steps.push({ id: 'fx_card', task, title: '매크로 기능 설정을 눌러주세요',
+        body: `<p>이제 기능 설정을 합니다. 강조된 <b>매크로 기능 설정</b> 버튼을 눌러주세요.</p>`,
+        target: () => document.querySelector('.menu-card[data-key="mfeat"]'), done: () => current === 'mfeat' });
+      steps.push({ id: 'fx_side', task, ...secStep(mfeatPage, fs.sec, fs.side), done: () => mfSec(fs.sec), needs: 'fx_card' });
+      for (const q of fs.steps()) steps.push({ ...q, task, needs: 'fx_side' });
+    }
     steps.push({ id: 'final', task: '', title: '설정이 완료되었습니다',
-      body: `<p>메인 화면 <b>매크로</b> 버튼이나 <b>F3</b>으로 켜면 작동합니다. 정지는 <b>F7</b> 입니다.</p>${FEAT_TIP[k] || ''}` });
+      body: `<p>메인 화면 <b>매크로</b> 버튼이나 <b>F3</b>으로 켜면 작동합니다. 정지는 <b>F7</b> 입니다.</p>${fs ? '' : FEAT_TIP[k] || ''}` });
     return steps;
   }
   for (const k of Object.keys(FEAT_TASKS))
@@ -3017,7 +3079,7 @@ const Tutorial = (() => {
     && (t === tut || t.needed())).length;
   function markDone(id) {
     const add = [id];
-    if (id.startsWith('feat_')) add.push('cal_' + id.slice(5));   // 기능 안내를 봤으면 자동 보정 안내도 본 것
+    if (id.startsWith('feat_')) add.push('cal_' + id.slice(5), 'fx_' + id.slice(5));   // 기능 안내를 봤으면 자동 보정 · 기능 설정 안내도 본 것
     const list = [...doneList(), ...add.filter(x => !doneList().includes(x))];
     if (list.length !== doneList().length) {
       config.tutorials_done = list;
@@ -3177,7 +3239,7 @@ const Tutorial = (() => {
     }
     const msg = tut.skipMsg, id = tut.id;
     skipped.add(id);
-    if (id.startsWith('feat_')) markDone('cal_' + id.slice(5));   // 자동 보정 안내는 건너뛰면 다시 안 띄움
+    if (id.startsWith('feat_')) { markDone('cal_' + id.slice(5)); markDone('fx_' + id.slice(5)); }   // 건너뛰면 자동 보정 · 기능 설정 안내는 다시 안 띄움
     end();
     toast(msg);
     afterTutorial(id);   // 스킵은 이 튜토리얼만 — 남은 튜토리얼은 이어서 진행
@@ -3269,7 +3331,8 @@ const Tutorial = (() => {
       else if (!el.hidden) return;
       const tasks = FEAT_TASKS[k].map(id => TASKS[id]);
       // 필수가 비어 있거나 · 자동 보정을 아직 한 번도 안내 안 했으면
-      if (force || tasks.some(taskRequired) || tasks.some(t => taskNeeded(t, k))) start('feat_' + k);
+      if (force || tasks.some(taskRequired) || tasks.some(t => taskNeeded(t, k))
+          || (FEAT_SET[k] && !doneList().includes('fx_' + k))) start('feat_' + k);
     },
     // 화면이 다시 그려졌거나(위치 지정 후) 필수 값이 바뀌었을 때: 강조 대상·[다음] 상태 갱신 · 끝난 단계면 다음으로
     refresh() {

@@ -1697,7 +1697,8 @@ class Bridge:
             self.craft_check_at, self.craft_busy = time.time(), False
 
     def _craft_notice(self):
-        """알림 영역에 하늘색 'Auto Crafted' 알림 → 포션 이름을 읽어서 제작 대기에 올림 (같은 포션은 1분 동안 한 번만)"""
+        """알림 영역에 하늘색 'Auto Crafted' 알림 → 제작 대기에 올림 (같은 포션은 1분 동안 한 번만)
+        제작할 포션을 직접 입력해 뒀으면 그 포션 · 비어 있으면 알림 글자(OCR)에서 포션 이름을 읽음"""
         region = (self.data.get("base") or {}).get("notice_region")
         if not region:
             if not self.craft_warned:
@@ -1710,19 +1711,28 @@ class Bridge:
             return
         with macro.ScreenGrabber() as sct:
             text = macro.notice_check(sct, rect, region, ("crafted", "crofted"), color="blue", min_ratio=0.006)
-        name = crafter.crafted_name(text) if text else None
-        if name and time.time() - self.craft_seen.get(name, 0) > 60:
+        if not text:
+            return
+        typed = crafter.typed_name((self.data.get("mcraft") or {}).get("potion"))
+        name = typed or crafter.crafted_name(text)
+        if not name:
+            if time.time() - getattr(self, "_craft_unread", 0) > 60:
+                self._craft_unread = time.time()
+                self._on_log("Auto Crafted 알림 — 포션 이름을 못 읽음 · 기능 설정에서 제작할 포션을 입력하면 그 포션으로 함", "y")
+            return
+        if time.time() - self.craft_seen.get(name, 0) > 60:
             now = time.time()
             self.craft_seen = {k: t for k, t in self.craft_seen.items() if now - t < 600}   # 오래된 기록은 버림
             self.craft_seen[name] = now
             self.craft_pending = (name, time.time())
-            self._on_log(f"Auto Crafted 알림 — {name}", "g")
+            self._on_log(f"Auto Crafted 알림 — {name}" + (" (입력한 포션)" if typed else ""), "g")
 
     def api_mcraft_test(self, p):
-        """제작 테스트: 지금 바로 그 포션으로 (이동 → F → 검색 → Open Recipe → Add Everything → Craft → Add Everything)"""
-        name = crafter.fix_name(str(p.get("name") or "").strip())
+        """제작 테스트: 지금 바로 그 포션으로 (이동 → F → 검색 → Open Recipe → Add Everything → Craft → Add Everything)
+        이름을 안 보내면 기능 설정에 입력한 '제작할 포션'"""
+        name = crafter.typed_name(p.get("name") or (self.data.get("mcraft") or {}).get("potion"))
         if not name:
-            return {"error": "포션 이름을 입력해 주세요"}
+            return {"error": "제작할 포션을 입력해 주세요"}
         if self._place_of("mcraft", "craft_spot") is None:
             return {"error": "이동 탭에서 '포션 제작 장소' 를 먼저 지정 · 시간 재기"}
         if not (self.data.get("move") or {}).get("quest_exit_pos"):

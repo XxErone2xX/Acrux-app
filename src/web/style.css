@@ -755,3 +755,93 @@ body:not(.in-page) .lang.in-card { display: none; }
 .steps-off { display: none; padding: 10px 12px; background: var(--panel); border-left: 3px solid var(--muted); color: var(--muted); font-size: 12px; }
 .steps-wrap.locked .steps-off { display: block; }
 .steps-wrap.locked > :not(.steps-off) { opacity: .4; pointer-events: none; filter: grayscale(.6); }
+
+/* ================================================================
+   가독성 · 비주얼 다듬기
+   · 글꼴: Pretendard 를 앱에 같이 넣음 (fonts/ · SIL OFL) — 어느 PC 에서나 같은 글꼴 · 작은 글자도 또렷하게
+   · 글자 대비 · 작은 글자 크기를 조금 올림
+   · 화면마다 그 화면 색(--pc)으로: 선택된 왼쪽 목록 · 제목 ㄱ 표시 · 입력칸 강조
+   ================================================================ */
+@font-face {
+  font-family: "Pretendard Variable";
+  font-weight: 45 930; font-style: normal; font-display: block;
+  src: url("fonts/PretendardVariable.woff2") format("woff2-variations"), url("fonts/PretendardVariable.woff2") format("woff2");
+}
+:root {
+  --fg: #e4e6e9;
+  --muted: #a3a9b2;
+  --faint: #73777f;
+  --pc: var(--accent);
+  font-family: "Pretendard Variable", "Pretendard", "Malgun Gothic", "Segoe UI", sans-serif;
+}
+:root:lang(en) { font-family: "Pretendard Variable", "Segoe UI", "Malgun Gothic", sans-serif; }
+
+/* 위쪽 바: 아래 선에 그 화면 색이 살짝 */
+.page .topbar { border-bottom-color: color-mix(in srgb, var(--pc) 30%, var(--line)); }
+
+/* 왼쪽 목록: 선택된 칸은 화면 색으로 물들고 왼쪽 ㄱ 장식이 한 줄로 이어짐 [ */
+.side { gap: 8px; }
+.side .item { padding: 13px 16px; }
+.side .item b { font-size: 14.5px; font-weight: 650; letter-spacing: -.1px; }
+.side .item span { font-size: 12px; margin-top: 3px; line-height: 1.35; }
+.side .item::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: var(--deco-w); background: var(--pc);
+  transform: scaleY(0); transition: transform .3s var(--ease-out); pointer-events: none; }
+.side .item.active::after { transform: none; }
+.side .item.active::before { background: color-mix(in srgb, var(--pc) 9%, var(--hover)); }
+.side .item.active b { color: #fff; }
+.side .item.active span { color: color-mix(in srgb, var(--pc) 35%, var(--muted)); }
+
+/* 칸 제목: 앞에 작은 ㄱ (화면 색) · 버튼끼리 간격 */
+.sec-head { gap: 8px; min-height: 34px; justify-content: flex-start; }
+/* 제목은 왼쪽, 나머지(상태 · 버튼)는 오른쪽에 모아서 8px 간격으로 (예전엔 버튼이 붙거나 흩어졌음) */
+.sec-head > :first-child { margin-right: auto; }
+.sec-head .hint, #page-return .sec-head .hint, .sec-head .mpop-status { margin: 0 6px 0 0; }
+.sec-head [data-pop-default], .sec-head [data-mpop-default], .sec-head .sec-btns { margin-left: 0; margin-right: 0; }
+.sec-head h2 { display: flex; align-items: center; gap: 10px; font-size: 19px; font-weight: 700; letter-spacing: -.2px; }
+.sec-head h2::before { content: ""; width: 9px; height: 9px; flex: none; margin-top: -6px;
+  border-top: 2px solid var(--pc); border-left: 2px solid var(--pc); }
+.sec-head h3 { font-weight: 650; }
+.sec-head .btn, .sec-head .btn.mini { height: 34px; padding: 0 14px; font-size: 13px; }
+.hint { font-size: 12.5px; line-height: 1.5; }
+
+/* 설정 줄: 제목은 또렷하게, 설명은 한 단계 작게 · 마우스를 올린 줄은 살짝 밝게 (왼쪽 글자 ↔ 오른쪽 칸 이어 보기) */
+.form .row { padding: 12px 0; }
+.form .row > span:first-child { font-size: 14px; font-weight: 500; line-height: 1.35; }
+.form .row small { font-size: 12px; line-height: 1.45; margin-top: 3px; font-weight: 400; }
+.card.form > .row { margin: 0 -20px; padding-left: 20px; padding-right: 20px; }
+.card.form > .row:hover { background: rgba(255, 255, 255, .025); }
+.row .ok-text { color: var(--green); }
+.form .row b, #count, .mt-st, .move-total { font-variant-numeric: tabular-nums; }
+
+/* 입력칸 */
+textarea, input:not([type=checkbox]), select { background: #191a1d; transition: border-color .15s, box-shadow .15s; }
+textarea:hover, input:not([type=checkbox]):hover, select:hover { border-color: #52555c; }
+input:focus, textarea:focus, select:focus { border-color: var(--pc); box-shadow: 0 0 0 1px var(--pc); }
+input::placeholder, textarea::placeholder { color: var(--faint); }
+.pos code { padding: 6px 9px; line-height: 16px; }
+.pos code.unset { font-family: inherit; letter-spacing: 0; }
+
+/* 버튼 · 키보드로 옮겨 다닐 때 보이는 테두리 */
+.btn { font-weight: 650; }
+.btn.mini { height: 30px; padding: 0 12px; font-size: 12.5px; }
+button:focus-visible, .switch:has(input:focus-visible) i { outline: 2px solid var(--pc); outline-offset: 2px; }
+
+/* 작은 글자들 */
+.f > span { font-size: 12px; }
+.empty { color: var(--muted); }
+.log { font-size: 12.5px; line-height: 1.65; }
+.tut-body { font-size: 13.5px; line-height: 1.65; }
+.tut-body .dim { font-size: 12.5px; }
+#toast { border-left: 3px solid var(--pc); font-weight: 500; }
+
+/* 스크롤바: 얇게 · 잡으면 화면 색 */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #3a3c42; }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--pc) 55%, #3a3c42); }
+
+/* 포션 자동 제작 · 제작할 포션 */
+.potion-in { display: flex; align-items: center; gap: 10px; }
+.potion-in input { width: 240px; }
+.potion-mode { flex: none; min-width: 128px; padding: 6px 10px; text-align: center; font-size: 12px; font-weight: 600;
+  color: var(--muted); background: var(--bg); border: 1px solid var(--line); transition: color .2s, border-color .2s, background .2s; }
+.potion-mode.on { color: var(--pc); border-color: color-mix(in srgb, var(--pc) 55%, transparent); background: color-mix(in srgb, var(--pc) 10%, transparent); }
