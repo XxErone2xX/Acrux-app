@@ -772,4 +772,4 @@ body:not(.in-page) .lang.in-card { display: none; }
 
 /* 왼쪽 목록(탭)으로 칸을 바꿀 때: 나가는 칸을 잠깐 그 자리에 겹쳐 두고 흐려지며 빠지게 (selectSection) */
 .content { position: relative; }
-.content > .sec.leaving { display: flex; position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.content > .sec.leaving { display: flex; position: absolute; z-index: 1; pointer-events: none; }   /* 자리 · 크기는 selectSection 이 원래 자리로 */
