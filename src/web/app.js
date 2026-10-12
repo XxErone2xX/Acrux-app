@@ -181,7 +181,6 @@ function setDeco(el, m) {
 function setupPage(m) {
   const page = document.getElementById('page-' + m.key);
   setDeco(page, m);
-  page.style.setProperty('--pc', m.color);          // 화면 색: 선택된 목록 · 제목 · 입력칸 강조 (style.css 가독성 · 비주얼)
   page.querySelector('[data-head]').innerHTML = headHTML(m);
   page.querySelectorAll('.side .item').forEach((it, i) => {
     it.style.setProperty('--i', i);
@@ -1374,9 +1373,9 @@ function renderMcraft() {
       <span class="potion-in"><input type="text" id="mcraftPotion" placeholder="예: Fortune Potion I" maxlength="40" spellcheck="false" autocomplete="off">
       <span class="potion-mode" id="mcraftMode"></span></span></div>
     <div class="row"><span>알림 영역<small>매크로 기준 위치 설정 → 통합 위치 → 알림</small></span>
-      <span class="${noticeOk ? 'ok-text' : 'warn'}">${noticeOk ? '지정됨' : '지정 안 됨'}</span></div>
+      <span class="${noticeOk ? '' : 'warn'}">${noticeOk ? '지정됨' : '지정 안 됨'}</span></div>
     <div class="row"><span>포션 제작 장소<small>매크로 기준 위치 설정 → 포션 자동 제작</small></span>
-      <span class="${placeOk ? 'ok-text' : 'warn'}">${placeOk ? '지정됨' : '지정 · 시간 재기 필요'}</span></div>
+      <span class="${placeOk ? '' : 'warn'}">${placeOk ? '지정됨' : '지정 · 시간 재기 필요'}</span></div>
     <label class="row"><span>F 누른 뒤 대기<small>제작 창이 뜰 때까지 (초)</small></span>
       <input type="number" min="0.5" step="0.5" id="mcraftWait" value="${m.f_wait ?? 2.5}"></label>
     <div class="row"><span>제작 테스트<small>위에 입력한 포션으로 지금 한 번 · 포션 제작 장소로 가서 재료를 채움</small></span>
