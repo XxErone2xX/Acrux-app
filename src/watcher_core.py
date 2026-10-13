@@ -76,8 +76,9 @@ DEFAULT_CONFIG = {
 }
 # 스나이핑 안정성: 최대한 사람이 직접 링크를 누르고 들어가는 것처럼
 SNIPE_DEFAULT = {
-    "delay_min": 2.0,         # 링크 감지 후 접속까지 무작위 대기 (초) — 최소
-    "delay_max": 4.0,         #                                       — 최대
+    "delay_min": 0.0,         # 링크 감지 후 접속까지 무작위 대기 (초) — 최소 (기본 0 = 바로 접속)
+    "delay_max": 0.0,         #                                       — 최대
+    "delay_v0": False,        # 예전 기본값(2 ~ 4초)을 0 ~ 0 으로 바꿨는지 (한 번만)
     "direct": True,           # 켜짐: 로블록스를 바로 실행 (딥링크) / 꺼짐: 웹브라우저로 링크를 열어서 접속
     "same_link_min": 10,      # 같은 서버 링크는 N분 동안 다시 안 들어감 (0 = 끔)
     "cooldown_sec": 5,        # 한 번 접속한 뒤 다음 접속까지 최소 간격 (초)
@@ -674,6 +675,10 @@ def normalize(raw):
             return min(hi, max(lo, float(v)))
         except (TypeError, ValueError):
             return default
+    if not sn.get("delay_v0"):                # 예전 기본값(2 ~ 4초) 그대로면 새 기본값 0 ~ 0 으로 한 번 바꿈
+        if _num(sn["delay_min"], 0, 60, -1) == 2.0 and _num(sn["delay_max"], 0, 120, -1) == 4.0:
+            sn["delay_min"], sn["delay_max"] = 0.0, 0.0
+        sn["delay_v0"] = True
     sn["delay_min"] = _num(sn["delay_min"], 0, 60, SNIPE_DEFAULT["delay_min"])
     sn["delay_max"] = max(sn["delay_min"], _num(sn["delay_max"], 0, 120, SNIPE_DEFAULT["delay_max"]))
     sn["direct"] = bool(sn["direct"])

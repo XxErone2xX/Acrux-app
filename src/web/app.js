@@ -2137,8 +2137,8 @@ const snipe = () => (config.snipe ||= {});
 const saveSnipe = () => queueSave({ snipe: JSON.parse(JSON.stringify(snipe())) });
 function fillSnipe() {
   const s = snipe();
-  $('snDelayMin').value = s.delay_min ?? 2;
-  $('snDelayMax').value = s.delay_max ?? 4;
+  $('snDelayMin').value = s.delay_min ?? 0;
+  $('snDelayMax').value = s.delay_max ?? 0;
   $('snDirect').checked = s.direct !== false;
   $('snSameMin').value = s.same_link_min ?? 10;
   $('snCooldown').value = s.cooldown_sec ?? 5;
@@ -2153,7 +2153,7 @@ for (const [id, key, lo, hi, int] of [['snDelayMin', 'delay_min', 0, 60], ['snDe
 // 최소가 최대보다 크면 최대를 최소에 맞춤 (입력이 끝났을 때)
 for (const id of ['snDelayMin', 'snDelayMax']) $(id).addEventListener('change', () => {
   const s = snipe();
-  if ((s.delay_max ?? 4) < (s.delay_min ?? 2)) { s.delay_max = s.delay_min; saveSnipe(); }
+  if ((s.delay_max ?? 0) < (s.delay_min ?? 0)) { s.delay_max = s.delay_min; saveSnipe(); }
   fillSnipe();
 });
 $('snDirect').addEventListener('change', e => { snipe().direct = e.target.checked; saveSnipe(); });
@@ -2847,7 +2847,7 @@ const Tutorial = (() => {
     { id: 'joinSide', ...secStep(snipePage, 'sn-join', '접속'), done: () => snSec('sn-join'), needs: 'card' },
     { title: '링크 감지 후 접속 딜레이',
       body: `<p>링크를 감지한 뒤 접속하기 전까지 <b>최소 ~ 최대 사이에서 매번 다르게</b> 기다립니다.</p>
-             <p class="dim">기본 2 ~ 4초. 둘 다 0 이면 바로 접속합니다. 기다리는 중에 매크로를 중지하면 접속하지 않습니다.</p>`,
+             <p class="dim">기본 0 ~ 0초 (바로 접속). 둘 다 0 이면 바로 접속합니다. 기다리는 중에 매크로를 중지하면 접속하지 않습니다.</p>`,
       target: () => $('snDelayRow'), input: true, needs: 'joinSide' },
     { title: '링크 열기 방식',
       body: `<p><b>켜짐</b>: 지금처럼 로블록스를 바로 실행합니다 (가장 빠름).</p>
@@ -2864,7 +2864,7 @@ const Tutorial = (() => {
              <p>언제든 스나이프 탭의 <b>스나이핑 안정성 설정</b>에서 바꿀 수 있습니다.</p>` },
   ];
   // 스나이핑 안정성은 기본값이 있어서, 이미 하나라도 바꿨으면 설정한 것으로 봄 (튜토리얼을 안 거쳤어도)
-  const SNIPE_DEF = { delay_min: 2, delay_max: 4, direct: true, same_link_min: 10, cooldown_sec: 5 };
+  const SNIPE_DEF = { delay_min: 0, delay_max: 0, direct: true, same_link_min: 10, cooldown_sec: 5 };
   const snipeTouched = () => Object.entries(SNIPE_DEF).some(([k, v]) => config.snipe?.[k] !== undefined && config.snipe[k] !== v);
   TUTORIALS.push({ id: 'snipe', name: '스나이핑 안정성 설정', steps: SNIPE_STEPS, menu: 'snipe',
     needed: () => !(config.tutorials_done || []).includes('snipe') && !snipeTouched() });

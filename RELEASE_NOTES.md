@@ -1,7 +1,5 @@
-## Acrux macro V2.2.5 업데이트
-- Singularity: 스나이핑으로 서버에 들어간 뒤 팝핑을 할지 고를 수 있음 (오토 팝핑 매크로 설정 → 팝핑 바이옴 설정 · 기본 꺼짐) — 꺼져 있으면 팝핑 없이 바이옴이 끝날 때까지 서버에 머물렀다가 복귀
-- 디스코드 감지 설정 → 필터의 바이옴 설정에 Singularity 추가
+## Acrux macro V2.2.6 업데이트
+- 스나이핑 안정성 설정: 링크 감지 후 접속 딜레이 기본값을 2 ~ 4초 → 0 ~ 0초(바로 접속)로 변경 · 예전 기본값 그대로 쓰던 사람도 0 ~ 0 으로 바뀜 (직접 바꾼 값은 그대로)
 
-## Acrux macro V2.2.5 Update
-- Singularity: you can now choose whether to pop after joining a server by sniping (Auto popping macro settings → Popping biome settings · off by default) — while it is off, the macro stays in the server without popping until the biome ends, then returns
-- Added Singularity to the biome filter in Discord detection settings → Filter
+## Acrux macro V2.2.6 Update
+- Snipe stability settings: the default join delay after a link is detected changed from 2 ~ 4s to 0 ~ 0s (joins right away) · if you were still on the old default it switches to 0 ~ 0 (values you changed yourself are kept)
