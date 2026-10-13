@@ -173,7 +173,6 @@
           <label class="row"><span>자동 재시작<small>디코가 일반 모드로 켜져 있으면 재시작</small></span><span class="switch"><input type="checkbox" id="cfgAutoRestart"><i></i></span></label>
           <label class="row"><span>바로 작동<small>프로그램 켤 때 시작 버튼까지 눌린 상태로</small></span><span class="switch"><input type="checkbox" id="cfgAutostart"><i></i></span></label>
           <label class="row"><span>소리<small>감지되면 알림음</small></span><span class="switch"><input type="checkbox" id="cfgBeep"><i></i></span></label>
-          <label class="row"><span>안정화 접속<small>로블록스 전부 종료 → 0.5초 후 실행 · 끄면 즉시 실행</small></span><span class="switch"><input type="checkbox" id="cfgStable"><i></i></span></label>
           <label class="row"><span>모든 링크 표시<small>감시 대상 밖 링크도 기록에 '보임'으로</small></span><span class="switch"><input type="checkbox" id="cfgShowAll"><i></i></span></label>
         </div>
         <button class="btn ghost" id="openFolder">프로그램 폴더 열기</button>
@@ -409,6 +408,7 @@
             <span class="range-pair"><input type="number" min="0" max="60" step="0.5" id="snDelayMin"><i>~</i><input type="number" min="0" max="120" step="0.5" id="snDelayMax"></span></div>
           <label class="row" id="snDirectRow"><span>로블록스 바로 실행<small>켜짐: 로블록스 바로 실행 · 꺼짐: 브라우저로 열기</small></span>
             <span class="switch"><input type="checkbox" id="snDirect"><i></i></span></label>
+          <label class="row"><span>안정화 접속<small>로블록스 전부 종료 → 0.5초 후 실행 · 끄면 즉시 실행</small></span><span class="switch"><input type="checkbox" id="cfgStable"><i></i></span></label>
           <div id="snRepeatRows">
             <label class="row"><span>같은 서버 다시 안 들어가기<small>같은 서버 링크는 이 시간 동안 한 번만 접속 (분) · 0 = 끔 · 기본 10</small></span>
               <input type="number" min="0" max="1440" step="1" id="snSameMin"></label>
