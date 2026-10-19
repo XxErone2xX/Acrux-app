@@ -525,7 +525,7 @@ function renderSummary() {
 
 const FIELDS = [
   ['cfgEnabled', 'enabled', 'check'],
-  ['cfgFlavor', 'discord', 'text'],
+  ['cfgDiscord', 'discord_connect', 'check'], ['cfgFlavor', 'discord', 'text'],
   ['cfgAutoRestart', 'auto_restart_discord', 'check'], ['cfgAutostart', 'autostart', 'check'],
   ['cfgBeep', 'beep', 'check'], ['cfgShowAll', 'show_all_links', 'check'], ['cfgStable', 'stable_join', 'check'],
 ];

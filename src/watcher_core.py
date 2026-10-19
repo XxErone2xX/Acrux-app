@@ -40,6 +40,7 @@ DEFAULT_CONFIG = {
     "enabled": True,
     "open_link": True,        # 항상 켜짐 (감지되면 바로 접속) — 예전 설정 호환용
     "discord": "stable",
+    "discord_connect": True,  # 끄면 디스코드를 켜거나 재시작·연결하지 않음 (오토 스나이핑 안 됨 · 매크로만 쓸 때)
     "auto_restart_discord": True,
     "guild_ids": [],
     "channel_ids": [],
@@ -1546,6 +1547,8 @@ class Handler:
 
 # ---------------------------------------------------------------- 연결 루프
 def session(cfg, handler, hook_src):
+    if not cfg["discord_connect"]:
+        return True
     try:
         port = existing_port(cfg)             # 이미 안전하게 디버그 포트로 켜진 디스코드가 있으면 그대로
     except NeedManualRestart:
@@ -1586,7 +1589,7 @@ def session(cfg, handler, hook_src):
         CONNECTED.set()
         waiting = {}
         house = 0.0
-        while not STOP.is_set():
+        while not STOP.is_set() and cfg["discord_connect"]:
             now = time.time()
             if now - house >= 0.5:          # 설정 다시 읽기 등은 0.5초에 한 번만 (메시지 처리를 늦추지 않게)
                 house = now
@@ -1698,6 +1701,13 @@ def run(cfg, handler):
         return
     hook_src = HOOK_PATH.read_text("utf-8")
     while not STOP.is_set():
+        if not cfg["discord_connect"]:
+            log("디스코드 연결 꺼짐 — 디스코드를 켜거나 건드리지 않음", "d")
+            status("off", "디스코드 연결 꺼짐")
+            while not STOP.is_set() and not cfg["discord_connect"]:
+                cfg.reload()
+                STOP.wait(1)
+            continue
         try:
             ok = session(cfg, handler, hook_src)
         except Exception as e:
@@ -1705,6 +1715,8 @@ def run(cfg, handler):
             ok = False
         if STOP.is_set():
             break
+        if not cfg["discord_connect"]:
+            continue
         status("disconnected", "재연결 대기")
         if STOP.wait(3 if ok else 10):
             break

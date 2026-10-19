@@ -2130,8 +2130,9 @@ class Bridge:
             return
         core.STOP.clear()
         self.thread = threading.Thread(target=core.run, args=(self.cfg, self.handler), daemon=True)
+        if self.cfg["discord_connect"]:
+            self._on_status("launching", "디스코드 연결 중")
         self.thread.start()
-        self._on_status("launching", "디스코드 연결 중")
 
     # 시작/중지 버튼은 실제 작동(링크 열기 등)만 켜고 끔
     def pop_missing(self):
@@ -2148,6 +2149,8 @@ class Bridge:
         if not core.ARMED.is_set():
             core.ARMED.set()
             self._on_log("작동 시작", "c")
+            if not self.cfg["discord_connect"]:
+                self._on_log("디스코드 연결이 꺼져 있어서 링크를 감지하지 않음 — 기타 설정에서 켜주세요", "y")
         self.start_engine()
         return {"ok": True}
 
