@@ -176,19 +176,23 @@ def latest_log(log_dir=None):
 
 
 def _scan_latest(d):
+    """폴더에서 가장 최근에 바뀐 .log — os.scandir 는 윈도우에서 파일 정보를 목록과 같이 받아 와서
+    파일마다 따로 묻지 않음 (로블록스 로그가 수백 · 수천 개 쌓여도 가벼움)"""
+    best, best_t = None, -1.0
     try:
-        files = [p for p in d.iterdir() if p.suffix == ".log"]
+        with os.scandir(d) as it:
+            for e in it:
+                if not e.name.endswith(".log"):
+                    continue
+                try:
+                    t = e.stat().st_mtime
+                except OSError:
+                    continue
+                if t > best_t:
+                    best, best_t = e.path, t
     except OSError:
         return None
-    best, best_t = None, -1
-    for p in files:
-        try:
-            t = p.stat().st_mtime
-        except OSError:
-            continue
-        if t > best_t:
-            best, best_t = p, t
-    return best
+    return Path(best) if best else None
 
 
 def fmt_uptime(sec):

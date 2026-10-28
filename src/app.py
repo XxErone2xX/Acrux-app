@@ -2264,9 +2264,9 @@ class Bridge:
 
     def api_ocr_info(self, _):
         """Acrux 설정 · OCR 감지 방식: 지금 쓰는 엔진 · RapidOCR 설치 여부"""
-        rapid = macro.rapid_engine() is not None
+        rapid = macro.rapid_available()
         return {"engine": macro.ocr_engine_name(), "rapid": rapid, "mode": macro.OCR_MODE["mode"],
-                "rapid_error": None if rapid else macro._RAPID.get("failed")}
+                "rapid_error": None if rapid else macro._OCR.failed}
 
     def api_open_folder(self, _):
         os.startfile(str(core.DATA_BASE))      # 설정·로그가 있는 폴더
@@ -2385,8 +2385,8 @@ def main():
 
     threading.Thread(target=_clean_install_leftovers, daemon=True).start()
     BRIDGE.start_engine()                 # 앱 켜자마자 디스코드 연결 + 감지
-    # OCR 엔진은 미리 불러둠 (첫 OCR 이 느리지 않게)
-    threading.Thread(target=lambda: BRIDGE._on_log(f"OCR 엔진: {macro.ocr_engine_name()}", "d"), daemon=True).start()
+    # OCR 엔진은 미리 불러두지 않음 — 글자를 읽어야 할 때만 따로 띄우고, 안 쓰면 꺼짐 (메모리 절약)
+    BRIDGE._on_log(f"OCR 엔진: {macro.ocr_engine_name()}", "d")
     if BRIDGE.data.get("autostart"):      # '바로 작동' 설정이면 시작 버튼까지 눌린 상태로
         BRIDGE.api_start({})
 
@@ -2397,7 +2397,11 @@ def main():
         # 화면은 이 PC 안의 페이지 하나뿐 → 업데이트 확인 · 동기화 · 미리 띄워 두는 여분 프로세스 등 쓸데없는 일은 끔 (메모리 절약)
         proc = subprocess.Popen([str(edge), f"--app={url}", f"--user-data-dir={DATA_DIR / 'ui'}",
                                  f"--window-size={WIN_W},{WIN_H}", "--no-first-run", "--no-default-browser-check",
-                                 "--disable-features=Translate,msEdgeSidebarV2,SpareRendererForSitePerProcess",
+                                 "--disable-features=Translate,msEdgeSidebarV2,SpareRendererForSitePerProcess,"
+                                 "msEdgeShoppingUI,msShoppingExp,msEdgeCollections,msUndersideButton,msWebAssist,"
+                                 "msEdgeEnhanceImages,EdgeWorkspaces,OptimizationHints,OptimizationGuideModelDownloading,"
+                                 "MediaRouter,DialMediaRouteProvider,AutofillServerCommunication,BackForwardCache",
+                                 "--renderer-process-limit=1", "--disk-cache-size=1048576", "--disable-gpu-shader-disk-cache",
                                  "--disable-extensions", "--disable-background-networking", "--disable-component-update",
                                  "--disable-sync", "--disable-default-apps", "--no-pings", "--disable-breakpad",
                                  "--disable-domain-reliability", "--js-flags=--optimize-for-size"])
@@ -2431,6 +2435,10 @@ def main():
 def shutdown(server=None):
     """프로그램을 끌 때: 감지 중지 → 디스코드를 보통 모드로 다시 켬 (디버그 포트가 계속 열려 있지 않게)"""
     core.STOP.set()
+    try:
+        macro._OCR.close()                    # OCR 일꾼도 끔
+    except Exception:
+        pass
     if BRIDGE and BRIDGE.thread:
         BRIDGE.thread.join(15)                # 감지 엔진이 완전히 멈춘 뒤에 디스코드를 건드림
     if server:

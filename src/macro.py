@@ -363,38 +363,35 @@ def cursor_pos():
 # ---------------------------------------------------------------- 로블록스 창
 def roblox_window():
     """로블록스 게임 창 핸들 (없으면 None)
-    제목이 'Roblox' 인 '보이는' 창 중에서 로블록스 클라이언트 창(WINDOWSCLIENT)을 우선, 가장 큰 것"""
+    제목이 'Roblox' 인 '보이는' 창 중에서 로블록스 클라이언트 창(WINDOWSCLIENT)을 우선, 가장 큰 것
+    (모든 창을 파이썬으로 하나씩 보지 않고, 윈도우가 제목이 'Roblox' 인 창만 골라 줌 → 훨씬 가벼움)"""
     if not IS_WIN:
         return None
-    found = []
-    proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
-
-    def cb(h, _):
-        try:
+    fw = user32.FindWindowExW
+    if not getattr(fw, "_acrux", False):
+        fw.argtypes = [wintypes.HWND, wintypes.HWND, wintypes.LPCWSTR, wintypes.LPCWSTR]
+        fw.restype = wintypes.HWND
+        fw._acrux = True
+    found, h, hidden = [], None, None
+    try:
+        for _ in range(64):
+            h = fw(None, h, None, "Roblox")
+            if not h:
+                break
             if not user32.IsWindowVisible(h):
-                return True
-            buf = ctypes.create_unicode_buffer(64)
-            user32.GetWindowTextW(h, buf, 64)
-            if buf.value != "Roblox":
-                return True
+                hidden = hidden or h
+                continue
             cls = ctypes.create_unicode_buffer(64)
             user32.GetClassNameW(h, cls, 64)
             rc = wintypes.RECT()
             user32.GetClientRect(h, ctypes.byref(rc))
-            area = (rc.right - rc.left) * (rc.bottom - rc.top)
-            found.append((cls.value == "WINDOWSCLIENT", area, h))
-        except Exception:
-            pass
-        return True
-    try:
-        user32.EnumWindows(proc(cb), 0)
+            found.append((cls.value == "WINDOWSCLIENT", (rc.right - rc.left) * (rc.bottom - rc.top), h))
     except Exception:
         pass
     if found:
         found.sort(reverse=True)
         return found[0][2]
-    hwnd = user32.FindWindowW(None, "Roblox")
-    return hwnd or None
+    return hidden or None                    # 예전처럼: 보이는 창이 없으면 제목만 맞는 창이라도
 
 
 def _exe_of(hwnd):
@@ -462,8 +459,11 @@ def roblox_window_cached(max_age=1.0):
     if not IS_WIN:
         return None
     t, h = _WIN_CACHE
-    if h and time.time() - t < max_age and user32.IsWindow(h) and user32.IsWindowVisible(h):
-        return h
+    if time.time() - t < max_age:
+        if h is None:
+            return None                       # 방금 찾아봤는데 없었음 → 다시 찾지 않음 (로블록스가 꺼져 있을 때 계속 찾던 것)
+        if user32.IsWindow(h) and user32.IsWindowVisible(h):
+            return h
     h = roblox_window()
     _WIN_CACHE[0], _WIN_CACHE[1] = time.time(), h
     return h
@@ -1172,21 +1172,122 @@ def _ocr_worker(data, w, h):
 
 
 # ---- RapidOCR (PaddleOCR 모델을 onnxruntime 으로 실행) — 윈도우 OCR 보다 훨씬 정확, 게임 글자(테두리·배경색)에 강함
-_RAPID = {"engine": None, "failed": None}
-_RAPID_LOCK = threading.Lock()
+# 앱 안에서 바로 돌리지 않고 따로 띄운 일꾼 프로세스(ocr_proc.py)에서 돌림:
+#  · OCR 라이브러리 · 모델이 앱 메모리에 올라가지 않음 (전체 화면을 한 번 읽으면 수백 MB 로 늘고 안 줄었음)
+#  · 일꾼은 한동안 안 쓰면 스스로 꺼짐 → 메모리를 전부 돌려받음 · 필요할 때 다시 뜸 (처음 1~2초)
+#  · 코어를 다 쓰지 않고 낮은 우선순위로 돌아서 게임이 덜 버벅임
+#  · 응답이 없으면 일꾼째로 끄면 되므로 멈춘 OCR 스레드가 쌓이지 않음
+class _OcrProc:
+    START_TIMEOUT = 90.0                       # 모델을 처음 불러오는 시간 (느린 PC)
 
+    def __init__(self):
+        self.p = None
+        self.lock = threading.Lock()
+        self.failed = None                     # 일꾼을 못 띄운 이유 (그 뒤로는 윈도우 OCR)
 
-def rapid_engine():
-    """설치돼 있으면 RapidOCR 엔진 (처음 한 번만 불러옴), 없으면 None"""
-    # 부를 때는 use_cls=False — 게임 글자는 안 뒤집혀 있는데, 방향 판별이 짧은 글자(Open)를 거꾸로 보고 "uado" 로 읽음
-    with _RAPID_LOCK:
-        if _RAPID["engine"] is None and _RAPID["failed"] is None:
+    def __bool__(self):
+        return True
+
+    def alive(self):
+        return self.p is not None and self.p.poll() is None
+
+    def _kill(self):
+        p, self.p = self.p, None
+        if p is not None:
             try:
-                from rapidocr_onnxruntime import RapidOCR
-                _RAPID["engine"] = RapidOCR()
+                p.kill()
+            except Exception:
+                pass
+
+    @staticmethod
+    def _read_msg(p, timeout):
+        import json
+        import queue
+        import struct
+        q = queue.Queue()
+
+        def rd():
+            try:
+                f = p.stdout
+                n = f.read(4)
+                if len(n) < 4:
+                    q.put(EOFError("OCR 일꾼이 끝남"))
+                    return
+                body = f.read(struct.unpack("<I", n)[0])
+                q.put(json.loads(body.decode("utf-8")))
             except Exception as e:
-                _RAPID["failed"] = str(e) or type(e).__name__
-        return _RAPID["engine"]
+                q.put(e)
+        threading.Thread(target=rd, daemon=True).start()
+        try:
+            r = q.get(timeout=timeout)
+        except queue.Empty:
+            raise TimeoutError("OCR 응답 없음 (시간 초과)")
+        if isinstance(r, Exception):
+            raise r
+        return r
+
+    def _spawn(self):
+        import subprocess
+        script = Path(__file__).resolve().parent / "ocr_proc.py"
+        flags = (0x08000000 | 0x00004000) if IS_WIN else 0     # 창 없이 · 보통보다 낮은 우선순위
+        self.p = subprocess.Popen([sys.executable, str(script)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                  stderr=subprocess.DEVNULL, creationflags=flags)
+        try:
+            msg = self._read_msg(self.p, self.START_TIMEOUT)
+        except Exception as e:
+            self._kill()
+            raise RuntimeError(f"OCR 일꾼을 못 띄움: {e}")
+        if msg.get("error") or not msg.get("ready"):
+            self._kill()
+            self.failed = msg.get("error") or "OCR 일꾼이 준비되지 않음"
+            raise RuntimeError(self.failed)
+
+    def call(self, op, data, w, h, timeout=None):
+        import json
+        import struct
+        head = json.dumps({"op": op, "w": int(w), "h": int(h)}).encode("utf-8")
+        req = struct.pack("<I", len(head)) + head + bytes(data)
+        with self.lock:
+            for attempt in (1, 2):
+                if not self.alive():
+                    self._spawn()
+                try:
+                    self.p.stdin.write(req)
+                    self.p.stdin.flush()
+                    r = self._read_msg(self.p, timeout or OCR_TIMEOUT)
+                    break
+                except TimeoutError:
+                    self._kill()                 # 멈춘 일꾼은 끄고 (다음에 새로 띄움)
+                    raise
+                except (OSError, EOFError, ValueError):
+                    self._kill()                 # 쉬다가 막 꺼진 일꾼 → 새로 띄워서 한 번 더
+                    if attempt == 2:
+                        raise RuntimeError("OCR 일꾼 응답 없음")
+        if r.get("error"):
+            raise RuntimeError(r["error"])
+        return r.get("result")
+
+    def close(self):
+        with self.lock:
+            self._kill()
+
+
+_OCR = _OcrProc()
+_RAPID_OK = []
+
+
+def rapid_available():
+    """RapidOCR 가 설치돼 있고 일꾼을 띄울 수 있는지 (라이브러리를 불러오지 않고 있는지만 봄)"""
+    if _OCR.failed:
+        return False
+    if not _RAPID_OK:
+        import importlib.util
+        try:
+            _RAPID_OK.append(importlib.util.find_spec("rapidocr_onnxruntime") is not None
+                             and importlib.util.find_spec("onnxruntime") is not None)
+        except Exception:
+            _RAPID_OK.append(False)
+    return _RAPID_OK[0]
 
 
 # OCR 감지 방식 (Acrux 설정): auto = RapidOCR 가 있으면 RapidOCR, 없으면 윈도우 OCR / rapid / windows
@@ -1198,76 +1299,36 @@ def set_ocr_mode(mode):
 
 
 def ocr_engine():
-    """지금 쓸 RapidOCR 엔진 (윈도우 OCR 을 쓸 거면 None) — RapidOCR 를 골랐어도 설치가 안 돼 있으면 윈도우 OCR"""
-    if OCR_MODE["mode"] == "windows":
+    """지금 쓸 RapidOCR 일꾼 (윈도우 OCR 을 쓸 거면 None) — RapidOCR 를 골랐어도 설치가 안 돼 있으면 윈도우 OCR"""
+    if OCR_MODE["mode"] == "windows" or not rapid_available():
         return None
-    return rapid_engine()
+    return _OCR
 
 
 def ocr_engine_name():
     return "RapidOCR" if ocr_engine() else "윈도우 OCR"
 
 
-def _rapid_worker(eng, data, w, h):
-    import numpy as np
-    img = np.frombuffer(data, dtype=np.uint8).reshape(h, w, 4)[:, :, :3].copy()   # BGRA → BGR
-    if h < 48:                               # 작은 글씨는 키워서 읽기
-        import cv2
-        k = 48.0 / max(1, h)
-        img = cv2.resize(img, (int(w * k), 48), interpolation=cv2.INTER_CUBIC)
-    res, _ = eng(img, use_cls=False)
-    if not res:
-        return ""
-    # 글자 덩어리를 줄(위→아래) · 칸(왼→오) 순서로 이어 붙임
-    items = []
-    for box, text, _score in res:
-        ys = [p[1] for p in box]
-        xs = [p[0] for p in box]
-        items.append(((min(ys) + max(ys)) / 2, min(xs), max(ys) - min(ys), text))
-    items.sort()
-    lines, cur, cy, ch = [], [], None, 0
-    for y, x, hh, text in items:
-        if cy is not None and abs(y - cy) > max(ch, hh) * 0.6:
-            lines.append(cur)
-            cur = []
-        cur.append((x, text))
-        cy, ch = y, hh
-    if cur:
-        lines.append(cur)
-    return "\n".join(" ".join(t for _, t in sorted(line)) for line in lines)
-
-
-def _rapid_count(eng, data, w, h):
-    """아이템 칸 오른쪽 아래의 작은 개수 글자(x23)만 따로 크게 읽기
-    (흰 글자만 남기고 3배 확대 → 안 되면 2배 확대 원본)"""
-    import re
-    import numpy as np
-    import cv2
-    img = np.frombuffer(data, dtype=np.uint8).reshape(h, w, 4)[:, :, :3]
-    crop = np.ascontiguousarray(img[int(h * 0.6):h, int(w * 0.4):w])
-    if crop.size == 0:
+def _rapid(op, data, w, h):
+    """RapidOCR 일꾼으로 읽기 · 일꾼을 못 띄우면 None (그때는 윈도우 OCR 로)"""
+    eng = ocr_engine()
+    if eng is None:
         return None
-    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-    _, th = cv2.threshold(gray, 170, 255, cv2.THRESH_BINARY_INV)
-    tries = [cv2.cvtColor(cv2.resize(th, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC), cv2.COLOR_GRAY2BGR),
-             cv2.resize(crop, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)]
-    for im in tries:
-        res, _ = eng(im, use_cls=False)
-        for r in res or []:
-            m = re.search(r"[x×X]\s*([0-9][0-9,\.]*)", r[1])
-            if m:
-                return "x" + m.group(1)
-    return None
+    try:
+        return eng.call(op, data, w, h)
+    except RuntimeError:
+        if _OCR.failed:                        # 설치가 깨져서 못 띄움 → 이번부터 윈도우 OCR
+            return None
+        raise
 
 
 def ocr_item_bgra(data, w, h):
     """아이템 칸 읽기: 이름 + 개수. 전체를 읽고, 개수를 못 찾으면 오른쪽 아래만 따로 다시 읽음"""
     import re
     text = ocr_bgra(data, w, h)
-    eng = ocr_engine()
-    if eng is not None and not re.search(r"[x×X]\s*[0-9]", text or ""):
+    if ocr_engine() is not None and not re.search(r"[x×X]\s*[0-9]", text or ""):
         try:
-            cnt = _rapid_count(eng, data, w, h)
+            cnt = _rapid("count", data, w, h)
         except Exception:
             cnt = None
         if cnt:
@@ -1311,12 +1372,11 @@ def _run_ocr(fn):
 def ocr_bgra(data, w, h):
     """별도 스레드에서 OCR 실행. 어떤 경우에도 OCR_TIMEOUT 안에 결과 또는 오류를 돌려줌
     RapidOCR 가 설치돼 있으면 그걸로, 아니면 윈도우 내장 OCR"""
-    def run():
-        eng = ocr_engine()
-        if eng is not None:
-            return _rapid_worker(eng, data, w, h)
-        return _ocr_worker(data, w, h)
-    return _run_ocr(run) or ""
+    if ocr_engine() is not None:
+        text = _rapid("text", data, w, h)     # 일꾼이 시간 초과를 알아서 처리 (멈추면 일꾼째로 끔)
+        if text is not None:
+            return text or ""
+    return _run_ocr(lambda: _ocr_worker(data, w, h)) or ""
 
 
 def _win_boxes(data, w, h):
@@ -1375,17 +1435,11 @@ def ocr_boxes(region_ratio=None):
     x2, y2 = to_screen(max(r[0], r[2]), max(r[1], r[3]), rect)
     data, w, h = grab((x1, y1, x2 - x1, y2 - y1))
 
-    def run():
-        eng = ocr_engine()
-        if eng is not None:
-            import numpy as np
-            img = np.frombuffer(data, dtype=np.uint8).reshape(h, w, 4)[:, :, :3].copy()
-            res, _ = eng(img, use_cls=False)
-            return [(t, min(p[0] for p in b), min(p[1] for p in b), max(p[0] for p in b), max(p[1] for p in b))
-                    for b, t, _s in (res or [])]
-        return _win_boxes(data, w, h)
+    found = _rapid("boxes", data, w, h) if ocr_engine() is not None else None
+    if found is None:
+        found = _run_ocr(lambda: _win_boxes(data, w, h))
     out = []
-    for text, a, b, c, d in _run_ocr(run) or []:
+    for text, a, b, c, d in found or []:
         cx, cy = to_ratio(x1 + (a + c) / 2, y1 + (b + d) / 2, rect)
         out.append((str(text), cx, cy, (c - a) / max(1, rect[2]), (d - b) / max(1, rect[3])))
     return out

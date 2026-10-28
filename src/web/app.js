@@ -888,8 +888,8 @@ async function poll() {
   } catch {
     setStatus(['error', '프로그램과 연결 끊김']);
   }
-  // 창이 최소화돼 있거나 Play 클릭 중이면 덜 자주 받아옴 (그동안 CPU 를 매크로에 양보)
-  setTimeout(poll, document.hidden ? 1500 : (playBusy ? 800 : (document.hasFocus() ? 300 : 700)));
+  // 창이 최소화돼 있거나 · 다른 창(게임)을 보고 있거나 · Play 클릭 중이면 덜 자주 받아옴 (그동안 CPU 를 게임 · 매크로에 양보)
+  setTimeout(poll, document.hidden ? 3000 : (playBusy ? 1000 : (document.hasFocus() ? 300 : 1000)));
 }
 
 // ---------------------------------------------------------------- 오토 팝핑 (Play 버튼)
