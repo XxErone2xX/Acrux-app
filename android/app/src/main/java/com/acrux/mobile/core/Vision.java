@@ -38,8 +38,10 @@ public final class Vision {
         return out;
     }
 
+    /** 파이썬 round(v, 4) 와 같게 (정확히 반일 때만 짝수 쪽) */
     public static double round4(double v) {
-        return Math.round(v * 10000.0) / 10000.0;
+        if (Double.isNaN(v) || Double.isInfinite(v)) return v;
+        return new java.math.BigDecimal(v).setScale(4, java.math.RoundingMode.HALF_EVEN).doubleValue();
     }
 
     // ---------------------------------------------------------------- 공통

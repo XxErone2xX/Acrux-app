@@ -131,7 +131,38 @@ public class MainActivity extends Activity {
         set.addView(Ui.text(this, "누른 뒤 반응이 보일 때까지 다시 누르지 않는 시간을 이 폰의 터치 속도에 맞춤", 12, Ui.MUTED, false));
         root.addView(set, Ui.fill(this, 12));
 
-        // ⑤ 기록
+        // ⑤ 이동 · 판매
+        LinearLayout mv = Ui.card(this);
+        mv.addView(Ui.text(this, "이동 · 판매", 15, Ui.FG, true));
+        mv.addView(Ui.text(this, "PC 버전처럼: 시작하면 기준 장소 → 낚시 장소로 가서 낚시 · 인벤토리가 가득 차면 판매 장소에서 팔고 돌아옴 · "
+                + "경로는 한 줄에 동작 하나 (아래 도움말) · 위치는 Acrux 창 ⚙ 에서 지정", 12, Ui.MUTED, false), Ui.fill(this, 4));
+        mv.addView(sw("시작할 때 낚시 장소로 이동", Hub.useMove, on -> Hub.useMove = on), Ui.fill(this, 8));
+        mv.addView(sw("가득 차면 판매하러 가기", Hub.useSell, on -> Hub.useSell = on), Ui.fill(this, 4));
+        mv.addView(route("기준 장소", "리셋 → 카메라 정렬 → 구석까지 걷기 → 내려다보기 → 줌 아웃 (PC 와 같은 순서)", 0), Ui.fill(this, 12));
+        mv.addView(route("낚시 장소", "기준 장소에서 낚시 자리까지", 1), Ui.fill(this, 12));
+        mv.addView(route("판매 장소", "기준 장소에서 Captain Flarg 앞까지", 2), Ui.fill(this, 12));
+        mv.addView(num("판매 최대 종류", "한 번에 파는 최대 종류 수 · 기본 100", Hub.sellMax, v -> Hub.sellMax = (int) clamp(v, 1, 500)), Ui.fill(this, 12));
+        mv.addView(num("판매 클릭 추가 대기 (초)", "렉이 있으면 늘림 · 기본 0", Hub.sellDelay, v -> Hub.sellDelay = clamp(v, 0, 5)), Ui.fill(this, 8));
+        posView = Ui.text(this, "", 12, Ui.MUTED, false);
+        posView.setTypeface(Typeface.MONOSPACE);
+        mv.addView(Ui.text(this, "지정한 위치", 13, Ui.FG, true), Ui.fill(this, 12));
+        mv.addView(posView, Ui.fill(this, 4));
+        TextView clearPos = Ui.button(this, "위치 모두 지우기", Ui.RED, v -> {
+            Hub.pos.clear();
+            Hub.save();
+            Hub.changed();
+            Hub.log("지정한 위치 모두 지움", 'd');
+        });
+        LinearLayout.LayoutParams cp = Ui.wrap();
+        cp.topMargin = Ui.dp(this, 8);
+        mv.addView(clearPos, cp);
+        TextView help = Ui.text(this, HELP, 12, Ui.MUTED, false);
+        help.setTypeface(Typeface.MONOSPACE);
+        mv.addView(Ui.text(this, "경로 도움말", 13, Ui.FG, true), Ui.fill(this, 14));
+        mv.addView(help, Ui.fill(this, 4));
+        root.addView(mv, Ui.fill(this, 12));
+
+        // ⑥ 기록
         LinearLayout lg = Ui.card(this);
         lg.addView(Ui.text(this, "기록", 15, Ui.FG, true));
         logView = Ui.text(this, "", 12, Ui.MUTED, false);
@@ -143,6 +174,114 @@ public class MainActivity extends Activity {
 
     interface Num {
         void set(double v);
+    }
+
+    interface Flag {
+        void set(boolean on);
+    }
+
+    TextView posView;
+    final EditText[] routes = new EditText[3];
+    final TextView[] routeNotes = new TextView[3];
+
+    static final String HELP = String.join("\n",
+            "리셋                    메뉴 → Reset Character → Reset",
+            "대기 3.5                초",
+            "카메라정렬              채팅 → 도감 → 도감닫기 → 채팅",
+            "이동 W 1, WA 7          조이스틱 (쉼표 = 손가락 안 떼고)",
+            "                        W A S D WA WD SA SD · 각도(0=앞)",
+            "화면내리기 2            화면을 아래로 끌어 내려다보기",
+            "화면돌리기 0.3 0        카메라 돌리기 (화면 비율)",
+            "줌아웃 3 / 줌인 3       두 손가락 핀치",
+            "점프 1",
+            "터치 이름 / 터치 x y    한 번 누름",
+            "꾹 이름 1.5             누르고 있기",
+            "터치이동 낚시1 4.2      Tap to Move + 걸리는 초",
+            "상호작용                E 대신 상호작용 버튼",
+            "# 뒤는 설명");
+
+    View sw(String title, boolean on, Flag f) {
+        Switch s = new Switch(this);
+        s.setText(title);
+        s.setTextColor(Ui.FG);
+        s.setChecked(on);
+        s.setOnCheckedChangeListener((v, c) -> {
+            f.set(c);
+            Hub.save();
+        });
+        return s;
+    }
+
+    /** 경로 편집 칸 (i: 0 기준 · 1 낚시 · 2 판매) — 칸을 벗어나면 확인 · 저장 */
+    View route(String title, String sub, int i) {
+        LinearLayout l = new LinearLayout(this);
+        l.setOrientation(LinearLayout.VERTICAL);
+        l.addView(Ui.text(this, title, 14, Ui.FG, true));
+        l.addView(Ui.text(this, sub, 12, Ui.MUTED, false));
+        EditText e = new EditText(this);
+        e.setTypeface(Typeface.MONOSPACE);
+        e.setTextSize(13);
+        e.setTextColor(Ui.FG);
+        e.setBackgroundColor(Ui.FIELD);
+        e.setPadding(Ui.dp(this, 10), Ui.dp(this, 8), Ui.dp(this, 10), Ui.dp(this, 8));
+        e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        e.setGravity(Gravity.TOP | Gravity.START);
+        e.setMinLines(3);
+        e.setText(i == 0 ? Hub.routeBase : i == 1 ? Hub.routeFish : Hub.routeSell);
+        TextView note = Ui.text(this, "", 12, Ui.MUTED, false);
+        e.setOnFocusChangeListener((v, has) -> {
+            if (!has) saveRoute(i);
+        });
+        routes[i] = e;
+        routeNotes[i] = note;
+        l.addView(e, Ui.fill(this, 6));
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.addView(note, Ui.weight());
+        String def = i == 0 ? com.acrux.mobile.core.Mover.BASE_DEFAULT : i == 1 ? com.acrux.mobile.core.Mover.FISH_DEFAULT : com.acrux.mobile.core.Mover.SELL_DEFAULT;
+        TextView reset = Ui.button(this, "기본값", Ui.MUTED, v -> {
+            e.setText(def);
+            saveRoute(i);
+        });
+        row.addView(reset, Ui.wrap());
+        l.addView(row, Ui.fill(this, 4));
+        checkRoute(i);
+        return l;
+    }
+
+    void saveRoute(int i) {
+        String t = routes[i].getText().toString();
+        if (i == 0) Hub.routeBase = t;
+        else if (i == 1) Hub.routeFish = t;
+        else Hub.routeSell = t;
+        Hub.save();
+        checkRoute(i);
+    }
+
+    void checkRoute(int i) {
+        String t = i == 0 ? Hub.routeBase : i == 1 ? Hub.routeFish : Hub.routeSell;
+        TextView n = routeNotes[i];
+        try {
+            java.util.List<com.acrux.mobile.core.Mover.Step> st = com.acrux.mobile.core.Mover.parse(t);
+            java.util.List<String> need = new java.util.ArrayList<>();
+            for (String k : com.acrux.mobile.core.Mover.needed(st)) {
+                if (!Hub.pos.containsKey(k) && !com.acrux.mobile.core.Mover.DEFAULTS.containsKey(k)) need.add(k);
+            }
+            if (st.isEmpty()) {
+                n.setText("비어 있음 (안 씀)");
+                n.setTextColor(Ui.MUTED);
+            } else if (!need.isEmpty()) {
+                n.setText("동작 " + st.size() + "개 · 위치 지정 필요: " + String.join(", ", need));
+                n.setTextColor(Ui.YELLOW);
+            } else {
+                n.setText("✓ 동작 " + st.size() + "개");
+                n.setTextColor(Ui.GREEN);
+            }
+        } catch (IllegalArgumentException ex) {
+            n.setText(ex.getMessage());
+            n.setTextColor(Ui.RED);
+        }
     }
 
     static double clamp(double v, double lo, double hi) {
@@ -244,7 +383,24 @@ public class MainActivity extends Activity {
                 + "  ·  결과창: " + pos(c.resultRegion) + (c.ready() ? "" : "\n→ 로블록스에서 [보정]을 해야 함"));
         com.acrux.mobile.core.Fisher f = Hub.fisher;
         String stats = f == null ? "" : "\n성공 " + f.success + " · 쓰레기 " + f.junk + " · 실패 " + f.fail;
-        runState.setText((Hub.running() ? ("cal".equals(Hub.mode) ? "자동 보정 중 · " : "자동 낚시 중 · ") : "") + Hub.state + stats);
+        String mode = !Hub.running() ? "" : "cal".equals(Hub.mode) ? "자동 보정 중 · " : "sellcal".equals(Hub.mode) ? "판매 보정 중 · "
+                : "sell".equals(Hub.mode) ? "판매 중 · " : Hub.mode.startsWith("test") ? "이동 테스트 중 · " : "자동 낚시 중 · ";
+        runState.setText(mode + Hub.state + stats);
+        StringBuilder ps = new StringBuilder();
+        for (String n : Hub.positionNames()) {
+            double[] v = Hub.pos.get(n);
+            ps.append(v == null ? "·" : "✓").append(' ').append(n);
+            if (v != null) ps.append("  ").append(v[0]).append(", ").append(v[1]);
+            else if (com.acrux.mobile.core.Mover.DEFAULTS.containsKey(n)) ps.append("  (기본 자리)");
+            ps.append('\n');
+        }
+        for (String[] k : com.acrux.mobile.core.Seller.KEYS) ps.append(Hub.pos.containsKey(k[0]) ? "✓ " : "· ").append(k[1]).append(" (판매 보정)\n");
+        posView.setText(ps.toString().trim());
+        for (int i = 0; i < 3; i++) {
+            String cur = i == 0 ? Hub.routeBase : i == 1 ? Hub.routeFish : Hub.routeSell;
+            if (routes[i] != null && !routes[i].hasFocus() && !routes[i].getText().toString().equals(cur)) routes[i].setText(cur);
+            if (routes[i] != null) checkRoute(i);
+        }
         StringBuilder s = new StringBuilder();
         for (String l : Hub.recentLogs(40)) s.insert(0, l + "\n");
         logView.setText(s.length() == 0 ? "아직 기록 없음" : s.toString().trim());

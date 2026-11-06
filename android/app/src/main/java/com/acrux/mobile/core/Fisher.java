@@ -46,6 +46,11 @@ public final class Fisher {
     volatile boolean stop;
     boolean diamondOk = false;
     public int success, junk, fail, full;
+    /** 낚시를 시작할 때 · 낚시 화면이 오래 안 보일 때: 기준 장소 → 낚시 장소 (없으면 지금 자리에서) */
+    public Runnable onStart;
+    /** 인벤토리 가득: 판매하고 돌아왔으면 true (낚시 이어감) · 못 하면 false (멈춤) */
+    public java.util.function.BooleanSupplier onFull;
+    public static final double RELOC_AFTER = 30;
 
     public Fisher(Screen scr, Input in, Out out, Settings cfg) {
         this.scr = scr;
@@ -174,6 +179,10 @@ public final class Fisher {
         }
         out.log("자동 낚시 시작", 'g');
         try {
+            if (onStart != null) {
+                out.state("낚시 장소로 가는 중");
+                onStart.run();
+            }
             loop();
         } catch (Stopped e) {
             out.log("자동 낚시 정지", 'd');
@@ -186,8 +195,8 @@ public final class Fisher {
 
     void loop() {
         Double castAt = null, waitAt = null, unknownAt = null;
-        int tries = 0, rescues = 0, maybe = 0;
-        double progressAt = now();
+        int tries = 0, rescues = 0, maybe = 0, relocs = 0;
+        double progressAt = now(), knownAt = now();
         while (true) {
             check();
             String st = readState();
@@ -216,11 +225,15 @@ public final class Fisher {
                 maybe = 0;
             }
             if (!"wait".equals(st)) waitAt = null;
-            if (st != null) unknownAt = null;
+            if (st != null) {
+                unknownAt = null;
+                knownAt = t;
+            }
 
             if ("reel".equals(st)) {
                 castAt = null;
                 tries = 0;
+                relocs = 0;
                 progressAt = t;
                 rescues = 0;
                 Img base = cfg.titlePos != null ? grabBox(cfg.titlePos, 0.12, 0.05) : null;
@@ -245,7 +258,18 @@ public final class Fisher {
                         tries++;
                         if (tries >= cfg.castRetry) {
                             full++;
-                            out.log("Fish 를 " + tries + "번 눌러도 반응 없음 — 낚시 인벤토리 가득 · 정지", 'y');
+                            if (onFull != null) {
+                                out.log("Fish 를 " + tries + "번 눌러도 반응 없음 — 낚시 인벤토리 가득", 'y');
+                                out.state("인벤토리 가득 — 판매하러 감");
+                                if (onFull.getAsBoolean()) {
+                                    castAt = waitAt = unknownAt = null;
+                                    tries = 0;
+                                    progressAt = knownAt = now();
+                                    continue;
+                                }
+                            } else {
+                                out.log("Fish 를 " + tries + "번 눌러도 반응 없음 — 낚시 인벤토리 가득 · 정지", 'y');
+                            }
                             out.state("인벤토리 가득 — 판매 필요");
                             throw new Stopped();
                         }
@@ -257,6 +281,20 @@ public final class Fisher {
             } else {
                 if (unknownAt == null) unknownAt = t;
                 out.state("낚시 화면 확인 중");
+                // 30초 동안 낚시 화면이 한 번도 안 보임 → 낚시 장소에 못 간 것 → 다시 이동 (2번까지 · 그래도 안 되면 멈춤)
+                if (onStart != null && t - knownAt > RELOC_AFTER) {
+                    if (relocs >= 2) {
+                        out.log("낚시 장소로 다시 가도 낚시 화면이 안 보임 — 자동 낚시 멈춤 (경로 · 위치 확인)", 'r');
+                        throw new Stopped();
+                    }
+                    relocs++;
+                    out.log((int) RELOC_AFTER + "초 동안 낚시 화면이 안 보임 — 낚시 장소로 다시 이동 (" + relocs + "/2)", 'y');
+                    out.state("낚시 장소로 다시 가는 중");
+                    onStart.run();
+                    knownAt = progressAt = now();
+                    unknownAt = null;
+                    continue;
+                }
                 if (t - unknownAt > 3.0) {
                     tapClose();
                     unknownAt = now();
