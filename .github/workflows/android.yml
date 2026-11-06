@@ -1,0 +1,60 @@
+# Acrux Mobile (안드로이드 · 자동 낚시) APK 빌드
+#   android/ 가 바뀐 커밋을 main 에 푸시하면 (또는 Run workflow) → APK 를 만들어 mobile-v<버전> 미리 보기 릴리스로 올림
+#   PC 버전(Acrux.exe)의 업데이트와는 따로: '최신 릴리스'로 표시하지 않음 (실행기가 releases/latest 를 봄) · 태그가 v 로 시작하지 않음
+#   빌드가 실패하면 기록(build.log)을 mobile-build-log 릴리스에 올림 (원인 확인용)
+name: Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["android/**", ".github/workflows/android.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Build APK
+        shell: bash
+        run: |
+          set -o pipefail
+          export JAVA_HOME="$JAVA_HOME_17_X64"
+          curl -sSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
+          unzip -q /tmp/gradle.zip -d /tmp
+          cd android
+          /tmp/gradle-8.10.2/bin/gradle --no-daemon --stacktrace assembleDebug 2>&1 | tee ../build.log
+
+      - name: Publish APK
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=$(grep -oP 'versionName\s+"\K[^"]+' android/app/build.gradle)
+          tag="mobile-v$v"
+          cp android/app/build/outputs/apk/debug/app-debug.apk Acrux-Mobile.apk
+          sha256sum Acrux-Mobile.apk | cut -d' ' -f1 > Acrux-Mobile.apk.sha256
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" Acrux-Mobile.apk Acrux-Mobile.apk.sha256 --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$tag" --notes-file android/RELEASE_NOTES.md --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$tag" Acrux-Mobile.apk Acrux-Mobile.apk.sha256 --prerelease --latest=false \
+              --target "$GITHUB_SHA" --title "Acrux Mobile V$v" --notes-file android/RELEASE_NOTES.md --repo "$GITHUB_REPOSITORY"
+          fi
+          gh release delete mobile-build-log --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
+
+      - name: Upload build log
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -f build.log ] || echo "no build log" > build.log
+          gh release view mobile-build-log --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create mobile-build-log --prerelease --latest=false --target "$GITHUB_SHA" \
+              --title "Acrux Mobile build log" --notes "빌드 실패 기록 (자동)" --repo "$GITHUB_REPOSITORY"
+          gh release upload mobile-build-log build.log --clobber --repo "$GITHUB_REPOSITORY"

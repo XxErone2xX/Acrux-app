@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Acrux Mobile</string>
+    <string name="acc_desc">Acrux Mobile 자동 낚시가 로블록스 화면을 대신 터치하는 데 씀 (Fish 버튼 · 릴링 · 결과창 X). 화면 내용은 읽지 않으며, 터치만 보냄.</string>
+</resources>
