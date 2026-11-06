@@ -121,7 +121,7 @@
       <button class="item deco" data-sec="targets"><b>감시 대상</b><span>서버 · 채널 목록</span></button>
       <button class="item deco" data-sec="filters"><b>필터</b><span>바이옴 · 자동 제외</span></button>
       <button class="item deco" data-sec="conn"><b>디스코드 연결</b><span>연결 · 감지 알림</span></button>
-      <button class="item deco" data-sec="prime"><b>Prime Snipe [ Beta ]</b><span id="primeSide">봇 버튼으로 링크 받기</span></button>
+      <button class="item deco" data-sec="prime"><b>Prime Snipe [ Beta ]</b><span id="primeSide">스나이핑 기능의 정점</span></button>
     </nav>
 
     <div class="content">
@@ -199,12 +199,12 @@
         </div>
       </div>
 
-      <!-- Prime Snipe [ Beta ]: 링크가 바로 없는 봇 알림의 버튼을 대신 눌러 링크 받기 -->
+      <!-- Prime Snipe [ Beta ]: 다이렉트 링크가 없는 봇 알림의 버튼을 대신 눌러 링크 받기 -->
       <div class="sec" data-sec="prime" data-jump>
         <div class="sec-head"><h2>Prime Snipe [ Beta ]</h2>
-          <span class="status-mini"><span class="dot" id="primeDot"></span><span id="primeState">꺼짐</span></span></div>
-        <p class="hint">링크가 바로 없는 봇 알림(Get Link 같은 버튼)을 대신 눌러서 링크를 받아 접속 · 감시 대상 · 바이옴 필터 · 자동 제외는 그대로 적용</p>
-        <p class="prime-warn">디스코드 계정으로 봇 버튼을 자동으로 누르는 기능이라 디스코드 약관상 자동화로 볼 수 있어요 · 본인 판단으로 사용</p>
+          <span class="status-mini"><span class="dot" id="primeDot"></span><span id="primeState">비활성화됨</span></span></div>
+        <p class="hint">다이렉트 링크가 없는 봇 알림의 버튼(Get Link 등)을 대신 눌러 링크를 받아 접속함 · 감시 대상, 바이옴 필터, 자동 제외는 그대로 적용됨</p>
+        <p class="prime-warn">디스코드 계정으로 봇 버튼을 자동으로 누르는 기능이므로 디스코드 약관상 자동화로 간주될 수 있음 · 사용 여부는 본인 판단에 맡김</p>
         <div class="card form" id="primeForm" data-jump-label="켜기"></div>
         <div class="grp">
           <div class="grp-head"><b>누르기</b></div>
@@ -212,7 +212,8 @@
         </div>
         <div class="grp">
           <div class="grp-head"><b>누를 버튼</b></div>
-          <p class="grp-desc">버튼 이름(또는 이모지)에 들어 있으면 누름 · 한 줄에 하나 · 위에 있을수록 먼저</p>
+          <p class="grp-desc">버튼 이름(또는 이모지)에 포함되어 있으면 누름 · 한 줄에 하나씩 · 위에 있을수록 먼저 누름</p>
+          <p class="grp-desc">먼저 누르라는 버튼, 메시지에 안내된 순서, 번호가 붙은 버튼, 한번 더 · Continue 같은 진행 버튼은 자동으로 판단해서 누름</p>
           <div class="card form" id="primeWords"></div>
         </div>
         <div class="grp">
@@ -220,9 +221,14 @@
           <div class="card form" id="primeResp"></div>
         </div>
         <div class="grp">
+          <div class="grp-head"><b>AI 도우미</b></div>
+          <p class="grp-desc">규칙으로 뚫리지 않는 알림은 AI가 메시지를 읽고 누를 버튼을 정함 · API 키는 직접 넣어야 하며 이 PC의 설정 파일에만 저장됨</p>
+          <div class="card form" id="primeAI"></div>
+        </div>
+        <div class="grp">
           <div class="grp-head"><b>최근 봇 알림</b><em id="primeCount"></em></div>
-          <p class="grp-desc">감시 대상에서 본 버튼 달린 봇 메시지 · [테스트]: 지금 눌러서 링크만 받아 봄 (접속 안 함)</p>
-          <div class="card prime-list" id="primeRecent"><div class="empty">아직 본 봇 알림 없음</div></div>
+          <p class="grp-desc">다이렉트 링크가 없는 메시지 · [테스트]: 지금 바로 눌러 링크만 받아 봄 (접속은 하지 않음)</p>
+          <div class="card prime-list" id="primeRecent"><div class="empty">아직 확인된 봇 알림이 없음</div></div>
         </div>
       </div>
 

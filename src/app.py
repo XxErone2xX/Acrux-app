@@ -2304,6 +2304,20 @@ class Bridge:
         err = self.handler.prime.test(str(p.get("id") or ""))
         return {"error": err} if err else {"ok": True}
 
+    def api_prime_ai_test(self, p):
+        """Prime Snipe AI 연결 확인 — 모델 목록 · 추천 모델 · 짧은 질문 한 번 (키는 화면에 입력된 값 · 저장된 값)"""
+        import ai as ai_mod
+        conf = dict((self.data.get("prime") or {}).get("ai") or {})
+        for k in ("provider", "key", "model", "base"):
+            if isinstance(p.get(k), str):
+                conf[k] = p[k].strip()
+        try:
+            return ai_mod.test(conf)
+        except ai_mod.AIError as e:
+            return {"error": str(e)}
+        except Exception as e:
+            return {"error": f"확인하지 못함 · {e}"}
+
     def api_open_url(self, p):
         url = str(p.get("url", ""))
         if core.LINK_RE.fullmatch(url):
@@ -2316,6 +2330,10 @@ class Bridge:
         "discord": "https://discord.gg/cyK26gsjCC",
         "roblox": "https://www.roblox.com/ko/users/11743130211/profile",
         "donate": "https://ko-fi.com/rn_draon",
+        # Prime Snipe AI: API 키 받는 곳
+        "ai_groq": "https://console.groq.com/keys",
+        "ai_gemini": "https://aistudio.google.com/apikey",
+        "ai_openrouter": "https://openrouter.ai/keys",
     }
 
     def api_open_web(self, p):

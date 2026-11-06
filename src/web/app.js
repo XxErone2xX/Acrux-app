@@ -648,10 +648,20 @@ $('biomeAdd').addEventListener('submit', e => {
 });
 
 // ---------------------------------------------------------------- 링크 감지 설정 · Prime Snipe [ Beta ]
-// 링크가 바로 없는 봇 알림의 버튼(Get Link 등)을 대신 눌러 링크를 받아 접속 (엔진: prime.py · 디스코드 쪽: hook.js)
+// 다이렉트 링크가 없는 봇 알림의 버튼(Get Link 등)을 대신 눌러 링크를 받아 접속 (엔진: prime.py · AI: ai.py · 디스코드 쪽: hook.js)
 const prime = () => (config.prime ||= {});
+const primeAI = () => (prime().ai ||= { enabled: false, provider: 'groq', key: '', model: '', base: '' });
 const savePrime = () => queueSave({ prime: JSON.parse(JSON.stringify(prime())) });
-const PRIME_NUM = { delay_min: [0, 30, 2], delay_max: [0, 60, 3.5], per_min: [1, 30, 6], steps: [1, 5, 3], timeout: [3, 60, 15] };
+const PRIME_NUM = { delay_min: [0, 30, 2], delay_max: [0, 60, 3.5], per_min: [1, 30, 6], steps: [1, 12, 6], timeout: [3, 60, 15] };
+const PRIME_ON = '[ Prime Snipe ] 활성화됨.', PRIME_OFF = '[ Prime Snipe ] 비활성화됨.';
+// AI 서비스 (추천 순서) — 키 받는 곳은 Bridge.WEB_LINKS 의 ai_… 주소
+const AI_PROVIDERS = [
+  ['groq', 'Groq (추천)', '추천 · 응답이 가장 빠르고 무료 사용량이 넉넉함 (하루 약 1,000번)'],
+  ['gemini', 'Google Gemini', '판단력이 더 좋음 · 무료 사용량은 적음 (하루 수십 번)'],
+  ['openrouter', 'OpenRouter', '여러 회사의 모델을 키 하나로 사용 · 무료 모델이 있음'],
+  ['custom', '직접 입력 (OpenAI 호환)', 'OpenAI 호환 주소를 직접 입력'],
+];
+let aiModels = { provider: '', list: [], rec: '' };
 const primeSw = (key, title, sub, def = true) => `
     <label class="row"><span>${title}<small>${sub}</small></span>
       <span class="switch"><input type="checkbox" data-prime-key="${key}" ${(prime()[key] ?? def) ? 'checked' : ''}><i></i></span></label>`;
@@ -664,33 +674,90 @@ const primeText = (key, title, sub, rows) => `
 function renderPrime() {
   const p = prime();
   $('primeForm').innerHTML = `
-    <label class="row on-row"><span>켜기<small>링크가 없는 봇 알림이면 버튼을 눌러 링크를 받음 · 오토 스나이핑이 켜져 있을 때만</small></span>
+    <label class="row on-row"><span>켜기<small>다이렉트 링크가 없는 봇 알림의 버튼을 눌러 링크를 받음 · 오토 스나이핑이 켜져 있을 때만 작동함</small></span>
       <span class="switch"><input type="checkbox" data-prime-on ${p.enabled ? 'checked' : ''}><i></i></span></label>
-    <label class="row"><span>누르는 방식<small>누른 것처럼: 디스코드 앱이 '눌렀음' 신호만 보냄 (채널 이동 · 클릭 없음)</small></span>
-      <select id="primeMode"><option value="signal">누른 것처럼 (화면 안 건드림)</option><option value="screen">화면에서 직접 누르기</option></select></label>
-    ${primeSw('fallback', '안 되면 다른 방식으로', '누른 것처럼이 안 되면 화면에서 · 화면에서 안 되면 누른 것처럼')}
-    <div class="row"><span>이번 실행<small>누른 횟수 · 받은 링크</small></span><b id="primeStats">-</b></div>`;
+    <label class="row"><span>누르는 방식<small>누른 것처럼: 디스코드 앱이 '눌렀음' 신호만 보냄 (채널 이동과 클릭이 없음)</small></span>
+      <select id="primeMode"><option value="signal">누른 것처럼 (화면을 건드리지 않음)</option><option value="screen">화면에서 직접 누르기</option></select></label>
+    ${primeSw('fallback', '실패하면 다른 방식으로 시도', "'누른 것처럼'이 실패하면 화면에서 누르고, 화면에서 실패하면 '누른 것처럼'으로 누름")}
+    <div class="row"><span>이번 실행<small>누른 횟수 · 받은 링크 · AI 사용</small></span><b id="primeStats">-</b></div>`;
   $('primeMode').value = p.mode === 'screen' ? 'screen' : 'signal';
   $('primePress').innerHTML = `
-    <div class="row"><span>누르기 전 대기 (초)<small>알림을 보고 누르기까지 · 매번 이 사이에서 무작위 · 기본 2 ~ 3.5</small></span>
+    <div class="row"><span>누르기 전 대기 (초)<small>알림을 확인한 뒤 누르기까지의 시간 · 매번 이 범위에서 무작위로 정함 · 기본 2 ~ 3.5</small></span>
       <span class="range-pair"><input type="number" data-prime-num="delay_min" min="0" max="30" step="0.1" value="${p.delay_min ?? 2}">
         <i>~</i><input type="number" data-prime-num="delay_max" min="0" max="60" step="0.1" value="${p.delay_max ?? 3.5}"></span></div>
-    ${primeNum('per_min', '1분에 최대', '봇 도배 · 계정 보호 · 기본 6번')}
-    ${primeNum('steps', '여러 단계', '응답에 버튼이 또 있으면 이어서 누름 · 최대 단계 (기본 3)')}
-    ${primeSw('single', '버튼이 하나뿐이면 누르기', '이름이 안 맞아도 누를 수 있는 버튼이 하나뿐이면')}
-    ${primeSw('selects', '선택 메뉴도 고르기', '메뉴 항목 이름이 누를 이름에 맞으면')}
-    ${primeSw('navigate', '화면에서 누를 때: 그 메시지로 이동', '그 채널이 화면에 안 열려 있으면 이동해서 누름')}
-    ${primeSw('go_back', '누른 뒤 원래 화면으로', '이동해서 눌렀으면 보던 채널로 돌아감')}`;
+    ${primeNum('per_min', '1분에 최대', '1분에 처리하는 알림 수 · 봇 도배 방지와 계정 보호 · 기본 6개')}
+    ${primeNum('steps', '최대 누르는 횟수', '알림 하나에서 이어서 누를 수 있는 최대 횟수 (먼저 누르는 버튼 · 한번 더 등) · 기본 6')}
+    ${primeSw('single', '버튼이 하나뿐이면 누름', '이름이 맞지 않아도 누를 수 있는 버튼이 하나뿐인 경우')}
+    ${primeSw('selects', '선택 메뉴도 고름', '메뉴 항목 이름이 누를 이름과 맞는 경우')}
+    ${primeSw('navigate', '화면에서 누를 때 그 메시지로 이동', '그 채널이 화면에 열려 있지 않으면 이동해서 누름')}
+    ${primeSw('go_back', '누른 뒤 원래 화면으로 돌아감', '이동해서 누른 경우 보던 채널로 돌아감')}`;
   $('primeWords').innerHTML = `
     ${primeText('words', '누를 이름', '예: get link · join · reveal · 🔗', 4)}
-    ${primeText('skip', '안 누를 이름', '들어 있으면 그 버튼은 안 누름 (예: report · delete)', 3)}
-    ${primeText('bots', '이 봇만', '봇 이름 또는 ID · 비우면 감시 대상의 모든 봇', 2)}`;
+    ${primeText('skip', '누르지 않을 이름', '포함되어 있으면 그 버튼은 누르지 않음 (예: report · delete)', 3)}
+    ${primeText('bots', '허용할 봇', '봇 이름 또는 ID · 비워 두면 감시 대상의 모든 봇', 2)}`;
   $('primeResp').innerHTML = `
-    ${primeNum('timeout', '응답 기다리는 시간 (초)', '누른 뒤 봇이 답할 때까지 · 기본 15')}
-    ${primeSw('resolve', '다른 주소도 따라가기', '받은 주소가 로블록스가 아니면 따라가서 로블록스 링크를 찾음 (짧은 주소 · 안내 페이지)')}
-    ${primeSw('dm', 'DM 으로 온 링크도 받기', '봇이 링크를 DM 으로 보내 주는 경우')}`;
+    ${primeNum('timeout', '응답을 기다리는 시간 (초)', '누른 뒤 봇이 응답할 때까지 · 기본 15')}
+    ${primeSw('resolve', '다른 주소도 따라감', '받은 주소가 로블록스가 아니면 따라가서 로블록스 링크를 찾음 (짧은 주소 · 안내 페이지)')}
+    ${primeSw('dm', 'DM으로 온 링크도 받음', '봇이 링크를 DM으로 보내는 경우')}`;
+  renderPrimeAI();
   syncPrime();
 }
+// AI 도우미: 서비스 · API 키 · 모델 (자동 = 그 키로 쓸 수 있는 모델 중 가장 좋은 것) · 연결 테스트
+function renderPrimeAI() {
+  const a = primeAI(), pv = AI_PROVIDERS.find(x => x[0] === a.provider) || AI_PROVIDERS[0];
+  const models = aiModels.provider === pv[0] ? aiModels.list : [];
+  const cur = a.model && !models.includes(a.model) ? [a.model, ...models] : models;
+  $('primeAI').innerHTML = `
+    <label class="row"><span>막히면 AI에게 물어봄<small>누를 버튼을 정하지 못하거나 같은 응답이 반복될 때 · 알림 하나에 최대 3번</small></span>
+      <span class="switch"><input type="checkbox" data-ai-key="enabled" ${a.enabled ? 'checked' : ''}><i></i></span></label>
+    <label class="row"><span>AI 서비스<small>${pv[2]}</small></span>
+      <select data-ai-key="provider">${AI_PROVIDERS.map(([k, n]) => `<option value="${k}" ${k === pv[0] ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+    <div class="row ai-rec"><span>추천<small>Groq: 응답이 가장 빨라 스나이핑에 가장 적합함 · 판단이 더 정확해야 하면 Google Gemini</small></span>
+      ${pv[0] !== 'custom' ? `<button class="btn ghost mini" type="button" data-ai-keys="ai_${pv[0]}">${pv[1].replace(' (추천)', '')} API 키 받기 ↗</button>` : ''}</div>
+    ${pv[0] === 'custom' ? `<label class="row"><span>주소<small>https:// 로 시작하는 OpenAI 호환 주소 (…/v1)</small></span>
+      <input data-ai-key="base" value="${esc(a.base || '')}" placeholder="https://" spellcheck="false" autocomplete="off"></label>` : ''}
+    <label class="row"><span>API 키<small>이 PC의 설정 파일에만 저장되며 로그에 남지 않음</small></span>
+      <input type="password" data-ai-key="key" value="${esc(a.key || '')}" spellcheck="false" autocomplete="off" data-notr></label>
+    <label class="row"><span>모델<small>자동: 그 키로 쓸 수 있는 모델 중 가장 좋은 것을 고름 (더 좋은 모델이 나오면 자동으로 바뀜)</small></span>
+      <select data-ai-key="model"><option value="">자동${aiModels.provider === pv[0] && aiModels.rec ? ` (추천: ${esc(aiModels.rec)})` : ''}</option>
+        ${cur.map(m => `<option value="${esc(m)}" ${m === a.model ? 'selected' : ''} data-notr>${esc(m)}</option>`).join('')}</select></label>
+    <div class="row"><span>연결 테스트<small id="aiTestNote">키를 넣은 뒤 눌러서 확인 · 모델 목록도 함께 불러옴</small></span>
+      <button class="btn mini" type="button" id="aiTestBtn">테스트</button></div>
+    <p class="ai-privacy">AI에게는 봇 메시지의 글자와 버튼 이름만 보냄 (디스코드 로그인 정보는 보내지 않음)</p>`;
+  if (typeof Jump !== 'undefined') Jump.refresh();
+}
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (!t.dataset?.aiKey) return;
+  const a = primeAI(), k = t.dataset.aiKey;
+  a[k] = t.type === 'checkbox' ? t.checked : t.value.trim();
+  if (k === 'provider') a.model = '';
+  savePrime();
+  if (k === 'provider' || (k === 'enabled' && t.checked && !a.key)) renderPrimeAI();
+  if (k === 'enabled' && t.checked && !a.key) toast('AI를 쓰려면 API 키를 넣어야 함');
+});
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.dataset?.aiKey === 'key' || t.dataset?.aiKey === 'base') { primeAI()[t.dataset.aiKey] = t.value.trim(); savePrime(); }
+});
+document.addEventListener('click', async e => {
+  const k = e.target.closest('[data-ai-keys]');
+  if (k) return api('open_web', { site: k.dataset.aiKeys });
+  if (!e.target.closest('#aiTestBtn')) return;
+  const a = primeAI(), note = $('aiTestNote'), btn = $('aiTestBtn');
+  if (!a.key) { note.textContent = 'API 키를 먼저 넣어야 함'; note.className = 'warn'; return; }
+  btn.disabled = true; note.className = ''; note.textContent = '확인 중…';
+  let r;
+  try { r = await api('prime_ai_test', { provider: a.provider, key: a.key, model: a.model, base: a.base }, 30000); }
+  catch (err) { r = { error: err.message }; }
+  btn.disabled = false;
+  if (r.error) { setText(note, r.error); note.className = 'warn'; return; }
+  aiModels = { provider: a.provider, list: r.models || [], rec: r.recommended || '' };
+  renderPrimeAI();
+  const n = $('aiTestNote');
+  setText(n, `연결됨 · 모델: ${r.model} · ${(r.ms / 1000).toFixed(1)}초`);
+  n.className = 'ok';
+});
 // 켜기 스위치: 설정 칸 · 메인 화면 ▾ 는 같은 설정
 function setPrime(on, quiet) {
   prime().enabled = !!on;
@@ -698,7 +765,7 @@ function setPrime(on, quiet) {
   document.querySelectorAll('[data-prime-on]').forEach(i => { i.checked = !!on; });
   syncPrime();
   Quick.sync();
-  if (!quiet) toast(`Prime Snipe [ Beta ] ${on ? '켜짐' : '꺼짐'}`);
+  if (!quiet) toast(on ? PRIME_ON : PRIME_OFF);
 }
 document.addEventListener('change', e => {
   const t = e.target;
@@ -720,11 +787,11 @@ let primeSnap = null, primeKey = '';
 function syncPrime() {
   const p = prime(), on = !!p.enabled, busy = !!(primeSnap && primeSnap.busy);
   setData($('primeDot'), 's', on ? (busy || armed ? 'flux' : 'waiting') : '');
-  setText($('primeState'), !on ? '꺼짐' : busy ? '버튼 누르는 중' : armed ? '켜짐 · 봇 알림 기다리는 중' : '켜짐 · 오토 스나이핑을 시작하면 작동');
-  setText($('primeSide'), on ? (p.mode === 'screen' ? '켜짐 · 화면에서 누르기' : '켜짐 · 누른 것처럼') : '봇 버튼으로 링크 받기');
-  if (primeSnap) setText($('primeStats'), `${primeSnap.pressed || 0} · ${primeSnap.links || 0}`);
+  setText($('primeState'), !on ? '비활성화됨' : busy ? '버튼을 누르는 중' : armed ? '활성화됨 · 봇 알림을 기다리는 중' : '활성화됨 · 오토 스나이핑을 시작하면 작동함');
+  setText($('primeSide'), on ? PRIME_ON : '스나이핑 기능의 정점');
+  if (primeSnap) setText($('primeStats'), `${primeSnap.pressed || 0} · ${primeSnap.links || 0} · ${primeSnap.ai || 0}`);
 }
-const PRIME_OK = ['열림', '링크 받음'], PRIME_WAIT = ['대기', '누르기 대기', '테스트 대기', '응답 기다리는 중', '주소 확인 중', '꺼짐'];
+const PRIME_OK = ['열림', '링크를 받음'], PRIME_WAIT = ['대기 중', '누르기 대기 중', '테스트 대기 중', '응답을 기다리는 중', '주소 확인 중', '꺼져 있음', 'AI에게 묻는 중'];
 function renderPrimeRecent() {
   const s = primeSnap || { recent: [] };
   const key = JSON.stringify(s.recent);
@@ -732,7 +799,7 @@ function renderPrimeRecent() {
   primeKey = key;
   setText($('primeCount'), s.recent.length ? `${s.recent.length}개` : '');
   const box = $('primeRecent');
-  if (!s.recent.length) { box.innerHTML = '<div class="empty">아직 본 봇 알림 없음</div>'; return; }
+  if (!s.recent.length) { box.innerHTML = '<div class="empty">아직 확인된 봇 알림이 없음</div>'; return; }
   box.innerHTML = s.recent.map(r => {
     const cls = PRIME_OK.includes(r.status) ? 'ok' : PRIME_WAIT.includes(r.status) ? 'wait' : 'bad';
     return `<div class="pr-row">
@@ -745,6 +812,7 @@ function renderPrimeRecent() {
         <button class="btn ghost mini" type="button" data-prime-test="${esc(r.id)}">테스트</button></span>
     </div>`;
   }).join('');
+  Jump.refresh();
 }
 document.addEventListener('click', async e => {
   const t = e.target.closest('[data-prime-test]'), c = e.target.closest('[data-prime-copy]');
@@ -752,7 +820,7 @@ document.addEventListener('click', async e => {
   if (!t) return;
   await flushSave();
   const r = await api('prime_test', { id: t.dataset.primeTest });
-  toast(r.error || '테스트 시작 · 링크만 받아 보고 접속은 안 함');
+  toast(r.error || '테스트 시작 · 링크만 받아 보고 접속은 하지 않음');
   primeTick(true);
 });
 // 칸이 열려 있을 때만 엔진에서 최근 목록을 받아 옴
@@ -2408,7 +2476,7 @@ const Quick = (() => {
     return on ? (stay ? '포션 사용 · 머묾' : '포션 사용') : (stay ? '팝핑 안 함 · 머묾' : '팝핑 안 함 · 바로 복귀');
   };
   const afterLine = () => ret().after_macro !== false ? '원래 매크로(자동 낚시 등)를 다시 켬' : '커스텀 매크로를 실행';
-  const primeLine = () => !prime().enabled ? '봇 버튼 대신 누르기 · 꺼짐' : prime().mode === 'screen' ? '켜짐 · 화면에서 직접 누름' : '켜짐 · 누른 것처럼';
+  const primeLine = () => prime().enabled ? PRIME_ON : '스나이핑 기능의 정점 · 꺼짐';
   const row = (attr, name, sub, on, warn, star) => `
     <label class="quick-row"><span class="q-name"><b>${star ? '<i class="q-star">★</i>' : ''}${name}</b><small class="${warn ? 'warn' : ''}" data-q-sub>${sub}</small></span>
       <span class="switch"><input type="checkbox" ${attr} ${on ? 'checked' : ''}><i></i></span></label>`;
@@ -2539,50 +2607,111 @@ const Quick = (() => {
 })();
 
 // ---------------------------------------------------------------- 긴 칸 위쪽: 바로 가기 (묶음 이름을 누르면 그 묶음으로)
-// 칸(.sec[data-jump]) 안의 묶음(.grp)과 data-jump-label 이 붙은 카드를 위에서부터 · 3개 이상일 때만
+// 칸(.sec[data-jump]) 안의 묶음(.grp)과 data-jump-label 이 붙은 카드를 위에서부터
+// · 묶음이 3개 이상이고 내용이 화면보다 꽤 길 때만 (짧은 칸은 바로 가기 없음)
+// · 누르면 부드럽게 스크롤 (브라우저 설정과 상관없이 직접 움직임) · 표시 막대가 미끄러지듯 이동 · 도착한 묶음을 잠깐 강조
+// · 칸 맨 아래에 빈 자리를 둬서 마지막 묶음들도 위쪽까지 올라옴 (마지막 전 묶음을 눌렀는데 마지막이 표시되던 문제)
 const Jump = (() => {
   // 칸 안에서의 위치 (중간에 움직이는 중인 칸이 끼어 있어도 칸 기준으로 · 화면 배율과 상관없이)
   const offIn = (el, sec) => { let y = 0; while (el && el !== sec) { y += el.offsetTop; el = el.offsetParent; } return y; };
+  const GAP = 14;
   function build(sec) {
-    if (!sec || !sec.hasAttribute('data-jump')) return;
+    if (!sec || !sec.hasAttribute('data-jump') || !sec.classList.contains('active')) return;
     const ts = [...sec.querySelectorAll('[data-jump-label], .grp')];
-    let bar = sec.querySelector(':scope > .jump');
-    if (ts.length < 3) { bar?.remove(); return; }
+    let bar = sec.querySelector(':scope > .jump'), pad = sec.querySelector(':scope > .jump-pad');
+    // 내용 길이 (바로 가기 막대 · 빈 자리 빼고)
+    const extra = (bar ? bar.offsetHeight : 0) + (pad ? pad.offsetHeight : 0);
+    const long = sec.scrollHeight - extra > sec.clientHeight * 1.35;
+    if (ts.length < 3 || !long) { bar?.remove(); pad?.remove(); return; }
     const labels = ts.map(t => t.dataset.jumpLabel || I18N.source(t.querySelector('.grp-head b')) || '');
     if (!bar) {
       bar = document.createElement('div');
       bar.className = 'jump';
       (sec.querySelector(':scope > .hint') || sec.querySelector(':scope > .sec-head')).after(bar);
       sec.addEventListener('scroll', () => {
-        if (!sec._jr) sec._jr = requestAnimationFrame(() => { sec._jr = 0; mark(sec); });
+        if (!sec._jr) sec._jr = requestAnimationFrame(() => { sec._jr = 0; if (!sec._anim) mark(sec); });
       }, { passive: true });
+      // 사용자가 직접 휠 · 끌기로 움직이면 진행 중인 이동은 멈춤
+      ['wheel', 'touchstart', 'mousedown'].forEach(ev => sec.addEventListener(ev, e => {
+        if (sec._anim && !e.target.closest?.('.jump')) stop(sec);
+      }, { passive: true }));
     }
+    if (!pad) {
+      pad = document.createElement('div');
+      pad.className = 'jump-pad';
+      sec.append(pad);
+    } else if (pad !== sec.lastElementChild) sec.append(pad);
     bar._ts = ts;
     const key = labels.join('|');
     if (bar._key !== key) {
       bar._key = key;
-      bar.innerHTML = labels.map((l, n) => `<button type="button" class="jump-btn" data-n="${n}">${esc(l)}</button>`).join('');
+      bar.innerHTML = '<i class="jump-ind"></i>' + labels.map((l, n) => `<button type="button" class="jump-btn" data-n="${n}">${esc(l)}</button>`).join('');
+      bar._cur = -1;
     }
-    mark(sec);
+    // 빈 자리: 마지막 묶음이 막대 바로 아래까지 올라올 만큼만
+    const last = ts[ts.length - 1];
+    const bottom = sec.scrollHeight - pad.offsetHeight;
+    const need = sec.clientHeight - (bottom - (offIn(last, sec) - bar.offsetHeight - GAP)) - 2;
+    pad.style.height = Math.max(0, Math.round(need)) + 'px';
+    mark(sec, true);
   }
-  // 지금 보고 있는 묶음 표시 (맨 아래까지 내렸으면 마지막 것)
-  function mark(sec) {
+  // 지금 보고 있는 묶음 표시
+  function mark(sec, instant) {
     const bar = sec.querySelector(':scope > .jump');
     if (!bar || !bar._ts) return;
     const top = sec.scrollTop + bar.offsetHeight + 40;
     let cur = 0;
     bar._ts.forEach((t, n) => { if (offIn(t, sec) <= top) cur = n; });
-    if (sec.scrollTop > 0 && sec.scrollTop + sec.clientHeight >= sec.scrollHeight - 4) cur = bar._ts.length - 1;
-    bar.querySelectorAll('.jump-btn').forEach((b, n) => b.classList.toggle('on', n === cur));
+    show(bar, cur, instant);
+  }
+  // 표시 막대를 그 버튼 위치로 (미끄러지듯)
+  function show(bar, n, instant) {
+    const btns = bar.querySelectorAll('.jump-btn'), b = btns[n], ind = bar.querySelector('.jump-ind');
+    btns.forEach((x, k) => x.classList.toggle('on', k === n));
+    if (!b || !ind) return;
+    if (instant || bar._cur < 0) ind.classList.add('still');
+    ind.style.width = b.offsetWidth + 'px';
+    ind.style.height = b.offsetHeight + 'px';
+    ind.style.transform = `translate(${b.offsetLeft}px, ${b.offsetTop}px)`;
+    if (ind.classList.contains('still')) { void ind.offsetWidth; ind.classList.remove('still'); }
+    bar._cur = n;
+  }
+  const ease = t => (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  function stop(sec) {
+    if (sec._anim) cancelAnimationFrame(sec._anim.raf);
+    sec._anim = null;
+  }
+  function go(sec, y, done) {
+    stop(sec);
+    const from = sec.scrollTop, to = Math.max(0, Math.min(y, sec.scrollHeight - sec.clientHeight)), dist = to - from;
+    if (Math.abs(dist) < 2) { sec.scrollTop = to; done?.(); return; }
+    const dur = Math.min(620, Math.max(280, 220 + Math.abs(dist) * 0.35)), t0 = performance.now();
+    const a = sec._anim = { raf: 0 };
+    const step = now => {
+      if (sec._anim !== a) return;
+      const k = Math.min(1, (now - t0) / dur);
+      sec.scrollTop = from + dist * ease(k);
+      if (k < 1) a.raf = requestAnimationFrame(step);
+      else { sec._anim = null; done?.(); }
+    };
+    a.raf = requestAnimationFrame(step);
   }
   document.addEventListener('click', e => {
     const b = e.target.closest('.jump-btn');
     if (!b) return;
-    const bar = b.parentElement, sec = bar.parentElement, t = bar._ts?.[+b.dataset.n];
-    if (t) sec.scrollTo({ top: Math.max(0, offIn(t, sec) - bar.offsetHeight - 14), behavior: 'smooth' });
+    const bar = b.parentElement, sec = bar.parentElement, n = +b.dataset.n, t = bar._ts?.[n];
+    if (!t) return;
+    show(bar, n);
+    go(sec, offIn(t, sec) - bar.offsetHeight - GAP, () => {
+      mark(sec);
+      t.classList.remove('jump-hit'); void t.offsetWidth; t.classList.add('jump-hit');
+      clearTimeout(t._hit); t._hit = setTimeout(() => t.classList.remove('jump-hit'), 1000);
+    });
   });
-  // 칸 안이 다시 그려졌을 때 (위치 지정 · 장소 추가 등)
+  // 칸 안이 다시 그려졌을 때 (위치 지정 · 장소 추가 등) · 창 크기가 바뀌었을 때
   const refresh = () => document.querySelectorAll('.sec[data-jump].active').forEach(build);
+  let rt = 0;
+  addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(refresh, 120); });
   return { build, refresh };
 })();
 

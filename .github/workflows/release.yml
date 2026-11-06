@@ -111,7 +111,7 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          PURGE_BELOW: "2.4.1"
+          PURGE_BELOW: "2.5.0"
         run: |
           $cut = [version]$env:PURGE_BELOW
           $cur = "v${{ steps.ver.outputs.version }}"

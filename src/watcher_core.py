@@ -94,7 +94,7 @@ PRIME_DEFAULT = {
     "delay_min": 2.0,             # 버튼 누르기 전 무작위 대기 (초) — 최소
     "delay_max": 3.5,             #                               — 최대
     # 누를 버튼 · 고를 메뉴 항목: 이름(또는 이모지)에 들어 있으면 · 앞에 있을수록 먼저
-    "words": ["get link", "link", "join", "reveal", "show", "server", "🔗", "링크", "참가", "입장", "받기", "보기"],
+    "words": ["get link", "link", "join", "reveal", "show", "server", "🔗"],
     # 누르지 않을 버튼 (이름에 들어 있으면)
     "skip": ["report", "delete", "remove", "fake", "scam", "ended", "dead", "expired", "unsub", "stop", "cancel",
              "close", "dismiss", "mute", "block", "ping", "role", "verify", "help", "신고", "삭제", "종료", "취소", "닫기"],
@@ -104,15 +104,19 @@ PRIME_DEFAULT = {
     "fallback": True,             # 고른 방식이 안 되면 다른 방식으로
     "single": True,               # 누를 수 있는 버튼이 하나뿐이면 이름이 안 맞아도 누름
     "selects": True,              # 선택 메뉴에서도 맞는 항목을 고름
-    "steps": 3,                   # 응답에 버튼이 또 있으면 이어서 누르기 (최대 단계)
+    "steps": 6,                   # 알림 하나에 최대 누르는 횟수 (먼저 누르는 버튼 · 응답에 또 있는 버튼 · 한번 더 …)
     "timeout": 15,                # 봇 응답을 기다리는 시간 (초)
     "navigate": True,             # 그 채널이 화면에 안 열려 있으면 그 메시지로 이동해서 누름
     "go_back": True,              # 누른 뒤 원래 보던 화면으로
     "resolve": True,              # 받은 주소가 로블록스가 아니면 따라가서 로블록스 링크 찾기 (리다이렉트 · 짧은 주소)
     "dm": True,                   # 봇이 DM 으로 보내 주는 링크도 받기
-    "per_min": 6,                 # 1분에 최대 누르기 (봇 도배 · 계정 보호)
+    "per_min": 6,                 # 1분에 최대 처리하는 알림 수 (봇 도배 · 계정 보호)
     "bots": [],                   # 이 봇만 (이름 또는 ID) · 비우면 감시 대상의 모든 봇
+    # 막혔을 때 AI 에게 다음 행동 묻기 (ai.py) — 사용자가 직접 넣은 API 키 · provider: groq(추천) · gemini · openrouter · custom
+    "ai": {"enabled": False, "provider": "groq", "key": "", "model": "", "base": ""},
+    "rev": 2,                     # 설정 형식 (예전 기본값 고치기용)
 }
+PRIME_OLD_WORDS = ["get link", "link", "join", "reveal", "show", "server", "🔗", "링크", "참가", "입장", "받기", "보기"]
 BIOME_DEFAULT = {
     "enabled": False,         # 작동 중일 때 바이옴 웹후크 전송
     "player": "",             # 로블록스 실제 닉네임 (디스플레이 이름 X)
@@ -777,20 +781,36 @@ def normalize(raw):
     sn["cooldown_sec"] = _num(sn["cooldown_sec"], 0, 600, SNIPE_DEFAULT["cooldown_sec"])
     d["snipe"] = {k: sn[k] for k in SNIPE_DEFAULT}
     pr = dict(PRIME_DEFAULT)
-    pr.update(d.get("prime") if isinstance(d.get("prime"), dict) else {})
+    saved = d.get("prime") if isinstance(d.get("prime"), dict) else {}
+    pr.update(saved)
+    if saved and int(saved.get("rev") or 1) < 2:
+        # V2.4.x → V2.5: 손대지 않은 예전 기본값만 새 기본값으로 (누를 이름의 한국어 · 최대 3단계)
+        if saved.get("words") == PRIME_OLD_WORDS:
+            pr["words"] = list(PRIME_DEFAULT["words"])
+        if saved.get("steps") in (None, 3):
+            pr["steps"] = PRIME_DEFAULT["steps"]
+    pr["rev"] = PRIME_DEFAULT["rev"]
     for k in ("enabled", "fallback", "single", "selects", "navigate", "go_back", "resolve", "dm"):
         pr[k] = bool(pr.get(k, PRIME_DEFAULT[k]))
     if pr.get("mode") not in ("signal", "screen"):
         pr["mode"] = "signal"
     pr["delay_min"] = _num(pr.get("delay_min"), 0, 30, PRIME_DEFAULT["delay_min"])
     pr["delay_max"] = max(pr["delay_min"], _num(pr.get("delay_max"), 0, 60, PRIME_DEFAULT["delay_max"]))
-    pr["steps"] = int(_num(pr.get("steps"), 1, 5, PRIME_DEFAULT["steps"]))
+    pr["steps"] = int(_num(pr.get("steps"), 1, 12, PRIME_DEFAULT["steps"]))
     pr["timeout"] = _num(pr.get("timeout"), 3, 60, PRIME_DEFAULT["timeout"])
     pr["per_min"] = int(_num(pr.get("per_min"), 1, 30, PRIME_DEFAULT["per_min"]))
     for k in ("words", "skip", "bots"):
         v = pr.get(k)
         v = v if isinstance(v, list) else PRIME_DEFAULT[k]
         pr[k] = list(dict.fromkeys(str(x).strip() for x in v if str(x).strip()))[:40]
+    a = dict(PRIME_DEFAULT["ai"])
+    a.update(pr.get("ai") if isinstance(pr.get("ai"), dict) else {})
+    a["enabled"] = bool(a.get("enabled"))
+    if a.get("provider") not in ("groq", "gemini", "openrouter", "custom"):
+        a["provider"] = "groq"
+    for k in ("key", "model", "base"):
+        a[k] = str(a.get(k) or "").strip()[:300]
+    pr["ai"] = {k: a[k] for k in PRIME_DEFAULT["ai"]}
     d["prime"] = {k: pr[k] for k in PRIME_DEFAULT}
     d["names"] = dict(d.get("names") or {})
     st = d.get("stats") if isinstance(d.get("stats"), dict) else {}
