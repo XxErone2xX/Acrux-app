@@ -21,6 +21,9 @@ public final class Fisher {
 
     public interface Input {
         void tap(int x, int y, int ms);
+
+        /** 릴링 전에 누를 자리로 마우스를 미리 옮겨 둠 (PC: move_to 뒤 mouse_click_here) */
+        default void hover(int x, int y) {}
     }
 
     public interface Out {
@@ -400,6 +403,7 @@ public final class Fisher {
         int[] xs0 = {side, side + Math.max(8, b[0] - a[0])};
         // 누르는 자리: 바 아래쪽 (게임 UI 버튼이 없는 곳 · 아무 데나 눌러도 릴링됨)
         int tapX = bx + bw / 2, tapY = Math.min(H() - 2, by + bhh + bh * 3);
+        in.hover(tapX, tapY);
         reelLoop(bx, by, bw, bhh, topIn, bh, xs0, tapX, tapY);
     }
 

@@ -10,12 +10,16 @@ android {
         applicationId "com.acrux.mobile"
         minSdk 26
         targetSdk 35
-        versionCode 2
-        versionName "0.2.0"
+        versionCode 3
+        versionName "0.3.0"
         // 폰은 ARM 만 (x86 은 에뮬레이터용 · 글자 읽기 라이브러리가 커서 빼면 APK 가 절반)
         ndk {
             abiFilters "arm64-v8a", "armeabi-v7a"
         }
+    }
+
+    buildFeatures {
+        aidl true
     }
 
     compileOptions {
@@ -45,4 +49,8 @@ android {
 dependencies {
     // 글자 읽기 (판매 보정 · 판매 · 메뉴 리셋) — 폰 안에서만 · 모델 포함 (인터넷 안 씀)
     implementation "com.google.mlkit:text-recognition:16.0.1"
+    // 키보드 · 마우스 입력 (PC 와 같은 키 · 우클릭) — Shizuku(ADB 권한)로 입력 서비스를 띄움
+    implementation "dev.rikka.shizuku:api:13.1.5"
+    implementation "dev.rikka.shizuku:provider:13.1.5"
+    implementation "org.lsposed.hiddenapibypass:hiddenapibypass:4.3"
 }

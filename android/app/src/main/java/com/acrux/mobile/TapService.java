@@ -19,15 +19,14 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.acrux.mobile.core.Mover;
+import com.acrux.mobile.core.Seller;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 /**
- * 접근성 서비스 — 자동 낚시 · 이동의 터치를 대신 보냄 (dispatchGesture) + 로블록스 위에 떠 있는 조작 창
+ * 접근성 서비스 — 로블록스 위에 떠 있는 조작 창 + Shizuku 가 없을 때 자동 낚시 터치 (dispatchGesture)
+ * 키보드 · 마우스(이동 · 판매)는 Shizuku 로 보냄 (ShizukuPc)
  * 화면 내용은 읽지 않음 (canRetrieveWindowContent = false · 화면 색은 화면 캡처로 봄)
  */
 public class TapService extends AccessibilityService {
@@ -39,10 +38,6 @@ public class TapService extends AccessibilityService {
     TextView status, calBtn, runBtn, gearBtn, arriveBtn;
     View picker;
     final Runnable refresh = this::refresh;
-    // 지점 추가 (시간 재기)
-    long measureAt;
-    String measureName;
-    boolean measureSell;
 
     @Override
     protected void onServiceConnected() {
@@ -109,137 +104,6 @@ public class TapService extends AccessibilityService {
         dispatchGesture(new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(p, 0, Math.max(1, ms))).build(), null, null);
     }
 
-    /** 몸짓 하나를 보내고 끝날 때까지 기다림 */
-    boolean send(GestureDescription g, long ms) {
-        CountDownLatch done = new CountDownLatch(1);
-        boolean ok = dispatchGesture(g, new GestureResultCallback() {
-            @Override
-            public void onCompleted(GestureDescription d) {
-                done.countDown();
-            }
-
-            @Override
-            public void onCancelled(GestureDescription d) {
-                done.countDown();
-            }
-        }, null);
-        if (!ok) return false;
-        try {
-            return done.await(ms + 1500, TimeUnit.MILLISECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return false;
-        }
-    }
-
-    static float cl(float v, float hi) {
-        return Math.max(1, Math.min(hi - 2, v));
-    }
-
-    void swipe(int x1, int y1, int x2, int y2, int ms) {
-        int[] s = screen();
-        Path p = new Path();
-        p.moveTo(cl(x1, s[0]), cl(y1, s[1]));
-        p.lineTo(cl(x2, s[0]), cl(y2, s[1]));
-        send(new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(p, 0, Math.max(50, ms))).build(), ms);
-    }
-
-    /** 두 손가락: zoomOut = 모으기 (멀리 → 가까이) · 아니면 벌리기 */
-    void pinch(int cx, int cy, int far, int near, boolean zoomOut, int ms) {
-        int[] s = screen();
-        int a = zoomOut ? far : near, b = zoomOut ? near : far;
-        Path l = new Path(), r = new Path();
-        l.moveTo(cl(cx - a, s[0]), cy);
-        l.lineTo(cl(cx - b, s[0]), cy);
-        r.moveTo(cl(cx + a, s[0]), cy);
-        r.lineTo(cl(cx + b, s[0]), cy);
-        send(new GestureDescription.Builder()
-                .addStroke(new GestureDescription.StrokeDescription(l, 0, Math.max(50, ms)))
-                .addStroke(new GestureDescription.StrokeDescription(r, 0, Math.max(50, ms))).build(), ms);
-    }
-
-    /** 조이스틱: (cx, cy) 에 손가락을 대고 방향마다 반지름 r 만큼 밀어 둔 채로 그 시간 동안 · 손가락은 맨 끝에만 뗌 */
-    void stick(int cx, int cy, int r, double[][] segs, Runnable check) {
-        List<float[]> parts = new ArrayList<>();          // {x, y, ms, 끌기(1) / 머물기(0)}
-        float px = cx, py = cy;
-        parts.add(new float[]{px, py, 60, 0});            // 누르기
-        for (double[] sg : segs) {
-            double a = Math.toRadians(sg[0]);
-            float tx = (float) (cx + r * Math.sin(a)), ty = (float) (cy - r * Math.cos(a));
-            parts.add(new float[]{tx, ty, 80, 1});
-            long left = Math.max(0, (long) (sg[1] * 1000) - 80);
-            while (left > 0) {                             // 0.4초씩 (그 사이에 멈춤 확인)
-                long ms = Math.min(400, left);
-                parts.add(new float[]{tx, ty, ms, 0});
-                left -= ms;
-            }
-            px = tx;
-            py = ty;
-        }
-        GestureDescription.StrokeDescription prev = null;
-        float lx = cx, ly = cy;
-        try {
-            for (int i = 0; i < parts.size(); i++) {
-                float[] q = parts.get(i);
-                boolean last = i == parts.size() - 1;
-                Path p = new Path();
-                p.moveTo(lx, ly);
-                if (q[3] == 1) p.lineTo(q[0], q[1]);
-                long ms = Math.max(1, (long) q[2]);
-                prev = prev == null ? new GestureDescription.StrokeDescription(p, 0, ms, !last) : prev.continueStroke(p, 0, ms, !last);
-                if (!send(new GestureDescription.Builder().addStroke(prev).build(), ms)) {
-                    Hub.log("조이스틱 몸짓이 끊김", 'd');
-                    return;
-                }
-                lx = q[0];
-                ly = q[1];
-                if (!last) check.run();
-            }
-        } catch (RuntimeException e) {
-            // 멈춤: 누른 손가락을 떼고 멈춤을 이어서 알림
-            if (prev != null && prev.willContinue()) {
-                Path p = new Path();
-                p.moveTo(lx, ly);
-                send(new GestureDescription.Builder().addStroke(prev.continueStroke(p, 0, 1, false)).build(), 1);
-            }
-            throw e;
-        }
-    }
-
-    /** 코어(이동 · 판매)가 쓰는 터치 — 접근성 서비스가 켜져 있을 때만 */
-    static final Mover.Gestures GESTURES = new Mover.Gestures() {
-        @Override
-        public void tap(int x, int y, int ms) {
-            TapService t = instance;
-            if (t == null) return;
-            if (ms > 200) {
-                Path p = new Path();
-                p.moveTo(x, y);
-                t.send(new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(p, 0, ms)).build(), ms);
-            } else {
-                t.tap(x, y, ms);
-            }
-        }
-
-        @Override
-        public void swipe(int x1, int y1, int x2, int y2, int ms) {
-            TapService t = instance;
-            if (t != null) t.swipe(x1, y1, x2, y2, ms);
-        }
-
-        @Override
-        public void pinch(int cx, int cy, int far, int near, boolean zoomOut, int ms) {
-            TapService t = instance;
-            if (t != null) t.pinch(cx, cy, far, near, zoomOut, ms);
-        }
-
-        @Override
-        public void stick(int cx, int cy, int r, double[][] segs, Runnable check) {
-            TapService t = instance;
-            if (t != null) t.stick(cx, cy, r, segs, check);
-        }
-    };
-
     // ---------------------------------------------------------------- 떠 있는 조작 창
     void showPanel() {
         if (panel != null) return;
@@ -262,7 +126,10 @@ public class TapService extends AccessibilityService {
         row.addView(calBtn, Ui.wrap());
         row.addView(runBtn, gap());
         row.addView(gearBtn, gap());
-        arriveBtn = small("도착", Ui.GREEN, v -> arrived());
+        arriveBtn = small("도착", Ui.GREEN, v -> {
+            Hub.arrived = true;
+            Hub.log("도착", 'g');
+        });
         arriveBtn.setVisibility(View.GONE);
         panel.addView(title, Ui.wrap());
         panel.addView(status, Ui.wrap());
@@ -332,7 +199,8 @@ public class TapService extends AccessibilityService {
     TextView item(String s, View.OnClickListener on) {
         TextView t = Ui.text(this, s, 12, Ui.FG, false);
         t.setPadding(Ui.dp(this, 6), Ui.dp(this, 7), Ui.dp(this, 6), Ui.dp(this, 7));
-        t.setOnClickListener(on);
+        if (on != null) t.setOnClickListener(on);
+        else t.setTextColor(Ui.MUTED);
         return t;
     }
 
@@ -347,7 +215,7 @@ public class TapService extends AccessibilityService {
         refresh();
     }
 
-    // ---- ⚙ 메뉴: 위치 지정 · 지점 추가 · 판매 보정 · 테스트
+    // ---- ⚙ 메뉴 (PC 버전 이동 · 판매 탭과 같은 순서)
     void toggleMenu() {
         if (menu != null) {
             closeMenu();
@@ -355,26 +223,54 @@ public class TapService extends AccessibilityService {
         }
         menu = new LinearLayout(this);
         menu.setOrientation(LinearLayout.VERTICAL);
-        menu.addView(head("위치 지정"));
-        for (String n : Hub.positionNames()) {
-            boolean set = Hub.pos.containsKey(n);
-            menu.addView(item((set ? "✓ " : "· ") + n, v -> pick(n, null)));
+        menu.addView(head("Shizuku (키보드 · 마우스)"));
+        menu.addView(item(ShizukuPc.ready() ? "✓ 연결됨" : "· " + ShizukuPc.status() + " — 눌러서 연결", v -> {
+            closeMenu();
+            ShizukuPc.connect();
+        }));
+        menu.addView(head("공통 위치 (기준 장소 맞추기)"));
+        for (String[] k : Mover.BASE_KEYS) {
+            menu.addView(item((Hub.pos.containsKey(k[0]) ? "✓ " : "· ") + k[1], v -> pickSave(k[0], k[1])));
         }
-        menu.addView(head("지점 추가 (터치이동 · 시간 재기)"));
-        menu.addView(item("+ 낚시 장소 경로에", v -> addPoint(false)));
-        menu.addView(item("+ 판매 장소 경로에", v -> addPoint(true)));
+        place(false);
+        place(true);
         menu.addView(head("판매"));
-        menu.addView(item("판매 보정 (NPC 앞에서 누른 뒤 상호작용)", v -> toggle("sellcal")));
+        menu.addView(item("판매 자동 보정 (NPC 앞에서 시작 → E 는 직접)", v -> toggle("sellcal")));
+        int set = 0;
+        for (String[] k : Seller.KEYS) if (Hub.pos.containsKey(k[0])) set++;
+        menu.addView(item("  판매 위치 " + set + " / " + Seller.KEYS.length + " 저장됨", null));
         menu.addView(item("판매 한 번 해 보기", v -> toggle("sell")));
         menu.addView(head("이동 테스트"));
-        menu.addView(item("기준 장소 → 낚시 장소", v -> toggle("test_fish")));
-        menu.addView(item("기준 장소 → 판매 장소", v -> toggle("test_sell")));
+        menu.addView(item("기준 장소로", v -> toggle("base")));
+        menu.addView(item("기준 장소 → 낚시 장소", v -> toggle("fish")));
+        menu.addView(item("기준 장소 → 판매 장소", v -> toggle("sellgo")));
         ScrollView sv = new ScrollView(this);
         sv.addView(menu);
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(Ui.dp(this, 230), Math.min(Ui.dp(this, 260), screen()[1] / 2));
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(Ui.dp(this, 240), Math.min(Ui.dp(this, 300), screen()[1] * 2 / 3));
         p.topMargin = Ui.dp(this, 6);
         panel.addView(sv, p);
         menu.setTag(sv);
+    }
+
+    void place(boolean sell) {
+        List<Mover.Point> pts = sell ? Hub.sellPts : Hub.fishPts;
+        String key = sell ? "sell" : "fish";
+        menu.addView(head((sell ? "물고기 판매 장소" : "낚시 장소") + " · 지점 " + pts.size() + "개"));
+        for (int i = 0; i < pts.size(); i++) {
+            Mover.Point pt = pts.get(i);
+            int j = i;
+            String t = pt.time == null ? "시간 없음" : fmt(pt.time) + "초";
+            menu.addView(item("  " + (i + 1) + "번 · " + t + " — 다시 재기", v -> toggle("measure_" + key + ":" + j)));
+        }
+        menu.addView(item("+ 지점 추가 (기준 장소부터 걸어감)", v -> toggle("addpt_" + key)));
+        if (!pts.isEmpty()) {
+            menu.addView(item("− 마지막 지점 지우기", v -> {
+                pts.remove(pts.size() - 1);
+                Hub.save();
+                Hub.log((sell ? "판매" : "낚시") + " 장소 마지막 지점 지움", 'd');
+                closeMenu();
+            }));
+        }
     }
 
     TextView head(String s) {
@@ -389,10 +285,22 @@ public class TapService extends AccessibilityService {
         menu = null;
     }
 
-    /** 위치 지정: 로블록스 화면 위에 투명한 막을 띄우고, 누른 곳을 그 이름의 위치로 (done 이 있으면 저장 대신 넘김) */
+    void pickSave(String key, String label) {
+        pick(label, at -> {
+            if (at == null) return;
+            Hub.pos.put(key, at);
+            Hub.save();
+            Hub.log("'" + label + "' 위치 저장 (" + at[0] + ", " + at[1] + ")", 'g');
+        });
+    }
+
+    /** 위치 지정: 로블록스 화면 위에 투명한 막을 띄우고 누른 곳을 넘김 (화면 비율) · 취소하면 null */
     void pick(String name, java.util.function.Consumer<double[]> done) {
         closeMenu();
-        if (picker != null) return;
+        if (picker != null) {
+            done.accept(null);
+            return;
+        }
         FrameLayout f = new FrameLayout(this);
         f.setBackgroundColor(0x33000000);
         TextView banner = Ui.text(this, "'" + name + "' 위치를 누르세요   ·   취소: 오른쪽 위 ✕", 14, Ui.WHITE, true);
@@ -407,6 +315,7 @@ public class TapService extends AccessibilityService {
         x.setOnClickListener(v -> {
             removeView(picker);
             picker = null;
+            done.accept(null);
         });
         f.addView(x, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.END));
         f.setOnTouchListener((v, e) -> {
@@ -415,13 +324,7 @@ public class TapService extends AccessibilityService {
             double[] at = {Math.round(e.getRawX() / s[0] * 10000) / 10000.0, Math.round(e.getRawY() / s[1] * 10000) / 10000.0};
             removeView(picker);
             picker = null;
-            if (done != null) {
-                done.accept(at);
-            } else {
-                Hub.pos.put(name, at);
-                Hub.save();
-                Hub.log("'" + name + "' 위치 저장 (" + at[0] + ", " + at[1] + ")", 'g');
-            }
+            done.accept(at);
             return true;
         });
         WindowManager.LayoutParams p = new WindowManager.LayoutParams(
@@ -439,40 +342,8 @@ public class TapService extends AccessibilityService {
             picker = f;
         } catch (RuntimeException e) {
             Hub.log("위치 지정 창을 띄우지 못함: " + e, 'r');
+            done.accept(null);
         }
-    }
-
-    /** 지점 추가: 갈 곳을 누름 → 그 자리를 로블록스에도 눌러 걸어가게 함 (Tap to Move) → 도착하면 [도착] → 경로에 '터치이동 이름 초' 추가 */
-    void addPoint(boolean sell) {
-        String prefix = sell ? "판매" : "낚시";
-        int n = 1;
-        while (Hub.pos.containsKey(prefix + n)) n++;
-        String name = prefix + n;
-        pick(name, at -> {
-            Hub.pos.put(name, at);
-            Hub.save();
-            int[] s = screen();
-            Hub.main.postDelayed(() -> {
-                tap((int) (at[0] * s[0]), (int) (at[1] * s[1]), 40);
-                measureAt = System.nanoTime();
-                measureName = name;
-                measureSell = sell;
-                arriveBtn.setVisibility(View.VISIBLE);
-                Hub.state = name + " 까지 걷는 중 — 도착하면 [도착]";
-                Hub.changed();
-            }, 150);
-        });
-    }
-
-    void arrived() {
-        if (measureName == null) return;
-        double sec = Math.round((System.nanoTime() - measureAt) / 1e7) / 100.0;
-        Hub.appendRoute(measureSell, "터치이동 " + measureName + " " + sec);
-        Hub.log("지점 추가: " + (measureSell ? "판매" : "낚시") + " 장소 경로에 '터치이동 " + measureName + " " + sec + "'", 'g');
-        measureName = null;
-        arriveBtn.setVisibility(View.GONE);
-        Hub.state = "대기";
-        Hub.changed();
     }
 
     void refresh() {
@@ -485,6 +356,7 @@ public class TapService extends AccessibilityService {
         calBtn.setEnabled(!run || "cal".equals(mode));
         runBtn.setEnabled(!run || !"cal".equals(mode));
         calBtn.setAlpha(calBtn.isEnabled() ? 1f : 0.4f);
+        arriveBtn.setVisibility(Hub.measuring ? View.VISIBLE : View.GONE);
         runBtn.setAlpha(runBtn.isEnabled() ? 1f : 0.4f);
     }
 

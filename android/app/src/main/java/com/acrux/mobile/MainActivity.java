@@ -17,12 +17,15 @@ import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
 
+import com.acrux.mobile.core.Mover;
+import com.acrux.mobile.core.Seller;
+
 /** 처음 설정 · 상태 · 세부 설정 · 기록 (실제 조작은 로블록스 위에 떠 있는 작은 창에서) */
 public class MainActivity extends Activity {
     static final int REQ_CAPTURE = 7;
 
-    TextView accState, capState, calState, logView, runState;
-    TextView accBtn, capBtn;
+    TextView accState, capState, shzState, calState, logView, runState;
+    TextView accBtn, capBtn, shzBtn;
     final Runnable refresh = this::refresh;
 
     @Override
@@ -34,6 +37,7 @@ public class MainActivity extends Activity {
             requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
         }
         setContentView(build());
+        ShizukuPc.autoConnect();
     }
 
     @Override
@@ -81,6 +85,14 @@ public class MainActivity extends Activity {
         capState = Ui.text(this, "", 13, Ui.MUTED, false);
         capBtn = Ui.button(this, "시작", Ui.ACCENT, v -> toggleCapture());
         ready.addView(row("② 화면 캡처", "화면 색을 보고 낚시 상태를 판단함 · 녹화 · 저장은 하지 않음 · '전체 화면' 공유를 고르기", capState, capBtn), Ui.fill(this, 12));
+        shzState = Ui.text(this, "", 13, Ui.MUTED, false);
+        shzBtn = Ui.button(this, "연결", Ui.ACCENT, v -> ShizukuPc.connect());
+        ready.addView(row("③ Shizuku (키보드 · 마우스)", "이동 · 판매에 PC 와 같은 키(Esc R Enter W A S D E O /)와 마우스(우클릭 Click to Move · Sell All 호버 후 클릭)를 보냄 · "
+                + "자동 낚시만 쓸 거면 없어도 됨", shzState, shzBtn), Ui.fill(this, 12));
+        TextView shzHelp = Ui.text(this, "Shizuku 설정: ① Play 스토어에서 Shizuku 설치 → ② 개발자 옵션 → 무선 디버깅 켜기 → ③ Shizuku 앱에서 '무선 디버깅으로 시작' (페어링 코드 입력) → ④ 여기서 [연결] → 허용. 폰을 재부팅하면 ③ 부터 다시 해야 함",
+                12, Ui.YELLOW, false);
+        shzHelp.setOnClickListener(v -> openUrl("https://shizuku.rikka.app/guide/setup/"));
+        ready.addView(shzHelp, Ui.fill(this, 6));
         root.addView(ready, Ui.fill(this, 18));
 
         // ② 사용법
@@ -91,6 +103,7 @@ public class MainActivity extends Activity {
                 "2. 떠 있는 Acrux 창에서 [보정] — Fish 를 한 번 던져 대기 창 · 미니게임 창 · 결과창 위치를 자동으로 맞춤",
                 "3. [시작] — 자동 낚시 · 멈출 때는 [정지]",
                 "4. Acrux 창은 제목(ACRUX)을 끌어서 낚시 창 · 결과창을 가리지 않는 곳으로 옮기기",
+                "5. 이동 · 판매 (Shizuku 필요 · PC 와 같음): ⚙ → 공통 위치 3개 → 낚시 장소 · 판매 장소 지점 추가 → 판매 자동 보정",
         };
         for (String s : steps) how.addView(Ui.text(this, s, 13, Ui.MUTED, false), Ui.fill(this, 6));
         root.addView(how, Ui.fill(this, 12));
@@ -131,35 +144,44 @@ public class MainActivity extends Activity {
         set.addView(Ui.text(this, "누른 뒤 반응이 보일 때까지 다시 누르지 않는 시간을 이 폰의 터치 속도에 맞춤", 12, Ui.MUTED, false));
         root.addView(set, Ui.fill(this, 12));
 
-        // ⑤ 이동 · 판매
+        // ⑤ 이동 · 판매 (PC 버전과 같은 설정)
         LinearLayout mv = Ui.card(this);
         mv.addView(Ui.text(this, "이동 · 판매", 15, Ui.FG, true));
-        mv.addView(Ui.text(this, "PC 버전처럼: 시작하면 기준 장소 → 낚시 장소로 가서 낚시 · 인벤토리가 가득 차면 판매 장소에서 팔고 돌아옴 · "
-                + "경로는 한 줄에 동작 하나 (아래 도움말) · 위치는 Acrux 창 ⚙ 에서 지정", 12, Ui.MUTED, false), Ui.fill(this, 4));
+        mv.addView(Ui.text(this, "PC 버전과 같음: 시작하면 리셋 → 기준 장소 → Click to Move 로 낚시 장소 · 인벤토리가 가득 차면 판매 장소에서 팔고 돌아옴 · "
+                + "위치 · 지점은 Acrux 창 ⚙ 에서", 12, Ui.MUTED, false), Ui.fill(this, 4));
         mv.addView(sw("시작할 때 낚시 장소로 이동", Hub.useMove, on -> Hub.useMove = on), Ui.fill(this, 8));
         mv.addView(sw("가득 차면 판매하러 가기", Hub.useSell, on -> Hub.useSell = on), Ui.fill(this, 4));
-        mv.addView(route("기준 장소", "리셋 → 카메라 정렬 → 구석까지 걷기 → 내려다보기 → 줌 아웃 (PC 와 같은 순서)", 0), Ui.fill(this, 12));
-        mv.addView(route("낚시 장소", "기준 장소에서 낚시 자리까지", 1), Ui.fill(this, 12));
-        mv.addView(route("판매 장소", "기준 장소에서 Captain Flarg 앞까지", 2), Ui.fill(this, 12));
+        mv.addView(sw("Click to Move 우클릭 (끄면 좌클릭)", "right".equals(Hub.move.button), on -> Hub.move.button = on ? "right" : "left"), Ui.fill(this, 4));
+        mv.addView(sw("카메라 돌리기를 상대 이동으로", Hub.relDrag, on -> Hub.relDrag = on), Ui.fill(this, 4));
+        mv.addView(Ui.text(this, "내려다보기가 안 먹히면 켜 보기 (마우스 잠금 상태에서 움직임)", 12, Ui.MUTED, false));
+        mv.addView(Ui.text(this, "기준 장소 (초)", 14, Ui.FG, true), Ui.fill(this, 14));
+        Mover.Cfg m = Hub.move;
+        mv.addView(num("리셋 후 대기", "기본 3.5", m.resetWait, v -> m.resetWait = clamp(v, 0.5, 30)), Ui.fill(this, 6));
+        mv.addView(num("W", "기본 1", m.wTime, v -> m.wTime = clamp(v, 0, 30)), Ui.fill(this, 6));
+        mv.addView(num("W + A", "기본 7", m.waTime, v -> m.waTime = clamp(v, 0, 30)), Ui.fill(this, 6));
+        mv.addView(num("A", "기본 1", m.aTime, v -> m.aTime = clamp(v, 0, 30)), Ui.fill(this, 6));
+        mv.addView(num("A 끝 W", "A 를 누른 채 마지막에 W · 기본 0.25", m.w2Time, v -> m.w2Time = clamp(v, 0, 10)), Ui.fill(this, 6));
+        mv.addView(num("S + D", "기본 0.25", m.sdTime, v -> m.sdTime = clamp(v, 0, 10)), Ui.fill(this, 6));
+        mv.addView(num("내려다보기 (px)", "우클릭 드래그 거리 · 기본 800", m.tiltPx, v -> m.tiltPx = (int) clamp(v, 0, 3000)), Ui.fill(this, 6));
+        mv.addView(num("O 줌 아웃", "기본 2.5", m.oTime, v -> m.oTime = clamp(v, 0, 10)), Ui.fill(this, 6));
+        mv.addView(num("걷기 여유", "지점마다 잰 시간에 더함 · 기본 0.3", m.margin, v -> m.margin = clamp(v, 0, 5)), Ui.fill(this, 6));
         mv.addView(num("판매 최대 종류", "한 번에 파는 최대 종류 수 · 기본 100", Hub.sellMax, v -> Hub.sellMax = (int) clamp(v, 1, 500)), Ui.fill(this, 12));
         mv.addView(num("판매 클릭 추가 대기 (초)", "렉이 있으면 늘림 · 기본 0", Hub.sellDelay, v -> Hub.sellDelay = clamp(v, 0, 5)), Ui.fill(this, 8));
         posView = Ui.text(this, "", 12, Ui.MUTED, false);
         posView.setTypeface(Typeface.MONOSPACE);
-        mv.addView(Ui.text(this, "지정한 위치", 13, Ui.FG, true), Ui.fill(this, 12));
+        mv.addView(Ui.text(this, "저장된 위치 · 지점", 13, Ui.FG, true), Ui.fill(this, 12));
         mv.addView(posView, Ui.fill(this, 4));
-        TextView clearPos = Ui.button(this, "위치 모두 지우기", Ui.RED, v -> {
+        TextView clearPos = Ui.button(this, "위치 · 지점 모두 지우기", Ui.RED, v -> {
             Hub.pos.clear();
+            Hub.fishPts.clear();
+            Hub.sellPts.clear();
             Hub.save();
             Hub.changed();
-            Hub.log("지정한 위치 모두 지움", 'd');
+            Hub.log("위치 · 지점 모두 지움", 'd');
         });
         LinearLayout.LayoutParams cp = Ui.wrap();
         cp.topMargin = Ui.dp(this, 8);
         mv.addView(clearPos, cp);
-        TextView help = Ui.text(this, HELP, 12, Ui.MUTED, false);
-        help.setTypeface(Typeface.MONOSPACE);
-        mv.addView(Ui.text(this, "경로 도움말", 13, Ui.FG, true), Ui.fill(this, 14));
-        mv.addView(help, Ui.fill(this, 4));
         root.addView(mv, Ui.fill(this, 12));
 
         // ⑥ 기록
@@ -181,24 +203,6 @@ public class MainActivity extends Activity {
     }
 
     TextView posView;
-    final EditText[] routes = new EditText[3];
-    final TextView[] routeNotes = new TextView[3];
-
-    static final String HELP = String.join("\n",
-            "리셋                    메뉴 → Reset Character → Reset",
-            "대기 3.5                초",
-            "카메라정렬              채팅 → 도감 → 도감닫기 → 채팅",
-            "이동 W 1, WA 7          조이스틱 (쉼표 = 손가락 안 떼고)",
-            "                        W A S D WA WD SA SD · 각도(0=앞)",
-            "화면내리기 2            화면을 아래로 끌어 내려다보기",
-            "화면돌리기 0.3 0        카메라 돌리기 (화면 비율)",
-            "줌아웃 3 / 줌인 3       두 손가락 핀치",
-            "점프 1",
-            "터치 이름 / 터치 x y    한 번 누름",
-            "꾹 이름 1.5             누르고 있기",
-            "터치이동 낚시1 4.2      Tap to Move + 걸리는 초",
-            "상호작용                E 대신 상호작용 버튼",
-            "# 뒤는 설명");
 
     View sw(String title, boolean on, Flag f) {
         Switch s = new Switch(this);
@@ -210,78 +214,6 @@ public class MainActivity extends Activity {
             Hub.save();
         });
         return s;
-    }
-
-    /** 경로 편집 칸 (i: 0 기준 · 1 낚시 · 2 판매) — 칸을 벗어나면 확인 · 저장 */
-    View route(String title, String sub, int i) {
-        LinearLayout l = new LinearLayout(this);
-        l.setOrientation(LinearLayout.VERTICAL);
-        l.addView(Ui.text(this, title, 14, Ui.FG, true));
-        l.addView(Ui.text(this, sub, 12, Ui.MUTED, false));
-        EditText e = new EditText(this);
-        e.setTypeface(Typeface.MONOSPACE);
-        e.setTextSize(13);
-        e.setTextColor(Ui.FG);
-        e.setBackgroundColor(Ui.FIELD);
-        e.setPadding(Ui.dp(this, 10), Ui.dp(this, 8), Ui.dp(this, 10), Ui.dp(this, 8));
-        e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-        e.setGravity(Gravity.TOP | Gravity.START);
-        e.setMinLines(3);
-        e.setText(i == 0 ? Hub.routeBase : i == 1 ? Hub.routeFish : Hub.routeSell);
-        TextView note = Ui.text(this, "", 12, Ui.MUTED, false);
-        e.setOnFocusChangeListener((v, has) -> {
-            if (!has) saveRoute(i);
-        });
-        routes[i] = e;
-        routeNotes[i] = note;
-        l.addView(e, Ui.fill(this, 6));
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.addView(note, Ui.weight());
-        String def = i == 0 ? com.acrux.mobile.core.Mover.BASE_DEFAULT : i == 1 ? com.acrux.mobile.core.Mover.FISH_DEFAULT : com.acrux.mobile.core.Mover.SELL_DEFAULT;
-        TextView reset = Ui.button(this, "기본값", Ui.MUTED, v -> {
-            e.setText(def);
-            saveRoute(i);
-        });
-        row.addView(reset, Ui.wrap());
-        l.addView(row, Ui.fill(this, 4));
-        checkRoute(i);
-        return l;
-    }
-
-    void saveRoute(int i) {
-        String t = routes[i].getText().toString();
-        if (i == 0) Hub.routeBase = t;
-        else if (i == 1) Hub.routeFish = t;
-        else Hub.routeSell = t;
-        Hub.save();
-        checkRoute(i);
-    }
-
-    void checkRoute(int i) {
-        String t = i == 0 ? Hub.routeBase : i == 1 ? Hub.routeFish : Hub.routeSell;
-        TextView n = routeNotes[i];
-        try {
-            java.util.List<com.acrux.mobile.core.Mover.Step> st = com.acrux.mobile.core.Mover.parse(t);
-            java.util.List<String> need = new java.util.ArrayList<>();
-            for (String k : com.acrux.mobile.core.Mover.needed(st)) {
-                if (!Hub.pos.containsKey(k) && !com.acrux.mobile.core.Mover.DEFAULTS.containsKey(k)) need.add(k);
-            }
-            if (st.isEmpty()) {
-                n.setText("비어 있음 (안 씀)");
-                n.setTextColor(Ui.MUTED);
-            } else if (!need.isEmpty()) {
-                n.setText("동작 " + st.size() + "개 · 위치 지정 필요: " + String.join(", ", need));
-                n.setTextColor(Ui.YELLOW);
-            } else {
-                n.setText("✓ 동작 " + st.size() + "개");
-                n.setTextColor(Ui.GREEN);
-            }
-        } catch (IllegalArgumentException ex) {
-            n.setText(ex.getMessage());
-            n.setTextColor(Ui.RED);
-        }
     }
 
     static double clamp(double v, double lo, double hi) {
@@ -337,6 +269,13 @@ public class MainActivity extends Activity {
         startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS));
     }
 
+    void openUrl(String u) {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(u)));
+        } catch (RuntimeException ignored) {
+        }
+    }
+
     void openAppInfo() {
         startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName())));
     }
@@ -378,31 +317,42 @@ public class MainActivity extends Activity {
         capState.setText(cap ? "✓ 캡처 중" : "꺼짐");
         capState.setTextColor(cap ? Ui.GREEN : Ui.MUTED);
         capBtn.setText(cap ? "중지" : "시작");
+        boolean shz = ShizukuPc.ready();
+        shzState.setText(shz ? "✓ 연결됨" : ShizukuPc.status());
+        shzState.setTextColor(shz ? Ui.GREEN : Ui.MUTED);
+        shzBtn.setText(shz ? "다시" : "연결");
         com.acrux.mobile.core.Settings c = Hub.cfg;
         calState.setText("대기 창: " + pos(c.panelRegion) + "  ·  미니게임 창: " + (c.reelRegion == null ? "없음" : c.reelDerived ? "대기 창으로 계산" : "있음")
                 + "  ·  결과창: " + pos(c.resultRegion) + (c.ready() ? "" : "\n→ 로블록스에서 [보정]을 해야 함"));
         com.acrux.mobile.core.Fisher f = Hub.fisher;
         String stats = f == null ? "" : "\n성공 " + f.success + " · 쓰레기 " + f.junk + " · 실패 " + f.fail;
         String mode = !Hub.running() ? "" : "cal".equals(Hub.mode) ? "자동 보정 중 · " : "sellcal".equals(Hub.mode) ? "판매 보정 중 · "
-                : "sell".equals(Hub.mode) ? "판매 중 · " : Hub.mode.startsWith("test") ? "이동 테스트 중 · " : "자동 낚시 중 · ";
+                : "sell".equals(Hub.mode) ? "판매 중 · " : "run".equals(Hub.mode) ? "자동 낚시 중 · " : Hub.mode.startsWith("addpt") ? "지점 추가 중 · "
+                : Hub.mode.startsWith("measure") ? "시간 재는 중 · " : "이동 테스트 중 · ";
         runState.setText(mode + Hub.state + stats);
         StringBuilder ps = new StringBuilder();
-        for (String n : Hub.positionNames()) {
-            double[] v = Hub.pos.get(n);
-            ps.append(v == null ? "·" : "✓").append(' ').append(n);
-            if (v != null) ps.append("  ").append(v[0]).append(", ").append(v[1]);
-            else if (com.acrux.mobile.core.Mover.DEFAULTS.containsKey(n)) ps.append("  (기본 자리)");
-            ps.append('\n');
-        }
-        for (String[] k : com.acrux.mobile.core.Seller.KEYS) ps.append(Hub.pos.containsKey(k[0]) ? "✓ " : "· ").append(k[1]).append(" (판매 보정)\n");
+        for (String[] k : Mover.BASE_KEYS) line(ps, k[1], Hub.pos.get(k[0]));
+        for (String[] k : Seller.KEYS) line(ps, k[1] + " (판매)", Hub.pos.get(k[0]));
+        points(ps, "낚시 장소", Hub.fishPts);
+        points(ps, "판매 장소", Hub.sellPts);
         posView.setText(ps.toString().trim());
-        for (int i = 0; i < 3; i++) {
-            String cur = i == 0 ? Hub.routeBase : i == 1 ? Hub.routeFish : Hub.routeSell;
-            if (routes[i] != null && !routes[i].hasFocus() && !routes[i].getText().toString().equals(cur)) routes[i].setText(cur);
-            if (routes[i] != null) checkRoute(i);
-        }
         StringBuilder s = new StringBuilder();
         for (String l : Hub.recentLogs(40)) s.insert(0, l + "\n");
         logView.setText(s.length() == 0 ? "아직 기록 없음" : s.toString().trim());
+    }
+
+    static void line(StringBuilder b, String name, double[] v) {
+        b.append(v == null ? "· " : "✓ ").append(name);
+        if (v != null) b.append("  ").append(v[0]).append(", ").append(v[1]);
+        b.append('\n');
+    }
+
+    static void points(StringBuilder b, String name, java.util.List<Mover.Point> pts) {
+        b.append(name).append(" 지점 ").append(pts.size()).append("개").append('\n');
+        for (int i = 0; i < pts.size(); i++) {
+            Mover.Point p = pts.get(i);
+            b.append("  ").append(i + 1).append(".  ").append(p.pos[0]).append(", ").append(p.pos[1])
+                    .append("  ").append(p.time == null ? "시간 없음" : TapService.fmt(p.time) + "초").append('\n');
+        }
     }
 }

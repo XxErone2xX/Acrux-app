@@ -1,331 +1,72 @@
 package com.acrux.mobile.core;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 /**
- * 이동 (모바일) — PC 버전 move.py 와 같은 생각: 매번 '같은 자리 · 같은 화면'(기준 장소)을 만든 뒤 정해진 동작으로 감
- * 키보드가 없어서 동작은 터치로: 조이스틱(W/A/S/D 대신) · 화면 끌기(우클릭 드래그 대신) · 핀치(O 줌 대신) · 메뉴 리셋(Esc → R → Enter 대신)
- *
- * 경로 = 한 줄에 동작 하나 (# 뒤는 설명):
- *   리셋                         로블록스 메뉴 → Reset Character → Reset (글자로 찾음)
- *   대기 3.5                     초
- *   카메라정렬                   채팅 → 도감 → 도감 닫기 → 채팅 (PC 와 같은 카메라 맞추기)
- *   이동 W 1, WA 7, A 0.75        조이스틱: 방향 초 (쉼표로 이으면 손가락을 안 떼고 이어서) · 방향 = W A S D WA WD SA SD · 위 아래 왼쪽 오른쪽 · 각도(0 = 앞, 90 = 오른쪽)
- *   화면내리기 [횟수]             화면을 아래로 끌어 위에서 내려다보기 (기본 2번)
- *   화면돌리기 dx dy              화면을 끌어서 카메라 돌리기 (화면 비율 · 예: 0.3 0)
- *   줌아웃 [횟수] / 줌인 [횟수]   두 손가락 핀치 (기본 3번)
- *   점프 [횟수]
- *   터치 이름 / 터치 x y          지정한 위치(또는 화면 비율)를 한 번 누름
- *   꾹 이름 초                    그 위치를 초 동안 누르고 있음
- *   터치이동 이름 초              Tap to Move: 그 지점을 누르고 걸어갈 시간만큼 기다림 (+ 0.3초)
- *   상호작용                      E 대신: 상호작용 버튼(지정한 위치)을 누름
+ * 이동 — PC 버전 move.py 를 그대로 옮김 (낚시 · 판매에 쓰는 부분)
+ * 기준 장소에서 화면의 한 점을 눌러(Click to Move · 우클릭) 원하는 장소로 걸어감
+ * 외부 앱이라 게임 안 좌표를 모르므로, 매번 '같은 화면'을 만든 뒤 그 화면의 같은 점을 누름:
+ *   1. 기준 장소: 리셋(Esc → R → Enter) → / · 채팅 · 도감 열고 닫기 · / · Enter (카메라 정렬)
+ *      → W 1초 → W+A 7초 → A 1초 (0.75초 뒤부터 W 0.25초 같이) → S+D 0.25초 → 우클릭 드래그(위에서 내려다보기) + O 2.5초 (최대 줌)
+ *   2. 장소마다 지점 목록: [누를 곳, 걸리는 시간] — 지점이 여러 개면 앞 지점에 도착한 화면에서 다음 지점을 누름
+ *   3. 걸리는 시간은 직접 잼: 누른 순간부터 [도착]을 누를 때까지
  */
 public final class Mover {
-    /** 터치 (Fisher.Input + 끌기 · 핀치 · 조이스틱) — 모두 끝날 때까지 기다렸다가 돌아옴 */
-    public interface Gestures extends Fisher.Input {
-        void swipe(int x1, int y1, int x2, int y2, int ms);
-
-        void pinch(int cx, int cy, int far, int near, boolean zoomOut, int ms);
-
-        /** 조이스틱: (cx, cy) 를 누른 채로 segs[i] = {각도, 초} 순서대로 반지름 r 만큼 밀기 · 손가락은 끝에만 뗌 */
-        void stick(int cx, int cy, int r, double[][] segs, Runnable check);
-    }
-
     /** 글자 읽기 (OCR): 화면의 비율 영역 [x1, y1, x2, y2] (null = 전체) → 덩어리 (위치는 화면 비율) */
     public interface Ocr {
         List<SellText.Box> read(double[] region);
     }
 
-    public static final class Step {
-        public final int line;
-        public final String cmd;
-        public final List<String> args;
-        public final String raw;
+    /** 기준 장소로 가는 방법 (PC MOVE_DEFAULT 와 같은 이름 · 같은 기본값) */
+    public static final class Cfg {
+        public double resetWait = 3.5, wTime = 1.0, waTime = 7.0, aTime = 1.0, w2Time = 0.25, sdTime = 0.25, oTime = 2.5, margin = 0.3;
+        public int tiltPx = 800;
+        public String button = "right";          // 이동할 곳을 누를 마우스 버튼 (Click to Move)
+    }
 
-        Step(int line, String cmd, List<String> args, String raw) {
-            this.line = line;
-            this.cmd = cmd;
-            this.args = args;
-            this.raw = raw;
+    /** 장소의 지점: 기준 장소 화면에서 누를 곳 [x, y] · 걸린 시간 (초 · 아직 안 쟀으면 null) */
+    public static final class Point {
+        public double[] pos;
+        public Double time;
+
+        public Point(double[] pos, Double time) {
+            this.pos = pos;
+            this.time = time;
         }
     }
 
-    public static final class ParseError extends IllegalArgumentException {
-        public ParseError(int line, String msg) {
-            super(line + "번째 줄: " + msg);
-        }
-    }
+    public static final String[][] BASE_KEYS = {{"chat_pos", "채팅 버튼"}, {"collection_pos", "도감 버튼"}, {"collection_close", "도감 Exit"}};
+    public static final String[] MOVE_KEYS = {"w", "a", "s", "d", "o", "space", "shift", "e"};
+    public static final double MEASURE_MAX = 180.0;
+    /** 방금 리셋하고 안 움직였음 (PC macro.reset_fresh · 리셋 쿨타임 때문에 또 리셋하지 않음) */
+    static volatile boolean resetFresh = false;
 
-    /** 위치 이름 (지정하는 곳) · 기본 자리 (지정 안 했을 때 · 로블록스 모바일 기본 배치 어림) */
-    public static final Map<String, double[]> DEFAULTS = new LinkedHashMap<>();
-    public static final Map<String, String> POS_HELP = new LinkedHashMap<>();
-
-    static {
-        DEFAULTS.put("조이스틱", new double[]{0.16, 0.72});
-        DEFAULTS.put("점프버튼", new double[]{0.88, 0.78});
-        DEFAULTS.put("메뉴버튼", new double[]{0.035, 0.06});
-        POS_HELP.put("조이스틱", "왼쪽 아래 이동 조이스틱 가운데");
-        POS_HELP.put("점프버튼", "오른쪽 아래 점프 버튼");
-        POS_HELP.put("메뉴버튼", "왼쪽 위 로블록스 메뉴 버튼");
-        POS_HELP.put("채팅버튼", "위쪽 채팅 버튼 (카메라정렬)");
-        POS_HELP.put("도감버튼", "도감(Collection) 버튼 (카메라정렬)");
-        POS_HELP.put("도감닫기", "도감 창의 닫기(Exit) 버튼 (카메라정렬)");
-        POS_HELP.put("상호작용버튼", "NPC 앞에서 뜨는 상호작용 버튼 (E 대신)");
-    }
-
-    static final String[] CMDS = {"리셋", "대기", "카메라정렬", "이동", "화면내리기", "화면돌리기", "줌아웃", "줌인", "점프", "터치", "꾹",
-            "터치이동", "상호작용"};
-
-    // ---------------------------------------------------------------- 읽기
-    public static List<Step> parse(String text) {
-        List<Step> out = new ArrayList<>();
-        String[] lines = String.valueOf(text == null ? "" : text).split("\n", -1);
-        for (int i = 0; i < lines.length; i++) {
-            String raw = lines[i];
-            String s = raw;
-            int c = s.indexOf('#');
-            if (c >= 0) s = s.substring(0, c);
-            s = s.trim();
-            if (s.isEmpty()) continue;
-            String cmd = s.split("\\s+", 2)[0];
-            String rest = s.length() > cmd.length() ? s.substring(cmd.length()).trim() : "";
-            // 띄어 쓴 이름도 받기: '카메라 정렬' · '화면 내리기' · '터치 이동' · '줌 아웃'
-            String two = rest.isEmpty() ? "" : rest.split("\\s+", 2)[0];
-            String joined = cmd + two;
-            if (isCmd(joined) && !two.isEmpty()) {
-                cmd = joined;
-                rest = rest.substring(two.length()).trim();
-            }
-            cmd = alias(cmd);
-            if (!isCmd(cmd)) throw new ParseError(i + 1, "모르는 동작 '" + cmd + "'");
-            List<String> args = new ArrayList<>();
-            if (cmd.equals("이동")) {
-                for (String seg : rest.split(",")) if (!seg.trim().isEmpty()) args.add(seg.trim());
-            } else if (!rest.isEmpty()) {
-                for (String a : rest.split("\\s+")) args.add(a);
-            }
-            Step st = new Step(i + 1, cmd, args, raw.trim());
-            check(st);
-            out.add(st);
-        }
-        return out;
-    }
-
-    static boolean isCmd(String c) {
-        for (String k : CMDS) if (k.equals(alias(c))) return true;
-        return false;
-    }
-
-    static String alias(String c) {
-        switch (c.toLowerCase(Locale.ROOT)) {
-            case "reset": return "리셋";
-            case "wait": case "기다리기": return "대기";
-            case "align": case "카메라맞추기": return "카메라정렬";
-            case "move": case "walk": case "걷기": return "이동";
-            case "tilt": case "내려다보기": return "화면내리기";
-            case "rotate": case "camera": return "화면돌리기";
-            case "zoomout": return "줌아웃";
-            case "zoomin": return "줌인";
-            case "jump": return "점프";
-            case "tap": case "click": case "클릭": return "터치";
-            case "hold": case "길게": return "꾹";
-            case "tapmove": case "클릭이동": return "터치이동";
-            case "interact": case "e": return "상호작용";
-            default: return c;
-        }
-    }
-
-    static double num(Step st, int i, double def, double lo, double hi) {
-        if (st.args.size() <= i) return def;
-        try {
-            double v = Double.parseDouble(st.args.get(i));
-            if (v < lo || v > hi) throw new ParseError(st.line, "숫자는 " + fmt(lo) + " ~ " + fmt(hi) + " 사이");
-            return v;
-        } catch (NumberFormatException e) {
-            throw new ParseError(st.line, "'" + st.args.get(i) + "' 는 숫자가 아님");
-        }
-    }
-
-    static String fmt(double v) {
-        return v == Math.rint(v) ? String.valueOf((long) v) : String.valueOf(v);
-    }
-
-    /** 방향 → 각도 (0 = 앞(W), 90 = 오른쪽(D), 180 = 뒤(S), 270 = 왼쪽(A)) · 모르면 NaN */
-    public static double angle(String d) {
-        String s = d.trim().toLowerCase(Locale.ROOT).replace(" ", "").replace("+", "");
-        switch (s) {
-            case "w": case "위": case "앞": return 0;
-            case "d": case "오른쪽": return 90;
-            case "s": case "아래": case "뒤": return 180;
-            case "a": case "왼쪽": return 270;
-            case "wd": case "dw": case "위오른쪽": case "앞오른쪽": case "오른쪽위": return 45;
-            case "sd": case "ds": case "아래오른쪽": case "뒤오른쪽": case "오른쪽아래": return 135;
-            case "sa": case "as": case "아래왼쪽": case "뒤왼쪽": case "왼쪽아래": return 225;
-            case "wa": case "aw": case "위왼쪽": case "앞왼쪽": case "왼쪽위": return 315;
-            default:
-                try {
-                    return Double.parseDouble(s.replace("°", ""));
-                } catch (NumberFormatException e) {
-                    return Double.NaN;
-                }
-        }
-    }
-
-    /** '이동' 한 줄 → {각도, 초} 목록 */
-    public static double[][] segments(Step st) {
-        double[][] out = new double[st.args.size()][];
-        for (int i = 0; i < st.args.size(); i++) {
-            String[] p = st.args.get(i).trim().split("\\s+");
-            if (p.length != 2) throw new ParseError(st.line, "'" + st.args.get(i) + "' — '방향 초' 로 적기 (예: WA 7)");
-            double a = angle(p[0]);
-            if (Double.isNaN(a)) throw new ParseError(st.line, "모르는 방향 '" + p[0] + "' (W A S D WA SD … 또는 각도)");
-            double sec;
-            try {
-                sec = Double.parseDouble(p[1]);
-            } catch (NumberFormatException e) {
-                throw new ParseError(st.line, "'" + p[1] + "' 는 숫자가 아님");
-            }
-            if (sec < 0 || sec > 60) throw new ParseError(st.line, "이동 시간은 0 ~ 60초");
-            out[i] = new double[]{a, sec};
-        }
-        return out;
-    }
-
-    static void check(Step st) {
-        switch (st.cmd) {
-            case "대기":
-                if (st.args.isEmpty()) throw new ParseError(st.line, "대기할 초를 적기 (예: 대기 1.5)");
-                num(st, 0, 0, 0, 600);
-                break;
-            case "이동":
-                if (st.args.isEmpty()) throw new ParseError(st.line, "방향과 초를 적기 (예: 이동 W 1, WA 7)");
-                segments(st);
-                break;
-            case "화면내리기":
-                num(st, 0, 2, 1, 10);
-                break;
-            case "화면돌리기":
-                if (st.args.size() < 2) throw new ParseError(st.line, "끌 거리 dx dy 를 화면 비율로 적기 (예: 화면돌리기 0.3 0)");
-                num(st, 0, 0, -1, 1);
-                num(st, 1, 0, -1, 1);
-                break;
-            case "줌아웃":
-            case "줌인":
-                num(st, 0, 3, 1, 20);
-                break;
-            case "점프":
-                num(st, 0, 1, 1, 20);
-                break;
-            case "터치":
-                if (st.args.isEmpty()) throw new ParseError(st.line, "누를 위치 이름(또는 x y)을 적기");
-                if (st.args.size() >= 2 && isNum(st.args.get(0)) && isNum(st.args.get(1))) {
-                    num(st, 0, 0, 0, 1);
-                    num(st, 1, 0, 0, 1);
-                }
-                break;
-            case "꾹":
-                if (st.args.size() < 2) throw new ParseError(st.line, "위치 이름과 초를 적기 (예: 꾹 점프버튼 1)");
-                num(st, st.args.size() - 1, 1, 0, 60);
-                break;
-            case "터치이동":
-                if (st.args.size() < 2) throw new ParseError(st.line, "지점 이름과 걸리는 초를 적기 (예: 터치이동 낚시1 4.2)");
-                num(st, st.args.size() - 1, 1, 0, 120);
-                break;
-            default:
-                break;
-        }
-    }
-
-    static boolean isNum(String s) {
-        try {
-            Double.parseDouble(s);
-            return true;
-        } catch (NumberFormatException e) {
-            return false;
-        }
-    }
-
-    /** 이 경로에서 지정해야 하는 위치 이름들 */
-    public static List<String> needed(List<Step> steps) {
-        List<String> out = new ArrayList<>();
-        for (Step st : steps) {
-            switch (st.cmd) {
-                case "리셋":
-                    add(out, "메뉴버튼");
-                    break;
-                case "카메라정렬":
-                    add(out, "채팅버튼");
-                    add(out, "도감버튼");
-                    add(out, "도감닫기");
-                    break;
-                case "이동":
-                    add(out, "조이스틱");
-                    break;
-                case "점프":
-                    add(out, "점프버튼");
-                    break;
-                case "상호작용":
-                    add(out, "상호작용버튼");
-                    break;
-                case "터치":
-                    if (!(st.args.size() >= 2 && isNum(st.args.get(0)))) add(out, st.args.get(0));
-                    break;
-                case "꾹":
-                case "터치이동":
-                    add(out, String.join(" ", st.args.subList(0, st.args.size() - 1)));
-                    break;
-                default:
-                    break;
-            }
-        }
-        return out;
-    }
-
-    static void add(List<String> l, String s) {
-        if (!l.contains(s)) l.add(s);
-    }
-
-    // ---------------------------------------------------------------- 실행
     final Fisher.Screen scr;
-    final Gestures g;
+    final Pc pc;
     final Ocr ocr;
-    final Map<String, double[]> pos;
+    final Map<String, double[]> base;     // 공통 위치 (채팅 · 도감 · 도감 Exit)
+    final Cfg cfg;
     final Fisher.Out out;
-    final Runnable check;            // 멈춤 확인 (멈췄으면 Fisher.Stopped)
-    public double margin = 0.3;      // 터치이동 뒤 더 기다릴 시간 (초)
+    final Runnable check;                 // 멈춤 확인 (멈췄으면 Fisher.Stopped)
 
-    public Mover(Fisher.Screen scr, Gestures g, Ocr ocr, Map<String, double[]> pos, Fisher.Out out, Runnable check) {
+    public Mover(Fisher.Screen scr, Pc pc, Ocr ocr, Map<String, double[]> base, Cfg cfg, Fisher.Out out, Runnable check) {
         this.scr = scr;
-        this.g = g;
+        this.pc = pc;
         this.ocr = ocr;
-        this.pos = pos;
+        this.base = base;
+        this.cfg = cfg;
         this.out = out;
         this.check = check;
     }
 
-    double[] where(String name) {
-        double[] p = pos.get(name);
-        if (p == null) p = DEFAULTS.get(name);
-        if (p == null) throw new RuntimeException("'" + name + "' 위치를 먼저 지정해야 함 (Acrux 창 → ⚙ → 위치 지정)");
-        return p;
+    public static void markMoved() {
+        resetFresh = false;
     }
 
-    /** 위치가 빠진 이름 (기본 자리가 있는 건 빼고) */
-    public List<String> missing(List<Step> steps) {
-        List<String> m = new ArrayList<>();
-        for (String n : needed(steps)) if (!pos.containsKey(n) && !DEFAULTS.containsKey(n)) m.add(n);
-        return m;
-    }
-
-    int[] px(double[] p) {
-        return new int[]{(int) (p[0] * scr.width()), (int) (p[1] * scr.height())};
-    }
-
-    void sleep(double sec) {
+    // ---- 도우미
+    public void sleep(double sec) {
         long end = System.nanoTime() + (long) (Math.max(0, sec) * 1e9);
         while (true) {
             check.run();
@@ -339,162 +80,240 @@ public final class Mover {
         }
     }
 
-    public void tapAt(double[] p) {
-        int[] q = px(p);
-        g.tap(q[0], q[1], 40);
+    int[] px(double[] pos) {
+        return new int[]{(int) (pos[0] * scr.width()), (int) (pos[1] * scr.height())};
     }
 
-    /** 경로 실행 · name = 화면에 보일 이름 */
-    public void run(String text, String name) {
-        List<Step> steps = parse(text);
-        List<String> miss = missing(steps);
-        if (!miss.isEmpty()) throw new RuntimeException(name + ": 위치 지정 필요 — " + String.join(", ", miss));
-        int n = 0;
-        for (Step st : steps) {
-            check.run();
-            n++;
-            out.state(name + " (" + n + "/" + steps.size() + ") · " + st.raw);
-            exec(st);
+    /** PC Mover._click */
+    public void click(double[] pos, String button) {
+        if (button.equals(cfg.button)) markMoved();          // 갈 곳 클릭 (Click to Move)
+        int[] p = px(pos);
+        pc.click(p[0], p[1], button);
+    }
+
+    public void click(double[] pos) {
+        click(pos, "left");
+    }
+
+    /** PC Seller._press: 게임 버튼 누르기 — 로블록스 버튼이 마우스를 인식하도록 근처로 옮겼다가 누름 (바로 누르면 씹힐 때가 있음) */
+    public void press(double[] pos) {
+        int[] p = px(pos);
+        pc.moveTo(p[0] + 3, p[1] + 3);
+        sleep(0.05);
+        pc.click(p[0], p[1], "left");
+    }
+
+    public void releaseKeys() {
+        for (String k : MOVE_KEYS) {
+            try {
+                pc.keyUp(k);
+            } catch (RuntimeException ignored) {
+            }
+        }
+        try {
+            pc.button("right", false);               // 화면 돌리던 우클릭이 눌린 채 남지 않게
+        } catch (RuntimeException ignored) {
         }
     }
 
-    void exec(Step st) {
-        int W = scr.width(), H = scr.height();
-        switch (st.cmd) {
-            case "대기":
-                sleep(num(st, 0, 0, 0, 600));
-                break;
-            case "리셋":
-                reset();
-                break;
-            case "카메라정렬":
-                for (String k : new String[]{"채팅버튼", "도감버튼", "도감닫기", "채팅버튼"}) {
-                    tapAt(where(k));
-                    sleep(0.5);
+    // ---- 미리 확인
+    public String baseMissing() {
+        List<String> miss = new ArrayList<>();
+        for (String[] k : BASE_KEYS) if (!base.containsKey(k[0])) miss.add(k[1]);
+        return miss.isEmpty() ? null : "먼저 지정 필요: " + String.join(", ", miss) + " (Acrux 창 → ⚙ → 공통 위치)";
+    }
+
+    /** 장소 지점들(upto 앞까지) 중 위치 · 시간이 없는 것 → 안내 글 또는 null */
+    public static String pathMissing(String name, List<Point> pts, Integer upto) {
+        int n = upto != null ? Math.min(upto, pts.size()) : pts.size();
+        for (int i = 0; i < n; i++) {
+            Point pt = pts.get(i);
+            if (pt.pos == null) return name + " · " + (i + 1) + "번 지점 위치가 없음";
+            if (pt.time == null) return name + " · " + (i + 1) + "번 지점 시간을 먼저 재야 함";
+        }
+        return null;
+    }
+
+    // ---- 1. 기준 장소
+    /** key 를 sec 초 동안 계속 누르고, 끝나기 extraSec 초 전부터 extra 도 같이 누름 (key 는 중간에 안 뗌) */
+    void holdWith(String key, double sec, String extra, double extraSec) {
+        markMoved();
+        sec = Math.max(0, sec);
+        extraSec = Math.max(0, extraSec);
+        double start = now(), end = start + Math.max(sec, extraSec), extraAt = start + Math.max(0, sec - extraSec);
+        List<String> keys = new ArrayList<>();
+        keys.add(key);
+        try {
+            pc.keyDown(key);
+            while (now() < end) {
+                check.run();
+                if (!keys.contains(extra) && now() >= extraAt) {
+                    keys.add(extra);
+                    pc.keyDown(extra);
                 }
-                break;
-            case "이동": {
-                int[] c = px(where("조이스틱"));
-                int r = Math.max(20, (int) (Math.min(W, H) * 0.09));
-                g.stick(c[0], c[1], r, segments(st), check);
-                break;
+                double until = !keys.contains(extra) ? Math.min(end, extraAt) : end;
+                Pc.nap((long) (Math.min(0.033, Math.max(0, until - now())) * 1000));
+                if (now() < end) for (String k : keys) pc.keyDown(k);       // 자동 반복 (A 는 계속 눌린 채로)
             }
-            case "화면내리기": {
-                int times = (int) num(st, 0, 2, 1, 10);
-                for (int i = 0; i < times; i++) {
-                    g.swipe((int) (W * 0.62), (int) (H * 0.25), (int) (W * 0.62), (int) (H * 0.85), 350);
-                    sleep(0.15);
-                }
-                break;
-            }
-            case "화면돌리기": {
-                double dx = num(st, 0, 0, -1, 1), dy = num(st, 1, 0, -1, 1);
-                int x0 = (int) (W * 0.62), y0 = (int) (H * 0.5);
-                g.swipe(x0, y0, clamp(x0 + (int) (dx * W), 1, W - 2), clamp(y0 + (int) (dy * H), 1, H - 2), 400);
-                sleep(0.1);
-                break;
-            }
-            case "줌아웃":
-            case "줌인": {
-                int times = (int) num(st, 0, 3, 1, 20);
-                boolean outZ = st.cmd.equals("줌아웃");
-                for (int i = 0; i < times; i++) {
-                    g.pinch((int) (W * 0.62), (int) (H * 0.45), (int) (H * 0.36), (int) (H * 0.05), outZ, 300);
-                    sleep(0.12);
-                }
-                break;
-            }
-            case "점프": {
-                int times = (int) num(st, 0, 1, 1, 20);
-                for (int i = 0; i < times; i++) {
-                    tapAt(where("점프버튼"));
-                    sleep(0.35);
-                }
-                break;
-            }
-            case "터치":
-                if (st.args.size() >= 2 && isNum(st.args.get(0)) && isNum(st.args.get(1))) {
-                    tapAt(new double[]{num(st, 0, 0, 0, 1), num(st, 1, 0, 0, 1)});
-                } else {
-                    tapAt(where(String.join(" ", st.args)));
-                }
-                sleep(0.15);
-                break;
-            case "꾹": {
-                double sec = num(st, st.args.size() - 1, 1, 0, 60);
-                int[] q = px(where(String.join(" ", st.args.subList(0, st.args.size() - 1))));
-                g.tap(q[0], q[1], (int) (sec * 1000));
-                break;
-            }
-            case "터치이동": {
-                double sec = num(st, st.args.size() - 1, 1, 0, 120);
-                tapAt(where(String.join(" ", st.args.subList(0, st.args.size() - 1))));
-                sleep(sec + margin);
-                break;
-            }
-            case "상호작용":
-                tapAt(where("상호작용버튼"));
-                sleep(0.2);
-                break;
-            default:
-                break;
+        } finally {
+            for (int i = keys.size() - 1; i >= 0; i--) pc.keyUp(keys.get(i));
         }
     }
 
-    static int clamp(int v, int lo, int hi) {
-        return Math.max(lo, Math.min(hi, v));
+    /** 키들을 sec 초 동안 누르고 있다가 뗌 (멈추면 바로 뗌) · 진짜 키보드처럼 누르는 동안 '누름' 신호를 계속 다시 보냄 (약 30번/초) */
+    void hold(String[] keys, double sec) {
+        for (String k : keys) {
+            if ((k.equals("w") || k.equals("a") || k.equals("s") || k.equals("d") || k.equals("space")) && sec > 0) {
+                markMoved();
+                break;
+            }
+        }
+        try {
+            for (String k : keys) pc.keyDown(k);
+            double end = now() + Math.max(0, sec);
+            while (now() < end) {
+                check.run();
+                Pc.nap((long) (Math.min(0.033, Math.max(0, end - now())) * 1000));
+                if (now() < end) for (String k : keys) pc.keyDown(k);
+            }
+        } finally {
+            for (int i = keys.length - 1; i >= 0; i--) pc.keyUp(keys[i]);
+        }
     }
 
-    /** 로블록스 메뉴 → Reset Character → Reset (글자로 찾음 · 못 찾으면 지정한 리셋버튼 · 리셋확인) */
+    /** O 키(최대 줌)를 누르고 있는 동안 동시에 우클릭 드래그로 화면을 내려다보게 함 · 드래그는 20px 씩 10ms 마다, 다 끌면 우클릭을 뗌 */
+    void tiltAndZoom(int px, double sec) {
+        pc.moveTo(scr.width() / 2, scr.height() / 2);
+        sleep(0.1);
+        boolean dragging = px > 0;
+        try {
+            pc.keyDown("o");
+            if (dragging) pc.button("right", true);
+            double start = now(), end = start + Math.max(0, sec), nextKey = start + 0.033;
+            int done = 0;
+            while (true) {
+                check.run();
+                double t = now();
+                if (dragging) {
+                    if (done < px) {
+                        int step = Math.min(20, px - done);
+                        pc.moveRel(0, step);
+                        done += step;
+                    } else {
+                        pc.button("right", false);
+                        dragging = false;
+                    }
+                }
+                if (t >= end && !dragging) break;
+                if (t >= nextKey && t < end) {
+                    pc.keyDown("o");                   // 자동 반복
+                    nextKey = t + 0.033;
+                }
+                Pc.nap(10);
+            }
+        } finally {
+            if (dragging) pc.button("right", false);
+            pc.keyUp("o");
+        }
+    }
+
+    /** / → 채팅 버튼 → 도감 버튼 → 도감 Exit → / → Enter (각 0.5초) — 도감을 열고 닫으면 카메라가 캐릭터 뒤로 맞춰짐 */
+    public void alignCamera() {
+        String m = baseMissing();
+        if (m != null) throw new RuntimeException(m);
+        pc.keyTap("/");
+        sleep(0.5);
+        click(base.get("chat_pos"));
+        sleep(0.5);
+        click(base.get("collection_pos"));
+        sleep(0.5);
+        click(base.get("collection_close"));
+        sleep(0.5);
+        pc.keyTap("/");
+        sleep(0.5);
+        pc.keyTap("enter");
+        sleep(0.3);
+    }
+
     void reset() {
-        tapAt(where("메뉴버튼"));
-        sleep(0.9);
-        SellText.Box b = null;
-        for (int i = 0; i < 4 && b == null; i++) {
-            b = SellText.findText(ocr.read(null), "resetcharacter", "resetchar");
-            if (b == null) sleep(0.4);
+        releaseKeys();
+        sleep(0.2);
+        if (resetFresh) {
+            out.log("방금 리셋함 — 리셋 건너뜀", 'd');
+            return;
         }
-        if (b != null) {
-            tapAt(new double[]{b.x, b.y});
-        } else if (pos.containsKey("리셋버튼")) {
-            tapAt(pos.get("리셋버튼"));
-        } else {
-            tapAt(where("메뉴버튼"));          // 메뉴 닫기
-            throw new RuntimeException("메뉴에서 Reset Character 를 찾지 못함 (메뉴버튼 위치 · 또는 '리셋버튼' 위치를 지정)");
+        for (String k : new String[]{"esc", "r", "enter"}) {
+            pc.keyTap(k);
+            sleep(0.5);
         }
-        sleep(0.7);
-        SellText.Box ok = null;
-        for (int i = 0; i < 4 && ok == null; i++) {
-            List<SellText.Box> boxes = ocr.read(null);
-            ok = SellText.findText(boxes, true, "reset");
-            if (ok == null) {
-                SellText.Box c = SellText.findText(boxes, "resetcharacter");
-                if (c == null && b != null) break;      // 확인 없이 바로 리셋됨
-            }
-            if (ok == null) sleep(0.4);
-        }
-        if (ok != null) tapAt(new double[]{ok.x, ok.y});
-        else if (pos.containsKey("리셋확인")) tapAt(pos.get("리셋확인"));
-        out.log("리셋", 'd');
+        resetFresh = true;
+        sleep(Math.max(0, cfg.resetWait - 0.5));
     }
 
-    // ---------------------------------------------------------------- 기본 경로 (PC 기준 장소와 같은 순서)
-    public static final String BASE_DEFAULT = String.join("\n",
-            "# 기준 장소: 리셋 → 카메라 정렬 → 구석으로 걸어가 항상 같은 자리 → 위에서 내려다보기 → 최대 줌 아웃",
-            "# (PC: Esc → R → Enter · 채팅 · 도감 · W 1초 → W+A 7초 → A 1초(끝 0.25초 W 같이) → S+D 0.25초 · 우클릭 드래그 + O)",
-            "리셋",
-            "대기 3.5",
-            "카메라정렬",
-            "이동 W 1, WA 7, A 0.75, WA 0.25",
-            "이동 SD 0.25",
-            "대기 0.5",
-            "화면내리기 2",
-            "줌아웃 3",
-            "대기 0.3");
-    public static final String FISH_DEFAULT = String.join("\n",
-            "# 기준 장소에서 낚시 자리까지 (비워 두면 지금 자리에서 낚시)",
-            "# 예: 이동 W 2.5   또는   터치이동 낚시1 4.2  (Acrux 창 → ⚙ → 지점 추가로 위치 · 시간을 잼)");
-    public static final String SELL_DEFAULT = String.join("\n",
-            "# 기준 장소에서 물고기 판매 NPC(Captain Flarg) 앞까지 (비워 두면 판매 안 함)",
-            "# 예: 이동 S 3, SA 2   또는   터치이동 판매1 5.1");
+    /** Esc → R → Enter → 3.5초 → 카메라 정렬 → W 1초 → W+A 7초 → A 1초 (끝 0.25초 W 같이) → S+D 0.25초 → 0.5초 → 내려다보기 + 최대 줌 */
+    public void goBase() {
+        String m = baseMissing();
+        if (m != null) throw new RuntimeException(m);
+        out.state("기준 장소로 이동 · 리셋");
+        reset();
+        out.state("기준 장소로 이동 · 카메라 정렬 (채팅 · 도감)");
+        alignCamera();
+        out.state("기준 장소로 이동 · 걷기 (W → W+A → A → W → S+D)");
+        hold(new String[]{"w"}, cfg.wTime);
+        hold(new String[]{"w", "a"}, cfg.waTime);
+        holdWith("a", cfg.aTime, "w", cfg.w2Time);
+        hold(new String[]{"s", "d"}, cfg.sdTime);
+        sleep(0.5);
+        out.state("기준 장소로 이동 · 내려다보기 + 최대 줌 (우클릭 드래그 + O)");
+        tiltAndZoom(cfg.tiltPx, cfg.oTime);
+        sleep(0.3);
+    }
+
+    // ---- 2. 장소로
+    /** 지점들을 차례로 (upto 앞까지) 누르고 각 지점의 시간만큼 기다림 */
+    public void walk(String name, List<Point> pts, Integer upto) {
+        int n = upto != null ? Math.min(upto, pts.size()) : pts.size();
+        for (int i = 0; i < n; i++) {
+            Point pt = pts.get(i);
+            if (pt.pos == null) throw new RuntimeException(name + " · " + (i + 1) + "번 지점 위치가 없음");
+            if (pt.time == null) throw new RuntimeException(name + " · " + (i + 1) + "번 지점 시간을 먼저 재야 함");
+            out.state(name + " 가는 중 (" + (i + 1) + "/" + pts.size() + ")");
+            click(pt.pos, cfg.button);
+            sleep(pt.time + cfg.margin);
+        }
+    }
+
+    public void goPlace(String name, List<Point> pts) {
+        goBase();
+        walk(name, pts, null);
+        out.log(name + " 도착", 'g');
+    }
+
+    // ---- 3. 시간 재기
+    /** 지점 j 를 눌러 놓고, 도착(arrived 가 true 가 될 때)까지 걸린 시간 · fromBase: 기준 장소부터 (아니면 지금 화면에서 바로) */
+    public double measure(String name, List<Point> pts, int j, boolean fromBase, java.util.function.BooleanSupplier arrived) {
+        if (j < 0 || j >= pts.size() || pts.get(j).pos == null) throw new RuntimeException("지점 위치를 먼저 지정");
+        if (fromBase) {
+            goBase();
+            walk(name, pts, j);
+        }
+        String label = name + " · " + (j + 1) + "번 지점";
+        click(pts.get(j).pos, cfg.button);
+        double t0 = now();
+        out.state(label + "까지 걷는 중 — 도착하면 [도착]");
+        out.log(label + " 시간 재는 중 — 도착하면 Acrux 창의 [도착]", 'c');
+        while (!arrived.getAsBoolean()) {
+            check.run();
+            if (now() - t0 > MEASURE_MAX) throw new RuntimeException((int) MEASURE_MAX + "초 안에 도착을 안 누름 — 시간 재기 취소");
+            Pc.nap(10);
+        }
+        double sec = Math.round((now() - t0) * 100) / 100.0;
+        pts.get(j).time = sec;
+        out.log(label + " 걸린 시간 " + sec + "초 저장", 'g');
+        return sec;
+    }
+
+    static double now() {
+        return System.nanoTime() / 1e9;
+    }
 }
