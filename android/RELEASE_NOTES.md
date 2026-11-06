@@ -1,3 +1,17 @@
+## Acrux Mobile V0.6.0 업데이트
+- **다시 Shizuku 방식으로**: 키보드 방식은 로블록스가 키를 안 받아서 뺌 · 키(Esc · R · Enter · W · A · S · D · E · O · /)와 마우스(우클릭 Click to Move · Sell All 호버 후 클릭 · 우클릭 드래그)를 Shizuku 로 PC 와 똑같이 보냄
+  - 앱 → 준비 → ③ Shizuku [연결] (Shizuku 설치 → 무선 디버깅으로 시작 → 허용)
+  - 자동 낚시만 쓸 거면 Shizuku 없이도 됨 (화면 터치)
+- Acrux 창 ⚙ → 키 테스트: W 를 1초 눌러서 Shizuku 키 입력이 되는지 바로 확인
+- Acrux 키보드 · 접근성 입력기 제거
+
+## Acrux Mobile V0.6.0 Update
+- **Back to Shizuku**: removed the keyboard method because Roblox did not accept its keys · keys (Esc · R · Enter · W · A · S · D · E · O · /) and mouse (right-click Click to Move · Sell All hover then click · right-drag) go through Shizuku exactly like on PC
+  - App → Setup → ③ Shizuku [Connect] (install Shizuku → start via wireless debugging → allow)
+  - Auto fishing alone still works without Shizuku (screen taps)
+- Acrux window ⚙ → Key test: holds W for 1 s to check right away whether Shizuku key input works
+- Removed Acrux Keyboard and the accessibility input method
+
 ## Acrux Mobile V0.5.0 업데이트
 - **이동 · 판매 입력을 키보드 방식 하나로 정리**: 키(Esc · R · Enter · W · A · S · D · E · O · / · Space)를 키보드로 진짜 키 신호로 보냄
   - Acrux 키보드 추가: 설정에서 켜고 지금 키보드로 선택하면 이 키보드가 로블록스에 키를 보냄

@@ -11,7 +11,6 @@ import com.acrux.mobile.core.Mover;
 import com.acrux.mobile.core.Pc;
 import com.acrux.mobile.core.Seller;
 import com.acrux.mobile.core.Settings;
-import com.acrux.mobile.core.KeyPc;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -33,9 +32,7 @@ final class Hub {
     static final Map<String, double[]> pos = new ConcurrentHashMap<>();
     static final Mover.Cfg move = new Mover.Cfg();
     static final List<Mover.Point> fishPts = new CopyOnWriteArrayList<>(), sellPts = new CopyOnWriteArrayList<>();
-    static boolean useMove = true, useSell = true;
-    static int touchTapMs = 120;
-    static double touchTilt = 0.5;
+    static boolean useMove = true, useSell = true, relDrag = false;
     static int sellMax = 100;
     static double sellDelay = 0;
 
@@ -104,11 +101,36 @@ final class Hub {
         return w != null && w.isAlive();
     }
 
-    /** 자동 낚시가 누르는 입력: 화면 터치 */
-    static final Fisher.Input FISH_INPUT = (x, y, ms) -> {
-        TapService t = TapService.instance;
-        if (t != null) t.tap(x, y, Math.max(ms, 40));
-    };
+    /** 자동 낚시가 누르는 입력: Shizuku 가 연결돼 있으면 PC 처럼 마우스 클릭 · 아니면 화면 터치 */
+    static Fisher.Input fishInput(Pc pc) {
+        if (pc == null) {
+            return (x, y, ms) -> {
+                TapService t = TapService.instance;
+                if (t != null) t.tap(x, y, Math.max(ms, 40));
+            };
+        }
+        return new Fisher.Input() {
+            int hx = -1, hy = -1;
+
+            @Override
+            public void tap(int x, int y, int ms) {
+                if (x == hx && y == hy) {
+                    pc.clickHere("left", ms);           // 릴링: 마우스를 안 움직이고 지금 자리에서 (PC mouse_click_here)
+                } else {
+                    pc.click(x, y, "left");
+                    hx = x;
+                    hy = y;
+                }
+            }
+
+            @Override
+            public void hover(int x, int y) {
+                pc.moveTo(x, y);
+                hx = x;
+                hy = y;
+            }
+        };
+    }
 
     /** m: run 자동 낚시 · cal 낚시 자동 보정 · sellcal 판매 자동 보정 · sell 판매 한 번 · base / fish / sellgo 이동 테스트
      *  · addpt_fish / addpt_sell 지점 추가 · measure_fish:N / measure_sell:N 시간 다시 재기 → 못 하면 이유 */
@@ -118,13 +140,17 @@ final class Hub {
         CaptureService cap = CaptureService.active;
         if (cap == null) return "앱에서 [화면 캡처 시작]을 먼저 눌러야 함";
         if (m.equals("run") && !cfg.ready()) return "먼저 [보정]을 해야 함 (낚시 자리에서 Fish 버튼이 보일 때)";
-        KeyPc pc = keyPc(cap);
-        Fisher f = new Fisher(cap, FISH_INPUT, OUT, cfg);
-        Mover mv = new Mover(cap, pc, new MlOcr(), pos, move, OUT, CHECK);
-        Seller sl = seller(cap, mv, pc);
+        Pc pc = ShizukuPc.ready() ? new ShizukuPc(relDrag) : null;
+        boolean needKeys = !m.equals("run") && !m.equals("cal");
+        if (needKeys && pc == null) return "이동 · 판매는 Shizuku 연결이 필요함 (키보드 · 마우스 입력) — 앱 → ③ Shizuku";
+        Fisher f = new Fisher(cap, fishInput(pc), OUT, cfg);
+        Mover mv = pc != null ? new Mover(cap, pc, new MlOcr(), pos, move, OUT, CHECK) : null;
+        Seller sl = mv != null ? seller(cap, mv, pc) : null;
         if (m.equals("run")) {
             if (!useMove) {
                 log("낚시 장소로 이동 꺼짐 — 지금 자리에서 낚시", 'd');
+            } else if (sl == null) {
+                log("Shizuku 가 연결 안 됨 — 이동 · 판매 없이 지금 자리에서 낚시", 'y');
             } else {
                 String why = sl.fishMissing();
                 if (why == null) f.onStart = sl::goFish;
@@ -146,7 +172,7 @@ final class Hub {
             } catch (RuntimeException e) {
                 log("오류: " + e.getMessage(), 'r');
             } finally {
-                mv.releaseKeys();
+                if (mv != null) mv.releaseKeys();
                 measuring = false;
                 mode = "";
                 state = "대기";
@@ -159,30 +185,15 @@ final class Hub {
         return "";
     }
 
-    /** 키보드 방식: 키 → 입력기 (Kb) · 클릭 → 화면 탭 */
-    static KeyPc keyPc(CaptureService cap) {
-        KeyPc k = new KeyPc(Kb::key, TOUCH, cap);
-        k.tapMs = touchTapMs;
-        k.dragScale = touchTilt;
-        return k;
+    static Seller seller(CaptureService cap, Mover mv, Pc pc) {
+        Seller s = new Seller(cap, mv, pc, new MlOcr(), pos, sellPts, fishPts, OUT);
+        s.sellMax = sellMax;
+        s.sellDelay = sellDelay;
+        return s;
     }
 
-    static final KeyPc.Touch TOUCH = new KeyPc.Touch() {
-        @Override
-        public void tap(int x, int y, int ms) {
-            TapService t = TapService.instance;
-            if (t != null) t.tapWait(x, y, ms);
-        }
-
-        @Override
-        public void swipe(int x1, int y1, int x2, int y2, int ms) {
-            TapService t = TapService.instance;
-            if (t != null) t.swipe(x1, y1, x2, y2, ms);
-        }
-    };
-
     /** 키 테스트: W 를 1초 동안 누르고 있음 (진짜 키보드처럼 계속 '누름' 신호) */
-    static void keyTest(KeyPc pc) {
+    static void keyTest(Pc pc) {
         state = "키 테스트 — W 1초";
         changed();
         long end = System.nanoTime() + 1_000_000_000L;
@@ -195,14 +206,7 @@ final class Hub {
         } finally {
             pc.keyUp("w");
         }
-        log("키 테스트: W 1초 보냄 (" + Kb.last + ") — 캐릭터가 앞으로 갔으면 키보드 방식이 됨", 'g');
-    }
-
-    static Seller seller(CaptureService cap, Mover mv, Pc pc) {
-        Seller s = new Seller(cap, mv, pc, new MlOcr(), pos, sellPts, fishPts, OUT);
-        s.sellMax = sellMax;
-        s.sellDelay = sellDelay;
-        return s;
+        log("키 테스트: W 1초 보냄 — 캐릭터가 앞으로 갔으면 Shizuku 키 입력이 됨", 'g');
     }
 
     static void work(String m, Fisher f, Mover mv, Seller sl) {
@@ -298,6 +302,10 @@ final class Hub {
     static boolean sellOnce(Seller sl) {
         if (!useSell) {
             log("인벤토리 가득 — 판매가 꺼져 있음", 'y');
+            return false;
+        }
+        if (sl == null) {
+            log("인벤토리 가득 — 판매는 Shizuku 연결이 필요함", 'y');
             return false;
         }
         String m = sl.missing();
@@ -403,8 +411,7 @@ final class Hub {
         cfg.adaptive = p.getBoolean("adaptive", cfg.adaptive);
         useMove = p.getBoolean("useMove", true);
         useSell = p.getBoolean("useSell", true);
-        touchTapMs = p.getInt("touchTapMs", 120);
-        touchTilt = p.getFloat("touchTilt", 0.5f);
+        relDrag = p.getBoolean("relDrag", false);
         sellMax = p.getInt("sellMax", 100);
         sellDelay = p.getFloat("sellDelay", 0f);
         move.resetWait = p.getFloat("m_reset_wait", (float) move.resetWait);
@@ -442,8 +449,7 @@ final class Hub {
                 .putFloat("biteMax", (float) cfg.biteMax).putInt("clickMs", cfg.clickMs)
                 .putFloat("leadMs", (float) cfg.leadMs).putFloat("targetPct", (float) cfg.targetPct)
                 .putBoolean("adaptive", cfg.adaptive)
-                .putBoolean("useMove", useMove).putBoolean("useSell", useSell)
-                .putInt("touchTapMs", touchTapMs).putFloat("touchTilt", (float) touchTilt)
+                .putBoolean("useMove", useMove).putBoolean("useSell", useSell).putBoolean("relDrag", relDrag)
                 .putInt("sellMax", sellMax).putFloat("sellDelay", (float) sellDelay)
                 .putFloat("m_reset_wait", (float) move.resetWait).putFloat("m_w_time", (float) move.wTime)
                 .putFloat("m_wa_time", (float) move.waTime).putFloat("m_a_time", (float) move.aTime)
