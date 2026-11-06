@@ -11,6 +11,7 @@ import com.acrux.mobile.core.Mover;
 import com.acrux.mobile.core.Pc;
 import com.acrux.mobile.core.Seller;
 import com.acrux.mobile.core.Settings;
+import com.acrux.mobile.core.TouchPc;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -32,7 +33,9 @@ final class Hub {
     static final Map<String, double[]> pos = new ConcurrentHashMap<>();
     static final Mover.Cfg move = new Mover.Cfg();
     static final List<Mover.Point> fishPts = new CopyOnWriteArrayList<>(), sellPts = new CopyOnWriteArrayList<>();
-    static boolean useMove = true, useSell = true, relDrag = false;
+    static boolean useMove = true, useSell = true, relDrag = false, imeKeys = false;
+    static int touchTapMs = 120;
+    static double touchTilt = 0.5;
     static int sellMax = 100;
     static double sellDelay = 0;
 
@@ -41,7 +44,7 @@ final class Hub {
     static final Handler main = new Handler(Looper.getMainLooper());
     static volatile String state = "대기";
     static volatile String mode = "";
-    static volatile boolean stopFlag, measuring, arrived;
+    static volatile boolean stopFlag, measuring, arrived, touchMode;
     static volatile Fisher fisher;
     static Thread worker;
     static Context app;
@@ -140,17 +143,18 @@ final class Hub {
         CaptureService cap = CaptureService.active;
         if (cap == null) return "앱에서 [화면 캡처 시작]을 먼저 눌러야 함";
         if (m.equals("run") && !cfg.ready()) return "먼저 [보정]을 해야 함 (낚시 자리에서 Fish 버튼이 보일 때)";
-        Pc pc = ShizukuPc.ready() ? new ShizukuPc(relDrag) : null;
-        boolean needKeys = !m.equals("run") && !m.equals("cal");
-        if (needKeys && pc == null) return "이동 · 판매는 Shizuku 연결이 필요함 (키보드 · 마우스 입력) — 앱 → ③ Shizuku";
-        Fisher f = new Fisher(cap, fishInput(pc), OUT, cfg);
-        Mover mv = pc != null ? new Mover(cap, pc, new MlOcr(), pos, move, OUT, CHECK) : null;
-        Seller sl = mv != null ? seller(cap, mv, pc) : null;
+        boolean shz = ShizukuPc.ready();
+        Pc pc = shz ? new ShizukuPc(relDrag) : touchPc(cap);
+        touchMode = !shz;
+        if (!shz && !m.equals("run") && !m.equals("cal")) log("Shizuku 없음 — 터치 모드 (조이스틱 · 탭 · 핀치" + (imeKeys ? " · 키보드 앱 방식 키" : "") + ")", 'd');
+        if (!shz && (m.equals("sell") || m.equals("sellgo")) && !pos.containsKey("interact_pos"))
+            return "터치 모드: 상호작용 버튼 위치를 먼저 지정 (⚙ → 터치 조작)";
+        Fisher f = new Fisher(cap, fishInput(shz ? pc : null), OUT, cfg);
+        Mover mv = new Mover(cap, pc, new MlOcr(), pos, move, OUT, CHECK);
+        Seller sl = seller(cap, mv, pc);
         if (m.equals("run")) {
             if (!useMove) {
                 log("낚시 장소로 이동 꺼짐 — 지금 자리에서 낚시", 'd');
-            } else if (sl == null) {
-                log("Shizuku 가 연결 안 됨 — 이동 · 판매 없이 지금 자리에서 낚시", 'y');
             } else {
                 String why = sl.fishMissing();
                 if (why == null) f.onStart = sl::goFish;
@@ -183,6 +187,45 @@ final class Hub {
         changed();
         return "";
     }
+
+    /** Shizuku 가 없을 때: PC 키 · 마우스 → 로블록스 모바일 터치 */
+    static TouchPc touchPc(CaptureService cap) {
+        TouchPc t = new TouchPc(TOUCH, new MlOcr(), pos, cap);
+        t.tapMs = touchTapMs;
+        t.tiltScale = touchTilt;
+        t.out = OUT;
+        if (imeKeys) t.keys = (k, down) -> {
+            TapService s = TapService.instance;
+            return s != null && s.imeKey(k, down);
+        };
+        return t;
+    }
+
+    static final TouchPc.Touch TOUCH = new TouchPc.Touch() {
+        @Override
+        public void tap(int x, int y, int ms) {
+            TapService t = TapService.instance;
+            if (t != null) t.tapWait(x, y, ms);
+        }
+
+        @Override
+        public void swipe(int x1, int y1, int x2, int y2, int ms) {
+            TapService t = TapService.instance;
+            if (t != null) t.swipe(x1, y1, x2, y2, ms);
+        }
+
+        @Override
+        public void pinch(int cx, int cy, int far, int near, int ms) {
+            TapService t = TapService.instance;
+            if (t != null) t.pinch(cx, cy, far, near, ms);
+        }
+
+        @Override
+        public void stick(int cx, int cy, int[] to) {
+            TapService t = TapService.instance;
+            if (t != null) t.stick(cx, cy, to);
+        }
+    };
 
     static Seller seller(CaptureService cap, Mover mv, Pc pc) {
         Seller s = new Seller(cap, mv, pc, new MlOcr(), pos, sellPts, fishPts, OUT);
@@ -286,8 +329,8 @@ final class Hub {
             log("인벤토리 가득 — 판매가 꺼져 있음", 'y');
             return false;
         }
-        if (sl == null) {
-            log("인벤토리 가득 — 판매는 Shizuku 연결이 필요함", 'y');
+        if (touchMode && !pos.containsKey("interact_pos")) {
+            log("인벤토리 가득 — 터치 모드 판매는 상호작용 버튼 위치가 필요함 (⚙ → 터치 조작)", 'y');
             return false;
         }
         String m = sl.missing();
@@ -394,6 +437,9 @@ final class Hub {
         useMove = p.getBoolean("useMove", true);
         useSell = p.getBoolean("useSell", true);
         relDrag = p.getBoolean("relDrag", false);
+        imeKeys = p.getBoolean("imeKeys", false);
+        touchTapMs = p.getInt("touchTapMs", 120);
+        touchTilt = p.getFloat("touchTilt", 0.5f);
         sellMax = p.getInt("sellMax", 100);
         sellDelay = p.getFloat("sellDelay", 0f);
         move.resetWait = p.getFloat("m_reset_wait", (float) move.resetWait);
@@ -431,7 +477,8 @@ final class Hub {
                 .putFloat("biteMax", (float) cfg.biteMax).putInt("clickMs", cfg.clickMs)
                 .putFloat("leadMs", (float) cfg.leadMs).putFloat("targetPct", (float) cfg.targetPct)
                 .putBoolean("adaptive", cfg.adaptive)
-                .putBoolean("useMove", useMove).putBoolean("useSell", useSell).putBoolean("relDrag", relDrag)
+                .putBoolean("useMove", useMove).putBoolean("useSell", useSell).putBoolean("relDrag", relDrag).putBoolean("imeKeys", imeKeys)
+                .putInt("touchTapMs", touchTapMs).putFloat("touchTilt", (float) touchTilt)
                 .putInt("sellMax", sellMax).putFloat("sellDelay", (float) sellDelay)
                 .putFloat("m_reset_wait", (float) move.resetWait).putFloat("m_w_time", (float) move.wTime)
                 .putFloat("m_wa_time", (float) move.waTime).putFloat("m_a_time", (float) move.aTime)

@@ -9,6 +9,8 @@ import android.hardware.display.DisplayManager;
 import android.util.DisplayMetrics;
 import android.view.Display;
 import android.view.Gravity;
+import android.view.KeyEvent;
+import android.os.SystemClock;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
@@ -20,8 +22,11 @@ import android.widget.TextView;
 
 import com.acrux.mobile.core.Mover;
 import com.acrux.mobile.core.Seller;
+import com.acrux.mobile.core.TouchPc;
 
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.Locale;
 
 /**
@@ -102,6 +107,143 @@ public class TapService extends AccessibilityService {
         Path p = new Path();
         p.moveTo(x, y);
         dispatchGesture(new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(p, 0, Math.max(1, ms))).build(), null, null);
+    }
+
+    /** 몸짓 하나를 보내고 끝날 때까지 기다림 · 다른 몸짓에 끊기면 false */
+    boolean send(GestureDescription g, long ms) {
+        CountDownLatch done = new CountDownLatch(1);
+        boolean[] ok = {false};
+        boolean sent = dispatchGesture(g, new GestureResultCallback() {
+            @Override
+            public void onCompleted(GestureDescription d) {
+                ok[0] = true;
+                done.countDown();
+            }
+
+            @Override
+            public void onCancelled(GestureDescription d) {
+                done.countDown();
+            }
+        }, null);
+        if (!sent) return false;
+        try {
+            return done.await(ms + 1500, TimeUnit.MILLISECONDS) && ok[0];
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    static float cl(float v, float hi) {
+        return Math.max(1, Math.min(hi - 2, v));
+    }
+
+    // ---- 터치 모드 (Shizuku 없을 때 PC 키 · 마우스 → 터치) — TouchPc.Touch
+    /** 누르고 ms 뒤에 뗌 · 끝날 때까지 기다림 (TouchPc 용 · 일하는 스레드에서) */
+    void tapWait(int x, int y, int ms) {
+        int[] s = screen();
+        Path p = new Path();
+        p.moveTo(cl(x, s[0]), cl(y, s[1]));
+        send(new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(p, 0, Math.max(1, ms))).build(), ms);
+    }
+
+    public void swipe(int x1, int y1, int x2, int y2, int ms) {
+        int[] s = screen();
+        Path p = new Path();
+        p.moveTo(cl(x1, s[0]), cl(y1, s[1]));
+        p.lineTo(cl(x2, s[0]), cl(y2, s[1]));
+        send(new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(p, 0, Math.max(50, ms))).build(), ms);
+    }
+
+    public void pinch(int cx, int cy, int far, int near, int ms) {
+        int[] s = screen();
+        Path l = new Path(), r = new Path();
+        l.moveTo(cl(cx - far, s[0]), cy);
+        l.lineTo(cl(cx - near, s[0]), cy);
+        r.moveTo(cl(cx + far, s[0]), cy);
+        r.lineTo(cl(cx + near, s[0]), cy);
+        send(new GestureDescription.Builder()
+                .addStroke(new GestureDescription.StrokeDescription(l, 0, Math.max(50, ms)))
+                .addStroke(new GestureDescription.StrokeDescription(r, 0, Math.max(50, ms))).build(), ms);
+        SystemClock.sleep(120);
+    }
+
+    // 조이스틱: 따로 도는 스레드가 손가락을 누른 채 (continueStroke) 방향만 바꿈
+    final Object stickLock = new Object();
+    int[] stickTo;
+    int stickCx, stickCy;
+    Thread stickThread;
+
+    public void stick(int cx, int cy, int[] to) {
+        synchronized (stickLock) {
+            stickCx = cx;
+            stickCy = cy;
+            stickTo = to;
+            if (to != null && stickThread == null) {
+                stickThread = new Thread(this::stickLoop, "acrux-stick");
+                stickThread.start();
+            }
+        }
+    }
+
+    void stickLoop() {
+        GestureDescription.StrokeDescription prev = null;
+        float lx = 0, ly = 0;
+        long liftAt = 0;
+        while (true) {
+            int[] to;
+            int cx, cy;
+            synchronized (stickLock) {
+                to = stickTo;
+                cx = stickCx;
+                cy = stickCy;
+                if (to == null && prev == null) {
+                    stickThread = null;
+                    return;
+                }
+            }
+            Path p = new Path();
+            if (to == null) {
+                // 키를 바꾸는 사이 (W → W+A) 에 손가락을 떼지 않게 0.08초 기다렸다가 뗌
+                if (liftAt == 0) liftAt = SystemClock.uptimeMillis() + 80;
+                p.moveTo(lx, ly);
+                boolean lift = SystemClock.uptimeMillis() >= liftAt;
+                prev = prev.continueStroke(p, 0, lift ? 1 : 30, !lift);
+                send(new GestureDescription.Builder().addStroke(prev).build(), 30);
+                if (lift) prev = null;
+                continue;
+            }
+            liftAt = 0;
+            boolean fresh = prev == null;
+            if (fresh) {
+                p.moveTo(cx, cy);
+                prev = new GestureDescription.StrokeDescription(p, 0, 60, true);
+                lx = cx;
+                ly = cy;
+            } else {
+                p.moveTo(lx, ly);
+                boolean move = lx != to[0] || ly != to[1];
+                if (move) p.lineTo(to[0], to[1]);
+                prev = prev.continueStroke(p, 0, move ? 60 : 120, true);
+                lx = to[0];
+                ly = to[1];
+            }
+            if (!send(new GestureDescription.Builder().addStroke(prev).build(), 120)) prev = null;    // 끊김 → 가운데부터 다시
+        }
+    }
+
+    /** 키보드 앱 방식 (안드로이드 13+ · 접근성 입력기) — 로블록스에 입력칸 연결이 있을 때만 보내짐 */
+    boolean imeKey(String key, boolean down) {
+        if (android.os.Build.VERSION.SDK_INT < 33) return false;
+        Integer code = ShizukuPc.KEYS.get(key);
+        if (code == null) return false;
+        android.accessibilityservice.InputMethod im = getInputMethod();
+        if (im == null) return false;
+        android.accessibilityservice.InputMethod.AccessibilityInputConnection ic = im.getCurrentInputConnection();
+        if (ic == null) return false;
+        long t = SystemClock.uptimeMillis();
+        ic.sendKeyEvent(new KeyEvent(t, t, down ? KeyEvent.ACTION_DOWN : KeyEvent.ACTION_UP, code, 0));
+        return true;
     }
 
     // ---------------------------------------------------------------- 떠 있는 조작 창
@@ -231,6 +373,11 @@ public class TapService extends AccessibilityService {
         menu.addView(head("공통 위치 (기준 장소 맞추기)"));
         for (String[] k : Mover.BASE_KEYS) {
             menu.addView(item((Hub.pos.containsKey(k[0]) ? "✓ " : "· ") + k[1], v -> pickSave(k[0], k[1])));
+        }
+        menu.addView(head(ShizukuPc.ready() ? "터치 조작 (Shizuku 없을 때만 씀)" : "터치 조작 (지금 터치 모드)"));
+        for (String[] k : TouchPc.KEYS) {
+            boolean set = Hub.pos.containsKey(k[0]), def = TouchPc.DEFAULTS.containsKey(k[0]);
+            menu.addView(item((set ? "✓ " : def ? "○ " : "· ") + k[1] + (set || !def ? "" : " (기본 자리)"), v -> pickSave(k[0], k[1])));
         }
         place(false);
         place(true);

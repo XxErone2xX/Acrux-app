@@ -1,3 +1,27 @@
+## Acrux Mobile V0.4.0 업데이트
+- **Shizuku 없이도 이동 · 판매 가능 (터치 모드)**: Shizuku 가 연결 안 돼 있으면 PC 키 · 마우스를 로블록스 모바일 조작으로 바꿔서 누름
+  - W A S D → 조이스틱을 그 방향으로 밀고 있기 (W+A 같은 대각선도 · 키를 바꿀 때 손가락을 안 뗌)
+  - Esc → R → Enter → 메뉴 버튼 → Reset Character → Reset (글자로 찾음)
+  - 우클릭 → Tap to Move · E → 상호작용 버튼 · Space → 점프 버튼
+  - O + 우클릭 드래그 → 화면 끌어 내려다보기 + 두 손가락 줌 아웃
+  - Sell All 같은 버튼은 0.12초 동안 눌렀다 뗌 (짧게 누르면 호버만 되고 안 눌리던 문제)
+  - 조이스틱 · 메뉴 · 점프 버튼은 기본 자리가 있음 · 상호작용 버튼은 Acrux 창 ⚙ → 터치 조작에서 지정
+  - 앱에서 탭 누르는 시간 · 내려다보기 배율 조절
+- **키보드 앱 방식 키 (실험 · 안드로이드 13+)**: 켜면 키를 접근성 입력기로 먼저 보내 봄 · 로블록스가 받아 주면 조이스틱 대신 진짜 키로 움직임
+- Shizuku 가 연결돼 있으면 지금처럼 PC 와 똑같은 키보드 · 마우스로 움직임
+
+## Acrux Mobile V0.4.0 Update
+- **Movement and selling without Shizuku (touch mode)**: when Shizuku is not connected, PC keys and mouse are turned into Roblox mobile controls
+  - W A S D → hold the joystick in that direction (diagonals like W+A too · the finger stays down when keys change)
+  - Esc → R → Enter → menu button → Reset Character → Reset (found by text)
+  - Right-click → Tap to Move · E → interact button · Space → jump button
+  - O + right-drag → drag the screen to look down + two-finger zoom out
+  - Buttons like Sell All are held for 0.12 s (short taps only hovered and did not click)
+  - Joystick, menu and jump buttons have default spots · set the interact button in the Acrux window ⚙ → Touch controls
+  - Tap hold time and look-down scale are adjustable in the app
+- **Keyboard-app style keys (experimental · Android 13+)**: when on, keys are first sent through the accessibility input method · if Roblox accepts them, it moves with real keys instead of the joystick
+- With Shizuku connected it still moves with the same keyboard and mouse as on PC
+
 ## Acrux Mobile V0.3.0 업데이트
 - **PC 와 똑같은 입력**: Shizuku 로 진짜 키보드 · 마우스 신호를 보냄 (Esc · R · Enter · W · A · S · D · E · O · / · 우클릭)
   - 앱 → 준비 → ③ Shizuku [연결] (Shizuku 설치 → 무선 디버깅으로 시작 → 허용)

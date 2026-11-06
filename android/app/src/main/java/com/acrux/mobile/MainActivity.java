@@ -19,6 +19,7 @@ import android.widget.TextView;
 
 import com.acrux.mobile.core.Mover;
 import com.acrux.mobile.core.Seller;
+import com.acrux.mobile.core.TouchPc;
 
 /** 처음 설정 · 상태 · 세부 설정 · 기록 (실제 조작은 로블록스 위에 떠 있는 작은 창에서) */
 public class MainActivity extends Activity {
@@ -88,7 +89,7 @@ public class MainActivity extends Activity {
         shzState = Ui.text(this, "", 13, Ui.MUTED, false);
         shzBtn = Ui.button(this, "연결", Ui.ACCENT, v -> ShizukuPc.connect());
         ready.addView(row("③ Shizuku (키보드 · 마우스)", "이동 · 판매에 PC 와 같은 키(Esc R Enter W A S D E O /)와 마우스(우클릭 Click to Move · Sell All 호버 후 클릭)를 보냄 · "
-                + "자동 낚시만 쓸 거면 없어도 됨", shzState, shzBtn), Ui.fill(this, 12));
+                + "없으면 터치 모드 (W A S D → 조이스틱 · 우클릭 → Tap to Move · Esc R Enter → 메뉴 리셋 · E → 상호작용 버튼)", shzState, shzBtn), Ui.fill(this, 12));
         TextView shzHelp = Ui.text(this, "Shizuku 설정: ① Play 스토어에서 Shizuku 설치 → ② 개발자 옵션 → 무선 디버깅 켜기 → ③ Shizuku 앱에서 '무선 디버깅으로 시작' (페어링 코드 입력) → ④ 여기서 [연결] → 허용. 폰을 재부팅하면 ③ 부터 다시 해야 함",
                 12, Ui.YELLOW, false);
         shzHelp.setOnClickListener(v -> openUrl("https://shizuku.rikka.app/guide/setup/"));
@@ -154,6 +155,12 @@ public class MainActivity extends Activity {
         mv.addView(sw("Click to Move 우클릭 (끄면 좌클릭)", "right".equals(Hub.move.button), on -> Hub.move.button = on ? "right" : "left"), Ui.fill(this, 4));
         mv.addView(sw("카메라 돌리기를 상대 이동으로", Hub.relDrag, on -> Hub.relDrag = on), Ui.fill(this, 4));
         mv.addView(Ui.text(this, "내려다보기가 안 먹히면 켜 보기 (마우스 잠금 상태에서 움직임)", 12, Ui.MUTED, false));
+        mv.addView(Ui.text(this, "터치 모드 (Shizuku 없을 때)", 14, Ui.FG, true), Ui.fill(this, 14));
+        mv.addView(Ui.text(this, "PC 키 · 마우스를 로블록스 모바일 조작으로 바꿔 누름 · 조이스틱 · 메뉴 · 점프 · 상호작용 버튼 위치는 Acrux 창 ⚙ → 터치 조작", 12, Ui.MUTED, false));
+        mv.addView(num("탭 누르는 시간 (ms)", "버튼이 호버만 되고 안 눌리면 늘림 · 기본 120", Hub.touchTapMs, v -> Hub.touchTapMs = (int) clamp(v, 30, 600)), Ui.fill(this, 6));
+        mv.addView(num("내려다보기 배율", "마우스 드래그 px × 이 값 = 화면 끌기 거리 · 기본 0.5", Hub.touchTilt, v -> Hub.touchTilt = clamp(v, 0.05, 3)), Ui.fill(this, 6));
+        mv.addView(sw("키보드 앱 방식 키 (실험 · 안드로이드 13+)", Hub.imeKeys, on -> Hub.imeKeys = on), Ui.fill(this, 6));
+        mv.addView(Ui.text(this, "켜면 W A S D E Esc 같은 키를 접근성 입력기로 먼저 보내 봄 · 로블록스가 받아 주면 조이스틱 대신 진짜 키로 움직임 · 안 먹으면 끄기", 12, Ui.MUTED, false));
         mv.addView(Ui.text(this, "기준 장소 (초)", 14, Ui.FG, true), Ui.fill(this, 14));
         Mover.Cfg m = Hub.move;
         mv.addView(num("리셋 후 대기", "기본 3.5", m.resetWait, v -> m.resetWait = clamp(v, 0.5, 30)), Ui.fill(this, 6));
@@ -333,6 +340,7 @@ public class MainActivity extends Activity {
         StringBuilder ps = new StringBuilder();
         for (String[] k : Mover.BASE_KEYS) line(ps, k[1], Hub.pos.get(k[0]));
         for (String[] k : Seller.KEYS) line(ps, k[1] + " (판매)", Hub.pos.get(k[0]));
+        for (String[] k : TouchPc.KEYS) line(ps, k[1] + " (터치)", Hub.pos.get(k[0]));
         points(ps, "낚시 장소", Hub.fishPts);
         points(ps, "판매 장소", Hub.sellPts);
         posView.setText(ps.toString().trim());
