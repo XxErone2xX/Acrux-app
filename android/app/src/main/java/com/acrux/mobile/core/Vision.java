@@ -203,11 +203,29 @@ public final class Vision {
 
     /** 화면 → 흰 꺾쇠로 둘러싸인 창들 [x1, y1, x2, y2] (px · 바깥 모서리) · maxW: 창 폭 최대 (화면 폭 비율) */
     public static List<int[]> findFrames(Img im, double maxW) {
+        List<int[]> out = findFrames(im, maxW, 215);
+        // 모바일: 창 꺾쇠(250 ~ 255) 바깥에 회색 테두리가 한 겹 더 있고 그 안에 216 ~ 231 짜리 밝은 점이 섞여 있음
+        // → 215 기준이면 꺾쇠 모서리가 그 점들과 붙어서 모서리로 안 보임 → 더 밝은 기준(238)으로 한 번 더 찾아서 새로 나온 창만 뒤에 붙임
+        for (int[] f : findFrames(im, maxW, 238)) {
+            boolean dup = false;
+            for (int[] g : out) {
+                if (Math.abs(f[0] - g[0]) <= 6 && Math.abs(f[1] - g[1]) <= 6 && Math.abs(f[2] - g[2]) <= 6 && Math.abs(f[3] - g[3]) <= 6) {
+                    dup = true;
+                    break;
+                }
+            }
+            if (!dup) out.add(f);
+        }
+        return out;
+    }
+
+    /** lo: 흰색 기준 (가장 어두운 채널이 이것보다 밝아야 흰색) */
+    public static List<int[]> findFrames(Img im, double maxW, int lo) {
         int W = im.w, H = im.h, N = W * H;
         boolean[] white0 = new boolean[N], white = new boolean[N];
         for (int k = 0; k < N; k++) {
             int mn = im.min(k), mx = im.max(k);
-            white0[k] = mn > 215 && (mx - mn) < 35;
+            white0[k] = mn > lo && (mx - mn) < 35;
         }
         for (int y = 0; y < H; y++) {
             for (int x = 0; x < W; x++) {

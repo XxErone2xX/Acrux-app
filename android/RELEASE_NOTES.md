@@ -1,3 +1,15 @@
+## Acrux Mobile V0.6.1 업데이트
+- **모바일에서 낚시 창 · 미니게임 창을 못 찾던 문제 수정**
+  - 모바일 화면은 창 꺾쇠(흰색) 바깥에 회색 테두리가 한 겹 더 있고, 그 안에 거의 흰색인 점들이 섞여 있음
+  - 그 점들이 꺾쇠 모서리에 붙어서 창 모서리로 안 보였음 → 더 밝은 기준으로 한 번 더 찾게 함
+  - 보정 중 "릴링 중"에서 멈춰 있던 경우가 이것 때문
+
+## Acrux Mobile V0.6.1 Update
+- **Fixed the fishing window and minigame window not being found on mobile**
+  - On mobile the white window corners have an extra gray outline with almost-white specks in it
+  - Those specks touched the corners so they no longer looked like window corners → frames are now searched again with a brighter threshold
+  - This is why calibration got stuck at "Reeling"
+
 ## Acrux Mobile V0.6.0 업데이트
 - **다시 Shizuku 방식으로**: 키보드 방식은 로블록스가 키를 안 받아서 뺌 · 키(Esc · R · Enter · W · A · S · D · E · O · /)와 마우스(우클릭 Click to Move · Sell All 호버 후 클릭 · 우클릭 드래그)를 Shizuku 로 PC 와 똑같이 보냄
   - 앱 → 준비 → ③ Shizuku [연결] (Shizuku 설치 → 무선 디버깅으로 시작 → 허용)
