@@ -2,7 +2,7 @@ package com.acrux.mobile.core;
 
 /**
  * PC 와 같은 키보드 · 마우스 입력 (PC 버전 macro.py 의 key_down · key_up · key_tap · move_to · move_rel · mouse_button · click · mouse_click_here)
- * 모바일에서는 Shizuku(ADB 권한)로 로블록스에 진짜 키 · 마우스 신호를 보냄
+ * 모바일에서는 KeyPc: 키는 키보드(입력기)로 · 마우스 클릭은 화면 탭으로
  * 키 이름: esc r enter w a s d e o / space shift · 버튼: left · right
  */
 public interface Pc {

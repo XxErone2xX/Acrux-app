@@ -1,3 +1,19 @@
+## Acrux Mobile V0.5.0 업데이트
+- **이동 · 판매 입력을 키보드 방식 하나로 정리**: 키(Esc · R · Enter · W · A · S · D · E · O · / · Space)를 키보드로 진짜 키 신호로 보냄
+  - Acrux 키보드 추가: 설정에서 켜고 지금 키보드로 선택하면 이 키보드가 로블록스에 키를 보냄
+  - 안드로이드 13 이상은 접근성 입력기로도 한 번 더 시도함 (키보드를 안 바꿔도 됨)
+  - 클릭은 키보드로 못 보내서 화면 탭 (우클릭 Click to Move · Sell All 등은 0.12초 꾹 눌렀다 뗌) · 우클릭 드래그는 화면 끌기
+  - Acrux 창 ⚙ → 키 테스트: W 를 1초 눌러서 키보드 방식이 되는지 바로 확인
+- Shizuku · 터치 모드(조이스틱 · 메뉴 리셋 · 핀치) 제거
+
+## Acrux Mobile V0.5.0 Update
+- **Movement and selling input reduced to the keyboard method only**: keys (Esc · R · Enter · W · A · S · D · E · O · / · Space) are sent as real key signals through a keyboard
+  - Added Acrux Keyboard: enable it in settings and pick it as the current keyboard so it sends keys to Roblox
+  - On Android 13+ the accessibility input method is tried as well (no keyboard switch needed)
+  - Clicks cannot go through a keyboard, so they are screen taps (right-click Click to Move, Sell All and so on are held for 0.12 s) · right-drag becomes a screen drag
+  - Acrux window ⚙ → Key test: holds W for 1 s to check right away whether the keyboard method works
+- Removed Shizuku and touch mode (joystick, menu reset, pinch)
+
 ## Acrux Mobile V0.4.0 업데이트
 - **Shizuku 없이도 이동 · 판매 가능 (터치 모드)**: Shizuku 가 연결 안 돼 있으면 PC 키 · 마우스를 로블록스 모바일 조작으로 바꿔서 누름
   - W A S D → 조이스틱을 그 방향으로 밀고 있기 (W+A 같은 대각선도 · 키를 바꿀 때 손가락을 안 뗌)
