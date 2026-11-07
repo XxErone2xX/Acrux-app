@@ -200,6 +200,7 @@ public class TapService extends AccessibilityService {
         body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
         status = Ui.text(this, "대기", 11, Ui.MUTED, false);
+        status.setMaxWidth(Ui.dp(this, 240));            // 긴 이유는 줄바꿈
         status.setMaxWidth(Ui.dp(this, 170));
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -393,7 +394,13 @@ public class TapService extends AccessibilityService {
             return;
         }
         String err = Hub.start(m);
-        if (!err.isEmpty()) Hub.log(err, 'y');
+        if (!err.isEmpty()) {
+            // 못 하는 이유: 기록 칸만이 아니라 떠 있는 창 · 화면 알림에도 (게임 화면에선 기록 칸이 안 보임)
+            Hub.log(err, 'y');
+            Hub.state = err;
+            Hub.changed();
+            android.widget.Toast.makeText(this, com.acrux.mobile.core.I18n.t(err), android.widget.Toast.LENGTH_LONG).show();
+        }
         closeMenu();
         refresh();
     }

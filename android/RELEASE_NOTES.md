@@ -1,3 +1,17 @@
+## Acrux Mobile V0.9.4 업데이트
+- **'판매 한 번 해 보기' 등을 눌러도 아무것도 안 하던 것처럼 보이던 문제 수정**
+  - 필요한 것 (Shizuku · 판매 자동 보정 · 판매 장소 · 낚시 장소 지점 · 공통 위치) 이 없으면 시작을 안 하거나 바로 멈췄는데, 그 이유가 앱의 기록 칸에만 남아서 게임 화면에선 아무 일도 없는 것처럼 보였음
+  - 이제 이유를 **떠 있는 Acrux 창 · 화면 알림** 으로 바로 보여 줌 (예: "판매 자동 보정 필요: Sell All 버튼 …")
+  - 실행 중에 멈추면 떠 있는 창에 '멈춤 — 이유' 가 남음
+  - 판매 한 번: 필요한 위치 · 지점을 시작 전에 먼저 확인
+
+## Acrux Mobile V0.9.4 Update
+- **Fixed "Try selling once" and similar buttons looking like they did nothing**
+  - When something needed was missing (Shizuku · sell auto calibration · sell spot · fishing spot points · common positions), it did not start or stopped right away, but the reason only went to the app's Log tab, so nothing seemed to happen in game
+  - The reason now shows right away on the **floating Acrux window and as an on-screen notice** (e.g. "Sell auto calibration needed: Sell All button …")
+  - When a run stops, the floating window keeps showing "Stopped — reason"
+  - Try selling once: the needed positions and points are checked before starting
+
 ## Acrux Mobile V0.9.3 업데이트
 - **[보정] 을 눌렀는데 [시작] 이 눌리던 문제 수정**
   - 매크로가 누르는 터치 · 클릭은 화면 맨 위 창이 받음 → Acrux 창이 Fish 버튼 위에 있으면 [보정] 이 누른 Fish 가 Acrux 창의 [시작] 으로 들어가서 보정이 멈췄음

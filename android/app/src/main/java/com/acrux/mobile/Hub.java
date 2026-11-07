@@ -41,6 +41,8 @@ final class Hub {
     static final List<Runnable> listeners = new CopyOnWriteArrayList<>();
     static final Handler main = new Handler(Looper.getMainLooper());
     static volatile String state = "대기";
+    /** 마지막 실행이 멈춘 이유 (떠 있는 창에도 보이게) */
+    static volatile String lastError;
     static volatile String mode = "";
     static volatile boolean stopFlag, measuring, arrived, appVisible;
     static volatile Fisher fisher;
@@ -224,6 +226,7 @@ final class Hub {
      *  · addpt_fish / addpt_sell 지점 추가 · measure_fish:N / measure_sell:N 시간 다시 재기 → 못 하면 이유 */
     static synchronized String start(String m) {
         if (running()) return "이미 실행 중";
+        lastError = null;
         if (TapService.instance == null) return "접근성 권한(Acrux Mobile)을 먼저 켜야 함";
         CaptureService cap = CaptureService.active;
         if (cap == null) return "앱에서 [화면 캡처 시작]을 먼저 눌러야 함";
@@ -234,6 +237,11 @@ final class Hub {
         Fisher f = new Fisher(cap, fishInput(pc), OUT, cfg);
         Mover mv = pc != null ? new Mover(cap, pc, new MlOcr(), pos, move, OUT, CHECK) : null;
         Seller sl = mv != null ? seller(cap, mv, pc) : null;
+        // 판매 한 번: 필요한 위치 · 지점이 없으면 시작 전에 바로 알려 줌 (예전엔 시작하자마자 멈추고 기록 칸에만 남았음)
+        if (m.equals("sell") && sl != null) {
+            String miss = sl.missing();
+            if (miss != null) return miss;
+        }
         if (m.equals("run")) {
             if (!useMove) {
                 log("낚시 장소로 이동 꺼짐 — 지금 자리에서 낚시", 'd');
@@ -262,18 +270,23 @@ final class Hub {
             } catch (Fisher.Stopped e) {
                 log("멈춤", 'd');
             } catch (RuntimeException e) {
+                lastError = e.getMessage();
                 log("오류: " + e.getMessage(), 'r');
             } catch (OutOfMemoryError e) {
-                log("메모리 부족 — 멈춤 (다른 앱을 닫고 다시 시작)", 'r');
+                lastError = "메모리 부족 — 멈춤 (다른 앱을 닫고 다시 시작)";
+                log(lastError, 'r');
                 System.gc();
             } catch (Throwable e) {
+                lastError = String.valueOf(e);
                 log("오류: " + e, 'r');
                 Crash.save(e, "worker");
             } finally {
                 if (mv != null) mv.releaseKeys();
                 measuring = false;
                 mode = "";
-                state = "대기";
+                state = lastError != null ? "멈춤 — " + lastError : "대기";     // 멈춘 이유를 떠 있는 창에도
+                String why = lastError;
+                if (why != null) main.post(() -> android.widget.Toast.makeText(app, com.acrux.mobile.core.I18n.t("멈춤 — " + why), android.widget.Toast.LENGTH_LONG).show());
                 save();
                 changed();
             }
