@@ -365,6 +365,8 @@ public final class Vision {
             }
         }
         if (best < 0) return null;
+        // 테두리 맨 윗줄이 흐릿하게 끊겨 있으면 (확대 · 압축) 바로 아래의 더 꽉 찬 줄로
+        while (best + 1 < hi && frac(edge(im, best + 1, 90, 200)) > frac(edge(im, best, 90, 200)) + 0.05) best++;
         boolean[] g = edge(im, best, 90, 200);
         List<int[]> rs = new ArrayList<>();
         int[] cur = null;
@@ -383,6 +385,15 @@ public final class Vision {
             }
         }
         if (cur != null) rs.add(cur);
+        // 테두리 줄이 ◇ · 글자에 가려 끊기면 한 줄로 이음 (끊긴 틈이 바 폭의 4% 이하)
+        int join = Math.max(3, (int) (im.w * 0.04));
+        for (int i = rs.size() - 1; i > 0; i--) {
+            int[] a = rs.get(i - 1), b = rs.get(i);
+            if (b[0] - a[1] <= join) {
+                rs.set(i - 1, new int[]{a[0], b[1]});
+                rs.remove(i);
+            }
+        }
         int x0 = 0, x1 = im.w - 1;
         if (!rs.isEmpty()) {
             int[] m = rs.get(0);
@@ -391,8 +402,11 @@ public final class Vision {
             x1 = m[1];
         }
         int top = best + 1;
-        int inner = (int) barH;
-        for (int r = top + 3; r < Math.min(h, top + (int) (barH * 1.6)); r++) {
+        int inner = (int) barH, lim = Math.min(h, top + (int) (barH * 1.6));
+        // 모바일은 바 테두리가 두꺼움 (3 ~ 4줄) → 윗 테두리가 끝나는 줄부터 아래 테두리를 찾음
+        int r0 = top;
+        while (r0 < lim && frac(edge(im, r0, 40, 200)) >= 0.6) r0++;
+        for (int r = Math.max(top + 3, r0 + 1); r < lim; r++) {
             if (frac(edge(im, r, 40, 200)) >= 0.6) {
                 inner = r - top;
                 break;

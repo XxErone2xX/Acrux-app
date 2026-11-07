@@ -502,19 +502,77 @@ public final class Fisher {
     }
 
     // ---------------------------------------------------------------- 자동 보정 (PC 버전 _autocal_run)
+    /** 늘어난 화면용 넓은 비율 (안의 내용으로 확인할 때만) */
+    static final double[][] LOOSE = {{1.6, 5.5}, {2.0, 6.5}, {0.35, 1.6}};
+    /** 어두운 화면용 흰색 기준 (꺾쇠가 215 보다 어두울 때) */
+    static final int[] DIM = {190, 165, 140};
+
     double[] frameOf(Img im, int keyIndex) {
         double lo = Vision.SHAPES[keyIndex][0], hi = Vision.SHAPES[keyIndex][1];
-        int W = im.w, H = im.h;
-        for (int[] f : Vision.findFrames(im, MAX_FRAME_W)) {
-            double ratio = (double) (f[2] - f[0]) / Math.max(1, f[3] - f[1]);
-            if (lo <= ratio && ratio <= hi) {
-                // 낚시 창은 안에 Fish / Exit 버튼이 보여야 인정 — 오른쪽 위 Player · Rolls 순위표도 비율이 비슷함 (3.16)
-                if (keyIndex == 0 && !hasButton(im, f)) continue;
-                return new double[]{Vision.round4((double) f[0] / W), Vision.round4((double) f[1] / H),
-                        Vision.round4((double) f[2] / W), Vision.round4((double) f[3] / H)};
-            }
+        List<int[]> frames = Vision.findFrames(im, MAX_FRAME_W);
+        // 1. PC 와 같음: 모양 비율 (낚시 창은 Fish / Exit 버튼까지 — 순위표도 비율이 비슷함)
+        for (int[] f : frames) {
+            double ratio = ratio(f);
+            if (lo <= ratio && ratio <= hi && placed(im, f) && (keyIndex == 2 || (keyIndex == 0 ? hasButton(im, f) : hasBar(im, f)))) return ratioBox(im, f);
+        }
+        // 2. 늘어난 화면: 비율을 넓게 보고 안의 내용으로 확인 (버튼 · 릴링 바 · X)
+        double[] got = loose(im, keyIndex, frames);
+        if (got != null) return got;
+        // 3. 어두운 화면: 흰색 기준을 낮춰서 다시 (내용 확인 필수)
+        for (int lo2 : DIM) {
+            List<int[]> more = Vision.findFrames(im, MAX_FRAME_W, lo2);
+            got = loose(im, keyIndex, more);
+            if (got != null) return got;
         }
         return null;
+    }
+
+    double[] loose(Img im, int keyIndex, List<int[]> frames) {
+        double lo = LOOSE[keyIndex][0], hi = LOOSE[keyIndex][1];
+        for (int[] f : frames) {
+            double r = ratio(f);
+            if (r < lo || r > hi || !placed(im, f)) continue;
+            boolean ok = keyIndex == 0 ? hasButton(im, f) : keyIndex == 1 ? hasBar(im, f) : hasX(im, f);
+            if (ok) return ratioBox(im, f);
+        }
+        return null;
+    }
+
+    /** 낚시 창 · 미니게임 창 · 결과창은 화면 가로 가운데에 뜨고 화면 높이의 10% 이상 (순위표 · Roll 버튼 테두리는 아님) */
+    static boolean placed(Img im, int[] f) {
+        double cx = (f[0] + f[2]) / 2.0;
+        return Math.abs(cx - im.w / 2.0) <= im.w * 0.12 && (f[3] - f[1]) >= im.h * 0.1;
+    }
+
+    static double ratio(int[] f) {
+        return (double) (f[2] - f[0]) / Math.max(1, f[3] - f[1]);
+    }
+
+    static double[] ratioBox(Img im, int[] f) {
+        return new double[]{Vision.round4((double) f[0] / im.w), Vision.round4((double) f[1] / im.h),
+                Vision.round4((double) f[2] / im.w), Vision.round4((double) f[3] / im.h)};
+    }
+
+    /** 미니게임 창: 안에 릴링 바 테두리가 보임 */
+    static boolean hasBar(Img im, int[] f) {
+        double[] fr = {(double) f[0] / im.w, (double) f[1] / im.h, (double) f[2] / im.w, (double) f[3] / im.h};
+        double[] r = Vision.layout(fr, Vision.REEL_BAR);
+        int ax = (int) (r[0] * im.w), ay = (int) (r[1] * im.h), bx2 = (int) (r[2] * im.w), by2 = (int) (r[3] * im.h);
+        int bh = Math.max(4, by2 - ay), extra = (int) (bh * 1.8), side = Math.max(4, (int) ((bx2 - ax) * 0.05));
+        int x0 = Math.max(0, ax - side), y0 = Math.max(0, ay - extra), x1 = Math.min(im.w, bx2 + side), y1 = Math.min(im.h, ay + bh + (int) (bh * 0.8));
+        if (x1 - x0 < 8 || y1 - y0 < 8) return false;
+        int[] rows = Vision.findBarRows(im.crop(x0, y0, x1, y1), ay - y0, bh);
+        // 낚시 창 (Fishing 밑줄이 바 테두리처럼 보임) 은 아님 — 미니게임 창엔 Fish / Exit 버튼이 없음
+        return rows != null && rows[3] - rows[2] >= (bx2 - ax) * 0.6 && !hasButton(im, f);
+    }
+
+    /** 결과창: 오른쪽 위에 닫기 X */
+    static boolean hasX(Img im, int[] f) {
+        int w = f[2] - f[0], h = f[3] - f[1];
+        int x0 = Math.max(0, f[0] + (int) (w * 0.6)), y0 = Math.max(0, f[1] - (int) (h * 0.03));
+        int x1 = Math.min(im.w, f[2] + (int) (w * 0.05)), y1 = Math.min(im.h, f[1] + (int) (h * 0.25));
+        if (x1 - x0 < 8 || y1 - y0 < 8) return false;
+        return Vision.findCloseX(im.crop(x0, y0, x1, y1), im.h, null) != null;
     }
 
     static boolean hasButton(Img im, int[] f) {

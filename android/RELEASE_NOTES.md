@@ -1,3 +1,25 @@
+## Acrux Mobile V0.6.4 업데이트
+- **여러 화면 비율 · 해상도에서 인식 강화** (스크린샷 6장을 246가지로 변형해서 시험 · 125 → 231 통과)
+  - 해상도 0.5 ~ 1.6배 · 노치 · 위아래 · 양옆 검은 띠 · 초광각 · 정사각형 · 태블릿 비율 · 가장자리 잘림 · 저화질 JPEG · 흐림 · 가로세로 늘림
+- **보라색 구간 (Purple zone) 을 못 보던 문제 수정**: 모바일 바 테두리가 두꺼워서 (3 ~ 4줄) 바 높이를 4px 로 잘못 잡았음
+- 바 테두리가 ◇ · 글자에 가려 끊기거나 흐릿해도 바 전체 폭을 잡음
+- 창 찾기
+  - 화면 가운데에 뜨는 창만 인정 (순위표 · Roll · Quick roll 버튼 테두리를 창으로 착각하지 않음)
+  - 미니게임 창은 안에 릴링 바가 있고 Fish / Exit 버튼이 없어야 인정 (낚시 창과 헷갈리지 않음)
+  - 비율이 다른 화면: 모양 비율을 넓게 보고 안의 버튼 · 바 · X 로 확인
+  - 꺾쇠가 어둡게 찍히는 화면: 흰색 기준을 낮춰서 한 번 더 찾음
+
+## Acrux Mobile V0.6.4 Update
+- **Stronger recognition across screen ratios and resolutions** (6 screenshots turned into 246 variants · passing went from 125 to 231)
+  - 0.5 to 1.6× resolution · notch · black bars top/bottom and left/right · ultra-wide · square · tablet ratio · cropped edges · low-quality JPEG · blur · stretched width or height
+- **Fixed the purple zone not being seen**: the mobile bar border is thick (3 to 4 rows), so the bar height was taken as 4 px
+- The full bar width is found even when its border is broken by ◇ or text, or blurry
+- Window search
+  - Only windows centered on screen count (the leaderboard and the Roll / Quick roll button borders are no longer taken for windows)
+  - The minigame window must contain a reel bar and no Fish / Exit button (no mix-up with the fishing window)
+  - Screens with other ratios: the shape ratio is checked loosely and confirmed by the button, bar or X inside
+  - Screens where the corners come out darker: searched again with a lower white threshold
+
 ## Acrux Mobile V0.6.3 업데이트
 - **릴링 중에 Roll 버튼을 누르던 문제 수정**
   - 릴링 클릭 자리가 PC 처럼 미니게임 창 아래 빈 화면이었는데, 모바일은 UI 가 커서 그 자리가 Roll 버튼 바로 위 (몇 px 차이)였음
