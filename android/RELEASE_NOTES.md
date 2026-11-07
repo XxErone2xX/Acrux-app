@@ -1,3 +1,9 @@
+## Acrux Mobile V0.8.5 업데이트
+- 떠 있는 Acrux 창에서 사용자 수 (● 숫자) 제거 — 앱 맨 위 Now Active 에만 보임
+
+## Acrux Mobile V0.8.5 Update
+- Removed the user count (● number) from the floating Acrux window — it now only shows as Now Active at the top of the app
+
 ## Acrux Mobile V0.8.4 업데이트
 - **현재 온라인 (Now Active)**: 앱 맨 위 제목 아래 · 떠 있는 Acrux 창 제목 옆 (● 숫자)
   - PC 버전과 같은 서버 → PC + 모바일을 합친 사용자 수 · 1분마다 새로 읽음 · 못 읽으면 --
