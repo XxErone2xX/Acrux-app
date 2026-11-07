@@ -1,3 +1,13 @@
+## Acrux Mobile V0.8.4 업데이트
+- **현재 온라인 (Now Active)**: 앱 맨 위 제목 아래 · 떠 있는 Acrux 창 제목 옆 (● 숫자)
+  - PC 버전과 같은 서버 → PC + 모바일을 합친 사용자 수 · 1분마다 새로 읽음 · 못 읽으면 --
+- 설정 → 정보: '사용자 수 집계에 참여' (기본 켜짐) — 켜져 있다는 신호만 보냄 (무작위 번호 · 개인 정보 없음) · 꺼도 사용자 수는 보임
+
+## Acrux Mobile V0.8.4 Update
+- **Now Active**: under the title at the top of the app · next to the floating Acrux window title (● number)
+  - Same server as the PC version → combined PC + mobile user count · refreshed every minute · -- when it cannot be read
+- Settings → About: "Join the user count" (on by default) — only sends a signal that Acrux is open (a random number · no personal info) · the user count still shows when off
+
 ## Acrux Mobile V0.8.3 업데이트
 - **UI 끄기 · 켜기 버튼**: 앱 맨 위 제목 오른쪽 (설정 → 조작 창에도 같은 버튼)
   - 매크로를 안 돌릴 때 떠 있는 Acrux 창을 통째로 끔 · 다시 누르면 켬 (껐다 켜도 그대로 유지)

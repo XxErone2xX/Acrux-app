@@ -55,6 +55,7 @@ final class Hub {
             loaded = true;
             loadLang();
             load();
+            Online.start();
         }
     }
 

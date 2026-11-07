@@ -35,6 +35,7 @@ public class TapService extends AccessibilityService {
 
     WindowManager wm;
     LinearLayout panel, menu, body;
+    TextView online;
     WindowManager.LayoutParams lp;
     TextView status, calBtn, runBtn, gearBtn, arriveBtn;
     View picker;
@@ -123,6 +124,10 @@ public class TapService extends AccessibilityService {
         TextView title = Ui.text(this, "ACRUX MACRO", 12, Ui.FG, true);
         title.setLetterSpacing(0.12f);
         head.addView(title, Ui.wrap());
+        online = Ui.text(this, "", 10, Ui.GREEN, true);       // ● 사용자 수
+        LinearLayout.LayoutParams ol = Ui.wrap();
+        ol.leftMargin = Ui.dp(this, 10);
+        head.addView(online, ol);
         body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
         status = Ui.text(this, "대기", 11, Ui.MUTED, false);
@@ -457,6 +462,8 @@ public class TapService extends AccessibilityService {
         if (panel == null) return;
         boolean run = Hub.running();
         String mode = Hub.mode;
+        Integer n = Online.count;
+        online.setText(n == null ? "" : "● " + n);
         Ui.set(status, CaptureService.active == null ? "화면 캡처 꺼짐 · 앱에서 시작" : Hub.state);
         Ui.set(calBtn, run && "cal".equals(mode) ? "취소" : "보정");
         Ui.set(runBtn, run && !"cal".equals(mode) ? "정지" : "시작");

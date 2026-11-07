@@ -42,7 +42,7 @@ public class MainActivity extends Activity {
     static final int REQ_CAPTURE = 7;
 
     TextView accState, capState, shzState, calState, logView, runState, posView;
-    TextView accBtn, capBtn, shzBtn, updState, updBtn, updNotes, updBanner, uiBtn, uiBtn2;
+    TextView accBtn, capBtn, shzBtn, updState, updBtn, updNotes, updBanner, uiBtn, uiBtn2, onDot, onText;
     final Runnable refresh = this::refresh;
     final Runnable relang = this::recreate;
 
@@ -133,6 +133,19 @@ public class MainActivity extends Activity {
         names.setOrientation(LinearLayout.VERTICAL);
         names.addView(title);
         names.addView(Ui.text(this, "자동 낚시 [ Beta ]", 13, Ui.MUTED, false));
+        // 사용자 수 (PC 와 같은 서버 · PC + 모바일)
+        LinearLayout online = new LinearLayout(this);
+        online.setOrientation(LinearLayout.HORIZONTAL);
+        online.setGravity(Gravity.CENTER_VERTICAL);
+        onDot = Ui.text(this, "●", 10, Ui.MUTED, false);
+        onText = Ui.text(this, "Now Active : --", 12, Ui.MUTED, true);
+        online.addView(onDot, Ui.wrap());
+        LinearLayout.LayoutParams ot = Ui.wrap();
+        ot.leftMargin = Ui.dp(this, 6);
+        online.addView(onText, ot);
+        LinearLayout.LayoutParams ol = Ui.wrap();
+        ol.topMargin = Ui.dp(this, 4);
+        names.addView(online, ol);
         top.addView(names, Ui.weight());
         uiBtn = Ui.button(this, "UI 끄기", Ui.MUTED, v -> Hub.setUi(!Hub.uiOn()));
         top.addView(uiBtn, Ui.wrap());
@@ -491,6 +504,8 @@ public class MainActivity extends Activity {
         win.addView(home, hp);
 
         LinearLayout info = section(pg, "정보");
+        info.addView(sw("사용자 수 집계에 참여", Online.share(), on -> Hub.prefs().edit().putBoolean("onlineShare", on).apply()), Ui.fill(this, 8));
+        info.addView(Ui.text(this, "켜져 있다는 신호만 보냄 (무작위 번호 · 개인 정보 없음) · 꺼도 사용자 수는 보임", 12, Ui.MUTED, false));
         info.addView(Ui.text(this, "Acrux Mobile V" + version(), 13, Ui.FG, false), Ui.fill(this, 6));
         info.addView(Ui.text(this, "Made by 얼로니", 12, Ui.MUTED, false));
         LinearLayout.LayoutParams dl = Ui.wrap();
@@ -616,6 +631,10 @@ public class MainActivity extends Activity {
 
     // ---------------------------------------------------------------- 새로 그리기
     void refresh() {
+        Integer on = Online.count;
+        onText.setText("Now Active : " + (on == null ? "--" : String.valueOf(on)));
+        onDot.setTextColor(on == null ? Ui.MUTED : Ui.GREEN);
+        onText.setTextColor(on == null ? Ui.MUTED : Ui.FG);
         boolean ui = Hub.uiOn();
         for (TextView b : new TextView[]{uiBtn, uiBtn2}) {
             Ui.set(b, ui ? "UI 끄기" : "UI 켜기");
