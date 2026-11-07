@@ -1,3 +1,13 @@
+## Acrux Mobile V0.9.5 업데이트
+- 기준 장소로 갈 때 리셋 (Esc → R → Enter) 을 건너뛰던 경우 수정
+  - '방금 리셋함 — 리셋 건너뜀' 상태가 실행이 끝나도 남아서, 그 사이 손으로 움직인 뒤 다시 실행하면 리셋 없이 엉뚱한 곳에서 걷기 시작했음
+  - 이제 새로 실행할 때마다 리셋을 꼭 함 (한 실행 안에서 방금 리셋하고 안 움직였을 때만 건너뜀 · PC 와 같음)
+
+## Acrux Mobile V0.9.5 Update
+- Fixed the reset (Esc → R → Enter) being skipped when going to the base spot
+  - The "just reset — skipping the reset" state stayed after a run ended, so moving by hand and starting again began walking from the wrong place without a reset
+  - Every new run now always resets (it is only skipped within one run right after a reset with no movement · same as PC)
+
 ## Acrux Mobile V0.9.4 업데이트
 - **'판매 한 번 해 보기' 등을 눌러도 아무것도 안 하던 것처럼 보이던 문제 수정**
   - 필요한 것 (Shizuku · 판매 자동 보정 · 판매 장소 · 낚시 장소 지점 · 공통 위치) 이 없으면 시작을 안 하거나 바로 멈췄는데, 그 이유가 앱의 기록 칸에만 남아서 게임 화면에선 아무 일도 없는 것처럼 보였음

@@ -227,6 +227,8 @@ final class Hub {
     static synchronized String start(String m) {
         if (running()) return "이미 실행 중";
         lastError = null;
+        // 새로 실행할 때는 리셋을 꼭 함 ('방금 리셋함' 은 한 실행 안에서만 — 그 사이 손으로 움직였을 수 있음)
+        Mover.markMoved();
         if (TapService.instance == null) return "접근성 권한(Acrux Mobile)을 먼저 켜야 함";
         CaptureService cap = CaptureService.active;
         if (cap == null) return "앱에서 [화면 캡처 시작]을 먼저 눌러야 함";
