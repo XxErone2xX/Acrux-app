@@ -72,6 +72,35 @@ final class Hub {
         com.acrux.mobile.core.I18n.setLang(l);
     }
 
+    // ---- 낚시 통계: 이번 실행 (앱을 켠 뒤) · 전체 (저장) — PC 의 '이번 실행 · 올타임'
+    static final String[] STAT_KEYS = {"success", "junk", "fail", "sells", "sold"};
+    static final long[] statRun = new long[STAT_KEYS.length];
+    static long runStart = System.currentTimeMillis();
+
+    static long statAll(int i) {
+        return prefs().getLong("stat_" + STAT_KEYS[i], 0);
+    }
+
+    static synchronized void stat(String key, long add) {
+        for (int i = 0; i < STAT_KEYS.length; i++) {
+            if (!STAT_KEYS[i].equals(key)) continue;
+            statRun[i] += add;
+            prefs().edit().putLong("stat_" + key, statAll(i) + add).apply();
+        }
+        changed();
+    }
+
+    static synchronized void resetStats(boolean all) {
+        java.util.Arrays.fill(statRun, 0);
+        runStart = System.currentTimeMillis();
+        if (all) {
+            SharedPreferences.Editor e = prefs().edit();
+            for (String k : STAT_KEYS) e.remove("stat_" + k);
+            e.putLong("stat_since", System.currentTimeMillis()).apply();
+        }
+        changed();
+    }
+
     /** 떠 있는 Acrux 창 켜기 · 끄기 (매크로를 안 돌릴 때) — 끄면 돌던 매크로도 멈춤 (창이 없으면 게임에서 멈출 수 없어서) */
     static boolean uiOn() {
         return prefs().getBoolean("panelOn", true);
@@ -219,6 +248,7 @@ final class Hub {
             f.onFull = () -> sellOnce(sl);
         }
         stopFlag = false;
+        f.onResult = kind -> stat(kind, 1);
         fisher = f;
         mode = m;
         worker = new Thread(() -> {
@@ -279,7 +309,10 @@ final class Hub {
             List<String> notes = sl.autocal();
             log("판매 자동 보정 완료" + (notes.isEmpty() ? "" : " · " + String.join(" · ", notes)), 'g');
         } else if (m.equals("sell")) {
-            log("판매 테스트: " + sl.run() + "종류 판매", 'g');
+            int sold = sl.run();
+            stat("sells", 1);
+            stat("sold", sold);
+            log("판매 테스트: " + sold + "종류 판매", 'g');
         } else if (m.equals("base")) {
             mv.goBase();
             log("기준 장소 도착", 'g');
@@ -375,6 +408,8 @@ final class Hub {
         }
         try {
             int sold = sl.run();
+            stat("sells", 1);
+            stat("sold", sold);
             if (sold > 0) {
                 zeroSells = 0;
                 return true;

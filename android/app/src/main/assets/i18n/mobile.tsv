@@ -245,6 +245,15 @@ Fish 터치 ({0}번째)	Tapping Fish (try {0})	Fish をタップ ({0} 回目)
 쓰레기	Junk	ゴミ
 실패	Fail	失敗
 릴링 중	Reeling	リール中
+낚시 통계	Fishing stats	釣りの統計
+이번 실행	This run	今回の実行
+전체	All time	全体
+성공률	Success rate	成功率
+판매 횟수	Sell trips	販売回数
+판 종류	Kinds sold	売った種類
+실행 시간	Run time	実行時間
+이번 실행 초기화	Reset this run	今回の実行をリセット
+전체 초기화	Reset all time	全体をリセット
 미니게임이 {0}초 넘게 끝나지 않음 — 멈춘 것으로 보고 닫기	Minigame did not end for over {0} s — treating it as stuck and closing	ミニゲームが {0} 秒以上終わらない — 止まったとみなして閉じる
 자동 보정: 낚시 창 찾는 중	Auto calibration: finding the fishing window	自動キャリブ: 釣りウィンドウを探し中
 낚시 창을 찾지 못함 — 낚시 자리에서 Fish 버튼이 보일 때 눌러주세요	Fishing window not found — tap this at the fishing spot when the Fish button is visible	釣りウィンドウが見つからない — 釣り場で Fish ボタンが見えるときに押してください

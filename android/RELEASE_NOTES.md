@@ -1,3 +1,17 @@
+## Acrux Mobile V0.8.6 업데이트
+- **낚시 통계가 사라지던 문제 수정**
+  - 통계가 '지금 낚시 중인 것'에만 있어서 [보정] · 판매 · 이동 · 키 테스트를 하거나 앱을 다시 켜면 0 으로 돌아갔음
+  - 이제 따로 저장됨: **이번 실행** (앱을 켠 뒤) · **전체** (계속 쌓임 · 앱을 꺼도 남음)
+- 낚시 칸 → **낚시 통계**: 성공 · 쓰레기 · 실패 · 성공률 · 판매 횟수 · 판 종류 · 실행 시간 · [이번 실행 초기화] · [전체 초기화]
+- 홈 → 상태에도 이번 실행의 성공 · 쓰레기 · 실패가 늘 보임
+
+## Acrux Mobile V0.8.6 Update
+- **Fixed fishing stats disappearing**
+  - The stats only lived in the current fishing run, so [Calibrate], selling, movement or key tests, or reopening the app reset them to 0
+  - They are now saved separately: **This run** (since the app opened) · **All time** (keeps adding up · stays after closing the app)
+- Fishing tab → **Fishing stats**: success · junk · fail · success rate · sell trips · kinds sold · run time · [Reset this run] · [Reset all time]
+- Home → Status always shows this run's success · junk · fail
+
 ## Acrux Mobile V0.8.5 업데이트
 - 떠 있는 Acrux 창에서 사용자 수 (● 숫자) 제거 — 앱 맨 위 Now Active 에만 보임
 

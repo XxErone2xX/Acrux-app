@@ -49,6 +49,8 @@ public final class Fisher {
     volatile boolean stop;
     boolean diamondOk = false;
     public int success, junk, fail, full;
+    /** 낚시 결과마다 ("success" · "junk" · "fail") — 앱이 통계를 따로 저장 (보정 · 테스트로 Fisher 가 새로 만들어져도 안 사라지게) */
+    public java.util.function.Consumer<String> onResult;
     /** 낚시를 시작할 때 · 낚시 화면이 오래 안 보일 때: 기준 장소 → 낚시 장소 (없으면 지금 자리에서) */
     public Runnable onStart;
     /** 인벤토리 가득: 판매하고 돌아왔으면 true (낚시 이어감) · 못 하면 false (멈춤) */
@@ -387,6 +389,7 @@ public final class Fisher {
         if (kind.equals("fail")) fail++;
         else if (kind.equals("junk")) junk++;
         else success++;
+        if (onResult != null) onResult.accept(kind.equals("fail") || kind.equals("junk") ? kind : "success");
         String name = kind.equals("success") ? "성공" : kind.equals("junk") ? "쓰레기" : "실패";
         out.log("낚시 결과: " + name + " · 성공 " + success + " / 쓰레기 " + junk + " / 실패 " + fail, kind.equals("success") ? 'g' : 'd');
     }

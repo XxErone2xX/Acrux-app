@@ -44,6 +44,8 @@ public class MainActivity extends Activity {
     TextView accState, capState, shzState, calState, logView, runState, posView;
     TextView accBtn, capBtn, shzBtn, updState, updBtn, updNotes, updBanner, uiBtn, uiBtn2, onDot, onText;
     final Runnable refresh = this::refresh;
+    final TextView[][] statCells = new TextView[7][2];
+    TextView statRunHead, statAllHead;
     final Runnable relang = this::recreate;
 
     // ---------------------------------------------------------------- 칸 (탭)
@@ -361,6 +363,25 @@ public class MainActivity extends Activity {
 
     // ---------------------------------------------------------------- 낚시
     void buildFishing(Page pg) {
+        // 낚시 통계: 이번 실행 (앱을 켠 뒤) · 전체 (저장됨) — PC '이번 실행 · 올타임'
+        LinearLayout st = section(pg, "낚시 통계");
+        String[] names = {"성공", "쓰레기", "실패", "성공률", "판매 횟수", "판 종류", "실행 시간"};
+        LinearLayout hdr = statRow(Ui.text(this, "", 12, Ui.MUTED, true), statRunHead = Ui.text(this, "이번 실행", 12, Ui.MUTED, true),
+                statAllHead = Ui.text(this, "전체", 12, Ui.MUTED, true));
+        st.addView(hdr, Ui.fill(this, 10));
+        for (int i = 0; i < names.length; i++) {
+            statCells[i][0] = Ui.text(this, "0", 14, Ui.FG, true);
+            statCells[i][1] = Ui.text(this, "0", 14, Ui.FG, false);
+            st.addView(statRow(Ui.text(this, names[i], 13, Ui.MUTED, false), statCells[i][0], statCells[i][1]), Ui.fill(this, 6));
+        }
+        LinearLayout btns = new LinearLayout(this);
+        btns.setOrientation(LinearLayout.HORIZONTAL);
+        btns.addView(Ui.button(this, "이번 실행 초기화", Ui.MUTED, v -> Hub.resetStats(false)));
+        LinearLayout.LayoutParams bl = Ui.wrap();
+        bl.leftMargin = Ui.dp(this, 8);
+        btns.addView(Ui.button(this, "전체 초기화", Ui.RED, v -> Hub.resetStats(true)), bl);
+        st.addView(btns, Ui.fill(this, 12));
+
         LinearLayout set = section(pg, "세부 설정");
         set.addView(num("입질 최대 대기 (초)", "넘으면 Exit 후 다시 던짐 · 기본 60", Hub.cfg.biteMax, v -> Hub.cfg.biteMax = clamp(v, 5, 600)), Ui.fill(this, 10));
         set.addView(num("누르는 시간 (ms)", "릴링 때 한 번 누르는 시간 · 기본 30", Hub.cfg.clickMs, v -> Hub.cfg.clickMs = (int) clamp(v, 5, 200)), Ui.fill(this, 8));
@@ -371,6 +392,27 @@ public class MainActivity extends Activity {
         set.addView(Ui.text(this, "누른 뒤 반응이 보일 때까지 다시 누르지 않는 시간을 이 폰의 터치 속도에 맞춤", 12, Ui.MUTED, false));
         set.addView(sw("릴링 때 미니게임 창 위쪽을 누름", Hub.cfg.tapAbove, on -> Hub.cfg.tapAbove = on), Ui.fill(this, 10));
         set.addView(Ui.text(this, "모바일은 미니게임 창 바로 아래가 Roll 버튼이라 위쪽 빈 화면(캐릭터 쪽)을 누름 · 끄면 PC 처럼 창 아래", 12, Ui.MUTED, false));
+    }
+
+    /** 통계 한 줄: 이름 | 이번 실행 | 전체 */
+    LinearLayout statRow(TextView name, TextView a, TextView b) {
+        LinearLayout r = new LinearLayout(this);
+        r.setOrientation(LinearLayout.HORIZONTAL);
+        r.addView(name, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.2f));
+        a.setGravity(Gravity.END);
+        b.setGravity(Gravity.END);
+        r.addView(a, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        r.addView(b, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        return r;
+    }
+
+    static String pct(long ok, long all) {
+        return all <= 0 ? "-" : String.format(java.util.Locale.ROOT, "%.1f%%", ok * 100.0 / all);
+    }
+
+    static String dur(long ms) {
+        long m = ms / 60000;
+        return m >= 60 ? (m / 60) + "h " + (m % 60) + "m" : m + "m";
     }
 
     // ---------------------------------------------------------------- 이동 · 판매
@@ -667,8 +709,15 @@ public class MainActivity extends Activity {
         com.acrux.mobile.core.Settings c = Hub.cfg;
         Ui.set(calState, "대기 창: " + pos(c.panelRegion) + "  ·  미니게임 창: " + (c.reelRegion == null ? "없음" : c.reelDerived ? "대기 창으로 계산" : "있음")
                 + "  ·  결과창: " + pos(c.resultRegion) + (c.ready() ? "" : "\n→ 로블록스에서 [보정]을 해야 함"));
-        com.acrux.mobile.core.Fisher f = Hub.fisher;
-        String stats = f == null ? "" : "\n" + I18n.f("성공 {0} · 쓰레기 {1} · 실패 {2}", f.success, f.junk, f.fail);
+        long[] r = Hub.statRun.clone();
+        String stats = "\n" + I18n.f("성공 {0} · 쓰레기 {1} · 실패 {2}", r[0], r[1], r[2]) + "  (" + Ui.tr("이번 실행") + ")";
+        for (int k = 0; k < 2; k++) {
+            long[] v = new long[5];
+            for (int i = 0; i < 5; i++) v[i] = k == 0 ? r[i] : Hub.statAll(i);
+            String[] cells = {String.valueOf(v[0]), String.valueOf(v[1]), String.valueOf(v[2]), pct(v[0], v[0] + v[1] + v[2]),
+                    String.valueOf(v[3]), String.valueOf(v[4]), k == 0 ? dur(System.currentTimeMillis() - Hub.runStart) : ""};
+            for (int i = 0; i < cells.length; i++) statCells[i][k].setText(cells[i]);
+        }
         String mode = !Hub.running() ? "" : "cal".equals(Hub.mode) ? "자동 보정 중" : "sellcal".equals(Hub.mode) ? "판매 보정 중"
                 : "sell".equals(Hub.mode) ? "판매 중" : "run".equals(Hub.mode) ? "자동 낚시 중" : Hub.mode.startsWith("addpt") ? "지점 추가 중"
                 : Hub.mode.startsWith("measure") ? "시간 재는 중" : "이동 테스트 중";
