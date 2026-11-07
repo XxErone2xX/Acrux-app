@@ -71,6 +71,20 @@ final class Hub {
         com.acrux.mobile.core.I18n.setLang(l);
     }
 
+    /** 떠 있는 Acrux 창 켜기 · 끄기 (매크로를 안 돌릴 때) — 끄면 돌던 매크로도 멈춤 (창이 없으면 게임에서 멈출 수 없어서) */
+    static boolean uiOn() {
+        return prefs().getBoolean("panelOn", true);
+    }
+
+    static void setUi(boolean on) {
+        prefs().edit().putBoolean("panelOn", on).apply();
+        if (!on && running()) stop();
+        TapService t = TapService.instance;
+        if (t != null) t.updateVisible();
+        log(on ? "UI 켬 — 떠 있는 Acrux 창 보임" : "UI 끔 — 떠 있는 Acrux 창 숨김", 'd');
+        changed();
+    }
+
     /** 언어 바꾸기 → 앱 화면 · 떠 있는 창을 다시 그림 */
     static void setLang(String code) {
         com.acrux.mobile.core.I18n.setLang(code);

@@ -35,7 +35,6 @@ public class TapService extends AccessibilityService {
 
     WindowManager wm;
     LinearLayout panel, menu, body;
-    TextView minBtn;
     WindowManager.LayoutParams lp;
     TextView status, calBtn, runBtn, gearBtn, arriveBtn;
     View picker;
@@ -117,17 +116,13 @@ public class TapService extends AccessibilityService {
         // 얇은 테두리 + 네 모서리 ㄱ (앱의 카드와 같음)
         panel.setBackground(new Ui.Deco(this, 0xF22B2D31, Ui.LINE, Ui.WHITE, true, 10, 2));
 
-        // 제목 줄: ACRUX MACRO · [—] 접기 (접으면 제목 줄만 남음 · 다시 누르면 펼침)
+        // 제목 줄
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
         TextView title = Ui.text(this, "ACRUX MACRO", 12, Ui.FG, true);
         title.setLetterSpacing(0.12f);
-        head.addView(title, Ui.weight());
-        minBtn = Ui.text(this, "—", 13, Ui.MUTED, true);
-        minBtn.setPadding(Ui.dp(this, 12), Ui.dp(this, 2), Ui.dp(this, 2), Ui.dp(this, 2));
-        minBtn.setOnClickListener(v -> setMin(!Hub.prefs().getBoolean("panelMin", false)));
-        head.addView(minBtn, Ui.wrap());
+        head.addView(title, Ui.wrap());
         body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
         status = Ui.text(this, "대기", 11, Ui.MUTED, false);
@@ -166,7 +161,6 @@ public class TapService extends AccessibilityService {
         lp.x = Hub.prefs().getInt("panelX", Ui.dp(this, 12));
         lp.y = Hub.prefs().getInt("panelY", Ui.dp(this, 12));
         applyAlphaTo();
-        applyMin();
         try {
             wm.addView(panel, lp);
         } catch (RuntimeException e) {
@@ -253,21 +247,7 @@ public class TapService extends AccessibilityService {
         }
     }
 
-    /** 접기 · 펼치기 (제목 줄만 남김) */
-    void setMin(boolean min) {
-        Hub.prefs().edit().putBoolean("panelMin", min).apply();
-        if (min) closeMenu();
-        applyMin();
-    }
-
-    void applyMin() {
-        if (panel == null) return;
-        boolean min = Hub.prefs().getBoolean("panelMin", false);
-        body.setVisibility(min ? View.GONE : View.VISIBLE);
-        minBtn.setText(min ? "+" : "—");
-    }
-
-    /** 보이기 · 숨기기: 설정 '조작 창 보이기' 가 꺼져 있거나, Acrux 앱을 보고 있고 '앱을 볼 때 숨기기' 가 켜져 있으면 숨김 */
+    /** 보이기 · 숨기기: 앱의 [UI 끄기] 로 꺼져 있거나, Acrux 앱을 보고 있고 '앱을 볼 때 숨기기' 가 켜져 있으면 숨김 */
     void updateVisible() {
         Hub.main.post(() -> {
             if (panel == null) return;

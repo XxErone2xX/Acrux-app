@@ -1,3 +1,15 @@
+## Acrux Mobile V0.8.3 업데이트
+- **UI 끄기 · 켜기 버튼**: 앱 맨 위 제목 오른쪽 (설정 → 조작 창에도 같은 버튼)
+  - 매크로를 안 돌릴 때 떠 있는 Acrux 창을 통째로 끔 · 다시 누르면 켬 (껐다 켜도 그대로 유지)
+  - 매크로가 돌고 있을 때 끄면 매크로도 멈춤 (창이 없으면 게임 안에서 멈출 수 없어서)
+- 떠 있는 창의 [—] · [+] 접기 버튼 제거
+
+## Acrux Mobile V0.8.3 Update
+- **UI off · on button**: at the top right of the app next to the title (the same button is in Settings → Control window)
+  - Turns the whole floating Acrux window off when you are not running the macro · tap again to turn it on (kept across restarts)
+  - Turning it off while the macro is running also stops the macro (there would be no way to stop it in game without the window)
+- Removed the [—] · [+] fold button on the floating window
+
 ## Acrux Mobile V0.8.2 업데이트
 - 설정 → 정보: GitHub · 다운로드 버튼 제거 (후원하기만 남김)
 

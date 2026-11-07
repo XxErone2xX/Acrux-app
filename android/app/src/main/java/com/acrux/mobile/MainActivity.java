@@ -42,7 +42,7 @@ public class MainActivity extends Activity {
     static final int REQ_CAPTURE = 7;
 
     TextView accState, capState, shzState, calState, logView, runState, posView;
-    TextView accBtn, capBtn, shzBtn, updState, updBtn, updNotes, updBanner;
+    TextView accBtn, capBtn, shzBtn, updState, updBtn, updNotes, updBanner, uiBtn, uiBtn2;
     final Runnable refresh = this::refresh;
     final Runnable relang = this::recreate;
 
@@ -125,8 +125,18 @@ public class MainActivity extends Activity {
         title.setGravity(Gravity.BOTTOM);
         title.addView(Ui.text(this, "Acrux Mobile ", 22, Ui.FG, true));
         title.addView(Ui.text(this, "V" + version(), 22, Ui.ACCENT, true));
-        head.addView(title);
-        head.addView(Ui.text(this, "자동 낚시 [ Beta ]", 13, Ui.MUTED, false));
+        // 제목 오른쪽: UI 끄기 · 켜기 (떠 있는 Acrux 창 · 매크로를 안 돌릴 때)
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout names = new LinearLayout(this);
+        names.setOrientation(LinearLayout.VERTICAL);
+        names.addView(title);
+        names.addView(Ui.text(this, "자동 낚시 [ Beta ]", 13, Ui.MUTED, false));
+        top.addView(names, Ui.weight());
+        uiBtn = Ui.button(this, "UI 끄기", Ui.MUTED, v -> Hub.setUi(!Hub.uiOn()));
+        top.addView(uiBtn, Ui.wrap());
+        head.addView(top);
         root.addView(head);
 
         // 칸 이름 줄
@@ -440,17 +450,16 @@ public class MainActivity extends Activity {
 
         LinearLayout win = section(pg, "조작 창");
         win.addView(Ui.text(this, "떠 있는 Acrux 창 · 어디든 잡고 끌면 움직임", 12, Ui.MUTED, false));
-        win.addView(sw("조작 창 보이기", Hub.prefs().getBoolean("panelOn", true), on -> {
-            Hub.prefs().edit().putBoolean("panelOn", on).apply();
-            TapService t = TapService.instance;
-            if (t != null) t.updateVisible();
-        }), Ui.fill(this, 10));
+        uiBtn2 = Ui.button(this, "UI 끄기", Ui.MUTED, v -> Hub.setUi(!Hub.uiOn()));
+        LinearLayout.LayoutParams ub = Ui.wrap();
+        ub.topMargin = Ui.dp(this, 10);
+        win.addView(uiBtn2, ub);
+        win.addView(Ui.text(this, "매크로를 안 돌릴 때 떠 있는 창을 통째로 끔 · 앱 맨 위 버튼과 같음 · 끄면 돌던 매크로도 멈춤", 12, Ui.MUTED, false), Ui.fill(this, 4));
         win.addView(sw("Acrux 앱을 볼 때는 숨기기", Hub.prefs().getBoolean("hideOnApp", true), on -> {
             Hub.prefs().edit().putBoolean("hideOnApp", on).apply();
             TapService t = TapService.instance;
             if (t != null) t.updateVisible();
         }), Ui.fill(this, 4));
-        win.addView(Ui.text(this, "창의 [—] 를 누르면 작게 접힘 · 다시 누르면 펼침", 12, Ui.MUTED, false), Ui.fill(this, 4));
         win.addView(Ui.text(this, "조작 창 투명도", 13, Ui.FG, true), Ui.fill(this, 12));
         SeekBar alpha = new SeekBar(this);
         alpha.setMax(60);
@@ -607,6 +616,11 @@ public class MainActivity extends Activity {
 
     // ---------------------------------------------------------------- 새로 그리기
     void refresh() {
+        boolean ui = Hub.uiOn();
+        for (TextView b : new TextView[]{uiBtn, uiBtn2}) {
+            Ui.set(b, ui ? "UI 끄기" : "UI 켜기");
+            Ui.paintButton(this, b, ui ? Ui.MUTED : Ui.ACCENT);
+        }
         String us = Updater.status;
         Ui.set(updState, us);
         updState.setTextColor(Updater.newVer != null ? Ui.YELLOW : us.startsWith("최신") || us.startsWith("업데이트 완료") ? Ui.GREEN : Ui.MUTED);
