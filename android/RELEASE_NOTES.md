@@ -1,3 +1,9 @@
+## Acrux Mobile V0.8.8 업데이트
+- 낚시 통계에서 판매 횟수 · 판 종류 · 실행 시간 제거 (성공 · 쓰레기 · 실패 · 성공률만)
+
+## Acrux Mobile V0.8.8 Update
+- Removed sell trips · kinds sold · run time from the fishing stats (only success · junk · fail · success rate)
+
 ## Acrux Mobile V0.8.7 업데이트
 - **안드로이드 8 ~ 12 기종에서 앱이 꺼지던 문제 수정**
   - V0.7.0 의 자동 업데이트가 안드로이드 13 이상에만 있는 기능을 써서, 그 아래 버전은 앱을 켜고 업데이트를 확인하는 순간 꺼졌음

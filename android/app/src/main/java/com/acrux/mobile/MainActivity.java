@@ -44,7 +44,7 @@ public class MainActivity extends Activity {
     TextView accState, capState, shzState, calState, logView, runState, posView;
     TextView accBtn, capBtn, shzBtn, updState, updBtn, updNotes, updBanner, uiBtn, uiBtn2, onDot, onText;
     final Runnable refresh = this::refresh;
-    final TextView[][] statCells = new TextView[7][2];
+    final TextView[][] statCells = new TextView[4][2];
     TextView statRunHead, statAllHead;
     final Runnable relang = this::recreate;
 
@@ -373,7 +373,7 @@ public class MainActivity extends Activity {
     void buildFishing(Page pg) {
         // 낚시 통계: 이번 실행 (앱을 켠 뒤) · 전체 (저장됨) — PC '이번 실행 · 올타임'
         LinearLayout st = section(pg, "낚시 통계");
-        String[] names = {"성공", "쓰레기", "실패", "성공률", "판매 횟수", "판 종류", "실행 시간"};
+        String[] names = {"성공", "쓰레기", "실패", "성공률"};
         LinearLayout hdr = statRow(Ui.text(this, "", 12, Ui.MUTED, true), statRunHead = Ui.text(this, "이번 실행", 12, Ui.MUTED, true),
                 statAllHead = Ui.text(this, "전체", 12, Ui.MUTED, true));
         st.addView(hdr, Ui.fill(this, 10));
@@ -416,11 +416,6 @@ public class MainActivity extends Activity {
 
     static String pct(long ok, long all) {
         return all <= 0 ? "-" : String.format(java.util.Locale.ROOT, "%.1f%%", ok * 100.0 / all);
-    }
-
-    static String dur(long ms) {
-        long m = ms / 60000;
-        return m >= 60 ? (m / 60) + "h " + (m % 60) + "m" : m + "m";
     }
 
     // ---------------------------------------------------------------- 이동 · 판매
@@ -747,10 +742,9 @@ public class MainActivity extends Activity {
         long[] r = Hub.statRun.clone();
         String stats = "\n" + I18n.f("성공 {0} · 쓰레기 {1} · 실패 {2}", r[0], r[1], r[2]) + "  (" + Ui.tr("이번 실행") + ")";
         for (int k = 0; k < 2; k++) {
-            long[] v = new long[5];
-            for (int i = 0; i < 5; i++) v[i] = k == 0 ? r[i] : Hub.statAll(i);
-            String[] cells = {String.valueOf(v[0]), String.valueOf(v[1]), String.valueOf(v[2]), pct(v[0], v[0] + v[1] + v[2]),
-                    String.valueOf(v[3]), String.valueOf(v[4]), k == 0 ? dur(System.currentTimeMillis() - Hub.runStart) : ""};
+            long[] v = new long[3];
+            for (int i = 0; i < 3; i++) v[i] = k == 0 ? r[i] : Hub.statAll(i);
+            String[] cells = {String.valueOf(v[0]), String.valueOf(v[1]), String.valueOf(v[2]), pct(v[0], v[0] + v[1] + v[2])};
             for (int i = 0; i < cells.length; i++) statCells[i][k].setText(cells[i]);
         }
         String mode = !Hub.running() ? "" : "cal".equals(Hub.mode) ? "자동 보정 중" : "sellcal".equals(Hub.mode) ? "판매 보정 중"
