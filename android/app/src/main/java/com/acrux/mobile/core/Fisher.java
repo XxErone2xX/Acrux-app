@@ -309,8 +309,16 @@ public final class Fisher {
         }
     }
 
+    /** 결과창 X 를 화면에서 찾아서 누름 (PC _click_found_x 와 같음)
+     *  1. 결과창 자체를 찾아서 그 창의 X (쓰레기 결과창처럼 크기 · 바탕이 다른 창도) → 2. 가운데 넓은 영역에서 어두운 바탕 위 X */
     boolean clickFoundX() {
         int W = W(), H = H();
+        double[] r = Vision.findResultClose(full(), H, MAX_FRAME_W);
+        if (r != null) {
+            out.log("결과창 X 를 결과창 모양으로 찾아서 누름", 'd');
+            in.tap((int) r[0], (int) r[1], 40);
+            return true;
+        }
         int[] p = cfg.closePos != null ? px(cfg.closePos[0], cfg.closePos[1]) : null;
         int half = Math.max(10, (int) (H * 0.06));
         int left = (int) (W * 0.2), right = (int) (W * 0.8);

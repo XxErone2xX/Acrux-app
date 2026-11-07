@@ -315,6 +315,29 @@ public final class Vision {
     }
 
     /** 화면 → {"panel_region" | "reel_region" | "result_region": [비율 x1, y1, x2, y2]} (+ "_reel_derived") */
+    /**
+     * 화면 → 결과창(흰 꺾쇠 · 세로로 긴 창 · 가운데)을 찾아서 그 창의 X 자리 {x, y} (px) 또는 null (PC find_result_close 와 같음)
+     * 쓰레기(Fish Caught...?) 결과창은 크기 · 바탕이 달라서 보정한 X 자리도, 어두운 바탕 위 X 찾기도 빗나갈 수 있음
+     * → 창 오른쪽 위에서 X 를 바탕 검사 없이 다시 찾고, 그래도 없으면 창 비율(RESULT_CLOSE)로 계산한 자리
+     */
+    public static double[] findResultClose(Img im, int H, double maxW) {
+        int W = im.w;
+        for (int[] f : findFrames(im, maxW)) {
+            int w = f[2] - f[0], h = f[3] - f[1];
+            if (h <= 0) continue;
+            double r = (double) w / h;
+            if (r < 0.35 || r > 1.6 || h < H * 0.25 || Math.abs((f[0] + f[2]) / 2.0 - W / 2.0) > W * 0.15) continue;
+            int sx = f[0] + (int) (w * 0.6), sy = Math.max(0, f[1] - (int) (h * 0.03));
+            int ex = Math.min(W, f[2] + (int) (w * 0.05)), ey = Math.min(im.h, f[1] + (int) (h * 0.25));
+            if (ex - sx > 4 && ey - sy > 4) {
+                double[] x = findCloseX(im.crop(sx, sy, ex, ey), H, null, true);
+                if (x != null) return new double[]{sx + x[0], sy + x[1]};
+            }
+            return new double[]{f[0] + w * RESULT_CLOSE[0], f[1] + h * RESULT_CLOSE[1]};
+        }
+        return null;
+    }
+
     public static Map<String, double[]> autocal(Img im, double maxW) {
         Map<String, double[]> found = new LinkedHashMap<>();
         int W = im.w, H = im.h;
@@ -586,6 +609,11 @@ public final class Vision {
     // ---------------------------------------------------------------- 결과창 X 찾기
     /** 화면 안에서 흰 × 버튼 → {가운데 x, y} 또는 null · H = 창 높이 · want: 원래 X 자리 (있으면 가장 가까운 것) */
     public static double[] findCloseX(Img im, int H, double[] want) {
+        return findCloseX(im, H, want, false);
+    }
+
+    /** relaxed: 결과창 안 오른쪽 위만 볼 때 — 쓰레기 결과창처럼 바탕이 밝아도 됨 */
+    public static double[] findCloseX(Img im, int H, double[] want, boolean relaxed) {
         int W = im.w, Hh = im.h, N = W * Hh;
         boolean[] white = new boolean[N], dark = new boolean[N];
         for (int k = 0; k < N; k++) {
@@ -651,7 +679,7 @@ public final class Vision {
             if (diag(lab, W, Hh, i, x1, y1, bw, bh, false) < 0.85 || diag(lab, W, Hh, i, x1, y1, bw, bh, true) < 0.85) continue;
             double left = meanOf(dark, W, Hh, Math.max(0, x1 - 5 * m), y1, Math.max(0, x1 - m), y2 + 1);
             double below = meanOf(dark, W, Hh, x1, y2 + m, x2 + 1, y2 + 5 * m);
-            if (!((!Double.isNaN(left) && left > 0.6) || (!Double.isNaN(below) && below > 0.6))) continue;
+            if (!relaxed && !((!Double.isNaN(left) && left > 0.6) || (!Double.isNaN(below) && below > 0.6))) continue;
             double cx = (x1 + x2) / 2.0, cy = (y1 + y2) / 2.0;
             double dd = want != null ? (cx - want[0]) * (cx - want[0]) + (cy - want[1]) * (cy - want[1]) : cy;
             if (best == null || dd < bestD) {

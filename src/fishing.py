@@ -79,7 +79,7 @@ def _np(data, w, h):
     return np.frombuffer(data, dtype=np.uint8).reshape(h, w, 4)[:, :, 2::-1].astype(np.int16)   # BGRA → RGB
 
 
-def find_close_x(rgb, H, want=None):
+def find_close_x(rgb, H, want=None, relaxed=False):
     """화면(RGB) 안에서 흰 × 버튼 → (가운데 x, y) 또는 None · H = 창 높이 · want: 원래 X 자리 (있으면 가장 가까운 것)
     결과창이 가끔 지정한 자리보다 위 · 아래 · 옆에 뜨거나, 낚시 창과 겹쳐서 깨진 채로(작게 · 흐리게 · 테두리에 붙어서) 뜸
     → 테두리 선 · 큰 덩어리는 빼고, 작은 × 모양 중 어두운 창 바탕 위에 있는 것만 찾음 (가벼운 픽셀 검사)"""
@@ -121,15 +121,36 @@ def find_close_x(rgb, H, want=None):
         if diag(False) < 0.85 or diag(True) < 0.85:
             continue
         # 창 안쪽 X 는 어두운 창 바탕 위에 있음 (왼쪽이나 아래가 어두움) → 게임 화면 속 비슷한 무늬는 뺌
+        # (relaxed: 결과창 안 오른쪽 위만 볼 때 — 쓰레기 결과창처럼 바탕이 밝아도 됨)
         left = dark[y1:y2 + 1, max(0, x1 - 5 * m):max(0, x1 - m)]
         below = dark[y2 + m:y2 + 5 * m, x1:x2 + 1]
-        if not ((left.size and left.mean() > 0.6) or (below.size and below.mean() > 0.6)):
+        if not relaxed and not ((left.size and left.mean() > 0.6) or (below.size and below.mean() > 0.6)):
             continue
         c = ((x1 + x2) / 2, (y1 + y2) / 2)
         d = ((c[0] - want[0]) ** 2 + (c[1] - want[1]) ** 2) if want else c[1]
         if best is None or d < best_d:
             best, best_d = c, d
     return best
+
+
+def find_result_close(rgb, H):
+    """화면 → 결과창(흰 꺾쇠 · 세로로 긴 창)을 찾아서 그 창의 X 자리 (x, y) 또는 None
+    쓰레기(Fish Caught...?) 결과창은 크기 · 바탕이 달라서 보정한 X 자리도, 어두운 바탕 위 X 찾기도 빗나갈 수 있음
+    → 창 오른쪽 위에서 X 를 바탕 검사 없이 다시 찾고, 그래도 없으면 창 비율(RESULT_LAYOUT)로 계산한 자리"""
+    W = rgb.shape[1]
+    for x1, y1, x2, y2 in find_frames(rgb):
+        w, h = x2 - x1, y2 - y1
+        if h <= 0 or not (0.35 <= w / h <= 1.6) or h < H * 0.25 or abs((x1 + x2) / 2 - W / 2) > W * 0.15:
+            continue
+        sx, sy = x1 + int(w * 0.6), max(0, y1 - int(h * 0.03))
+        sub = rgb[sy:y1 + int(h * 0.25), sx:min(W, x2 + int(w * 0.05))]
+        if sub.size:
+            f = find_close_x(sub, H, relaxed=True)
+            if f:
+                return sx + f[0], sy + f[1]
+        cx, cy = RESULT_LAYOUT["close_pos"]
+        return x1 + w * cx, y1 + h * cy
+    return None
 
 
 def button_state(rgb):
@@ -238,13 +259,21 @@ def _runs(mask, axis, reverse):
     return out
 
 
-def find_frames(rgb):
+def find_frames(rgb, lo=None):
     """화면 → 흰 꺾쇠로 둘러싸인 창들 [(x1, y1, x2, y2), ...] (px · 바깥 모서리)
-    네 모서리 모두에 ㄱ자 꺾쇠(가로 · 세로 팔이 화면 폭의 0.4% 이상)가 있어야 창으로 봄 → 글자 · 아이콘은 걸러짐"""
+    네 모서리 모두에 ㄱ자 꺾쇠(가로 · 세로 팔이 화면 폭의 0.4% 이상)가 있어야 창으로 봄 → 글자 · 아이콘은 걸러짐
+    꺾쇠 바깥에 흐린 회색 테두리가 한 겹 더 있으면 (창 크기가 바뀌어 번진 경우 · 모바일) 215 기준으론 모서리가 그 점들과 붙음
+    → 더 밝은 기준(238)으로 한 번 더 찾아서 새로 나온 창만 뒤에 붙임 (모바일 버전과 같음)"""
+    if lo is None:
+        out = find_frames(rgb, 215)
+        for f in find_frames(rgb, 238):
+            if all(max(abs(f[i] - g[i]) for i in range(4)) > 6 for g in out):
+                out.append(f)
+        return out
     import numpy as np
     H, W = rgb.shape[:2]
     mn, mx = rgb.min(axis=2), rgb.max(axis=2)
-    white0 = (mn > 215) & ((mx - mn) < 35)
+    white0 = (mn > lo) & ((mx - mn) < 35)
     white = white0
     # 1px 두껍게 (꺾쇠 선이 압축 · 크기 변경 때문에 한 칸씩 지그재그로 끊긴 경우를 이어 줌) — 모서리 위치는 마지막에 원래 칸으로 맞춤
     p = np.pad(white, 1)
@@ -845,19 +874,28 @@ class Fisher:
             self._wait(0.1, stop)
 
     def _click_found_x(self, sct, rect, cfg, stop):
-        """결과창 X 를 화면 가운데 넓은 영역에서 찾아서 누름 (원래 X 자리에서 가장 가까운 것) → 눌렀으면 True
-        결과창이 다른 자리에 뜨거나, 낚시 창과 겹쳐 깨져서 X 가 작아지고 옆으로 밀린 경우"""
-        x, y = macro.to_screen(cfg["close_pos"][0], cfg["close_pos"][1], rect)
-        half = max(10, int(rect[3] * 0.06))
-        left = min(x - half, rect[0] + int(rect[2] * 0.2))
-        right = max(x + half, rect[0] + int(rect[2] * 0.8))
-        top, h = rect[1] + int(rect[3] * 0.05), int(rect[3] * 0.7)
-        img = sct.grab({"left": left, "top": top, "width": max(1, right - left), "height": h})
-        found = find_close_x(_np(bytes(img.bgra), img.width, img.height), rect[3], want=(x - left, y - top))
-        if not found:
-            return False
-        fx, fy = left + found[0], top + found[1]
-        self.log("결과창이 다른 자리에 뜨거나 깨짐 — X 를 찾아서 누름", "d")
+        """결과창 X 를 화면에서 찾아서 누름 → 눌렀으면 True
+        1. 결과창(흰 꺾쇠 창) 자체를 찾아서 그 창의 X — 쓰레기(Fish Caught...?) 결과창처럼 크기 · 바탕이 다른 창도 됨
+        2. 결과창 모양이 안 보이면: 화면 가운데 넓은 영역에서 어두운 바탕 위 X (원래 X 자리에서 가장 가까운 것)
+           (낚시 창과 겹쳐 깨져서 X 가 작아지고 옆으로 밀린 경우)
+        바탕이 밝은 결과창에선 2번이 게임 화면 속 엉뚱한 자리를 X 로 잡을 수 있어서 1번을 먼저 봄"""
+        full = sct.grab({"left": rect[0], "top": rect[1], "width": rect[2], "height": rect[3]})
+        found = find_result_close(_np(bytes(full.bgra), full.width, full.height), rect[3])
+        if found:
+            fx, fy = rect[0] + found[0], rect[1] + found[1]
+            self.log("결과창 X 를 결과창 모양으로 찾아서 누름", "d")
+        else:
+            x, y = macro.to_screen(cfg["close_pos"][0], cfg["close_pos"][1], rect)
+            half = max(10, int(rect[3] * 0.06))
+            left = min(x - half, rect[0] + int(rect[2] * 0.2))
+            right = max(x + half, rect[0] + int(rect[2] * 0.8))
+            top, h = rect[1] + int(rect[3] * 0.05), int(rect[3] * 0.7)
+            img = sct.grab({"left": left, "top": top, "width": max(1, right - left), "height": h})
+            found = find_close_x(_np(bytes(img.bgra), img.width, img.height), rect[3], want=(x - left, y - top))
+            if not found:
+                return False
+            fx, fy = left + found[0], top + found[1]
+            self.log("결과창이 다른 자리에 뜨거나 깨짐 — X 를 찾아서 누름", "d")
         macro.move_to(int(fx) + 3, int(fy) + 3)         # 로블록스 버튼이 마우스를 인식하도록 근처로 옮겼다가
         time.sleep(0.03)
         macro.click(int(fx), int(fy))

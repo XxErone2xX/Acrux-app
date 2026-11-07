@@ -1,3 +1,13 @@
+## Acrux Mobile V0.6.5 업데이트
+- **쓰레기(Fish Caught...?)가 잡히면 결과창을 못 닫고 멈추던 문제 수정** (PC V2.5.2 와 같음)
+  - 결과창(흰 꺾쇠 창) 자체를 먼저 찾아서 그 창의 오른쪽 위 X 를 누름 · 바탕이 밝거나 크기 · 위치가 달라도 됨
+  - X 가 안 보이면 창 크기 비율로 계산한 자리를 누름
+
+## Acrux Mobile V0.6.5 Update
+- **Fixed fishing stopping because the result window could not be closed after catching junk (Fish Caught...?)** (same as PC V2.5.2)
+  - The result window itself (white cornered window) is found first and its top-right X is tapped · works with a bright background or a different size / position
+  - If the X is not visible, the spot calculated from the window size is tapped
+
 ## Acrux Mobile V0.6.4 업데이트
 - **여러 화면 비율 · 해상도에서 인식 강화** (스크린샷 6장을 246가지로 변형해서 시험 · 125 → 231 통과)
   - 해상도 0.5 ~ 1.6배 · 노치 · 위아래 · 양옆 검은 띠 · 초광각 · 정사각형 · 태블릿 비율 · 가장자리 잘림 · 저화질 JPEG · 흐림 · 가로세로 늘림
