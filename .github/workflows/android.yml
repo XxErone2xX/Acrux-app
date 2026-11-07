@@ -50,6 +50,16 @@ jobs:
             gh release create "$tag" Acrux-Mobile.apk Acrux-Mobile.apk.sha256 --prerelease --latest=false \
               --target "$GITHUB_SHA" --title "Acrux Mobile V$v" --notes-file android/RELEASE_NOTES.md --repo "$GITHUB_REPOSITORY"
           fi
+          # 고정 다운로드 링크 (버전이 바뀌어도 그대로): releases/download/mobile-latest/Acrux-Mobile.apk
+          if gh release view mobile-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload mobile-latest Acrux-Mobile.apk Acrux-Mobile.apk.sha256 --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create mobile-latest Acrux-Mobile.apk Acrux-Mobile.apk.sha256 --prerelease --latest=false \
+              --target "$GITHUB_SHA" --title "Acrux Mobile (최신 · 고정 링크)" --notes "x" --repo "$GITHUB_REPOSITORY"
+          fi
+          printf '최신 버전: **Acrux Mobile V%s** · 이 릴리스는 늘 최신 APK 로 바뀜 (고정 다운로드 링크)\n\n' "$v" > /tmp/latest.md
+          cat android/RELEASE_NOTES.md >> /tmp/latest.md
+          gh release edit mobile-latest --title "Acrux Mobile V$v (최신 · 고정 링크)" --notes-file /tmp/latest.md --repo "$GITHUB_REPOSITORY"
           gh release delete mobile-build-log --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
 
       - name: Upload build log
