@@ -1,3 +1,17 @@
+## Acrux Mobile V0.6.3 업데이트
+- **릴링 중에 Roll 버튼을 누르던 문제 수정**
+  - 릴링 클릭 자리가 PC 처럼 미니게임 창 아래 빈 화면이었는데, 모바일은 UI 가 커서 그 자리가 Roll 버튼 바로 위 (몇 px 차이)였음
+  - 이제 미니게임 창 위쪽 빈 화면 (캐릭터 쪽)을 누름 · 세부 설정의 '릴링 때 미니게임 창 위쪽을 누름' 으로 끄고 켤 수 있음
+- **오른쪽 위 Player · Rolls 순위표를 낚시 창으로 잘못 잡던 문제 수정**
+  - 순위표도 꺾쇠 창이고 모양 비율이 낚시 창과 비슷함 → 이제 안에 Fish / Exit 버튼이 보여야 낚시 창으로 인정
+
+## Acrux Mobile V0.6.3 Update
+- **Fixed the Roll button being pressed while reeling**
+  - The reel click spot was the empty screen under the minigame window like on PC, but on mobile the UI is larger and that spot was right on top of the Roll button (a few px away)
+  - It now clicks the empty screen above the minigame window (character side) · toggle it with "Click above the minigame window while reeling" in the detailed settings
+- **Fixed the Player · Rolls leaderboard at the top right being taken for the fishing window**
+  - The leaderboard is also a cornered window with a similar shape → now a window only counts as the fishing window when a Fish / Exit button is visible inside it
+
 ## Acrux Mobile V0.6.2 업데이트
 - **Sell All 이 처음에 안 눌리던 문제 수정**
   - 상점을 연 뒤 처음 누르는 Sell All 이 씹히면 바로 '팔 물고기 없음'으로 보고 판매를 끝냈음

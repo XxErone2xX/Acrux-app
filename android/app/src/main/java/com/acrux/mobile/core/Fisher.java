@@ -401,8 +401,14 @@ public final class Fisher {
         int bx = a[0] - side, by = Math.max(0, a[1] - extra), bw = Math.max(8, b[0] - a[0]) + side * 2;
         int topIn = a[1] - by, bhh = topIn + bh + (int) (bh * 0.8);
         int[] xs0 = {side, side + Math.max(8, b[0] - a[0])};
-        // 누르는 자리: 바 아래쪽 (게임 UI 버튼이 없는 곳 · 아무 데나 눌러도 릴링됨)
+        // 누르는 자리: 아무 데나 눌러도 릴링됨 — PC 는 바 아래쪽 (미니게임 창 밑 빈 화면)
+        // 모바일은 UI 가 커서 그 자리가 Roll 버튼 위 → 미니게임 창 위쪽 빈 화면 (캐릭터 쪽)을 누름
         int tapX = bx + bw / 2, tapY = Math.min(H() - 2, by + bhh + bh * 3);
+        if (cfg.tapAbove) {
+            double[] rr = cfg.reelRegion;
+            int top = rr != null ? (int) (Math.min(rr[1], rr[3]) * H()) : a[1] - (int) (bh * 1.5);
+            tapY = Math.max((int) (H() * 0.15), top - Math.max(bh, (int) (H() * 0.05)) * 3 / 2);
+        }
         in.hover(tapX, tapY);
         reelLoop(bx, by, bw, bhh, topIn, bh, xs0, tapX, tapY);
     }
@@ -502,11 +508,23 @@ public final class Fisher {
         for (int[] f : Vision.findFrames(im, MAX_FRAME_W)) {
             double ratio = (double) (f[2] - f[0]) / Math.max(1, f[3] - f[1]);
             if (lo <= ratio && ratio <= hi) {
+                // 낚시 창은 안에 Fish / Exit 버튼이 보여야 인정 — 오른쪽 위 Player · Rolls 순위표도 비율이 비슷함 (3.16)
+                if (keyIndex == 0 && !hasButton(im, f)) continue;
                 return new double[]{Vision.round4((double) f[0] / W), Vision.round4((double) f[1] / H),
                         Vision.round4((double) f[2] / W), Vision.round4((double) f[3] / H)};
             }
         }
         return null;
+    }
+
+    static boolean hasButton(Img im, int[] f) {
+        double[] fr = {(double) f[0] / im.w, (double) f[1] / im.h, (double) f[2] / im.w, (double) f[3] / im.h};
+        double[] b = Vision.layout(fr, Vision.PANEL_FISH_BTN);
+        int w = Math.max(6, (int) (im.w * 0.045)), h = Math.max(6, (int) (im.h * 0.035));
+        int x = (int) (b[0] * im.w) - w / 2, y = (int) (b[1] * im.h) - h / 2;
+        if (x < 0 || y < 0 || x + w > im.w || y + h > im.h) return false;
+        String st = Vision.buttonState(im.crop(x, y, x + w, y + h));
+        return "fish".equals(st) || "exit".equals(st);
     }
 
     Img full() {

@@ -16,6 +16,8 @@ public final class Settings {
     public int castRetry = 3;
     /** 터치 지연에 맞춰 누른 뒤 기다리는 시간을 늘림 (모바일 기본 켜짐 · PC 와 똑같이 하려면 끔) */
     public boolean adaptive = true;
+    /** 릴링 때 미니게임 창 위쪽을 누름 (모바일: 창 아래는 Roll 버튼) · false 면 PC 처럼 창 아래 */
+    public boolean tapAbove = true;
 
     public boolean ready() {
         return fishBtn != null && barRegion != null;          // 결과창 X 는 못 쟀어도 화면에서 찾아서 누름

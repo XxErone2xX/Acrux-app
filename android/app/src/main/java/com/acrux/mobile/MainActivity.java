@@ -142,6 +142,8 @@ public class MainActivity extends Activity {
         });
         set.addView(ad, Ui.fill(this, 10));
         set.addView(Ui.text(this, "누른 뒤 반응이 보일 때까지 다시 누르지 않는 시간을 이 폰의 터치 속도에 맞춤", 12, Ui.MUTED, false));
+        set.addView(sw("릴링 때 미니게임 창 위쪽을 누름", Hub.cfg.tapAbove, on -> Hub.cfg.tapAbove = on), Ui.fill(this, 10));
+        set.addView(Ui.text(this, "모바일은 미니게임 창 바로 아래가 Roll 버튼이라 위쪽 빈 화면(캐릭터 쪽)을 누름 · 끄면 PC 처럼 창 아래", 12, Ui.MUTED, false));
         root.addView(set, Ui.fill(this, 12));
 
         // ⑤ 이동 · 판매 (PC 버전과 같은 설정)

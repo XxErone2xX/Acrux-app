@@ -410,6 +410,7 @@ final class Hub {
         cfg.leadMs = p.getFloat("leadMs", (float) cfg.leadMs);
         cfg.targetPct = p.getFloat("targetPct", (float) cfg.targetPct);
         cfg.adaptive = p.getBoolean("adaptive", cfg.adaptive);
+        cfg.tapAbove = p.getBoolean("tapAbove", true);
         useMove = p.getBoolean("useMove", true);
         useSell = p.getBoolean("useSell", true);
         relDrag = p.getBoolean("relDrag", false);
@@ -449,7 +450,7 @@ final class Hub {
                 .putBoolean("derived", cfg.reelDerived)
                 .putFloat("biteMax", (float) cfg.biteMax).putInt("clickMs", cfg.clickMs)
                 .putFloat("leadMs", (float) cfg.leadMs).putFloat("targetPct", (float) cfg.targetPct)
-                .putBoolean("adaptive", cfg.adaptive)
+                .putBoolean("adaptive", cfg.adaptive).putBoolean("tapAbove", cfg.tapAbove)
                 .putBoolean("useMove", useMove).putBoolean("useSell", useSell).putBoolean("relDrag", relDrag)
                 .putInt("sellMax", sellMax).putFloat("sellDelay", (float) sellDelay)
                 .putFloat("m_reset_wait", (float) move.resetWait).putFloat("m_w_time", (float) move.wTime)
