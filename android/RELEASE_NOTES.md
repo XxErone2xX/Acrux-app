@@ -1,3 +1,9 @@
+## Acrux Mobile V0.8.2 업데이트
+- 설정 → 정보: GitHub · 다운로드 버튼 제거 (후원하기만 남김)
+
+## Acrux Mobile V0.8.2 Update
+- Settings → About: removed the GitHub · Download button (only Support me remains)
+
 ## Acrux Mobile V0.8.1 업데이트
 - **화면 정리 (PC 와 같은 모양)**
   - 칸 이름: 글자만 · 고른 칸은 밝은 글자 + 아래 파란 줄 · 칸 이름 아래 얇은 선

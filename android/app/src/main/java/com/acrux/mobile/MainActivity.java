@@ -484,13 +484,9 @@ public class MainActivity extends Activity {
         LinearLayout info = section(pg, "정보");
         info.addView(Ui.text(this, "Acrux Mobile V" + version(), 13, Ui.FG, false), Ui.fill(this, 6));
         info.addView(Ui.text(this, "Made by 얼로니", 12, Ui.MUTED, false));
-        LinearLayout links = new LinearLayout(this);
-        links.setOrientation(LinearLayout.HORIZONTAL);
-        links.addView(Ui.button(this, "GitHub · 다운로드", Ui.ACCENT, v -> openUrl("https://github.com/XxErone2xX/Acrux-app")));
         LinearLayout.LayoutParams dl = Ui.wrap();
-        dl.leftMargin = Ui.dp(this, 8);
-        links.addView(Ui.button(this, "후원하기", Ui.YELLOW, v -> openUrl("https://ko-fi.com/RG_Acrux")), dl);
-        info.addView(links, Ui.fill(this, 10));
+        dl.topMargin = Ui.dp(this, 10);
+        info.addView(Ui.button(this, "후원하기", Ui.YELLOW, v -> openUrl("https://ko-fi.com/RG_Acrux")), dl);
     }
 
     // ---------------------------------------------------------------- 부품
