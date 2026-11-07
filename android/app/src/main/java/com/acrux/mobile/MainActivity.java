@@ -744,7 +744,7 @@ public class MainActivity extends Activity {
         for (int k = 0; k < 2; k++) {
             long[] v = new long[3];
             for (int i = 0; i < 3; i++) v[i] = k == 0 ? r[i] : Hub.statAll(i);
-            String[] cells = {String.valueOf(v[0]), String.valueOf(v[1]), String.valueOf(v[2]), pct(v[0], v[0] + v[1] + v[2])};
+            String[] cells = {String.valueOf(v[0]), String.valueOf(v[1]), String.valueOf(v[2]), pct(v[0] + v[1], v[0] + v[1] + v[2])  /* 쓰레기도 잡은 것 → (성공 + 쓰레기) / 전체 */};
             for (int i = 0; i < cells.length; i++) statCells[i][k].setText(cells[i]);
         }
         String mode = !Hub.running() ? "" : "cal".equals(Hub.mode) ? "자동 보정 중" : "sellcal".equals(Hub.mode) ? "판매 보정 중"

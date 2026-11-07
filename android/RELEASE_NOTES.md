@@ -1,3 +1,9 @@
+## Acrux Mobile V0.9.0 업데이트
+- 낚시 통계 성공률: 쓰레기도 잡은 것으로 계산 → (성공 + 쓰레기) ÷ 전체 (쓰레기 때문에 성공률이 낮아지지 않음)
+
+## Acrux Mobile V0.9.0 Update
+- Fishing stats success rate: junk now counts as caught → (success + junk) ÷ total (junk no longer lowers the success rate)
+
 ## Acrux Mobile V0.8.9 업데이트
 - 새 앱 아이콘 (Acrux Mobile 로고) · 런처가 원형 · 둥근 사각형으로 잘라도 로고가 안 잘리게 (적응형 아이콘)
 
