@@ -80,7 +80,7 @@ public final class Mover {
         }
     }
 
-    int[] px(double[] pos) {
+    public int[] px(double[] pos) {
         return new int[]{(int) (pos[0] * scr.width()), (int) (pos[1] * scr.height())};
     }
 

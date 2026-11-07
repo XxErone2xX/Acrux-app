@@ -27,6 +27,8 @@ public final class Seller {
     final Fisher.Out out;
     public int sellMax = 100;
     public double sellDelay = 0;
+    /** 마우스 클릭이 씹힐 때 쓰는 손가락 터치 (안드로이드: 접근성 탭) · 없으면 null */
+    public Fisher.Input touch;
 
     public Seller(Fisher.Screen scr, Mover mv, Pc pc, Mover.Ocr ocr, Map<String, double[]> pos, List<Mover.Point> sellPts,
                   List<Mover.Point> fishPts, Fisher.Out out) {
@@ -115,6 +117,44 @@ public final class Seller {
         return b;
     }
 
+    /** 화면 비율 위치를 손가락으로 탭 (없으면 마우스) */
+    void tap(double[] at) {
+        if (touch == null) {
+            mv.press(at);
+            return;
+        }
+        touch.tap((int) (at[0] * scr.width()), (int) (at[1] * scr.height()), 120);
+    }
+
+    /**
+     * Sell All → 확인창이 뜰 때까지 최대 3번: 마우스(호버 후 클릭) → 마우스(오래 호버) → 손가락 탭
+     * 상점을 연 뒤 처음 누르는 Sell All 이 씹히는 경우가 있음 (한 번 눌리고 나면 그 뒤로는 잘 됨)
+     * → 3번 다 안 떠야 '팔 물고기 없음'
+     */
+    double[] sellAll(double before, double d) {
+        double[] btn = p("sell_all_pos"), at = p("confirm_sell_pos");
+        for (int t = 0; t < 3; t++) {
+            if (t == 0) {
+                mv.press(btn);
+            } else if (t == 1) {
+                int[] q = mv.px(btn);
+                pc.moveTo(q[0] + 3, q[1] + 3);
+                mv.sleep(0.2);
+                pc.moveTo(q[0], q[1]);
+                mv.sleep(0.2);
+                pc.click(q[0], q[1], "left");
+            } else {
+                tap(btn);
+            }
+            double[] got = waitConfirm(at, before, (t == 0 ? 1.5 : 2.0) + d);
+            if (got != null) {
+                if (t > 0) out.log("Sell All 이 " + (t == 1 ? "두 번째 (오래 호버)" : "세 번째 (손가락 탭)") + " 에 눌림", 'd');
+                return got;
+            }
+        }
+        return null;
+    }
+
     /** 판매 한 번 → 판 종류 수 */
     public int run() {
         String m = missing();
@@ -140,9 +180,8 @@ public final class Seller {
             mv.click(p("first_fish_pos"));
             mv.sleep(0.5 + d);
             double before = green(p("confirm_sell_pos"));
-            mv.press(p("sell_all_pos"));
-            double[] sellAt = waitConfirm(p("confirm_sell_pos"), before, 2.5 + d);
-            if (sellAt == null) break;                  // Sell All 을 눌러도 확인창이 없음 = 팔 물고기가 없음
+            double[] sellAt = sellAll(before, d);
+            if (sellAt == null) break;                  // Sell All 을 3번 눌러도 확인창이 없음 = 팔 물고기가 없음
             if (sellAt != p("confirm_sell_pos") && !warned) {
                 warned = true;
                 out.log("확인창 Sell 이 지정한 자리와 달라서 글자로 찾아 누름 — 판매 자동 보정을 다시 해주세요", 'y');
@@ -150,7 +189,8 @@ public final class Seller {
             mv.sleep(0.15 + d);
             boolean closed = false;
             for (int t = 0; t < 3 && !closed; t++) {
-                mv.press(sellAt);
+                if (t < 2) mv.press(sellAt);
+                else tap(sellAt);                       // 마지막은 손가락 탭
                 mv.sleep(1.2 + d);
                 closed = !confirmOpen(sellAt, before);
             }
@@ -224,11 +264,14 @@ public final class Seller {
         out.state("확인창 확인 중 (팔지는 않음)");
         mv.click(p("first_fish_pos"));
         mv.sleep(0.6);
-        mv.press(p("sell_all_pos"));
         double[][] conf = null;
-        for (int i = 0; i < 4 && conf == null; i++) {
-            mv.sleep(0.6);
-            conf = SellText.findConfirm(ocr.read(null));
+        for (int t = 0; t < 3 && conf == null; t++) {          // 처음 누르는 Sell All 이 씹힐 수 있음 → 마우스 · 마우스 · 손가락
+            if (t < 2) mv.press(p("sell_all_pos"));
+            else tap(p("sell_all_pos"));
+            for (int i = 0; i < 3 && conf == null; i++) {
+                mv.sleep(0.6);
+                conf = SellText.findConfirm(ocr.read(null));
+            }
         }
         if (conf != null) {
             pos.put("confirm_sell_pos", conf[0]);

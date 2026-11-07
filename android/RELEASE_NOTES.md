@@ -1,3 +1,17 @@
+## Acrux Mobile V0.6.2 업데이트
+- **Sell All 이 처음에 안 눌리던 문제 수정**
+  - 상점을 연 뒤 처음 누르는 Sell All 이 씹히면 바로 '팔 물고기 없음'으로 보고 판매를 끝냈음
+  - 이제 확인창이 안 뜨면 최대 3번 다시 누름: 호버 후 클릭 → 오래 호버 후 클릭 → 손가락 탭
+  - 3번 다 안 떠야 팔 물고기가 없는 것으로 봄 · 확인 Sell 버튼도 마지막엔 손가락 탭으로
+  - 판매 자동 보정에서 Sell All 을 누를 때도 같음
+
+## Acrux Mobile V0.6.2 Update
+- **Fixed Sell All not being clicked the first time**
+  - If the first Sell All after opening the shop was swallowed, selling ended right away as "no fish to sell"
+  - Now it presses again up to 3 times when the confirm window does not appear: hover then click → long hover then click → finger tap
+  - Only when all 3 fail is it treated as no fish · the confirm Sell button also falls back to a finger tap on the last try
+  - The same applies to Sell All during sell auto calibration
+
 ## Acrux Mobile V0.6.1 업데이트
 - **모바일에서 낚시 창 · 미니게임 창을 못 찾던 문제 수정**
   - 모바일 화면은 창 꺾쇠(흰색) 바깥에 회색 테두리가 한 겹 더 있고, 그 안에 거의 흰색인 점들이 섞여 있음

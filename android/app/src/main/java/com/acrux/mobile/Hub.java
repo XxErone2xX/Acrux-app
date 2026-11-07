@@ -189,6 +189,7 @@ final class Hub {
         Seller s = new Seller(cap, mv, pc, new MlOcr(), pos, sellPts, fishPts, OUT);
         s.sellMax = sellMax;
         s.sellDelay = sellDelay;
+        s.touch = fishInput(null);                 // 마우스 클릭이 씹히면 손가락 탭으로
         return s;
     }
 
