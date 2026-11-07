@@ -25,7 +25,7 @@ public class MainActivity extends Activity {
     static final int REQ_CAPTURE = 7;
 
     TextView accState, capState, shzState, calState, logView, runState;
-    TextView accBtn, capBtn, shzBtn;
+    TextView accBtn, capBtn, shzBtn, updState, updBtn, updNotes;
     final Runnable refresh = this::refresh;
 
     @Override
@@ -38,6 +38,10 @@ public class MainActivity extends Activity {
         }
         setContentView(build());
         ShizukuPc.autoConnect();
+        if (Hub.autoUpdate && !Updater.checkedOnce) {        // 앱을 켤 때 한 번: 새 버전이 있으면 받아서 설치 화면까지
+            Updater.checkedOnce = true;
+            Updater.check(this, true);
+        }
     }
 
     @Override
@@ -71,6 +75,20 @@ public class MainActivity extends Activity {
         root.addView(head);
         root.addView(Ui.text(this, "자동 낚시 [ Beta ]", 16, Ui.FG, true));
         root.addView(Ui.text(this, "Made by 얼로니", 13, Ui.MUTED, false));
+
+        // 업데이트 (GitHub 릴리스에서 자동으로)
+        LinearLayout up = Ui.card(this);
+        updState = Ui.text(this, "", 13, Ui.MUTED, false);
+        updBtn = Ui.button(this, "확인", Ui.ACCENT, v -> {
+            if (Updater.newVer != null) Updater.download(this);
+            else Updater.check(this, false);
+        });
+        up.addView(row("업데이트", "지금 V" + version() + " · 새 버전이 나오면 받아서 바로 설치 (설정은 그대로)", updState, updBtn));
+        up.addView(sw("앱을 켤 때 자동으로 업데이트", Hub.autoUpdate, on -> Hub.autoUpdate = on), Ui.fill(this, 8));
+        updNotes = Ui.text(this, "", 12, Ui.MUTED, false);
+        up.addView(updNotes, Ui.fill(this, 4));
+        LinearLayout.LayoutParams upl = Ui.fill(this, 14);
+        root.addView(up, upl);
 
         // ① 준비
         LinearLayout ready = Ui.card(this);
@@ -312,6 +330,15 @@ public class MainActivity extends Activity {
     }
 
     void refresh() {
+        String us = Updater.status;
+        updState.setText(us.isEmpty() ? "" : us);
+        updState.setTextColor(Updater.newVer != null ? Ui.YELLOW : us.startsWith("최신") || us.startsWith("업데이트 완료") ? Ui.GREEN : Ui.MUTED);
+        updBtn.setText(Updater.newVer != null ? "업데이트" : "확인");
+        updBtn.setEnabled(!Updater.busy);
+        updBtn.setAlpha(Updater.busy ? 0.4f : 1f);
+        String n = Updater.notes;
+        updNotes.setText(Updater.newVer != null && n != null && !n.isEmpty() ? "V" + Updater.newVer + " 바뀐 점\n" + n : "");
+        updNotes.setVisibility(updNotes.getText().length() > 0 ? View.VISIBLE : View.GONE);
         boolean acc = TapService.instance != null, cap = CaptureService.active != null;
         accState.setText(acc ? "✓ 켜짐" : "꺼짐");
         accState.setTextColor(acc ? Ui.GREEN : Ui.MUTED);

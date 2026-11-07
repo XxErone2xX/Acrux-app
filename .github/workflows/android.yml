@@ -24,6 +24,11 @@ jobs:
         run: |
           set -o pipefail
           export JAVA_HOME="$JAVA_HOME_17_X64"
+          # 서명 키: 비밀값이 있으면 그걸로 (없으면 레포의 android/app/acrux-release.jks)
+          if [ -n "${{ secrets.ACRUX_KEYSTORE_B64 }}" ]; then
+            echo "${{ secrets.ACRUX_KEYSTORE_B64 }}" | base64 -d > /tmp/acrux.jks
+            export ACRUX_KEYSTORE=/tmp/acrux.jks ACRUX_KEYSTORE_PASS="${{ secrets.ACRUX_KEYSTORE_PASS }}"
+          fi
           curl -sSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
           unzip -q /tmp/gradle.zip -d /tmp
           cd android

@@ -10,8 +10,8 @@ android {
         applicationId "com.acrux.mobile"
         minSdk 26
         targetSdk 35
-        versionCode 11
-        versionName "0.6.5"
+        versionCode 12
+        versionName "0.7.0"
         // 폰은 ARM 만 (x86 은 에뮬레이터용 · 글자 읽기 라이브러리가 커서 빼면 APK 가 절반)
         ndk {
             abiFilters "arm64-v8a", "armeabi-v7a"
@@ -28,9 +28,25 @@ android {
         encoding "UTF-8"
     }
 
+    // 서명 키 고정 (V0.7.0 부터) → 새 버전을 덮어쓰기 설치 · 앱 안 자동 업데이트
+    // 빌드할 때마다 새로 생기던 디버그 키 때문에 매번 지우고 다시 깔아야 했음
+    // GitHub 비밀값 ACRUX_KEYSTORE_B64 · ACRUX_KEYSTORE_PASS 가 있으면 그 키, 없으면 레포의 acrux-release.jks
+    signingConfigs {
+        acrux {
+            storeFile file(System.getenv("ACRUX_KEYSTORE") ?: "acrux-release.jks")
+            storePassword System.getenv("ACRUX_KEYSTORE_PASS") ?: "acrux-mobile"
+            keyAlias System.getenv("ACRUX_KEY_ALIAS") ?: "acrux"
+            keyPassword System.getenv("ACRUX_KEYSTORE_PASS") ?: "acrux-mobile"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig signingConfigs.acrux
+        }
         release {
             minifyEnabled false
+            signingConfig signingConfigs.acrux
         }
     }
 

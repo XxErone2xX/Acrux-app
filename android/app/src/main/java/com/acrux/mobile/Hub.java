@@ -32,6 +32,7 @@ final class Hub {
     static final Map<String, double[]> pos = new ConcurrentHashMap<>();
     static final Mover.Cfg move = new Mover.Cfg();
     static final List<Mover.Point> fishPts = new CopyOnWriteArrayList<>(), sellPts = new CopyOnWriteArrayList<>();
+    static boolean autoUpdate = true;
     static boolean useMove = true, useSell = true, relDrag = false;
     static int sellMax = 100;
     static double sellDelay = 0;
@@ -411,6 +412,7 @@ final class Hub {
         cfg.targetPct = p.getFloat("targetPct", (float) cfg.targetPct);
         cfg.adaptive = p.getBoolean("adaptive", cfg.adaptive);
         cfg.tapAbove = p.getBoolean("tapAbove", true);
+        autoUpdate = p.getBoolean("autoUpdate", true);
         useMove = p.getBoolean("useMove", true);
         useSell = p.getBoolean("useSell", true);
         relDrag = p.getBoolean("relDrag", false);
@@ -451,7 +453,7 @@ final class Hub {
                 .putFloat("biteMax", (float) cfg.biteMax).putInt("clickMs", cfg.clickMs)
                 .putFloat("leadMs", (float) cfg.leadMs).putFloat("targetPct", (float) cfg.targetPct)
                 .putBoolean("adaptive", cfg.adaptive).putBoolean("tapAbove", cfg.tapAbove)
-                .putBoolean("useMove", useMove).putBoolean("useSell", useSell).putBoolean("relDrag", relDrag)
+                .putBoolean("autoUpdate", autoUpdate).putBoolean("useMove", useMove).putBoolean("useSell", useSell).putBoolean("relDrag", relDrag)
                 .putInt("sellMax", sellMax).putFloat("sellDelay", (float) sellDelay)
                 .putFloat("m_reset_wait", (float) move.resetWait).putFloat("m_w_time", (float) move.wTime)
                 .putFloat("m_wa_time", (float) move.waTime).putFloat("m_a_time", (float) move.aTime)

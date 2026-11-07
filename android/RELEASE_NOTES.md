@@ -1,3 +1,19 @@
+## Acrux Mobile V0.7.0 업데이트
+- **자동 업데이트**: 앱을 켜면 GitHub 에서 새 버전을 확인 → 있으면 받아서 바로 설치 화면을 띄움 (설정 · 위치는 그대로)
+  - 앱 맨 위 '업데이트' 칸: 지금 버전 · 새 버전 · 바뀐 점 · [확인] / [업데이트] · '앱을 켤 때 자동으로 업데이트' 끄고 켜기
+  - 받은 파일은 sha256 으로 확인한 뒤에만 설치
+  - 처음 한 번은 'Acrux Mobile 에서 앱 설치 허용'을 켜야 함 (자동으로 그 설정 화면을 띄움)
+- **서명 키 고정**: 이제 새 버전을 지우지 않고 덮어쓰기 설치 · 설정이 유지됨
+  - 이번 V0.7.0 만 한 번 지우고 새로 설치해야 함 (그 전 버전은 빌드할 때마다 서명이 달랐음)
+
+## Acrux Mobile V0.7.0 Update
+- **Auto update**: when the app opens it checks GitHub for a new version → if there is one, it downloads it and shows the install screen right away (settings and positions are kept)
+  - "Update" box at the top of the app: current version · new version · what changed · [Check] / [Update] · toggle "Update automatically when the app opens"
+  - The downloaded file is installed only after its sha256 matches
+  - The first time, "Allow app installs from Acrux Mobile" must be turned on (the settings screen opens automatically)
+- **Fixed signing key**: new versions now install over the old one without uninstalling · settings are kept
+  - Only this V0.7.0 needs one uninstall and a fresh install (earlier builds had a different signature every time)
+
 ## Acrux Mobile V0.6.5 업데이트
 - **쓰레기(Fish Caught...?)가 잡히면 결과창을 못 닫고 멈추던 문제 수정** (PC V2.5.2 와 같음)
   - 결과창(흰 꺾쇠 창) 자체를 먼저 찾아서 그 창의 오른쪽 위 X 를 누름 · 바탕이 밝거나 크기 · 위치가 달라도 됨
