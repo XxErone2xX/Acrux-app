@@ -1,3 +1,9 @@
+## Acrux Mobile V0.8.9 업데이트
+- 새 앱 아이콘 (Acrux Mobile 로고) · 런처가 원형 · 둥근 사각형으로 잘라도 로고가 안 잘리게 (적응형 아이콘)
+
+## Acrux Mobile V0.8.9 Update
+- New app icon (Acrux Mobile logo) · the logo is not cut off when the launcher crops icons to circles or rounded squares (adaptive icon)
+
 ## Acrux Mobile V0.8.8 업데이트
 - 낚시 통계에서 판매 횟수 · 판 종류 · 실행 시간 제거 (성공 · 쓰레기 · 실패 · 성공률만)
 
