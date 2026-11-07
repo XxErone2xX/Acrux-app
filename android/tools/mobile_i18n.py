@@ -140,7 +140,9 @@ E = [
     ['위치 지정 창을 띄우지 못함: {0}', 'Could not show the position picker: {0}', '位置指定ウィンドウを出せない: {0}'], ['조작 창을 띄우지 못함: {0}', 'Could not show the control window: {0}', '操作ウィンドウを出せない: {0}'],
     ['접근성 권한 켜짐 · 터치 준비됨', 'Accessibility on · touch ready', 'ユーザー補助オン · タッチ準備完了'],
     # ---------------------------------------------------------------- 실행 (Hub)
-    ['이미 실행 중', 'Already running', 'すでに実行中'], ['접근성 권한(Acrux Mobile)을 먼저 켜야 함', 'Turn on the accessibility permission (Acrux Mobile) first', '先にユーザー補助 (Acrux Mobile) をオンに'],
+    ['이미 실행 중', 'Already running', 'すでに実行中'],
+    ['Acrux 창이 낚시 창 쪽을 가리고 있음 — 위쪽 구석으로 옮겨 주세요 (화면 캡처에 같이 찍혀서 인식이 틀릴 수 있음)', 'The Acrux window covers the fishing window area — move it to a top corner (it shows up in the screen capture and can break recognition)',
+     'Acrux ウィンドウが釣りウィンドウ付近を隠している — 上の隅へ移動してください (画面キャプチャに写って認識が狂うことがある)'], ['접근성 권한(Acrux Mobile)을 먼저 켜야 함', 'Turn on the accessibility permission (Acrux Mobile) first', '先にユーザー補助 (Acrux Mobile) をオンに'],
     ['앱에서 [화면 캡처 시작]을 먼저 눌러야 함', 'Start the screen capture in the app first', '先にアプリで画面キャプチャを開始'],
     ['먼저 [보정]을 해야 함 (낚시 자리에서 Fish 버튼이 보일 때)', '[Calibrate] first (at the fishing spot with the Fish button visible)', '先に [キャリブ] が必要 (釣り場で Fish ボタンが見えるとき)'],
     ['이동 · 판매는 Shizuku 연결이 필요함 (키보드 · 마우스 입력) — 앱 → ③ Shizuku', 'Movement and selling need Shizuku (keyboard · mouse input) — app → ③ Shizuku', '移動・販売には Shizuku 接続が必要 (キーボード・マウス入力) — アプリ → ③ Shizuku'],

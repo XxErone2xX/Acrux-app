@@ -215,6 +215,8 @@ final class ShizukuPc implements Pc {
         int mask = "right".equals(b) ? MotionEvent.BUTTON_SECONDARY : MotionEvent.BUTTON_PRIMARY;
         if (down) {
             if ((buttons & mask) != 0) return;
+            TapService t = TapService.instance;          // Acrux 창 위를 누르면 그 순간만 창을 통과시킴
+            if (t != null) t.letThrough(x, y);
             boolean first = buttons == 0;
             buttons |= mask;
             if (first) mouse(MotionEvent.ACTION_DOWN, x, y, buttons, 0, false);

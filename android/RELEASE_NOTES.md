@@ -1,3 +1,15 @@
+## Acrux Mobile V0.9.3 업데이트
+- **[보정] 을 눌렀는데 [시작] 이 눌리던 문제 수정**
+  - 매크로가 누르는 터치 · 클릭은 화면 맨 위 창이 받음 → Acrux 창이 Fish 버튼 위에 있으면 [보정] 이 누른 Fish 가 Acrux 창의 [시작] 으로 들어가서 보정이 멈췄음
+  - 이제 매크로가 Acrux 창 위를 누를 때는 그 순간만 창이 터치를 통과시킴 (손가락 탭 · Shizuku 마우스 둘 다) · 사람이 누르는 건 그대로
+- Acrux 창이 낚시 창 쪽을 가리고 [보정] · [시작] 을 누르면 옮기라고 알려 줌 (화면 캡처에 같이 찍혀서 인식이 틀릴 수 있음)
+
+## Acrux Mobile V0.9.3 Update
+- **Fixed [Start] getting pressed when tapping [Calibrate]**
+  - The macro's taps and clicks go to the topmost window → when the Acrux window sat over the Fish button, the Fish tap from [Calibrate] landed on the Acrux window's [Start] and stopped calibration
+  - When the macro presses inside the Acrux window, the window now lets that touch through for a moment (finger taps and Shizuku mouse) · your own taps work as before
+- Pressing [Calibrate] or [Start] while the Acrux window covers the fishing window area now tells you to move it (it shows up in the screen capture and can break recognition)
+
 ## Acrux Mobile V0.9.2 업데이트
 - **대화창 [Sell Fish] · 상점 [Sell All] 이 안 눌리던 문제 수정**
   - 모바일은 대화 선택지가 Roll 버튼 위에 겹쳐 그려져서, 글자 읽기가 'Roll' 글자와 헷갈려 버튼을 못 찾거나 엉뚱한 자리를 눌렀음

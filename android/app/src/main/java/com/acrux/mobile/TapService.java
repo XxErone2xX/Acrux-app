@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Path;
 import android.graphics.PixelFormat;
+import android.os.SystemClock;
 import android.hardware.display.DisplayManager;
 import android.util.DisplayMetrics;
 import android.view.Display;
@@ -24,6 +25,8 @@ import com.acrux.mobile.core.Seller;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 접근성 서비스 — 로블록스 위에 떠 있는 조작 창 + Shizuku 가 없을 때 자동 낚시 터치 (dispatchGesture)
@@ -100,12 +103,83 @@ public class TapService extends AccessibilityService {
     /** (x, y) 를 ms 동안 누름 (화면 좌표 · 지금 화면 방향 기준) — 기다리지 않음 */
     void tap(int x, int y, int ms) {
         if (x < 0 || y < 0) return;
+        letThrough(x, y);
         Path p = new Path();
         p.moveTo(x, y);
         dispatchGesture(new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(p, 0, Math.max(1, ms))).build(), null, null);
     }
 
+    // ---- 매크로의 터치 · 클릭이 Acrux 창에 걸리지 않게
+    // 터치 · 마우스는 화면 맨 위 창이 받음 → Acrux 창이 Fish 버튼 위에 있으면 [보정] 이 누른 Fish 가 Acrux 창의 [시작] 으로 들어갔음
+    volatile int[] rect;
+    volatile long passUntil;
+    volatile boolean passing;
+
+    void updateRect() {
+        View p = panel;
+        if (p == null || p.getVisibility() != View.VISIBLE || !p.isAttachedToWindow()) {
+            rect = null;
+            return;
+        }
+        int[] at = new int[2];
+        p.getLocationOnScreen(at);
+        rect = new int[]{at[0], at[1], p.getWidth(), p.getHeight()};
+    }
+
+    /** 매크로가 (x, y) 를 누르기 전에: Acrux 창 위면 잠깐(마지막 입력 뒤 0.8초) 창이 터치를 안 받게 → 그대로 아래 게임으로 */
+    void letThrough(int x, int y) {
+        int[] r = rect;
+        if (r == null || x < r[0] || y < r[1] || x >= r[0] + r[2] || y >= r[1] + r[3]) return;
+        passUntil = SystemClock.uptimeMillis() + 800;
+        if (passing) return;
+        passing = true;
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            setTouchable(false);
+            restoreLater();
+            return;
+        }
+        CountDownLatch done = new CountDownLatch(1);
+        Hub.main.post(() -> {
+            setTouchable(false);
+            restoreLater();
+            done.countDown();
+        });
+        try {
+            done.await(300, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        }
+        SystemClock.sleep(40);                       // 창 설정이 입력에 반영될 시간
+    }
+
+    void setTouchable(boolean on) {
+        if (panel == null || lp == null) return;
+        if (on) lp.flags &= ~WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
+        else lp.flags |= WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
+        try {
+            wm.updateViewLayout(panel, lp);
+        } catch (RuntimeException ignored) {
+        }
+        if (on) passing = false;
+    }
+
+    void restoreLater() {
+        Hub.main.postDelayed(() -> {
+            if (SystemClock.uptimeMillis() >= passUntil) setTouchable(true);
+            else restoreLater();
+        }, 200);
+    }
+
     // ---------------------------------------------------------------- 떠 있는 조작 창
+    /** Acrux 창이 낚시 창 쪽 (화면 가운데 아래) 을 가리나 — 화면 캡처에 같이 찍혀서 인식이 틀릴 수 있음 */
+    boolean coversGame() {
+        int[] r = rect, s = screen();
+        if (r == null) return false;
+        int gx1 = s[0] / 4, gx2 = s[0] * 3 / 4, gy1 = s[1] * 2 / 5, gy2 = s[1];
+        int ix = Math.min(r[0] + r[2], gx2) - Math.max(r[0], gx1), iy = Math.min(r[1] + r[3], gy2) - Math.max(r[1], gy1);
+        return ix > r[2] / 4 && iy > r[3] / 4;
+    }
+
     void showPanel() {
         if (panel != null) return;
         wm = (WindowManager) getSystemService(WINDOW_SERVICE);
@@ -161,6 +235,7 @@ public class TapService extends AccessibilityService {
         lp.x = Hub.prefs().getInt("panelX", Ui.dp(this, 12));
         lp.y = Hub.prefs().getInt("panelY", Ui.dp(this, 12));
         applyAlphaTo();
+        panel.getViewTreeObserver().addOnGlobalLayoutListener(this::updateRect);
         try {
             wm.addView(panel, lp);
         } catch (RuntimeException e) {
@@ -210,6 +285,7 @@ public class TapService extends AccessibilityService {
                 wm.updateViewLayout(this, lp);
             } catch (RuntimeException ignored) {
             }
+            post(TapService.this::updateRect);
         }
 
         @Override
@@ -254,6 +330,7 @@ public class TapService extends AccessibilityService {
             boolean on = Hub.prefs().getBoolean("panelOn", true) && !(Hub.appVisible && Hub.prefs().getBoolean("hideOnApp", true));
             panel.setVisibility(on ? View.VISIBLE : View.GONE);
             if (!on) closeMenu();
+            panel.post(TapService.this::updateRect);
         });
     }
 

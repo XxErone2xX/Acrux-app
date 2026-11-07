@@ -247,6 +247,9 @@ final class Hub {
             zeroSells = 0;
             f.onFull = () -> sellOnce(sl);
         }
+        TapService ts = TapService.instance;
+        if (ts != null && ts.coversGame() && (m.equals("cal") || m.equals("run")))
+            log("Acrux 창이 낚시 창 쪽을 가리고 있음 — 위쪽 구석으로 옮겨 주세요 (화면 캡처에 같이 찍혀서 인식이 틀릴 수 있음)", 'y');
         stopFlag = false;
         f.onResult = kind -> stat(kind, 1);
         fisher = f;
