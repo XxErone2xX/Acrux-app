@@ -302,7 +302,9 @@ final class Hub {
         } finally {
             pc.keyUp("w");
         }
+        String km = ShizukuPc.keyMode();
         log("키 테스트: W 1초 보냄 — 캐릭터가 앞으로 갔으면 Shizuku 키 입력이 됨", 'g');
+        log(km.startsWith("uhid") ? "키보드: 진짜 키보드 장치(Acrux Keyboard)로 보냄" : "키보드: 키보드 장치를 못 만듦 → 입력 주입으로 보냄 · " + km, km.startsWith("uhid") ? 'd' : 'y');
     }
 
     static void work(String m, Fisher f, Mover mv, Seller sl) {

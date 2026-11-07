@@ -1,3 +1,19 @@
+## Acrux Mobile V0.9.1 업데이트
+- **Shizuku 로 보낸 W · A · S · D 를 로블록스가 무시하던 문제 수정**
+  - 키를 '가상 키보드'(장치 없음) 신호로 넣었는데, 로블록스 모바일은 진짜 키보드가 연결돼 있어야 키보드 이동을 켬
+  - 이제 Shizuku 로 진짜 USB 키보드 장치(Acrux Keyboard)를 만들어서 보냄 (블루투스 키보드와 같은 커널 기능) → 안드로이드 · 로블록스가 키보드를 꽂은 것과 똑같이 봄
+  - 키보드 장치를 못 만드는 기종에선 예전 방식으로 (누르고 있는 키는 진짜 키보드처럼 자동 반복)
+  - 연결할 때 · 키 테스트 때 기록에 어떤 방식으로 보내는지 나옴
+- 업데이트 뒤 앱 → ③ Shizuku [다시] 를 한 번 눌러 주세요 (입력 서비스가 새로 바뀜)
+
+## Acrux Mobile V0.9.1 Update
+- **Fixed Roblox ignoring W · A · S · D sent through Shizuku**
+  - Keys were injected as a "virtual keyboard" (no device), but Roblox mobile only turns on keyboard movement when a real keyboard is connected
+  - Shizuku now creates a real USB keyboard device (Acrux Keyboard) and sends keys through it (the same kernel feature Bluetooth keyboards use) → Android and Roblox see it exactly like a plugged-in keyboard
+  - On devices where the keyboard device cannot be created, the old method is used (held keys auto-repeat like a real keyboard)
+  - The log shows which method is used when connecting and during the key test
+- After updating, tap App → ③ Shizuku [Again] once (the input service changed)
+
 ## Acrux Mobile V0.9.0 업데이트
 - 낚시 통계 성공률: 쓰레기도 잡은 것으로 계산 → (성공 + 쓰레기) ÷ 전체 (쓰레기 때문에 성공률이 낮아지지 않음)
 

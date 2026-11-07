@@ -6,4 +6,6 @@ interface IInject {
     String ping() = 1;
     boolean key(int keyCode, boolean down) = 2;
     boolean mouse(int action, float x, float y, int buttons, int actionButton, boolean relative) = 3;
+    /** 키를 어떻게 보내는지: "uhid" (진짜 키보드 장치) · "inject …" (입력 주입 — 이유) */
+    String keyMode() = 4;
 }

@@ -34,7 +34,7 @@ final class ShizukuPc implements Pc {
 
     static final Shizuku.UserServiceArgs ARGS = new Shizuku.UserServiceArgs(
             new ComponentName("com.acrux.mobile", InjectService.class.getName()))
-            .daemon(false).processNameSuffix("inject").debuggable(false).version(3);
+            .daemon(false).processNameSuffix("inject").debuggable(false).version(4);
 
     static final ServiceConnection CONN = new ServiceConnection() {
         @Override
@@ -50,6 +50,9 @@ final class ShizukuPc implements Pc {
                 svc = s;
                 why = "";
                 Hub.log("Shizuku 연결됨 — 키보드 · 마우스 입력 준비됨", 'g');
+                String km = keyMode();
+                if (km.startsWith("uhid")) Hub.log("키보드: 진짜 키보드 장치(Acrux Keyboard)로 보냄", 'g');
+                else Hub.log("키보드: 키보드 장치를 못 만듦 → 입력 주입으로 보냄 · " + km, 'y');
             } else {
                 svc = null;
                 why = p;
@@ -133,6 +136,17 @@ final class ShizukuPc implements Pc {
             Hub.log("Shizuku 입력 서비스 시작 중…", 'd');
         } catch (RuntimeException e) {
             Hub.log("Shizuku 입력 서비스를 띄우지 못함: " + e.getMessage(), 'r');
+        }
+    }
+
+    /** 키를 어떻게 보내는지 (uhid · inject …) */
+    static String keyMode() {
+        IInject s = svc;
+        if (s == null) return "";
+        try {
+            return s.keyMode();
+        } catch (Exception e) {
+            return String.valueOf(e);
         }
     }
 

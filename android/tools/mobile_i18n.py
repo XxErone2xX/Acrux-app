@@ -166,6 +166,8 @@ E = [
     ['화면 캡처 시작 ({0})', 'Screen capture started ({0})', '画面キャプチャ開始 ({0})'], ['화면 캡처를 시작하지 못함: {0}', 'Could not start screen capture: {0}', '画面キャプチャを開始できない: {0}'],
     ['화면 크기 바뀜 → {0}', 'Screen size changed → {0}', '画面サイズ変更 → {0}'],
     ['Shizuku 연결됨 — 키보드 · 마우스 입력 준비됨', 'Shizuku connected — keyboard · mouse input ready', 'Shizuku 接続 — キーボード・マウス入力準備完了'],
+    ['키보드: 진짜 키보드 장치(Acrux Keyboard)로 보냄', 'Keyboard: sent through a real keyboard device (Acrux Keyboard)', 'キーボード: 本物のキーボード装置 (Acrux Keyboard) で送信'],
+    ['키보드: 키보드 장치를 못 만듦 → 입력 주입으로 보냄 · {0}', 'Keyboard: could not create the keyboard device → sending by input injection · {0}', 'キーボード: キーボード装置を作れない → 入力注入で送信 · {0}'],
     ['Shizuku 입력 서비스 오류: {0}', 'Shizuku input service error: {0}', 'Shizuku 入力サービスのエラー: {0}'], ['연결이 끊김', 'Disconnected', '切断された'],
     ['Shizuku 가 안 켜져 있음', 'Shizuku is not running', 'Shizuku が起動していない'], ['Shizuku 를 최신으로 업데이트해야 함', 'Update Shizuku to the latest version', 'Shizuku を最新に更新が必要'],
     ['권한 허용 필요', 'Permission needed', '権限の許可が必要'], ['Shizuku 없음', 'No Shizuku', 'Shizuku なし'], ['연결 안 됨', 'Not connected', '未接続'],
