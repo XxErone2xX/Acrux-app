@@ -42,7 +42,7 @@ final class Hub {
     static final Handler main = new Handler(Looper.getMainLooper());
     static volatile String state = "대기";
     static volatile String mode = "";
-    static volatile boolean stopFlag, measuring, arrived;
+    static volatile boolean stopFlag, measuring, arrived, appVisible;
     static volatile Fisher fisher;
     static Thread worker;
     static Context app;

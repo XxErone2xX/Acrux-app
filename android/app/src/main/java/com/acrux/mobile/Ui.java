@@ -57,6 +57,7 @@ final class Ui {
             float l = getBounds().left, t = getBounds().top, r = getBounds().right, b = getBounds().bottom;
             cv.drawRect(l, t, r, b, fill);
             if (border) cv.drawRect(l + 0.5f, t + 0.5f, r - 0.5f, b - 0.5f, line);
+            if (arm <= 0 || w <= 0) return;
             // ㄱ 장식 (가로 · 세로 팔)
             cv.drawRect(l, t, l + arm, t + w, corner);
             cv.drawRect(l, t, l + w, t + arm, corner);
@@ -100,22 +101,35 @@ final class Ui {
         return t;
     }
 
-    /** 각진 버튼 (테두리 색 = 글자 색) */
+    /** 각진 버튼 (PC .btn 과 같음): 파랑 = 꽉 채움 · 회색 = ghost (칸 색) · 그 밖 = 그 색을 옅게 채움 · 테두리 · ㄱ 없음 */
     static TextView button(Context c, String s, int color, View.OnClickListener on) {
         TextView b = text(c, s, 14, color, true);
         b.setGravity(Gravity.CENTER);
         b.setPadding(dp(c, 16), dp(c, 9), dp(c, 16), dp(c, 9));
-        b.setBackground(new Deco(c, 0x00000000, color, color, true));
+        paintButton(c, b, color);
         b.setOnClickListener(on);
         b.setClickable(true);
         return b;
     }
 
-    /** 작은 선택 버튼 (탭 · 바로 가기 · 언어): 고르면 채움 + 흰 ㄱ · 아니면 테두리만 */
+    static void paintButton(Context c, TextView b, int color) {
+        if (color == ACCENT) {
+            b.setTextColor(WHITE);
+            b.setBackground(new Deco(c, ACCENT, 0, 0, false, 0, 0));
+        } else if (color == MUTED) {
+            b.setTextColor(FG);
+            b.setBackground(new Deco(c, FIELD, 0, 0, false, 0, 0));
+        } else {
+            b.setTextColor(color);
+            b.setBackground(new Deco(c, (color & 0x00FFFFFF) | 0x2E000000, 0, 0, false, 0, 0));
+        }
+    }
+
+    /** 작은 선택 버튼 (바로 가기 · 언어 — PC .jump-btn): 칸 색 + 얇은 선 · 고르면 파란 선 + 옅은 파랑 */
     static TextView chip(Context c, String s, View.OnClickListener on) {
         TextView b = text(c, s, 13, MUTED, true);
         b.setGravity(Gravity.CENTER);
-        b.setPadding(dp(c, 14), dp(c, 8), dp(c, 14), dp(c, 8));
+        b.setPadding(dp(c, 12), dp(c, 6), dp(c, 12), dp(c, 6));
         b.setOnClickListener(on);
         b.setClickable(true);
         chipOn(c, b, false);
@@ -123,15 +137,71 @@ final class Ui {
     }
 
     static void chipOn(Context c, TextView b, boolean on) {
-        b.setTextColor(on ? WHITE : MUTED);
-        b.setBackground(on ? new Deco(c, FIELD, ACCENT, WHITE, true, 7, 2) : new Deco(c, 0x00000000, LINE, LINE, true, 7, 1.5f));
+        b.setTextColor(on ? FG : MUTED);
+        b.setBackground(on ? new Deco(c, 0x295865F2, ACCENT, 0, true, 0, 0) : new Deco(c, PANEL, LINE, 0, true, 0, 0));
+    }
+
+    /** 칸 이름 (PC .tab-name): 글자만 · 고른 칸은 밝은 글자 + 아래 파란 줄 */
+    static TextView tab(Context c, String s, View.OnClickListener on) {
+        TextView b = text(c, s, 15, MUTED, true);
+        b.setGravity(Gravity.CENTER);
+        b.setPadding(dp(c, 10), dp(c, 8), dp(c, 10), dp(c, 10));
+        b.setOnClickListener(on);
+        b.setClickable(true);
+        tabOn(c, b, false);
+        return b;
+    }
+
+    static void tabOn(Context c, TextView b, boolean on) {
+        b.setTextColor(on ? FG : MUTED);
+        b.setBackground(on ? new Under(c, ACCENT) : null);
+    }
+
+    /** 아래 줄만 */
+    static final class Under extends Drawable {
+        final Paint p = new Paint();
+        final float h;
+
+        Under(Context c, int color) {
+            p.setColor(color);
+            h = dp(c, 2);
+        }
+
+        @Override
+        public void draw(Canvas cv) {
+            android.graphics.Rect r = getBounds();
+            cv.drawRect(r.left + h * 2, r.bottom - h, r.right - h * 2, r.bottom, p);
+        }
+
+        @Override
+        public void setAlpha(int a) {}
+
+        @Override
+        public void setColorFilter(ColorFilter cf) {}
+
+        @Override
+        public int getOpacity() {
+            return PixelFormat.TRANSLUCENT;
+        }
+    }
+
+    /** 입력칸 (PC input): 바탕색 + 얇은 선 */
+    static Drawable field(Context c) {
+        return new Deco(c, BG, LINE, 0, true, 0, 0);
+    }
+
+    /** 스위치 색을 파랑으로 */
+    static void tint(android.widget.Switch s) {
+        int[][] st = {{android.R.attr.state_checked}, {}};
+        s.setThumbTintList(new android.content.res.ColorStateList(st, new int[]{WHITE, 0xFFB5BAC1}));
+        s.setTrackTintList(new android.content.res.ColorStateList(st, new int[]{ACCENT, 0xFF4E5058}));
     }
 
     static LinearLayout card(Context c) {
         LinearLayout l = new LinearLayout(c);
         l.setOrientation(LinearLayout.VERTICAL);
         l.setPadding(dp(c, 16), dp(c, 14), dp(c, 16), dp(c, 14));
-        l.setBackground(new Deco(c, PANEL, LINE, WHITE, false));
+        l.setBackground(new Deco(c, PANEL, LINE, WHITE, false, 12, 2));
         return l;
     }
 

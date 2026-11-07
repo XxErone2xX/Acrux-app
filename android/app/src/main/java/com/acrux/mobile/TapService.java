@@ -34,7 +34,8 @@ public class TapService extends AccessibilityService {
     static volatile TapService instance;
 
     WindowManager wm;
-    LinearLayout panel, menu;
+    LinearLayout panel, menu, body;
+    TextView minBtn;
     WindowManager.LayoutParams lp;
     TextView status, calBtn, runBtn, gearBtn, arriveBtn;
     View picker;
@@ -113,12 +114,22 @@ public class TapService extends AccessibilityService {
         panel.setOrientation(LinearLayout.VERTICAL);
         int pad = Ui.dp(this, 10);
         panel.setPadding(pad, pad, pad, pad);
-        // 다른 버튼들처럼 얇은 테두리 + 네 모서리 ㄱ
-        panel.setBackground(new Ui.Deco(this, 0xF02B2D31, Ui.LINE, Ui.WHITE, true, 9, 2));
+        // 얇은 테두리 + 네 모서리 ㄱ (앱의 카드와 같음)
+        panel.setBackground(new Ui.Deco(this, 0xF22B2D31, Ui.LINE, Ui.WHITE, true, 10, 2));
 
+        // 제목 줄: ACRUX MACRO · [—] 접기 (접으면 제목 줄만 남음 · 다시 누르면 펼침)
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
         TextView title = Ui.text(this, "ACRUX MACRO", 12, Ui.FG, true);
         title.setLetterSpacing(0.12f);
-        title.setPadding(0, 0, 0, Ui.dp(this, 2));
+        head.addView(title, Ui.weight());
+        minBtn = Ui.text(this, "—", 13, Ui.MUTED, true);
+        minBtn.setPadding(Ui.dp(this, 12), Ui.dp(this, 2), Ui.dp(this, 2), Ui.dp(this, 2));
+        minBtn.setOnClickListener(v -> setMin(!Hub.prefs().getBoolean("panelMin", false)));
+        head.addView(minBtn, Ui.wrap());
+        body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
         status = Ui.text(this, "대기", 11, Ui.MUTED, false);
         status.setMaxWidth(Ui.dp(this, 170));
         LinearLayout row = new LinearLayout(this);
@@ -134,14 +145,17 @@ public class TapService extends AccessibilityService {
             Hub.log("도착", 'g');
         });
         arriveBtn.setVisibility(View.GONE);
-        panel.addView(title, Ui.wrap());
-        panel.addView(status, Ui.wrap());
+        panel.addView(head, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams sp = Ui.wrap();
+        sp.topMargin = Ui.dp(this, 2);
+        body.addView(status, sp);
         LinearLayout.LayoutParams rp = Ui.wrap();
-        rp.topMargin = Ui.dp(this, 6);
-        panel.addView(row, rp);
+        rp.topMargin = Ui.dp(this, 8);
+        body.addView(row, rp);
         LinearLayout.LayoutParams ap = Ui.wrap();
         ap.topMargin = Ui.dp(this, 6);
-        panel.addView(arriveBtn, ap);
+        body.addView(arriveBtn, ap);
+        panel.addView(body, Ui.wrap());
 
         lp = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
@@ -152,12 +166,14 @@ public class TapService extends AccessibilityService {
         lp.x = Hub.prefs().getInt("panelX", Ui.dp(this, 12));
         lp.y = Hub.prefs().getInt("panelY", Ui.dp(this, 12));
         applyAlphaTo();
+        applyMin();
         try {
             wm.addView(panel, lp);
         } catch (RuntimeException e) {
             Hub.log("조작 창을 띄우지 못함: " + e, 'r');
             panel = null;
         }
+        updateVisible();
         refresh();
     }
 
@@ -235,6 +251,30 @@ public class TapService extends AccessibilityService {
                     return true;
             }
         }
+    }
+
+    /** 접기 · 펼치기 (제목 줄만 남김) */
+    void setMin(boolean min) {
+        Hub.prefs().edit().putBoolean("panelMin", min).apply();
+        if (min) closeMenu();
+        applyMin();
+    }
+
+    void applyMin() {
+        if (panel == null) return;
+        boolean min = Hub.prefs().getBoolean("panelMin", false);
+        body.setVisibility(min ? View.GONE : View.VISIBLE);
+        minBtn.setText(min ? "+" : "—");
+    }
+
+    /** 보이기 · 숨기기: 설정 '조작 창 보이기' 가 꺼져 있거나, Acrux 앱을 보고 있고 '앱을 볼 때 숨기기' 가 켜져 있으면 숨김 */
+    void updateVisible() {
+        Hub.main.post(() -> {
+            if (panel == null) return;
+            boolean on = Hub.prefs().getBoolean("panelOn", true) && !(Hub.appVisible && Hub.prefs().getBoolean("hideOnApp", true));
+            panel.setVisibility(on ? View.VISIBLE : View.GONE);
+            if (!on) closeMenu();
+        });
     }
 
     /** 언어를 바꿨을 때: 창을 지금 언어로 다시 만듦 (자리는 그대로) */

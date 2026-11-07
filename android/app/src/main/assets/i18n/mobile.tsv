@@ -138,6 +138,9 @@ Sell All 버튼	Sell All button	Sell All ボタン
 조작 창 투명도	Control window opacity	操作ウィンドウの不透明度
 떠 있는 Acrux 창 · 어디든 잡고 끌면 움직임	The floating Acrux window · drag it from anywhere	浮いている Acrux ウィンドウ · どこでもつかんでドラッグ
 조작 창 위치를 왼쪽 위로 되돌림	Moved the control window back to the top left	操作ウィンドウを左上に戻した
+조작 창 보이기	Show the control window	操作ウィンドウを表示
+Acrux 앱을 볼 때는 숨기기	Hide it while the Acrux app is open	Acrux アプリを見ている間は隠す
+창의 [—] 를 누르면 작게 접힘 · 다시 누르면 펼침	Tap [—] on the window to fold it · tap again to unfold	ウィンドウの [—] で小さく折りたたむ · もう一度押すと開く
 후원하기	Support me	支援する
 GitHub · 다운로드	GitHub · Download	GitHub・ダウンロード
 기록 지우기	Clear log	ログを消す

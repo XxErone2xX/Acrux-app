@@ -94,12 +94,18 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         Hub.listeners.add(refresh);
+        Hub.appVisible = true;
+        TapService t = TapService.instance;
+        if (t != null) t.updateVisible();
         refresh();
     }
 
     @Override
     protected void onPause() {
         Hub.listeners.remove(refresh);
+        Hub.appVisible = false;
+        TapService t = TapService.instance;
+        if (t != null) t.updateVisible();
         super.onPause();
     }
 
@@ -113,14 +119,14 @@ public class MainActivity extends Activity {
         // 머리말
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.VERTICAL);
-        head.setPadding(p, Ui.dp(this, 40), p, Ui.dp(this, 8));
+        head.setPadding(p, Ui.dp(this, 36), p, Ui.dp(this, 6));
         LinearLayout title = new LinearLayout(this);
         title.setOrientation(LinearLayout.HORIZONTAL);
         title.setGravity(Gravity.BOTTOM);
-        title.addView(Ui.text(this, "Acrux Mobile ", 26, Ui.FG, true));
-        title.addView(Ui.text(this, "V" + version(), 26, Ui.ACCENT, true));
+        title.addView(Ui.text(this, "Acrux Mobile ", 22, Ui.FG, true));
+        title.addView(Ui.text(this, "V" + version(), 22, Ui.ACCENT, true));
         head.addView(title);
-        head.addView(Ui.text(this, "자동 낚시 [ Beta ]", 14, Ui.FG, true));
+        head.addView(Ui.text(this, "자동 낚시 [ Beta ]", 13, Ui.MUTED, false));
         root.addView(head);
 
         // 칸 이름 줄
@@ -128,9 +134,12 @@ public class MainActivity extends Activity {
         tabScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout tabs = new LinearLayout(this);
         tabs.setOrientation(LinearLayout.HORIZONTAL);
-        tabs.setPadding(p, Ui.dp(this, 4), p, Ui.dp(this, 10));
+        tabs.setPadding(Ui.dp(this, 8), Ui.dp(this, 2), Ui.dp(this, 8), 0);
         tabScroll.addView(tabs);
         root.addView(tabScroll);
+        View line = new View(this);                        // 칸 이름 아래 얇은 선 (PC 와 같음)
+        line.setBackgroundColor(Ui.LINE);
+        root.addView(line, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, Ui.dp(this, 1))));
 
         content = new SwipeFrame(this);
         root.addView(content, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
@@ -144,10 +153,8 @@ public class MainActivity extends Activity {
         for (int i = 0; i < pages.size(); i++) {
             Page pg = pages.get(i);
             int idx = i;
-            pg.tab = Ui.chip(this, pg.name, v -> show(idx, true));
-            LinearLayout.LayoutParams lp = Ui.wrap();
-            if (i > 0) lp.leftMargin = Ui.dp(this, 6);
-            tabs.addView(pg.tab, lp);
+            pg.tab = Ui.tab(this, pg.name, v -> show(idx, true));
+            tabs.addView(pg.tab, Ui.wrap());
             finishPage(pg);
             content.addView(pg.root, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         }
@@ -163,7 +170,7 @@ public class MainActivity extends Activity {
         pg.body = new LinearLayout(this);
         pg.body.setOrientation(LinearLayout.VERTICAL);
         int p = Ui.dp(this, 18);
-        pg.body.setPadding(p, Ui.dp(this, 4), p, Ui.dp(this, 32));
+        pg.body.setPadding(p, Ui.dp(this, 12), p, Ui.dp(this, 32));
         pages.add(pg);
         return pg;
     }
@@ -191,12 +198,11 @@ public class MainActivity extends Activity {
             pg.jump = new LinearLayout(this);
             pg.jump.setOrientation(LinearLayout.HORIZONTAL);
             int p = Ui.dp(this, 18);
-            pg.jump.setPadding(p, 0, p, Ui.dp(this, 8));
+            pg.jump.setPadding(p, Ui.dp(this, 10), p, 0);
             for (int i = 0; i < pg.sections.size(); i++) {
                 View sec = pg.sections.get(i);
                 TextView j = Ui.chip(this, (String) sec.getTag(), v -> pg.sv.smoothScrollTo(0, Math.max(0, sec.getTop() - Ui.dp(this, 4))));
                 j.setTextSize(12);
-                j.setPadding(Ui.dp(this, 10), Ui.dp(this, 5), Ui.dp(this, 10), Ui.dp(this, 5));
                 LinearLayout.LayoutParams lp = Ui.wrap();
                 if (i > 0) lp.leftMargin = Ui.dp(this, 5);
                 pg.jump.addView(j, lp);
@@ -227,7 +233,7 @@ public class MainActivity extends Activity {
         for (int k = 0; k < pages.size(); k++) {
             Page pg = pages.get(k);
             pg.root.setVisibility(k == i ? View.VISIBLE : View.GONE);
-            Ui.chipOn(this, pg.tab, k == i);
+            Ui.tabOn(this, pg.tab, k == i);
         }
         TextView t = pages.get(i).tab;
         tabScroll.post(() -> tabScroll.smoothScrollTo(Math.max(0, t.getLeft() - Ui.dp(this, 40)), 0));
@@ -277,7 +283,7 @@ public class MainActivity extends Activity {
     void buildHome(Page pg) {
         updBanner = Ui.text(this, "", 13, Ui.YELLOW, true);
         updBanner.setPadding(Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 14), Ui.dp(this, 10));
-        updBanner.setBackground(new Ui.Deco(this, Ui.PANEL, Ui.YELLOW, Ui.YELLOW, true, 8, 2));
+        updBanner.setBackground(new Ui.Deco(this, 0x29F0B232, Ui.YELLOW, 0, true, 0, 0));
         updBanner.setOnClickListener(v -> {
             show(4, true);
             if (Updater.newVer != null) Updater.download(this);
@@ -434,6 +440,17 @@ public class MainActivity extends Activity {
 
         LinearLayout win = section(pg, "조작 창");
         win.addView(Ui.text(this, "떠 있는 Acrux 창 · 어디든 잡고 끌면 움직임", 12, Ui.MUTED, false));
+        win.addView(sw("조작 창 보이기", Hub.prefs().getBoolean("panelOn", true), on -> {
+            Hub.prefs().edit().putBoolean("panelOn", on).apply();
+            TapService t = TapService.instance;
+            if (t != null) t.updateVisible();
+        }), Ui.fill(this, 10));
+        win.addView(sw("Acrux 앱을 볼 때는 숨기기", Hub.prefs().getBoolean("hideOnApp", true), on -> {
+            Hub.prefs().edit().putBoolean("hideOnApp", on).apply();
+            TapService t = TapService.instance;
+            if (t != null) t.updateVisible();
+        }), Ui.fill(this, 4));
+        win.addView(Ui.text(this, "창의 [—] 를 누르면 작게 접힘 · 다시 누르면 펼침", 12, Ui.MUTED, false), Ui.fill(this, 4));
         win.addView(Ui.text(this, "조작 창 투명도", 13, Ui.FG, true), Ui.fill(this, 12));
         SeekBar alpha = new SeekBar(this);
         alpha.setMax(60);
@@ -489,6 +506,8 @@ public class MainActivity extends Activity {
         Switch s = new Switch(this);
         s.setText(Ui.tr(title));
         s.setTextColor(Ui.FG);
+        s.setTextSize(14);
+        Ui.tint(s);
         s.setChecked(on);
         s.setOnCheckedChangeListener((v, c) -> {
             f.set(c);
@@ -506,7 +525,7 @@ public class MainActivity extends Activity {
         e.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
         e.setText(value == Math.rint(value) ? String.valueOf((long) value) : String.valueOf(value));
         e.setTextColor(Ui.FG);
-        e.setBackground(new Ui.Deco(this, Ui.FIELD, Ui.LINE, Ui.MUTED, true, 6, 1.5f));
+        e.setBackground(Ui.field(this));
         e.setPadding(Ui.dp(this, 10), Ui.dp(this, 6), Ui.dp(this, 10), Ui.dp(this, 6));
         e.setMinWidth(Ui.dp(this, 80));
         e.setGravity(Gravity.CENTER);

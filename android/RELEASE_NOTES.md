@@ -1,3 +1,25 @@
+## Acrux Mobile V0.8.1 업데이트
+- **화면 정리 (PC 와 같은 모양)**
+  - 칸 이름: 글자만 · 고른 칸은 밝은 글자 + 아래 파란 줄 · 칸 이름 아래 얇은 선
+  - 버튼: 테두리 · ㄱ 없이 꽉 채운 색 (파랑 · 회색 · 옅은 색)
+  - 바로 가기 · 언어: 작은 회색 칸 · 고른 것만 파란 테두리
+  - ㄱ 장식은 카드에만 · 입력칸은 바탕색 + 얇은 선 · 스위치는 파랑
+- **조작 창 끄기**
+  - 창의 [—]: 제목 줄만 남기고 접기 · [+] 로 펼치기
+  - 설정 → 조작 창 → '조작 창 보이기': 완전히 끄기
+  - 'Acrux 앱을 볼 때는 숨기기' (기본 켜짐): 앱 화면을 보고 있을 땐 조작 창이 안 가림
+
+## Acrux Mobile V0.8.1 Update
+- **Cleaner screen (same look as PC)**
+  - Tab names: text only · the selected tab has bright text + a blue underline · thin line under the tab names
+  - Buttons: solid colors without border or ㄱ corners (blue · gray · light tint)
+  - Jump bar · language: small gray boxes · only the selected one has a blue border
+  - ㄱ corners only on cards · inputs have a background color + thin line · switches are blue
+- **Turn the control window off**
+  - [—] on the window: fold it down to the title row · [+] to unfold
+  - Settings → Control window → "Show the control window": turn it off completely
+  - "Hide it while the Acrux app is open" (on by default): the control window no longer covers the app screen
+
 ## Acrux Mobile V0.8.0 업데이트
 - **언어 선택 (PC 와 같음)**: 한국어 · English · 日本語 — 설정 → 언어 · 떠 있는 Acrux 창 · 상태 · 기록도 같이 바뀜
   - 처음 켜면 폰 언어로 (한국어 · 일본어 · 그 밖엔 영어)
