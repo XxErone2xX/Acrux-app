@@ -108,22 +108,88 @@ public final class Seller {
     /** 대화 넘기기 — 선택지(keys)가 보일 때까지: 글자 확인 → 없으면 대화창 한 번 누름 → 잠깐 → 다시 확인 */
     SellText.Box skipDialog(Runnable click, double timeout, String... keys) {
         long end = System.nanoTime() + (long) (timeout * 1e9);
-        SellText.Box b = SellText.findText(ocr.read(DIALOG_AREA), keys);
+        SellText.Box b = options(keys);
         while (b == null && System.nanoTime() < end) {
             click.run();
             mv.sleep(SKIP_SETTLE);
-            b = SellText.findText(ocr.read(DIALOG_AREA), keys);
+            b = options(keys);
         }
         return b;
     }
 
-    /** 화면 비율 위치를 손가락으로 탭 (없으면 마우스) */
+    /** 선택지가 보이나: [Sell Fish] 는 색으로 먼저 (Roll 글자가 비쳐서 글자 읽기가 틀릴 때가 있음) → 글자 */
+    SellText.Box options(String... keys) {
+        if (keys.length == 1 && "sellfish".equals(keys[0])) {
+            double[] at = findSellFish();
+            if (at != null) return new SellText.Box("[Sell Fish]", at[0], at[1], 0, 0);
+        }
+        return SellText.findText(ocr.read(DIALOG_AREA), keys);
+    }
+
+    /** 화면 비율 위치를 손가락으로 탭 (없으면 마우스) · ms: 누르고 있는 시간 */
     void tap(double[] at) {
+        tap(at, 150);
+    }
+
+    void tap(double[] at, int ms) {
         if (touch == null) {
             mv.press(at);
             return;
         }
-        touch.tap((int) (at[0] * scr.width()), (int) (at[1] * scr.height()), 120);
+        touch.tap((int) (at[0] * scr.width()), (int) (at[1] * scr.height()), ms);
+        mv.sleep(ms / 1000.0);
+    }
+
+    /** 로블록스 버튼 누르기: t 번째 시도 — 0 손가락 탭 · 1 마우스 (호버 후 클릭) · 2 손가락 길게
+     *  (모바일 로블록스는 마우스 클릭을 버튼으로 안 받을 때가 있음 · 손가락 탭이 제일 확실) */
+    void ui(double[] at, int t) {
+        if (touch == null || t == 1) mv.press(at);
+        else tap(at, t == 0 ? 150 : 300);
+    }
+
+    Img full() {
+        return scr.grab(0, 0, scr.width(), scr.height());
+    }
+
+    /** 화면에서 대화 선택지 [Sell Fish] 를 색으로 찾음 (글자 읽기보다 먼저 · 선택지가 Roll 버튼과 겹쳐도 됨) */
+    double[] findSellFish() {
+        Img im = full();
+        if (im == null || im.w == 0) return null;
+        Buttons.Box[] d = Buttons.dialog(im);
+        return d == null ? null : Buttons.center(d[1], im);
+    }
+
+    /** 화면에서 상점 [Sell All] 을 색으로 찾음 */
+    double[] findSellAll() {
+        Img im = full();
+        if (im == null || im.w == 0) return null;
+        Buttons.Box[] d = Buttons.shop(im);
+        return d == null ? null : Buttons.center(d[1], im);
+    }
+
+    /** 상점이 열렸나: [Sell] · [Sell All] 색 → 없으면 글자 (Fishing Shop · Sell All) */
+    boolean shopOpen() {
+        if (findSellAll() != null) return true;
+        List<SellText.Box> b = ocr.read(null);
+        return SellText.findText(b, "fishingshop") != null || SellText.findText(b, true, "sellall") != null;
+    }
+
+    /** 대화창에서 [Sell Fish] 를 눌러 상점 열기 — 최대 3번 (손가락 · 마우스 · 손가락 길게) · 매번 상점이 열렸는지 확인 */
+    boolean openShop(double[] sf, double d) {
+        for (int t = 0; t < 3; t++) {
+            double[] at = findSellFish();
+            if (at == null) at = sf;
+            else pos.put("sell_fish_pos", at);
+            ui(at, t);
+            for (int i = 0; i < 4; i++) {
+                mv.sleep(0.5 + d / 2);
+                if (shopOpen()) {
+                    if (t > 0) out.log("[Sell Fish] 가 " + (t + 1) + "번째에 눌림", 'd');
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -132,23 +198,25 @@ public final class Seller {
      * → 3번 다 안 떠야 '팔 물고기 없음'
      */
     double[] sellAll(double before, double d) {
-        double[] btn = p("sell_all_pos"), at = p("confirm_sell_pos");
+        double[] at = p("confirm_sell_pos");
         for (int t = 0; t < 3; t++) {
-            if (t == 0) {
-                mv.press(btn);
-            } else if (t == 1) {
-                int[] q = mv.px(btn);
+            // 누르기 직전에 화면에서 [Sell All] 을 다시 찾음 (저장한 자리가 어긋나 있어도)
+            double[] btn = findSellAll();
+            if (btn != null) pos.put("sell_all_pos", btn);
+            else btn = p("sell_all_pos");
+            if (t == 1 && touch != null) {
+                int[] q = mv.px(btn);                  // 마우스: 오래 호버 후 클릭
                 pc.moveTo(q[0] + 3, q[1] + 3);
                 mv.sleep(0.2);
                 pc.moveTo(q[0], q[1]);
                 mv.sleep(0.2);
                 pc.click(q[0], q[1], "left");
             } else {
-                tap(btn);
+                ui(btn, t);
             }
             double[] got = waitConfirm(at, before, (t == 0 ? 1.5 : 2.0) + d);
             if (got != null) {
-                if (t > 0) out.log("Sell All 이 " + (t == 1 ? "두 번째 (오래 호버)" : "세 번째 (손가락 탭)") + " 에 눌림", 'd');
+                if (t > 0) out.log("Sell All 이 " + (t + 1) + "번째에 눌림", 'd');
                 return got;
             }
         }
@@ -169,15 +237,15 @@ public final class Seller {
         out.state("판매 · 대화");
         pc.keyTap("e");
         mv.sleep(0.2);
-        SellText.Box sf = skipDialog(() -> mv.click(p("dialog_pos")), 12.0, "sellfish");
+        SellText.Box sf = skipDialog(() -> ui(p("dialog_pos"), 0), 12.0, "sellfish");
         mv.sleep(0.15 + d);
-        mv.click(sf != null ? new double[]{sf.x, sf.y} : p("sell_fish_pos"));
-        mv.sleep(1.0 + d);
+        if (!openShop(sf != null ? new double[]{sf.x, sf.y} : p("sell_fish_pos"), d)) out.log("[Sell Fish] 를 3번 눌러도 상점이 안 열림 — 그대로 이어감", 'y');
+        mv.sleep(0.5 + d);
         int sold = 0;
         boolean warned = false;
         for (int i = 0; i < sellMax; i++) {
             out.state("판매 · 파는 중 (" + sold + "종류)");
-            mv.click(p("first_fish_pos"));
+            ui(p("first_fish_pos"), 0);
             mv.sleep(0.5 + d);
             double before = green(p("confirm_sell_pos"));
             double[] sellAt = sellAll(before, d);
@@ -189,8 +257,7 @@ public final class Seller {
             mv.sleep(0.15 + d);
             boolean closed = false;
             for (int t = 0; t < 3 && !closed; t++) {
-                if (t < 2) mv.press(sellAt);
-                else tap(sellAt);                       // 마지막은 손가락 탭
+                ui(sellAt, t);                          // 손가락 · 마우스 · 손가락 길게
                 mv.sleep(1.2 + d);
                 closed = !confirmOpen(sellAt, before);
             }
@@ -202,7 +269,7 @@ public final class Seller {
             sold++;
         }
         out.log("물고기 판매 완료 (" + sold + "종류)", 'g');
-        mv.click(p("shop_close_pos"));
+        ui(p("shop_close_pos"), 0);
         mv.sleep(0.5 + d);
         out.state("판매 · 낚시 장소로 돌아가는 중");
         mv.goBase();
@@ -232,16 +299,16 @@ public final class Seller {
         double[] d2 = SellText.dialogPoint(boxes);
         if (d2 != null) dlg = d2;
         if (dlg != null) pos.put("dialog_pos", dlg);
-        SellText.Box sf = SellText.findText(boxes, "sellfish");
+        SellText.Box sf = options("sellfish");
         if (sf == null) {
             if (!pos.containsKey("dialog_pos")) throw new RuntimeException("대화창을 못 찾음");
-            sf = skipDialog(() -> mv.click(p("dialog_pos")), 12.0, "sellfish");
+            sf = skipDialog(() -> ui(p("dialog_pos"), 0), 12.0, "sellfish");
         }
         if (sf == null) throw new RuntimeException("[Sell Fish] 버튼을 못 찾음");
         pos.put("sell_fish_pos", new double[]{SellText.r4(sf.x), SellText.r4(sf.y)});
         if (dlg == null) notes.add("대화창은 못 찾음");
         out.state("상점 여는 중");
-        mv.click(p("sell_fish_pos"));
+        openShop(p("sell_fish_pos"), 0);
         SellText.Box title = null, sa = null;
         for (int i = 0; i < 8; i++) {
             mv.sleep(0.6);
@@ -258,16 +325,16 @@ public final class Seller {
         if (s2 != null) sa = s2;
         double[][] geo = SellText.shopLayout(boxes, title, sa, (double) scr.width() / Math.max(1, scr.height()));
         if (geo == null) throw new RuntimeException("상점 Buy · Sell 탭을 못 찾음");
-        pos.put("sell_all_pos", new double[]{SellText.r4(sa.x), SellText.r4(sa.y)});
+        double[] saAt = findSellAll();                  // 색으로 찾은 자리가 있으면 그걸로 (글자 자리보다 버튼 한가운데)
+        pos.put("sell_all_pos", saAt != null ? saAt : new double[]{SellText.r4(sa.x), SellText.r4(sa.y)});
         pos.put("first_fish_pos", geo[1]);
         pos.put("shop_close_pos", geo[0]);
         out.state("확인창 확인 중 (팔지는 않음)");
-        mv.click(p("first_fish_pos"));
+        ui(p("first_fish_pos"), 0);
         mv.sleep(0.6);
         double[][] conf = null;
-        for (int t = 0; t < 3 && conf == null; t++) {          // 처음 누르는 Sell All 이 씹힐 수 있음 → 마우스 · 마우스 · 손가락
-            if (t < 2) mv.press(p("sell_all_pos"));
-            else tap(p("sell_all_pos"));
+        for (int t = 0; t < 3 && conf == null; t++) {          // 처음 누르는 Sell All 이 씹힐 수 있음 → 손가락 · 마우스 · 손가락 길게
+            ui(p("sell_all_pos"), t);
             for (int i = 0; i < 3 && conf == null; i++) {
                 mv.sleep(0.6);
                 conf = SellText.findConfirm(ocr.read(null));
@@ -275,14 +342,14 @@ public final class Seller {
         }
         if (conf != null) {
             pos.put("confirm_sell_pos", conf[0]);
-            mv.press(conf[1]);                        // Cancel
+            ui(conf[1], 0);                           // Cancel
             mv.sleep(0.6);
         } else {
             pos.put("confirm_sell_pos", geo[2]);
             notes.add("확인창이 안 떠서(물고기 없음?) 확인 Sell 은 계산한 자리");
         }
         out.state("상점 닫는 중");
-        mv.click(p("shop_close_pos"));
+        ui(p("shop_close_pos"), 0);
         mv.sleep(0.8);
         if (SellText.findText(ocr.read(null), "fishingshop") != null) notes.add("상점이 안 닫힘 — 상점 닫기 X 위치를 확인해 주세요");
         return notes;

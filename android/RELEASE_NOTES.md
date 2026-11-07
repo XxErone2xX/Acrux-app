@@ -1,3 +1,21 @@
+## Acrux Mobile V0.9.2 업데이트
+- **대화창 [Sell Fish] · 상점 [Sell All] 이 안 눌리던 문제 수정**
+  - 모바일은 대화 선택지가 Roll 버튼 위에 겹쳐 그려져서, 글자 읽기가 'Roll' 글자와 헷갈려 버튼을 못 찾거나 엉뚱한 자리를 눌렀음
+  - 이제 버튼을 **테두리 색으로** 찾음: [Open Shop] 초록 · [Sell Fish] 파랑 · [Leave] 빨강 줄 → 가운데 파랑 / [Sell] 초록 바로 오른쪽 파랑 = Sell All
+  - 누르기 직전에 화면에서 다시 찾아서 누름 (저장한 자리가 어긋나 있어도)
+  - 누르기: **손가락 탭 먼저** → 마우스 (호버 후 클릭) → 손가락 길게 · 상점이 열렸는지 · 확인창이 떴는지 보면서 다시 누름
+  - 첫 물고기 칸 · 확인 Sell · 상점 닫기도 손가락 탭 먼저
+  - 스크린샷 4장을 164가지로 변형해서 시험 (해상도 0.3 ~ 1.6배 · 늘림 · 검은 띠 · 잘림 · 저화질 · 밝기 · 조합) → 162 통과 · 낚시 화면 252장에서 잘못 찾은 것 0
+
+## Acrux Mobile V0.9.2 Update
+- **Fixed [Sell Fish] in the dialog and [Sell All] in the shop not being pressed**
+  - On mobile the dialog choices are drawn over the Roll button, so text reading mixed them up with the "Roll" text and missed the button or pressed the wrong spot
+  - Buttons are now found by **border color**: [Open Shop] green · [Sell Fish] blue · [Leave] red row → the blue in the middle / the blue right after the green [Sell] = Sell All
+  - They are found again on screen right before each press (even if the saved spot is off)
+  - Pressing: **finger tap first** → mouse (hover then click) → long finger tap · retried while checking that the shop opened / the confirm window appeared
+  - The first fish slot, confirm Sell and shop close also use a finger tap first
+  - Tested on 164 variants of 4 screenshots (0.3 to 1.6× resolution · stretch · black bars · crop · low quality · brightness · combos) → 162 pass · 0 false hits on 252 fishing screens
+
 ## Acrux Mobile V0.9.1 업데이트
 - **Shizuku 로 보낸 W · A · S · D 를 로블록스가 무시하던 문제 수정**
   - 키를 '가상 키보드'(장치 없음) 신호로 넣었는데, 로블록스 모바일은 진짜 키보드가 연결돼 있어야 키보드 이동을 켬
