@@ -1,3 +1,9 @@
+## Acrux macro V2.5.1 업데이트
+- 후원 (Donate) 링크 변경: https://ko-fi.com/RG_Acrux
+
+## Acrux macro V2.5.1 Update
+- Changed the Donate link: https://ko-fi.com/RG_Acrux
+
 ## Acrux macro V2.5.0 업데이트
 - **Prime Snipe [ Beta ]**: 여러 번 · 순서대로 눌러야 하는 버튼도 처리
   - 먼저 누르라는 버튼 (예: [ Get Link를 하기 전에 이 버튼을 먼저 누르세요 ]) → 그 버튼을 먼저 누른 뒤 Get Link

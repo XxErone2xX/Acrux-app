@@ -224,7 +224,7 @@ function buildMenu() {
   setDeco(unBtn, UNINSTALL_ENTRY);
   unBtn.querySelector('.head').innerHTML = headHTML(UNINSTALL_ENTRY);
   unBtn.addEventListener('click', () => openConfirm());
-  // Donate: 크레딧 탭 밖 (메인 왼쪽 아래) — 링크는 준비 중
+  // Donate: 크레딧 탭 밖 (메인 왼쪽 아래) — ko-fi.com/RG_Acrux
   const donateBtn = document.querySelector('.donate-open');
   setDeco(donateBtn, DONATE_ENTRY);
   donateBtn.querySelector('.head').innerHTML = headHTML(DONATE_ENTRY);

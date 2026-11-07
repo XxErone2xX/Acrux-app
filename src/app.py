@@ -2329,7 +2329,7 @@ class Bridge:
     WEB_LINKS = {
         "discord": "https://discord.gg/cyK26gsjCC",
         "roblox": "https://www.roblox.com/ko/users/11743130211/profile",
-        "donate": "https://ko-fi.com/rn_draon",
+        "donate": "https://ko-fi.com/RG_Acrux",
         # Prime Snipe AI: API 키 받는 곳
         "ai_groq": "https://console.groq.com/keys",
         "ai_gemini": "https://aistudio.google.com/apikey",
