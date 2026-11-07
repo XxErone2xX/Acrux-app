@@ -53,9 +53,35 @@ final class Hub {
         if (app == null) app = c.getApplicationContext();
         if (!loaded) {
             loaded = true;
+            loadLang();
             load();
         }
     }
+
+    // ---- 언어 (PC 와 같은 사전 + 모바일 사전 · 한국어 글자가 열쇠)
+    static void loadLang() {
+        for (String f : new String[]{"i18n/pc.tsv", "i18n/mobile.tsv"}) {
+            try (java.io.InputStream in = app.getAssets().open(f)) {
+                com.acrux.mobile.core.I18n.load(in);
+            } catch (java.io.IOException ignored) {
+            }
+        }
+        String l = prefs().getString("lang", null);
+        if (l == null) l = com.acrux.mobile.core.I18n.guess(Locale.getDefault().getLanguage());
+        com.acrux.mobile.core.I18n.setLang(l);
+    }
+
+    /** 언어 바꾸기 → 앱 화면 · 떠 있는 창을 다시 그림 */
+    static void setLang(String code) {
+        com.acrux.mobile.core.I18n.setLang(code);
+        prefs().edit().putString("lang", code).apply();
+        TapService t = TapService.instance;
+        if (t != null) t.rebuildPanel();
+        for (Runnable r : langListeners) r.run();
+        changed();
+    }
+
+    static final List<Runnable> langListeners = new CopyOnWriteArrayList<>();
 
     // ---- 화면 갱신
     static void changed() {
@@ -69,6 +95,23 @@ final class Hub {
         synchronized (logs) {
             logs.add(t + "  " + msg);
             while (logs.size() > 300) logs.remove(0);
+        }
+        changed();
+    }
+
+    /** 화면에 보일 기록 (시각은 두고 내용만 지금 언어로) */
+    static List<String> recentLogsShown(int n) {
+        List<String> out = new ArrayList<>();
+        for (String l : recentLogs(n)) {
+            int k = l.indexOf("  ");
+            out.add(k > 0 ? l.substring(0, k + 2) + com.acrux.mobile.core.I18n.t(l.substring(k + 2)) : l);
+        }
+        return out;
+    }
+
+    static void clearLogs() {
+        synchronized (logs) {
+            logs.clear();
         }
         changed();
     }

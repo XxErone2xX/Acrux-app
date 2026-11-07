@@ -1,6 +1,7 @@
 package com.acrux.mobile;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Typeface;
 import android.media.projection.MediaProjectionConfig;
@@ -10,23 +11,61 @@ import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
+import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
 
+import com.acrux.mobile.core.I18n;
 import com.acrux.mobile.core.Mover;
 import com.acrux.mobile.core.Seller;
 
-/** 처음 설정 · 상태 · 세부 설정 · 기록 (실제 조작은 로블록스 위에 떠 있는 작은 창에서) */
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * 앱 화면 — PC 버전처럼 칸(탭)으로 나눔: 홈 · 낚시 · 이동 · 판매 · 기록 · 설정
+ *  · 위쪽 칸 이름을 누르거나 화면을 좌우로 밀어서 칸 이동 · 마지막에 본 칸을 기억
+ *  · 묶음(카드)이 3개 이상인 칸은 위쪽에 바로 가기 (PC 와 같음 · 짧은 칸은 없음) — 누르면 그 묶음으로 부드럽게 이동
+ *  · 글자는 한국어로 쓰면 Ui 가 지금 언어로 번역 (설정 → 언어)
+ * 새 기능 추가: page("열쇠", "칸 이름") 로 칸을 만들고 section(칸, "묶음 이름") 으로 카드를 붙이면 바로 가기 · 이동이 저절로 됨
+ */
 public class MainActivity extends Activity {
     static final int REQ_CAPTURE = 7;
 
-    TextView accState, capState, shzState, calState, logView, runState;
-    TextView accBtn, capBtn, shzBtn, updState, updBtn, updNotes;
+    TextView accState, capState, shzState, calState, logView, runState, posView;
+    TextView accBtn, capBtn, shzBtn, updState, updBtn, updNotes, updBanner;
     final Runnable refresh = this::refresh;
+    final Runnable relang = this::recreate;
+
+    // ---------------------------------------------------------------- 칸 (탭)
+    static final class Page {
+        final String key, name;
+        LinearLayout body, jump;
+        ScrollView sv;
+        View root;
+        TextView tab;
+        final List<View> sections = new ArrayList<>();
+        final List<TextView> jumps = new ArrayList<>();
+
+        Page(String key, String name) {
+            this.key = key;
+            this.name = name;
+        }
+    }
+
+    final List<Page> pages = new ArrayList<>();
+    FrameLayout content;
+    HorizontalScrollView tabScroll;
+    int current = -1;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -37,11 +76,18 @@ public class MainActivity extends Activity {
             requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
         }
         setContentView(build());
+        Hub.langListeners.add(relang);
         ShizukuPc.autoConnect();
         if (Hub.autoUpdate && !Updater.checkedOnce) {        // 앱을 켤 때 한 번: 새 버전이 있으면 받아서 설치 화면까지
             Updater.checkedOnce = true;
             Updater.check(this, true);
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        Hub.langListeners.remove(relang);
+        super.onDestroy();
     }
 
     @Override
@@ -57,42 +103,190 @@ public class MainActivity extends Activity {
         super.onPause();
     }
 
+    // ---------------------------------------------------------------- 뼈대
     View build() {
-        ScrollView sv = new ScrollView(this);
-        sv.setBackgroundColor(Ui.BG);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Ui.BG);
         int p = Ui.dp(this, 18);
-        root.setPadding(p, Ui.dp(this, 44), p, Ui.dp(this, 32));
-        sv.addView(root);
 
         // 머리말
         LinearLayout head = new LinearLayout(this);
-        head.setOrientation(LinearLayout.HORIZONTAL);
-        head.setGravity(Gravity.BOTTOM);
-        head.addView(Ui.text(this, "Acrux Mobile ", 28, Ui.FG, true));
-        head.addView(Ui.text(this, "V" + version(), 28, Ui.ACCENT, true));
+        head.setOrientation(LinearLayout.VERTICAL);
+        head.setPadding(p, Ui.dp(this, 40), p, Ui.dp(this, 8));
+        LinearLayout title = new LinearLayout(this);
+        title.setOrientation(LinearLayout.HORIZONTAL);
+        title.setGravity(Gravity.BOTTOM);
+        title.addView(Ui.text(this, "Acrux Mobile ", 26, Ui.FG, true));
+        title.addView(Ui.text(this, "V" + version(), 26, Ui.ACCENT, true));
+        head.addView(title);
+        head.addView(Ui.text(this, "자동 낚시 [ Beta ]", 14, Ui.FG, true));
         root.addView(head);
-        root.addView(Ui.text(this, "자동 낚시 [ Beta ]", 16, Ui.FG, true));
-        root.addView(Ui.text(this, "Made by 얼로니", 13, Ui.MUTED, false));
 
-        // 업데이트 (GitHub 릴리스에서 자동으로)
-        LinearLayout up = Ui.card(this);
-        updState = Ui.text(this, "", 13, Ui.MUTED, false);
-        updBtn = Ui.button(this, "확인", Ui.ACCENT, v -> {
+        // 칸 이름 줄
+        tabScroll = new HorizontalScrollView(this);
+        tabScroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout tabs = new LinearLayout(this);
+        tabs.setOrientation(LinearLayout.HORIZONTAL);
+        tabs.setPadding(p, Ui.dp(this, 4), p, Ui.dp(this, 10));
+        tabScroll.addView(tabs);
+        root.addView(tabScroll);
+
+        content = new SwipeFrame(this);
+        root.addView(content, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        buildHome(page("home", "홈"));
+        buildFishing(page("fish", "낚시"));
+        buildMove(page("move", "이동 · 판매"));
+        buildLog(page("log", "기록"));
+        buildSettings(page("settings", "설정"));
+
+        for (int i = 0; i < pages.size(); i++) {
+            Page pg = pages.get(i);
+            int idx = i;
+            pg.tab = Ui.chip(this, pg.name, v -> show(idx, true));
+            LinearLayout.LayoutParams lp = Ui.wrap();
+            if (i > 0) lp.leftMargin = Ui.dp(this, 6);
+            tabs.addView(pg.tab, lp);
+            finishPage(pg);
+            content.addView(pg.root, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+        String last = Hub.prefs().getString("tab", "home");
+        int start = 0;
+        for (int i = 0; i < pages.size(); i++) if (pages.get(i).key.equals(last)) start = i;
+        show(start, false);
+        return root;
+    }
+
+    Page page(String key, String name) {
+        Page pg = new Page(key, name);
+        pg.body = new LinearLayout(this);
+        pg.body.setOrientation(LinearLayout.VERTICAL);
+        int p = Ui.dp(this, 18);
+        pg.body.setPadding(p, Ui.dp(this, 4), p, Ui.dp(this, 32));
+        pages.add(pg);
+        return pg;
+    }
+
+    /** 칸 안에 묶음(카드) 하나 — 제목은 바로 가기 이름도 됨 */
+    LinearLayout section(Page pg, String name) {
+        LinearLayout card = Ui.card(this);
+        card.addView(Ui.text(this, name, 15, Ui.FG, true));
+        pg.body.addView(card, Ui.fill(this, pg.sections.isEmpty() ? 0 : 12));
+        pg.sections.add(card);
+        card.setTag(name);
+        return card;
+    }
+
+    void finishPage(Page pg) {
+        LinearLayout wrap = new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
+        pg.sv = new ScrollView(this);
+        pg.sv.addView(pg.body);
+        pg.sv.setVerticalScrollBarEnabled(false);
+        // 바로 가기: 묶음이 3개 이상일 때만 (PC 와 같음 — 짧은 칸은 없음)
+        if (pg.sections.size() >= 3) {
+            HorizontalScrollView hs = new HorizontalScrollView(this);
+            hs.setHorizontalScrollBarEnabled(false);
+            pg.jump = new LinearLayout(this);
+            pg.jump.setOrientation(LinearLayout.HORIZONTAL);
+            int p = Ui.dp(this, 18);
+            pg.jump.setPadding(p, 0, p, Ui.dp(this, 8));
+            for (int i = 0; i < pg.sections.size(); i++) {
+                View sec = pg.sections.get(i);
+                TextView j = Ui.chip(this, (String) sec.getTag(), v -> pg.sv.smoothScrollTo(0, Math.max(0, sec.getTop() - Ui.dp(this, 4))));
+                j.setTextSize(12);
+                j.setPadding(Ui.dp(this, 10), Ui.dp(this, 5), Ui.dp(this, 10), Ui.dp(this, 5));
+                LinearLayout.LayoutParams lp = Ui.wrap();
+                if (i > 0) lp.leftMargin = Ui.dp(this, 5);
+                pg.jump.addView(j, lp);
+                pg.jumps.add(j);
+            }
+            hs.addView(pg.jump);
+            wrap.addView(hs);
+            pg.sv.setOnScrollChangeListener((v, x, y, ox, oy) -> markJump(pg));
+            pg.sv.post(() -> markJump(pg));
+        }
+        wrap.addView(pg.sv, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        pg.root = wrap;
+    }
+
+    /** 지금 보이는 묶음의 바로 가기를 강조 (맨 아래까지 내리면 마지막 묶음) */
+    void markJump(Page pg) {
+        if (pg.jumps.isEmpty()) return;
+        int y = pg.sv.getScrollY() + Ui.dp(this, 40), at = 0;
+        boolean bottom = !pg.sv.canScrollVertically(1) && pg.sv.getScrollY() > 0;
+        for (int i = 0; i < pg.sections.size(); i++) if (pg.sections.get(i).getTop() <= y) at = i;
+        if (bottom) at = pg.sections.size() - 1;
+        for (int i = 0; i < pg.jumps.size(); i++) Ui.chipOn(this, pg.jumps.get(i), i == at);
+    }
+
+    void show(int i, boolean save) {
+        if (i < 0 || i >= pages.size() || i == current) return;
+        current = i;
+        for (int k = 0; k < pages.size(); k++) {
+            Page pg = pages.get(k);
+            pg.root.setVisibility(k == i ? View.VISIBLE : View.GONE);
+            Ui.chipOn(this, pg.tab, k == i);
+        }
+        TextView t = pages.get(i).tab;
+        tabScroll.post(() -> tabScroll.smoothScrollTo(Math.max(0, t.getLeft() - Ui.dp(this, 40)), 0));
+        if (save) Hub.prefs().edit().putString("tab", pages.get(i).key).apply();
+    }
+
+    /** 화면을 좌우로 밀면 옆 칸으로 (세로 스크롤 · 버튼 누르기는 그대로) */
+    final class SwipeFrame extends FrameLayout {
+        final int slop = ViewConfiguration.get(getContext()).getScaledTouchSlop();
+        float sx, sy;
+        boolean swiping;
+
+        SwipeFrame(Context c) {
+            super(c);
+        }
+
+        @Override
+        public boolean onInterceptTouchEvent(MotionEvent e) {
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    sx = e.getX();
+                    sy = e.getY();
+                    swiping = false;
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    float dx = e.getX() - sx, dy = e.getY() - sy;
+                    if (Math.abs(dx) > slop * 3 && Math.abs(dx) > Math.abs(dy) * 2) swiping = true;
+                    break;
+                default:
+                    break;
+            }
+            return swiping;
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent e) {
+            if (e.getActionMasked() == MotionEvent.ACTION_UP && swiping) {
+                float dx = e.getX() - sx;
+                if (Math.abs(dx) > Ui.dp(getContext(), 70)) show(current + (dx < 0 ? 1 : -1), true);
+                swiping = false;
+            }
+            return true;
+        }
+    }
+
+    // ---------------------------------------------------------------- 홈
+    void buildHome(Page pg) {
+        updBanner = Ui.text(this, "", 13, Ui.YELLOW, true);
+        updBanner.setPadding(Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 14), Ui.dp(this, 10));
+        updBanner.setBackground(new Ui.Deco(this, Ui.PANEL, Ui.YELLOW, Ui.YELLOW, true, 8, 2));
+        updBanner.setOnClickListener(v -> {
+            show(4, true);
             if (Updater.newVer != null) Updater.download(this);
-            else Updater.check(this, false);
         });
-        up.addView(row("업데이트", "지금 V" + version() + " · 새 버전이 나오면 받아서 바로 설치 (설정은 그대로)", updState, updBtn));
-        up.addView(sw("앱을 켤 때 자동으로 업데이트", Hub.autoUpdate, on -> Hub.autoUpdate = on), Ui.fill(this, 8));
-        updNotes = Ui.text(this, "", 12, Ui.MUTED, false);
-        up.addView(updNotes, Ui.fill(this, 4));
-        LinearLayout.LayoutParams upl = Ui.fill(this, 14);
-        root.addView(up, upl);
+        updBanner.setVisibility(View.GONE);
+        pg.body.addView(updBanner, Ui.fill(this, 0));
+        pg.body.addView(new View(this), new LinearLayout.LayoutParams(1, Ui.dp(this, 8)));
 
-        // ① 준비
-        LinearLayout ready = Ui.card(this);
-        ready.addView(Ui.text(this, "준비", 15, Ui.FG, true));
+        LinearLayout ready = section(pg, "준비");
         accState = Ui.text(this, "", 13, Ui.MUTED, false);
         accBtn = Ui.button(this, "켜기", Ui.ACCENT, v -> openAccessibility());
         ready.addView(row("① 접근성 권한", "Acrux가 로블록스 화면을 대신 터치함 · 설정 → 접근성 → 설치된 앱 → Acrux Mobile", accState, accBtn), Ui.fill(this, 10));
@@ -105,30 +299,14 @@ public class MainActivity extends Activity {
         ready.addView(row("② 화면 캡처", "화면 색을 보고 낚시 상태를 판단함 · 녹화 · 저장은 하지 않음 · '전체 화면' 공유를 고르기", capState, capBtn), Ui.fill(this, 12));
         shzState = Ui.text(this, "", 13, Ui.MUTED, false);
         shzBtn = Ui.button(this, "연결", Ui.ACCENT, v -> ShizukuPc.connect());
-        ready.addView(row("③ Shizuku (키보드 · 마우스)", "이동 · 판매에 PC 와 같은 키(Esc R Enter W A S D E O /)와 마우스(우클릭 Click to Move · Sell All 호버 후 클릭)를 보냄 · "
-                + "자동 낚시만 쓸 거면 없어도 됨", shzState, shzBtn), Ui.fill(this, 12));
+        ready.addView(row("③ Shizuku (키보드 · 마우스)", "이동 · 판매에 PC 와 같은 키(Esc R Enter W A S D E O /)와 마우스(우클릭 Click to Move · Sell All 호버 후 클릭)를 보냄 · 자동 낚시만 쓸 거면 없어도 됨",
+                shzState, shzBtn), Ui.fill(this, 12));
         TextView shzHelp = Ui.text(this, "Shizuku 설정: ① Play 스토어에서 Shizuku 설치 → ② 개발자 옵션 → 무선 디버깅 켜기 → ③ Shizuku 앱에서 '무선 디버깅으로 시작' (페어링 코드 입력) → ④ 여기서 [연결] → 허용. 폰을 재부팅하면 ③ 부터 다시 해야 함",
                 12, Ui.YELLOW, false);
         shzHelp.setOnClickListener(v -> openUrl("https://shizuku.rikka.app/guide/setup/"));
         ready.addView(shzHelp, Ui.fill(this, 6));
-        root.addView(ready, Ui.fill(this, 18));
 
-        // ② 사용법
-        LinearLayout how = Ui.card(this);
-        how.addView(Ui.text(this, "사용법", 15, Ui.FG, true));
-        String[] steps = {
-                "1. 로블록스(Sol's RNG)를 전체 화면 가로로 켜고 낚시 자리로 가서 Fish 버튼이 보이게 하기",
-                "2. 떠 있는 Acrux 창에서 [보정] — Fish 를 한 번 던져 대기 창 · 미니게임 창 · 결과창 위치를 자동으로 맞춤",
-                "3. [시작] — 자동 낚시 · 멈출 때는 [정지]",
-                "4. Acrux 창은 제목(ACRUX)을 끌어서 낚시 창 · 결과창을 가리지 않는 곳으로 옮기기",
-                "5. 이동 · 판매 (Shizuku 필요 · PC 와 같음): ⚙ → 공통 위치 3개 → 낚시 장소 · 판매 장소 지점 추가 → 판매 자동 보정",
-        };
-        for (String s : steps) how.addView(Ui.text(this, s, 13, Ui.MUTED, false), Ui.fill(this, 6));
-        root.addView(how, Ui.fill(this, 12));
-
-        // ③ 상태
-        LinearLayout st = Ui.card(this);
-        st.addView(Ui.text(this, "상태", 15, Ui.FG, true));
+        LinearLayout st = section(pg, "상태");
         runState = Ui.text(this, "", 13, Ui.FG, false);
         st.addView(runState, Ui.fill(this, 8));
         calState = Ui.text(this, "", 13, Ui.MUTED, false);
@@ -140,57 +318,63 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams rp = Ui.wrap();
         rp.topMargin = Ui.dp(this, 10);
         st.addView(reset, rp);
-        root.addView(st, Ui.fill(this, 12));
 
-        // ④ 세부 설정
-        LinearLayout set = Ui.card(this);
-        set.addView(Ui.text(this, "세부 설정", 15, Ui.FG, true));
+        LinearLayout how = section(pg, "사용법");
+        String[] steps = {
+                "1. 로블록스(Sol's RNG)를 전체 화면 가로로 켜고 낚시 자리로 가서 Fish 버튼이 보이게 하기",
+                "2. 떠 있는 Acrux 창에서 [보정] — Fish 를 한 번 던져 대기 창 · 미니게임 창 · 결과창 위치를 자동으로 맞춤",
+                "3. [시작] — 자동 낚시 · 멈출 때는 [정지]",
+                "4. Acrux 창은 어디든 잡고 끌어서 낚시 창 · 결과창을 가리지 않는 곳으로 옮기기",
+                "5. 이동 · 판매 (Shizuku 필요 · PC 와 같음): ⚙ → 공통 위치 3개 → 낚시 장소 · 판매 장소 지점 추가 → 판매 자동 보정",
+        };
+        for (String s : steps) how.addView(Ui.text(this, s, 13, Ui.MUTED, false), Ui.fill(this, 6));
+    }
+
+    // ---------------------------------------------------------------- 낚시
+    void buildFishing(Page pg) {
+        LinearLayout set = section(pg, "세부 설정");
         set.addView(num("입질 최대 대기 (초)", "넘으면 Exit 후 다시 던짐 · 기본 60", Hub.cfg.biteMax, v -> Hub.cfg.biteMax = clamp(v, 5, 600)), Ui.fill(this, 10));
         set.addView(num("누르는 시간 (ms)", "릴링 때 한 번 누르는 시간 · 기본 30", Hub.cfg.clickMs, v -> Hub.cfg.clickMs = (int) clamp(v, 5, 200)), Ui.fill(this, 8));
         set.addView(num("미리 누르기 (ms)", "터치가 늦게 먹히면 이만큼 미리 누름 · 기본 0 · 릴링이 자꾸 실패하면 40 ~ 80", Hub.cfg.leadMs,
                 v -> Hub.cfg.leadMs = clamp(v, 0, 300)), Ui.fill(this, 8));
         set.addView(num("목표 위치 (%)", "구간 왼쪽 끝에서 구간 폭의 몇 % · 기본 0", Hub.cfg.targetPct, v -> Hub.cfg.targetPct = clamp(v, 0, 60)), Ui.fill(this, 8));
-        Switch ad = new Switch(this);
-        ad.setText("터치 지연에 맞춰 기다리기");
-        ad.setTextColor(Ui.FG);
-        ad.setChecked(Hub.cfg.adaptive);
-        ad.setOnCheckedChangeListener((v, on) -> {
-            Hub.cfg.adaptive = on;
-            Hub.save();
-        });
-        set.addView(ad, Ui.fill(this, 10));
+        set.addView(sw("터치 지연에 맞춰 기다리기", Hub.cfg.adaptive, on -> Hub.cfg.adaptive = on), Ui.fill(this, 10));
         set.addView(Ui.text(this, "누른 뒤 반응이 보일 때까지 다시 누르지 않는 시간을 이 폰의 터치 속도에 맞춤", 12, Ui.MUTED, false));
         set.addView(sw("릴링 때 미니게임 창 위쪽을 누름", Hub.cfg.tapAbove, on -> Hub.cfg.tapAbove = on), Ui.fill(this, 10));
         set.addView(Ui.text(this, "모바일은 미니게임 창 바로 아래가 Roll 버튼이라 위쪽 빈 화면(캐릭터 쪽)을 누름 · 끄면 PC 처럼 창 아래", 12, Ui.MUTED, false));
-        root.addView(set, Ui.fill(this, 12));
+    }
 
-        // ⑤ 이동 · 판매 (PC 버전과 같은 설정)
-        LinearLayout mv = Ui.card(this);
-        mv.addView(Ui.text(this, "이동 · 판매", 15, Ui.FG, true));
-        mv.addView(Ui.text(this, "PC 버전과 같음: 시작하면 리셋 → 기준 장소 → Click to Move 로 낚시 장소 · 인벤토리가 가득 차면 판매 장소에서 팔고 돌아옴 · "
-                + "위치 · 지점은 Acrux 창 ⚙ 에서", 12, Ui.MUTED, false), Ui.fill(this, 4));
+    // ---------------------------------------------------------------- 이동 · 판매
+    void buildMove(Page pg) {
+        LinearLayout mv = section(pg, "이동 · 판매");
+        mv.addView(Ui.text(this, "PC 버전과 같음: 시작하면 리셋 → 기준 장소 → Click to Move 로 낚시 장소 · 인벤토리가 가득 차면 판매 장소에서 팔고 돌아옴 · 위치 · 지점은 Acrux 창 ⚙ 에서",
+                12, Ui.MUTED, false), Ui.fill(this, 4));
         mv.addView(sw("시작할 때 낚시 장소로 이동", Hub.useMove, on -> Hub.useMove = on), Ui.fill(this, 8));
         mv.addView(sw("가득 차면 판매하러 가기", Hub.useSell, on -> Hub.useSell = on), Ui.fill(this, 4));
         mv.addView(sw("Click to Move 우클릭 (끄면 좌클릭)", "right".equals(Hub.move.button), on -> Hub.move.button = on ? "right" : "left"), Ui.fill(this, 4));
         mv.addView(sw("카메라 돌리기를 상대 이동으로", Hub.relDrag, on -> Hub.relDrag = on), Ui.fill(this, 4));
         mv.addView(Ui.text(this, "내려다보기가 안 먹히면 켜 보기 (마우스 잠금 상태에서 움직임)", 12, Ui.MUTED, false));
-        mv.addView(Ui.text(this, "기준 장소 (초)", 14, Ui.FG, true), Ui.fill(this, 14));
+
+        LinearLayout base = section(pg, "기준 장소 (초)");
         Mover.Cfg m = Hub.move;
-        mv.addView(num("리셋 후 대기", "기본 3.5", m.resetWait, v -> m.resetWait = clamp(v, 0.5, 30)), Ui.fill(this, 6));
-        mv.addView(num("W", "기본 1", m.wTime, v -> m.wTime = clamp(v, 0, 30)), Ui.fill(this, 6));
-        mv.addView(num("W + A", "기본 7", m.waTime, v -> m.waTime = clamp(v, 0, 30)), Ui.fill(this, 6));
-        mv.addView(num("A", "기본 1", m.aTime, v -> m.aTime = clamp(v, 0, 30)), Ui.fill(this, 6));
-        mv.addView(num("A 끝 W", "A 를 누른 채 마지막에 W · 기본 0.25", m.w2Time, v -> m.w2Time = clamp(v, 0, 10)), Ui.fill(this, 6));
-        mv.addView(num("S + D", "기본 0.25", m.sdTime, v -> m.sdTime = clamp(v, 0, 10)), Ui.fill(this, 6));
-        mv.addView(num("내려다보기 (px)", "우클릭 드래그 거리 · 기본 800", m.tiltPx, v -> m.tiltPx = (int) clamp(v, 0, 3000)), Ui.fill(this, 6));
-        mv.addView(num("O 줌 아웃", "기본 2.5", m.oTime, v -> m.oTime = clamp(v, 0, 10)), Ui.fill(this, 6));
-        mv.addView(num("걷기 여유", "지점마다 잰 시간에 더함 · 기본 0.3", m.margin, v -> m.margin = clamp(v, 0, 5)), Ui.fill(this, 6));
-        mv.addView(num("판매 최대 종류", "한 번에 파는 최대 종류 수 · 기본 100", Hub.sellMax, v -> Hub.sellMax = (int) clamp(v, 1, 500)), Ui.fill(this, 12));
-        mv.addView(num("판매 클릭 추가 대기 (초)", "렉이 있으면 늘림 · 기본 0", Hub.sellDelay, v -> Hub.sellDelay = clamp(v, 0, 5)), Ui.fill(this, 8));
+        base.addView(num("리셋 후 대기", "기본 3.5", m.resetWait, v -> m.resetWait = clamp(v, 0.5, 30)), Ui.fill(this, 8));
+        base.addView(num("W", "기본 1", m.wTime, v -> m.wTime = clamp(v, 0, 30)), Ui.fill(this, 6));
+        base.addView(num("W + A", "기본 7", m.waTime, v -> m.waTime = clamp(v, 0, 30)), Ui.fill(this, 6));
+        base.addView(num("A", "기본 1", m.aTime, v -> m.aTime = clamp(v, 0, 30)), Ui.fill(this, 6));
+        base.addView(num("A 끝 W", "A 를 누른 채 마지막에 W · 기본 0.25", m.w2Time, v -> m.w2Time = clamp(v, 0, 10)), Ui.fill(this, 6));
+        base.addView(num("S + D", "기본 0.25", m.sdTime, v -> m.sdTime = clamp(v, 0, 10)), Ui.fill(this, 6));
+        base.addView(num("내려다보기 (px)", "우클릭 드래그 거리 · 기본 800", m.tiltPx, v -> m.tiltPx = (int) clamp(v, 0, 3000)), Ui.fill(this, 6));
+        base.addView(num("O 줌 아웃", "기본 2.5", m.oTime, v -> m.oTime = clamp(v, 0, 10)), Ui.fill(this, 6));
+        base.addView(num("걷기 여유", "지점마다 잰 시간에 더함 · 기본 0.3", m.margin, v -> m.margin = clamp(v, 0, 5)), Ui.fill(this, 6));
+
+        LinearLayout sell = section(pg, "판매");
+        sell.addView(num("판매 최대 종류", "한 번에 파는 최대 종류 수 · 기본 100", Hub.sellMax, v -> Hub.sellMax = (int) clamp(v, 1, 500)), Ui.fill(this, 8));
+        sell.addView(num("판매 클릭 추가 대기 (초)", "렉이 있으면 늘림 · 기본 0", Hub.sellDelay, v -> Hub.sellDelay = clamp(v, 0, 5)), Ui.fill(this, 8));
+
+        LinearLayout saved = section(pg, "저장된 위치 · 지점");
         posView = Ui.text(this, "", 12, Ui.MUTED, false);
         posView.setTypeface(Typeface.MONOSPACE);
-        mv.addView(Ui.text(this, "저장된 위치 · 지점", 13, Ui.FG, true), Ui.fill(this, 12));
-        mv.addView(posView, Ui.fill(this, 4));
+        saved.addView(posView, Ui.fill(this, 6));
         TextView clearPos = Ui.button(this, "위치 · 지점 모두 지우기", Ui.RED, v -> {
             Hub.pos.clear();
             Hub.fishPts.clear();
@@ -201,19 +385,98 @@ public class MainActivity extends Activity {
         });
         LinearLayout.LayoutParams cp = Ui.wrap();
         cp.topMargin = Ui.dp(this, 8);
-        mv.addView(clearPos, cp);
-        root.addView(mv, Ui.fill(this, 12));
-
-        // ⑥ 기록
-        LinearLayout lg = Ui.card(this);
-        lg.addView(Ui.text(this, "기록", 15, Ui.FG, true));
-        logView = Ui.text(this, "", 12, Ui.MUTED, false);
-        logView.setTypeface(Typeface.MONOSPACE);
-        lg.addView(logView, Ui.fill(this, 8));
-        root.addView(lg, Ui.fill(this, 12));
-        return sv;
+        saved.addView(clearPos, cp);
     }
 
+    // ---------------------------------------------------------------- 기록
+    void buildLog(Page pg) {
+        LinearLayout lg = section(pg, "기록");
+        lg.addView(Ui.text(this, "최근 기록 (최대 300줄)", 12, Ui.MUTED, false));
+        logView = Ui.text(this, "", 12, Ui.MUTED, false);
+        logView.setTypeface(Typeface.MONOSPACE);
+        logView.setTextIsSelectable(true);
+        lg.addView(logView, Ui.fill(this, 8));
+        TextView clear = Ui.button(this, "기록 지우기", Ui.MUTED, v -> Hub.clearLogs());
+        LinearLayout.LayoutParams lp = Ui.wrap();
+        lp.topMargin = Ui.dp(this, 10);
+        lg.addView(clear, lp);
+    }
+
+    // ---------------------------------------------------------------- 설정
+    void buildSettings(Page pg) {
+        LinearLayout lang = section(pg, "언어");
+        lang.addView(Ui.text(this, "앱 언어 · 떠 있는 Acrux 창도 같이 바뀜", 12, Ui.MUTED, false));
+        LinearLayout langs = new LinearLayout(this);
+        langs.setOrientation(LinearLayout.HORIZONTAL);
+        for (int i = 0; i < I18n.CODES.length; i++) {
+            String code = I18n.CODES[i];
+            TextView c = Ui.chip(this, I18n.NAMES[i], v -> {
+                if (!code.equals(I18n.lang())) Hub.setLang(code);
+            });
+            c.setText(I18n.NAMES[i]);                       // 언어 이름은 번역하지 않음
+            Ui.chipOn(this, c, code.equals(I18n.lang()));
+            LinearLayout.LayoutParams lp = Ui.wrap();
+            if (i > 0) lp.leftMargin = Ui.dp(this, 6);
+            langs.addView(c, lp);
+        }
+        lang.addView(langs, Ui.fill(this, 10));
+
+        LinearLayout up = section(pg, "업데이트");
+        updState = Ui.text(this, "", 13, Ui.MUTED, false);
+        updBtn = Ui.button(this, "확인", Ui.ACCENT, v -> {
+            if (Updater.newVer != null) Updater.download(this);
+            else Updater.check(this, false);
+        });
+        up.addView(row("Acrux Mobile V" + version(), I18n.f("지금 V{0} · 새 버전이 나오면 받아서 바로 설치 (설정은 그대로)", version()), updState, updBtn), Ui.fill(this, 8));
+        up.addView(sw("앱을 켤 때 자동으로 업데이트", Hub.autoUpdate, on -> Hub.autoUpdate = on), Ui.fill(this, 8));
+        updNotes = Ui.text(this, "", 12, Ui.MUTED, false);
+        up.addView(updNotes, Ui.fill(this, 4));
+
+        LinearLayout win = section(pg, "조작 창");
+        win.addView(Ui.text(this, "떠 있는 Acrux 창 · 어디든 잡고 끌면 움직임", 12, Ui.MUTED, false));
+        win.addView(Ui.text(this, "조작 창 투명도", 13, Ui.FG, true), Ui.fill(this, 12));
+        SeekBar alpha = new SeekBar(this);
+        alpha.setMax(60);
+        alpha.setProgress(Hub.prefs().getInt("panelAlpha", 90) - 40);
+        alpha.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar s, int v, boolean user) {
+                if (!user) return;
+                Hub.prefs().edit().putInt("panelAlpha", v + 40).apply();
+                TapService t = TapService.instance;
+                if (t != null) t.applyAlpha();
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar s) {}
+
+            @Override
+            public void onStopTrackingTouch(SeekBar s) {}
+        });
+        win.addView(alpha, Ui.fill(this, 4));
+        TextView home = Ui.button(this, "조작 창 위치 되돌리기", Ui.MUTED, v -> {
+            TapService t = TapService.instance;
+            if (t != null) t.resetPanelPos();
+            else Hub.prefs().edit().remove("panelX").remove("panelY").apply();
+            Hub.log("조작 창 위치를 왼쪽 위로 되돌림", 'd');
+        });
+        LinearLayout.LayoutParams hp = Ui.wrap();
+        hp.topMargin = Ui.dp(this, 8);
+        win.addView(home, hp);
+
+        LinearLayout info = section(pg, "정보");
+        info.addView(Ui.text(this, "Acrux Mobile V" + version(), 13, Ui.FG, false), Ui.fill(this, 6));
+        info.addView(Ui.text(this, "Made by 얼로니", 12, Ui.MUTED, false));
+        LinearLayout links = new LinearLayout(this);
+        links.setOrientation(LinearLayout.HORIZONTAL);
+        links.addView(Ui.button(this, "GitHub · 다운로드", Ui.ACCENT, v -> openUrl("https://github.com/XxErone2xX/Acrux-app")));
+        LinearLayout.LayoutParams dl = Ui.wrap();
+        dl.leftMargin = Ui.dp(this, 8);
+        links.addView(Ui.button(this, "후원하기", Ui.YELLOW, v -> openUrl("https://ko-fi.com/RG_Acrux")), dl);
+        info.addView(links, Ui.fill(this, 10));
+    }
+
+    // ---------------------------------------------------------------- 부품
     interface Num {
         void set(double v);
     }
@@ -222,11 +485,9 @@ public class MainActivity extends Activity {
         void set(boolean on);
     }
 
-    TextView posView;
-
     View sw(String title, boolean on, Flag f) {
         Switch s = new Switch(this);
-        s.setText(title);
+        s.setText(Ui.tr(title));
         s.setTextColor(Ui.FG);
         s.setChecked(on);
         s.setOnCheckedChangeListener((v, c) -> {
@@ -245,7 +506,7 @@ public class MainActivity extends Activity {
         e.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
         e.setText(value == Math.rint(value) ? String.valueOf((long) value) : String.valueOf(value));
         e.setTextColor(Ui.FG);
-        e.setBackgroundColor(Ui.FIELD);
+        e.setBackground(new Ui.Deco(this, Ui.FIELD, Ui.LINE, Ui.MUTED, true, 6, 1.5f));
         e.setPadding(Ui.dp(this, 10), Ui.dp(this, 6), Ui.dp(this, 10), Ui.dp(this, 6));
         e.setMinWidth(Ui.dp(this, 80));
         e.setGravity(Gravity.CENTER);
@@ -329,45 +590,53 @@ public class MainActivity extends Activity {
         return a == null ? "없음" : "있음";
     }
 
+    // ---------------------------------------------------------------- 새로 그리기
     void refresh() {
         String us = Updater.status;
-        updState.setText(us.isEmpty() ? "" : us);
+        Ui.set(updState, us);
         updState.setTextColor(Updater.newVer != null ? Ui.YELLOW : us.startsWith("최신") || us.startsWith("업데이트 완료") ? Ui.GREEN : Ui.MUTED);
-        updBtn.setText(Updater.newVer != null ? "업데이트" : "확인");
+        Ui.set(updBtn, Updater.newVer != null ? "업데이트" : "확인");
         updBtn.setEnabled(!Updater.busy);
         updBtn.setAlpha(Updater.busy ? 0.4f : 1f);
         String n = Updater.notes;
-        updNotes.setText(Updater.newVer != null && n != null && !n.isEmpty() ? "V" + Updater.newVer + " 바뀐 점\n" + n : "");
+        updNotes.setText(Updater.newVer != null && n != null && !n.isEmpty() ? I18n.f("V{0} 바뀐 점", Updater.newVer) + "\n" + n : "");
         updNotes.setVisibility(updNotes.getText().length() > 0 ? View.VISIBLE : View.GONE);
+        updBanner.setVisibility(Updater.newVer != null ? View.VISIBLE : View.GONE);
+        if (Updater.newVer != null) Ui.set(updBanner, Updater.busy ? us : I18n.f("새 버전 V{0} 있음", Updater.newVer) + " — " + Ui.tr("업데이트"));
+
         boolean acc = TapService.instance != null, cap = CaptureService.active != null;
-        accState.setText(acc ? "✓ 켜짐" : "꺼짐");
+        Ui.set(accState, acc ? "✓ 켜짐" : "꺼짐");
         accState.setTextColor(acc ? Ui.GREEN : Ui.MUTED);
-        accBtn.setText(acc ? "설정" : "켜기");
-        capState.setText(cap ? "✓ 캡처 중" : "꺼짐");
+        Ui.set(accBtn, acc ? "설정" : "켜기");
+        Ui.set(capState, cap ? "✓ 캡처 중" : "꺼짐");
         capState.setTextColor(cap ? Ui.GREEN : Ui.MUTED);
-        capBtn.setText(cap ? "중지" : "시작");
+        Ui.set(capBtn, cap ? "중지" : "시작");
         boolean shz = ShizukuPc.ready();
-        shzState.setText(shz ? "✓ 연결됨" : ShizukuPc.status());
+        Ui.set(shzState, shz ? "✓ 연결됨" : ShizukuPc.status());
         shzState.setTextColor(shz ? Ui.GREEN : Ui.MUTED);
-        shzBtn.setText(shz ? "다시" : "연결");
+        Ui.set(shzBtn, shz ? "다시" : "연결");
+
         com.acrux.mobile.core.Settings c = Hub.cfg;
-        calState.setText("대기 창: " + pos(c.panelRegion) + "  ·  미니게임 창: " + (c.reelRegion == null ? "없음" : c.reelDerived ? "대기 창으로 계산" : "있음")
+        Ui.set(calState, "대기 창: " + pos(c.panelRegion) + "  ·  미니게임 창: " + (c.reelRegion == null ? "없음" : c.reelDerived ? "대기 창으로 계산" : "있음")
                 + "  ·  결과창: " + pos(c.resultRegion) + (c.ready() ? "" : "\n→ 로블록스에서 [보정]을 해야 함"));
         com.acrux.mobile.core.Fisher f = Hub.fisher;
-        String stats = f == null ? "" : "\n성공 " + f.success + " · 쓰레기 " + f.junk + " · 실패 " + f.fail;
-        String mode = !Hub.running() ? "" : "cal".equals(Hub.mode) ? "자동 보정 중 · " : "sellcal".equals(Hub.mode) ? "판매 보정 중 · "
-                : "sell".equals(Hub.mode) ? "판매 중 · " : "run".equals(Hub.mode) ? "자동 낚시 중 · " : Hub.mode.startsWith("addpt") ? "지점 추가 중 · "
-                : Hub.mode.startsWith("measure") ? "시간 재는 중 · " : "이동 테스트 중 · ";
-        runState.setText(mode + Hub.state + stats);
+        String stats = f == null ? "" : "\n" + I18n.f("성공 {0} · 쓰레기 {1} · 실패 {2}", f.success, f.junk, f.fail);
+        String mode = !Hub.running() ? "" : "cal".equals(Hub.mode) ? "자동 보정 중" : "sellcal".equals(Hub.mode) ? "판매 보정 중"
+                : "sell".equals(Hub.mode) ? "판매 중" : "run".equals(Hub.mode) ? "자동 낚시 중" : Hub.mode.startsWith("addpt") ? "지점 추가 중"
+                : Hub.mode.startsWith("measure") ? "시간 재는 중" : "이동 테스트 중";
+        runState.setText((mode.isEmpty() ? "" : Ui.tr(mode) + " · ") + Ui.tr(Hub.state) + stats);
+
         StringBuilder ps = new StringBuilder();
-        for (String[] k : Mover.BASE_KEYS) line(ps, k[1], Hub.pos.get(k[0]));
-        for (String[] k : Seller.KEYS) line(ps, k[1] + " (판매)", Hub.pos.get(k[0]));
-        points(ps, "낚시 장소", Hub.fishPts);
-        points(ps, "판매 장소", Hub.sellPts);
+        for (String[] k : Mover.BASE_KEYS) line(ps, Ui.tr(k[1]), Hub.pos.get(k[0]));
+        for (String[] k : Seller.KEYS) line(ps, I18n.f("{0} (판매)", Ui.tr(k[1])), Hub.pos.get(k[0]));
+        points(ps, Ui.tr("낚시 장소"), Hub.fishPts);
+        points(ps, Ui.tr("판매 장소"), Hub.sellPts);
         posView.setText(ps.toString().trim());
+
         StringBuilder s = new StringBuilder();
-        for (String l : Hub.recentLogs(40)) s.insert(0, l + "\n");
-        logView.setText(s.length() == 0 ? "아직 기록 없음" : s.toString().trim());
+        for (String l : Hub.recentLogsShown(300)) s.insert(0, l + "\n");
+        if (s.length() == 0) Ui.set(logView, "아직 기록 없음");
+        else logView.setText(s.toString().trim());
     }
 
     static void line(StringBuilder b, String name, double[] v) {
@@ -376,12 +645,12 @@ public class MainActivity extends Activity {
         b.append('\n');
     }
 
-    static void points(StringBuilder b, String name, java.util.List<Mover.Point> pts) {
-        b.append(name).append(" 지점 ").append(pts.size()).append("개").append('\n');
+    static void points(StringBuilder b, String name, List<Mover.Point> pts) {
+        b.append(I18n.f("{0} 지점 {1}개", name, pts.size())).append('\n');
         for (int i = 0; i < pts.size(); i++) {
             Mover.Point p = pts.get(i);
             b.append("  ").append(i + 1).append(".  ").append(p.pos[0]).append(", ").append(p.pos[1])
-                    .append("  ").append(p.time == null ? "시간 없음" : TapService.fmt(p.time) + "초").append('\n');
+                    .append("  ").append(p.time == null ? Ui.tr("시간 없음") : I18n.f("{0}초", TapService.fmt(p.time))).append('\n');
         }
     }
 }

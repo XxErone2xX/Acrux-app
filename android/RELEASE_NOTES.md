@@ -1,3 +1,33 @@
+## Acrux Mobile V0.8.0 업데이트
+- **언어 선택 (PC 와 같음)**: 한국어 · English · 日本語 — 설정 → 언어 · 떠 있는 Acrux 창 · 상태 · 기록도 같이 바뀜
+  - 처음 켜면 폰 언어로 (한국어 · 일본어 · 그 밖엔 영어)
+  - PC 버전 번역 사전을 그대로 씀 (빌드할 때마다 PC 사전에서 다시 가져옴) + 모바일 전용 사전
+- **칸 나누기 (PC 와 같음)**: 홈 · 낚시 · 이동 · 판매 · 기록 · 설정
+  - 위쪽 칸 이름을 누르거나 화면을 좌우로 밀어서 이동 · 마지막에 본 칸을 기억
+  - 묶음이 많은 칸은 위쪽에 바로 가기 (누르면 부드럽게 이동 · 지금 보는 묶음 표시)
+  - 새 버전이 있으면 홈 맨 위에 알림 (누르면 바로 업데이트)
+- **떠 있는 Acrux 창**
+  - 제목 ACRUX MACRO · 다른 버튼처럼 얇은 테두리 + 네 모서리 ㄱ
+  - 어디를 잡고 끌어도 움직임 (짧게 누르면 버튼 · ⚙ 메뉴 안에서 위아래로 밀면 메뉴 스크롤)
+  - 설정 → 조작 창: 투명도 · 위치 되돌리기
+- 설정 → 정보: GitHub · 다운로드 · 후원하기
+- 기록 칸: 최근 300줄 · 글자 선택(복사) · 기록 지우기
+
+## Acrux Mobile V0.8.0 Update
+- **Language selection (same as PC)**: 한국어 · English · 日本語 — Settings → Language · the floating Acrux window, status and log change too
+  - The first launch follows the phone language (Korean · Japanese · otherwise English)
+  - Uses the PC version's translation dictionary as is (pulled from the PC dictionary on every build) + a mobile dictionary
+- **Tabs (same as PC)**: Home · Fishing · Movement · Selling · Log · Settings
+  - Tap a tab name at the top or swipe left/right · the last tab is remembered
+  - Tabs with many groups get a jump bar at the top (smooth scroll · shows the current group)
+  - When a new version is available, a notice appears at the top of Home (tap to update)
+- **Floating Acrux window**
+  - Title ACRUX MACRO · thin border with ㄱ corners like the other buttons
+  - Drag it from anywhere (a short tap still presses a button · swiping up/down inside the ⚙ menu scrolls the menu)
+  - Settings → Control window: opacity · reset position
+- Settings → About: GitHub · Download · Support me
+- Log tab: last 300 lines · selectable text (copy) · clear log
+
 ## Acrux Mobile V0.7.0 업데이트
 - **자동 업데이트**: 앱을 켜면 GitHub 에서 새 버전을 확인 → 있으면 받아서 바로 설치 화면을 띄움 (설정 · 위치는 그대로)
   - 앱 맨 위 '업데이트' 칸: 지금 버전 · 새 버전 · 바뀐 점 · [확인] / [업데이트] · '앱을 켤 때 자동으로 업데이트' 끄고 켜기

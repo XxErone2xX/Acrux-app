@@ -57,7 +57,7 @@ public class CaptureService extends Service implements Fisher.Screen {
         PendingIntent open = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
         Notification n = new Notification.Builder(this, CHANNEL)
                 .setContentTitle("Acrux Mobile")
-                .setContentText("화면 캡처 중 · 자동 낚시 준비됨")
+                .setContentText(com.acrux.mobile.core.I18n.t("화면 캡처 중 · 자동 낚시 준비됨"))
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentIntent(open)
                 .setOngoing(true)

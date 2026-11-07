@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ["android/**", ".github/workflows/android.yml"]
+    paths: ["android/**", "src/web/i18n.js", ".github/workflows/android.yml"]
 
 permissions:
   contents: write
@@ -24,6 +24,9 @@ jobs:
         run: |
           set -o pipefail
           export JAVA_HOME="$JAVA_HOME_17_X64"
+          # 번역 사전: PC 사전(src/web/i18n.js)에서 다시 뽑음 + 모바일 사전
+          python3 android/tools/export_pc_i18n.py
+          python3 android/tools/mobile_i18n.py
           # 서명 키: 비밀값이 있으면 그걸로 (없으면 레포의 android/app/acrux-release.jks)
           if [ -n "${{ secrets.ACRUX_KEYSTORE_B64 }}" ]; then
             echo "${{ secrets.ACRUX_KEYSTORE_B64 }}" | base64 -d > /tmp/acrux.jks

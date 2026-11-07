@@ -2,6 +2,7 @@ package com.acrux.mobile;
 
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.GestureDescription;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Path;
 import android.graphics.PixelFormat;
@@ -108,13 +109,15 @@ public class TapService extends AccessibilityService {
     void showPanel() {
         if (panel != null) return;
         wm = (WindowManager) getSystemService(WINDOW_SERVICE);
-        panel = new LinearLayout(this);
+        panel = new DragPanel(this);
         panel.setOrientation(LinearLayout.VERTICAL);
-        int pad = Ui.dp(this, 8);
+        int pad = Ui.dp(this, 10);
         panel.setPadding(pad, pad, pad, pad);
-        panel.setBackground(new Ui.Deco(this, 0xE62B2D31, Ui.LINE, Ui.WHITE, false));
+        // 다른 버튼들처럼 얇은 테두리 + 네 모서리 ㄱ
+        panel.setBackground(new Ui.Deco(this, 0xF02B2D31, Ui.LINE, Ui.WHITE, true, 9, 2));
 
-        TextView title = Ui.text(this, "ACRUX  ✥", 12, Ui.FG, true);
+        TextView title = Ui.text(this, "ACRUX MACRO", 12, Ui.FG, true);
+        title.setLetterSpacing(0.12f);
         title.setPadding(0, 0, 0, Ui.dp(this, 2));
         status = Ui.text(this, "대기", 11, Ui.MUTED, false);
         status.setMaxWidth(Ui.dp(this, 170));
@@ -148,32 +151,7 @@ public class TapService extends AccessibilityService {
         lp.gravity = Gravity.TOP | Gravity.START;
         lp.x = Hub.prefs().getInt("panelX", Ui.dp(this, 12));
         lp.y = Hub.prefs().getInt("panelY", Ui.dp(this, 12));
-        title.setOnTouchListener(new View.OnTouchListener() {
-            float sx, sy;
-            int ox, oy;
-
-            @Override
-            public boolean onTouch(View v, MotionEvent e) {
-                switch (e.getActionMasked()) {
-                    case MotionEvent.ACTION_DOWN:
-                        sx = e.getRawX();
-                        sy = e.getRawY();
-                        ox = lp.x;
-                        oy = lp.y;
-                        return true;
-                    case MotionEvent.ACTION_MOVE:
-                        lp.x = ox + Math.round(e.getRawX() - sx);
-                        lp.y = oy + Math.round(e.getRawY() - sy);
-                        wm.updateViewLayout(panel, lp);
-                        return true;
-                    case MotionEvent.ACTION_UP:
-                        Hub.prefs().edit().putInt("panelX", lp.x).putInt("panelY", lp.y).apply();
-                        return true;
-                    default:
-                        return false;
-                }
-            }
-        });
+        applyAlphaTo();
         try {
             wm.addView(panel, lp);
         } catch (RuntimeException e) {
@@ -181,6 +159,114 @@ public class TapService extends AccessibilityService {
             panel = null;
         }
         refresh();
+    }
+
+    /** 어디를 잡고 끌어도 창이 움직임 (짧게 누르면 그대로 버튼 · ⚙ 메뉴 안에서 위아래로 밀면 메뉴 스크롤) */
+    final class DragPanel extends LinearLayout {
+        final int slop = android.view.ViewConfiguration.get(getContext()).getScaledTouchSlop();
+        float sx, sy;
+        int ox, oy;
+        boolean dragging, inMenu;
+
+        DragPanel(Context c) {
+            super(c);
+        }
+
+        void begin(MotionEvent e) {
+            sx = e.getRawX();
+            sy = e.getRawY();
+            ox = lp.x;
+            oy = lp.y;
+            dragging = false;
+            View m = menu != null ? (View) menu.getTag() : null;
+            inMenu = false;
+            if (m != null) {
+                int[] at = new int[2];
+                m.getLocationOnScreen(at);
+                inMenu = sx >= at[0] && sx <= at[0] + m.getWidth() && sy >= at[1] && sy <= at[1] + m.getHeight();
+            }
+        }
+
+        boolean far(MotionEvent e) {
+            float dx = e.getRawX() - sx, dy = e.getRawY() - sy;
+            if (Math.hypot(dx, dy) <= slop) return false;
+            return !inMenu || Math.abs(dx) > Math.abs(dy) * 1.5f;
+        }
+
+        void move(MotionEvent e) {
+            lp.x = ox + Math.round(e.getRawX() - sx);
+            lp.y = oy + Math.round(e.getRawY() - sy);
+            try {
+                wm.updateViewLayout(this, lp);
+            } catch (RuntimeException ignored) {
+            }
+        }
+
+        @Override
+        public boolean onInterceptTouchEvent(MotionEvent e) {
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    begin(e);
+                    return false;
+                case MotionEvent.ACTION_MOVE:
+                    if (!dragging && far(e)) dragging = true;
+                    return dragging;
+                default:
+                    return dragging;
+            }
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent e) {
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    begin(e);
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    if (!dragging && far(e)) dragging = true;
+                    if (dragging) move(e);
+                    return true;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    if (dragging) Hub.prefs().edit().putInt("panelX", lp.x).putInt("panelY", lp.y).apply();
+                    dragging = false;
+                    return true;
+                default:
+                    return true;
+            }
+        }
+    }
+
+    /** 언어를 바꿨을 때: 창을 지금 언어로 다시 만듦 (자리는 그대로) */
+    void rebuildPanel() {
+        Hub.main.post(() -> {
+            if (panel == null) return;
+            closeMenu();
+            removeView(panel);
+            panel = null;
+            showPanel();
+        });
+    }
+
+    void resetPanelPos() {
+        Hub.prefs().edit().putInt("panelX", Ui.dp(this, 12)).putInt("panelY", Ui.dp(this, 12)).apply();
+        Hub.main.post(() -> {
+            if (panel == null || lp == null) return;
+            lp.x = Ui.dp(this, 12);
+            lp.y = Ui.dp(this, 12);
+            try {
+                wm.updateViewLayout(panel, lp);
+            } catch (RuntimeException ignored) {
+            }
+        });
+    }
+
+    void applyAlpha() {
+        Hub.main.post(this::applyAlphaTo);
+    }
+
+    void applyAlphaTo() {
+        if (panel != null) panel.setAlpha(Hub.prefs().getInt("panelAlpha", 90) / 100f);
     }
 
     LinearLayout.LayoutParams gap() {
@@ -351,9 +437,9 @@ public class TapService extends AccessibilityService {
         if (panel == null) return;
         boolean run = Hub.running();
         String mode = Hub.mode;
-        status.setText(CaptureService.active == null ? "화면 캡처 꺼짐 · 앱에서 시작" : Hub.state);
-        calBtn.setText(run && "cal".equals(mode) ? "취소" : "보정");
-        runBtn.setText(run && !"cal".equals(mode) ? "정지" : "시작");
+        Ui.set(status, CaptureService.active == null ? "화면 캡처 꺼짐 · 앱에서 시작" : Hub.state);
+        Ui.set(calBtn, run && "cal".equals(mode) ? "취소" : "보정");
+        Ui.set(runBtn, run && !"cal".equals(mode) ? "정지" : "시작");
         calBtn.setEnabled(!run || "cal".equals(mode));
         runBtn.setEnabled(!run || !"cal".equals(mode));
         calBtn.setAlpha(calBtn.isEnabled() ? 1f : 0.4f);
