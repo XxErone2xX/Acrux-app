@@ -35,7 +35,7 @@ jobs:
           curl -sSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
           unzip -q /tmp/gradle.zip -d /tmp
           cd android
-          /tmp/gradle-8.10.2/bin/gradle --no-daemon --stacktrace assembleDebug 2>&1 | tee ../build.log
+          /tmp/gradle-8.10.2/bin/gradle --no-daemon --stacktrace assembleDebug lintDebug 2>&1 | tee ../build.log
 
       - name: Publish APK
         shell: bash

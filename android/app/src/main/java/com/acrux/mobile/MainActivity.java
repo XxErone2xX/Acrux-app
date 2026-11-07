@@ -315,6 +315,14 @@ public class MainActivity extends Activity {
         });
         updBanner.setVisibility(View.GONE);
         pg.body.addView(updBanner, Ui.fill(this, 0));
+        // 지난번에 앱이 꺼졌으면 (크래시 기록이 있으면) 알림 → 기록 칸
+        if (Crash.read() != null) {
+            TextView cb = Ui.text(this, "지난번에 앱이 꺼짐 — 기록 칸의 크래시 기록을 복사해서 보내 주세요", 13, Ui.RED, true);
+            cb.setPadding(Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 14), Ui.dp(this, 10));
+            cb.setBackground(new Ui.Deco(this, 0x29F23F43, Ui.RED, 0, true, 0, 0));
+            cb.setOnClickListener(v -> show(3, true));
+            pg.body.addView(cb, Ui.fill(this, 8));
+        }
         pg.body.addView(new View(this), new LinearLayout.LayoutParams(1, Ui.dp(this, 8)));
 
         LinearLayout ready = section(pg, "준비");
@@ -471,6 +479,33 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams lp = Ui.wrap();
         lp.topMargin = Ui.dp(this, 10);
         lg.addView(clear, lp);
+
+        // 크래시 기록 (앱이 꺼졌을 때 남은 오류 내용 · 기종 · 안드로이드 버전) — 복사해서 보내면 원인을 바로 앎
+        String crash = Crash.read();
+        if (crash != null) {
+            LinearLayout cr = section(pg, "크래시 기록");
+            cr.addView(Ui.text(this, "지난번에 앱이 꺼진 이유 · 기종 · 안드로이드 버전 (개인 정보 없음)", 12, Ui.MUTED, false));
+            TextView ct = Ui.text(this, "", 11, Ui.RED, false);
+            ct.setText(crash);
+            ct.setTypeface(Typeface.MONOSPACE);
+            ct.setTextIsSelectable(true);
+            cr.addView(ct, Ui.fill(this, 8));
+            LinearLayout cb = new LinearLayout(this);
+            cb.setOrientation(LinearLayout.HORIZONTAL);
+            cb.addView(Ui.button(this, "복사", Ui.ACCENT, v -> {
+                android.content.ClipboardManager cm = getSystemService(android.content.ClipboardManager.class);
+                if (cm != null) cm.setPrimaryClip(android.content.ClipData.newPlainText("Acrux crash", crash));
+                Hub.log("크래시 기록 복사됨", 'g');
+            }));
+            LinearLayout.LayoutParams dl = Ui.wrap();
+            dl.leftMargin = Ui.dp(this, 8);
+            cb.addView(Ui.button(this, "지우기", Ui.MUTED, v -> {
+                Crash.clear();
+                Hub.log("크래시 기록 지움", 'd');
+                recreate();
+            }), dl);
+            cr.addView(cb, Ui.fill(this, 10));
+        }
     }
 
     // ---------------------------------------------------------------- 설정

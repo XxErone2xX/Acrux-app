@@ -10,8 +10,8 @@ android {
         applicationId "com.acrux.mobile"
         minSdk 26
         targetSdk 35
-        versionCode 19
-        versionName "0.8.6"
+        versionCode 20
+        versionName "0.8.7"
         // 폰은 ARM 만 (x86 은 에뮬레이터용 · 글자 읽기 라이브러리가 커서 빼면 APK 가 절반)
         ndk {
             abiFilters "arm64-v8a", "armeabi-v7a"
@@ -56,9 +56,12 @@ android {
         }
     }
 
+    // 빌드할 때 '옛날 안드로이드에 없는 기능' 검사 (minSdk 26 = 안드로이드 8) — 있으면 빌드 실패 (특정 기종 크래시 방지)
     lint {
-        abortOnError false
+        checkOnly "NewApi"
+        abortOnError true
         checkReleaseBuilds false
+        checkDependencies false
     }
 }
 

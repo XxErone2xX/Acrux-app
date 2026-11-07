@@ -260,6 +260,12 @@ final class Hub {
                 log("멈춤", 'd');
             } catch (RuntimeException e) {
                 log("오류: " + e.getMessage(), 'r');
+            } catch (OutOfMemoryError e) {
+                log("메모리 부족 — 멈춤 (다른 앱을 닫고 다시 시작)", 'r');
+                System.gc();
+            } catch (Throwable e) {
+                log("오류: " + e, 'r');
+                Crash.save(e, "worker");
             } finally {
                 if (mv != null) mv.releaseKeys();
                 measuring = false;

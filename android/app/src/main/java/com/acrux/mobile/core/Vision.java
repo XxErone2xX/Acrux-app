@@ -163,16 +163,16 @@ public final class Vision {
     }
 
     // ---------------------------------------------------------------- 자동 보정 (흰 꺾쇠 창 테두리)
-    /** 각 칸에서 한 방향으로 이어진 true 칸 수 · horiz: 가로(x) 방향 · reverse: 오른쪽/아래에서부터 */
-    static int[] runs(boolean[] m, int w, int h, boolean horiz, boolean reverse) {
-        int[] out = new int[w * h];
+    /** 각 칸에서 한 방향으로 이어진 true 칸 수 (127 에서 멈춤 — 꺾쇠 팔 길이와만 비교하니까 · 메모리가 int 의 1/4) · horiz: 가로(x) 방향 · reverse: 오른쪽/아래에서부터 */
+    static byte[] runs(boolean[] m, int w, int h, boolean horiz, boolean reverse) {
+        byte[] out = new byte[w * h];
         if (horiz) {
             for (int y = 0; y < h; y++) {
                 int prev = 0;
                 for (int j = 0; j < w; j++) {
                     int x = reverse ? w - 1 - j : j, k = y * w + x;
-                    prev = m[k] ? prev + 1 : 0;
-                    out[k] = prev;
+                    prev = m[k] ? Math.min(127, prev + 1) : 0;
+                    out[k] = (byte) prev;
                 }
             }
         } else {
@@ -180,8 +180,8 @@ public final class Vision {
                 int prev = 0;
                 for (int j = 0; j < h; j++) {
                     int y = reverse ? h - 1 - j : j, k = y * w + x;
-                    prev = m[k] ? prev + 1 : 0;
-                    out[k] = prev;
+                    prev = m[k] ? Math.min(127, prev + 1) : 0;
+                    out[k] = (byte) prev;
                 }
             }
         }
@@ -233,9 +233,9 @@ public final class Vision {
                         || at(white0, W, H, x - 1, y) || at(white0, W, H, x + 1, y);
             }
         }
-        int arm = Math.max(6, (int) (W * 0.004));
-        int[] r = runs(white, W, H, true, true), l = runs(white, W, H, true, false);
-        int[] d = runs(white, W, H, false, true), u = runs(white, W, H, false, false);
+        int arm = Math.min(127, Math.max(6, (int) (W * 0.004)));
+        byte[] r = runs(white, W, H, true, true), l = runs(white, W, H, true, false);
+        byte[] d = runs(white, W, H, false, true), u = runs(white, W, H, false, false);
         List<int[]> tl = new ArrayList<>(), br = new ArrayList<>();
         boolean[] tr = new boolean[N], bl = new boolean[N];
         for (int y = 0; y < H; y++) {

@@ -86,7 +86,7 @@ final class Online {
                     pingEvery = Math.min(3600, Math.max(60, r.optInt("next", 300))) * 1000L;
                 }
                 count = call("/count", null).getInt("online");
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 count = null;
             }
             Hub.changed();

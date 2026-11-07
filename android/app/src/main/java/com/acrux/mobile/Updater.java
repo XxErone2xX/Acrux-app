@@ -72,8 +72,13 @@ final class Updater {
 
     static String text(String url) throws Exception {
         HttpURLConnection h = open(url);
+        // InputStream.readAllBytes() 는 안드로이드 13 이상에만 있음 (8 ~ 12 에선 앱이 꺼졌음) → 직접 읽음
         try (InputStream in = h.getInputStream()) {
-            return new String(in.readAllBytes(), "UTF-8");
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[1 << 14];
+            int n;
+            while ((n = in.read(buf)) > 0 && out.size() < (4 << 20)) out.write(buf, 0, n);
+            return out.toString("UTF-8");
         } finally {
             h.disconnect();
         }
@@ -127,7 +132,7 @@ final class Updater {
                     newVer = null;
                     set("최신 버전 (V" + cur + ")");
                 }
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 set("업데이트 확인 실패 (인터넷 연결 확인): " + e.getClass().getSimpleName());
             } finally {
                 busy = false;
@@ -190,7 +195,7 @@ final class Updater {
                     return;
                 }
                 install(c, f);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 set("받기 실패: " + e.getClass().getSimpleName() + " — 다시 [업데이트]");
             } finally {
                 busy = false;

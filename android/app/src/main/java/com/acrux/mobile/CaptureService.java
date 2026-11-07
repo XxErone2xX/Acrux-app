@@ -162,13 +162,24 @@ public class CaptureService extends Service implements Fisher.Screen {
         int x0 = Math.max(0, x), y0 = Math.max(0, y), x1 = Math.min(iw, x + gw), y1 = Math.min(ih, y + gh);
         Img out = new Img(Math.max(0, x1 - x0), Math.max(0, y1 - y0));
         if (out.w == 0 || out.h == 0) return out;
-        Image.Plane p = cur.getPlanes()[0];
-        ByteBuffer buf = p.getBuffer().duplicate();
-        int rs = p.getRowStride(), ps = p.getPixelStride();
+        Image.Plane p;
+        ByteBuffer buf;
+        try {
+            p = cur.getPlanes()[0];
+            buf = p.getBuffer().duplicate();
+        } catch (RuntimeException e) {               // 화면이 바뀌는 순간 닫힌 이미지
+            cur = null;
+            return null;
+        }
+        int rs = p.getRowStride(), ps = Math.max(4, p.getPixelStride()), lim = buf.limit();
         byte[] row = new byte[out.w * ps];
         for (int yy = 0; yy < out.h; yy++) {
-            buf.position((y0 + yy) * rs + x0 * ps);
-            buf.get(row, 0, Math.min(row.length, buf.remaining()));
+            int at = (y0 + yy) * rs + x0 * ps;
+            if (at < 0 || at >= lim) break;              // 기종에 따라 버퍼가 화면보다 짧을 때
+            buf.position(at);
+            int n = Math.min(row.length, lim - at);
+            buf.get(row, 0, n);
+            if (n < row.length) java.util.Arrays.fill(row, n, row.length, (byte) 0);
             int k = yy * out.w;
             for (int xx = 0, o = 0; xx < out.w; xx++, o += ps, k++) {
                 out.r[k] = row[o] & 255;

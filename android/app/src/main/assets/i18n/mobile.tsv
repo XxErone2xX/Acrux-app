@@ -145,6 +145,14 @@ UI 켬 — 떠 있는 Acrux 창 보임	UI on — the floating Acrux window is sh
 UI 끔 — 떠 있는 Acrux 창 숨김	UI off — the floating Acrux window is hidden	UI オフ — 浮いている Acrux ウィンドウを非表示
 매크로를 안 돌릴 때 떠 있는 창을 통째로 끔 · 앱 맨 위 버튼과 같음 · 끄면 돌던 매크로도 멈춤	Turns the whole floating window off when you are not running the macro · same as the button at the top of the app · turning it off also stops a running macro	マクロを動かさないときに浮いているウィンドウを丸ごとオフ · アプリ上部のボタンと同じ · オフにすると動いているマクロも停止
 후원하기	Support me	支援する
+지난번에 앱이 꺼짐 — 기록 칸의 크래시 기록을 복사해서 보내 주세요	The app closed last time — copy the crash log in the Log tab and send it	前回アプリが終了した — ログタブのクラッシュログをコピーして送ってください
+크래시 기록	Crash log	クラッシュログ
+지난번에 앱이 꺼진 이유 · 기종 · 안드로이드 버전 (개인 정보 없음)	Why the app closed last time · device · Android version (no personal info)	前回アプリが終了した理由・機種・Android バージョン (個人情報なし)
+복사	Copy	コピー
+지우기	Delete	削除
+크래시 기록 복사됨	Crash log copied	クラッシュログをコピーした
+크래시 기록 지움	Crash log deleted	クラッシュログを削除した
+메모리 부족 — 멈춤 (다른 앱을 닫고 다시 시작)	Out of memory — stopped (close other apps and start again)	メモリ不足 — 停止 (他のアプリを閉じて再開)
 GitHub · 다운로드	GitHub · Download	GitHub・ダウンロード
 기록 지우기	Clear log	ログを消す
 최근 기록 (최대 300줄)	Recent log (up to 300 lines)	最近のログ (最大 300 行)

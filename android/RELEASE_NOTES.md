@@ -1,3 +1,21 @@
+## Acrux Mobile V0.8.7 업데이트
+- **안드로이드 8 ~ 12 기종에서 앱이 꺼지던 문제 수정**
+  - V0.7.0 의 자동 업데이트가 안드로이드 13 이상에만 있는 기능을 써서, 그 아래 버전은 앱을 켜고 업데이트를 확인하는 순간 꺼졌음
+  - 빌드할 때마다 '옛날 안드로이드에 없는 기능'을 자동으로 검사 (있으면 빌드가 멈춤 → 다시는 안 섞이게)
+- **메모리가 작은 기종에서 꺼지던 문제 줄임**: 창 찾기에 쓰는 메모리를 크게 줄임 · 앱이 쓸 수 있는 메모리를 늘림 · 메모리가 모자라면 꺼지지 않고 멈춤 + 기록
+- 화면 캡처 이미지가 기종마다 다르게 생겨도 (줄 끝 여백 · 짧은 버퍼) 안 꺼짐
+- 업데이트 확인 · 사용자 수 · 매크로 작업에서 나는 모든 오류를 잡아서 기록 (앱이 통째로 꺼지지 않게)
+- **크래시 기록**: 그래도 앱이 꺼지면 다음에 켰을 때 홈에 알림 → 기록 칸에서 [복사] 해서 보내면 원인을 바로 앎 (기종 · 안드로이드 버전 · 오류 내용 · 개인 정보 없음)
+
+## Acrux Mobile V0.8.7 Update
+- **Fixed the app closing on Android 8 to 12 devices**
+  - The auto updater from V0.7.0 used a feature that only exists on Android 13+, so lower versions closed as soon as the app checked for updates
+  - Every build now checks automatically for features missing on older Android (the build stops if any are found → they cannot slip in again)
+- **Fewer closes on low-memory devices**: window search uses much less memory · the app may use more memory · when memory runs out it stops and logs instead of closing
+- No close when screen capture images differ per device (row padding · short buffers)
+- All errors in the update check, user count and macro work are caught and logged (the whole app no longer closes)
+- **Crash log**: if the app still closes, Home shows a notice on the next launch → [Copy] it in the Log tab and send it to find the cause right away (device · Android version · error · no personal info)
+
 ## Acrux Mobile V0.8.6 업데이트
 - **낚시 통계가 사라지던 문제 수정**
   - 통계가 '지금 낚시 중인 것'에만 있어서 [보정] · 판매 · 이동 · 키 테스트를 하거나 앱을 다시 켜면 0 으로 돌아갔음
