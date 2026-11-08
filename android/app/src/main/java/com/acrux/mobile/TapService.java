@@ -419,7 +419,7 @@ public class TapService extends AccessibilityService {
             ShizukuPc.connect();
         }));
         menu.addView(item("키 테스트 (W 를 1초 누름 → 캐릭터가 앞으로 가면 성공)", v -> toggle("keytest")));
-        menu.addView(head("공통 위치 (기준 장소 맞추기)"));
+        if (Mover.BASE_KEYS.length > 0) menu.addView(head("공통 위치 (기준 장소 맞추기)"));
         for (String[] k : Mover.BASE_KEYS) {
             menu.addView(item((Hub.pos.containsKey(k[0]) ? "✓ " : "· ") + k[1], v -> pickSave(k[0], k[1])));
         }

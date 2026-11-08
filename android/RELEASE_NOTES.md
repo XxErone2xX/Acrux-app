@@ -1,3 +1,27 @@
+## Acrux Mobile V0.9.6 업데이트
+- **채팅 · 도감 열고 닫기(카메라 정렬)를 뺌**
+  - 기준 장소로 갈 때 이제 리셋 → 걷기 → 내려다보기만 함
+  - 공통 위치 3개(채팅 버튼 · 도감 버튼 · 도감 Exit)를 지정하지 않아도 됨
+- **리셋 (Esc → R → Enter) 이 실제 실행에서 씹히던 것 고침**
+  - 키를 너무 짧게(0.04초) 눌러서 느린 기기에선 게임이 못 받을 때가 있었음
+  - 이제 키마다 0.12초 누르고 0.8초 간격으로 보냄
+  - 다른 키(E 등)도 0.08초 누름
+  - 떠 있는 창에 지금 누르는 키(ESC · R · ENTER)가 보임
+- **시작하면 1초 기다린 뒤 움직임**
+  - [시작]을 누른 손가락이 떨어지고 게임 화면으로 돌아온 뒤에 키 · 클릭을 보냄
+
+## Acrux Mobile V0.9.6 Update
+- **Removed the chat / collection open-close step (camera align)**
+  - Going to the base spot is now just reset → walk → look down
+  - The 3 common positions (chat button · collection button · collection Exit) are no longer needed
+- **Fixed the reset (Esc → R → Enter) being missed in real runs**
+  - Keys were pressed too briefly (0.04 s), so slow devices sometimes missed them
+  - Each key is now held 0.12 s, with 0.8 s between keys
+  - Other keys (E etc.) are held 0.08 s
+  - The floating window shows the key being pressed (ESC · R · ENTER)
+- **Waits 1 second after starting before moving**
+  - Keys and clicks are sent only after the finger that pressed [Start] is lifted and the game is back in front
+
 ## Acrux Mobile V0.9.5 업데이트
 - 기준 장소로 갈 때 리셋 (Esc → R → Enter) 을 건너뛰던 경우 수정
   - '방금 리셋함 — 리셋 건너뜀' 상태가 실행이 끝나도 남아서, 그 사이 손으로 움직인 뒤 다시 실행하면 리셋 없이 엉뚱한 곳에서 걷기 시작했음

@@ -28,7 +28,7 @@ public interface Pc {
 
     default void keyTap(String key) {
         keyDown(key);
-        nap(40);
+        nap(80);                 // 느린 기기(30fps 이하)에서도 한 프레임 넘게 눌려 있게
         keyUp(key);
     }
 

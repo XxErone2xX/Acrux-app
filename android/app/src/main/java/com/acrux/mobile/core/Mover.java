@@ -8,7 +8,7 @@ import java.util.Map;
  * 이동 — PC 버전 move.py 를 그대로 옮김 (낚시 · 판매에 쓰는 부분)
  * 기준 장소에서 화면의 한 점을 눌러(Click to Move · 우클릭) 원하는 장소로 걸어감
  * 외부 앱이라 게임 안 좌표를 모르므로, 매번 '같은 화면'을 만든 뒤 그 화면의 같은 점을 누름:
- *   1. 기준 장소: 리셋(Esc → R → Enter) → / · 채팅 · 도감 열고 닫기 · / · Enter (카메라 정렬)
+ *   1. 기준 장소: 리셋(Esc → R → Enter · 키마다 0.12초 누름 · 0.8초 간격) — 리셋하면 카메라가 캐릭터 뒤로 맞춰짐
  *      → W 1초 → W+A 7초 → A 1초 (0.75초 뒤부터 W 0.25초 같이) → S+D 0.25초 → 우클릭 드래그(위에서 내려다보기) + O 2.5초 (최대 줌)
  *   2. 장소마다 지점 목록: [누를 곳, 걸리는 시간] — 지점이 여러 개면 앞 지점에 도착한 화면에서 다음 지점을 누름
  *   3. 걸리는 시간은 직접 잼: 누른 순간부터 [도착]을 누를 때까지
@@ -37,7 +37,11 @@ public final class Mover {
         }
     }
 
-    public static final String[][] BASE_KEYS = {{"chat_pos", "채팅 버튼"}, {"collection_pos", "도감 버튼"}, {"collection_close", "도감 Exit"}};
+    /** 공통 위치 — V0.9.6 부터 없음 (채팅 · 도감 열고 닫기를 뺌) */
+    public static final String[][] BASE_KEYS = {};
+    /** 리셋 키: 누르고 있는 시간 (ms) · 키 사이 간격 (초) — 느린 기기에서 프레임 사이에 눌렀다 떼서 씹히지 않게 */
+    static final int RESET_HOLD_MS = 120;
+    static final double RESET_GAP = 0.8;
     public static final String[] MOVE_KEYS = {"w", "a", "s", "d", "o", "space", "shift", "e"};
     public static final double MEASURE_MAX = 180.0;
     /** 방금 리셋하고 안 움직였음 (PC macro.reset_fresh · 리셋 쿨타임 때문에 또 리셋하지 않음) */
@@ -217,24 +221,6 @@ public final class Mover {
         }
     }
 
-    /** / → 채팅 버튼 → 도감 버튼 → 도감 Exit → / → Enter (각 0.5초) — 도감을 열고 닫으면 카메라가 캐릭터 뒤로 맞춰짐 */
-    public void alignCamera() {
-        String m = baseMissing();
-        if (m != null) throw new RuntimeException(m);
-        pc.keyTap("/");
-        sleep(0.5);
-        click(base.get("chat_pos"));
-        sleep(0.5);
-        click(base.get("collection_pos"));
-        sleep(0.5);
-        click(base.get("collection_close"));
-        sleep(0.5);
-        pc.keyTap("/");
-        sleep(0.5);
-        pc.keyTap("enter");
-        sleep(0.3);
-    }
-
     void reset() {
         releaseKeys();
         sleep(0.2);
@@ -243,21 +229,21 @@ public final class Mover {
             return;
         }
         for (String k : new String[]{"esc", "r", "enter"}) {
-            pc.keyTap(k);
-            sleep(0.5);
+            out.state("기준 장소로 이동 · 리셋 (" + k.toUpperCase() + ")");
+            pc.keyDown(k);
+            sleep(RESET_HOLD_MS / 1000.0);
+            pc.keyUp(k);
+            sleep(RESET_GAP);
         }
+        out.log("리셋 키 보냄 (Esc → R → Enter)", 'd');
         resetFresh = true;
-        sleep(Math.max(0, cfg.resetWait - 0.5));
+        sleep(Math.max(0, cfg.resetWait - RESET_GAP));
     }
 
-    /** Esc → R → Enter → 3.5초 → 카메라 정렬 → W 1초 → W+A 7초 → A 1초 (끝 0.25초 W 같이) → S+D 0.25초 → 0.5초 → 내려다보기 + 최대 줌 */
+    /** Esc → R → Enter → 3.5초 → W 1초 → W+A 7초 → A 1초 (끝 0.25초 W 같이) → S+D 0.25초 → 0.5초 → 내려다보기 + 최대 줌 */
     public void goBase() {
-        String m = baseMissing();
-        if (m != null) throw new RuntimeException(m);
         out.state("기준 장소로 이동 · 리셋");
         reset();
-        out.state("기준 장소로 이동 · 카메라 정렬 (채팅 · 도감)");
-        alignCamera();
         out.state("기준 장소로 이동 · 걷기 (W → W+A → A → W → S+D)");
         hold(new String[]{"w"}, cfg.wTime);
         hold(new String[]{"w", "a"}, cfg.waTime);

@@ -267,6 +267,14 @@ final class Hub {
         worker = new Thread(() -> {
             Process.setThreadPriority(Process.THREAD_PRIORITY_DISPLAY);
             try {
+                // 시작하고 1초 기다림 — [시작]을 누른 손가락이 떨어지고 게임 화면으로 돌아온 뒤에 키 · 클릭을 보냄
+                state = "1초 뒤 시작";
+                changed();
+                long t0 = System.nanoTime();
+                while (System.nanoTime() - t0 < 1_000_000_000L) {
+                    CHECK.run();
+                    Pc.nap(20);
+                }
                 if (m.equals("keytest")) keyTest(pc);
                 else work(m, f, mv, sl);
             } catch (Fisher.Stopped e) {
