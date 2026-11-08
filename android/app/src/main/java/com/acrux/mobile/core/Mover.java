@@ -8,7 +8,7 @@ import java.util.Map;
  * 이동 — PC 버전 move.py 를 그대로 옮김 (낚시 · 판매에 쓰는 부분)
  * 기준 장소에서 화면의 한 점을 눌러(Click to Move · 우클릭) 원하는 장소로 걸어감
  * 외부 앱이라 게임 안 좌표를 모르므로, 매번 '같은 화면'을 만든 뒤 그 화면의 같은 점을 누름:
- *   1. 기준 장소: 리셋(Esc → R → Enter · 키마다 0.12초 누름 · 0.8초 간격) → 도감 열고 닫기 (카메라 정렬 · 채팅은 안 건드림)
+ *   1. 기준 장소: 리셋(Esc → 재설정 버튼 탭 → Enter 3번 · 모바일 로블록스는 R 이 안 먹음) → 도감 열고 닫기 (카메라 정렬 · 채팅은 안 건드림)
  *      → W 1초 → W+A 7초 → A 1초 (0.75초 뒤부터 W 0.25초 같이) → S+D 0.25초 → 우클릭 드래그(위에서 내려다보기) + O 2.5초 (최대 줌)
  *   2. 장소마다 지점 목록: [누를 곳, 걸리는 시간] — 지점이 여러 개면 앞 지점에 도착한 화면에서 다음 지점을 누름
  *   3. 걸리는 시간은 직접 잼: 누른 순간부터 [도착]을 누를 때까지
@@ -37,8 +37,11 @@ public final class Mover {
         }
     }
 
-    /** 공통 위치 — 도감 버튼 · 도감 Exit (V0.9.7 부터 채팅 버튼은 안 씀) */
-    public static final String[][] BASE_KEYS = {{"collection_pos", "도감 버튼"}, {"collection_close", "도감 Exit"}};
+    /** 공통 위치 — 재설정 버튼 (Esc 메뉴) · 도감 버튼 · 도감 Exit (V0.9.7 부터 채팅 버튼은 안 씀) */
+    public static final String[][] BASE_KEYS = {{"reset_btn", "재설정 버튼 (Esc 메뉴)"}, {"collection_pos", "도감 버튼"}, {"collection_close", "도감 Exit"}};
+    /** 재설정 뒤 Enter 를 누르는 횟수 · 간격 (초) */
+    static final int RESET_ENTERS = 3;
+    static final double ENTER_GAP = 0.4;
     /** 리셋 키: 누르고 있는 시간 (ms) · 키 사이 간격 (초) — 느린 기기에서 프레임 사이에 눌렀다 떼서 씹히지 않게 */
     static final int RESET_HOLD_MS = 120;
     static final double RESET_GAP = 0.8;
@@ -54,6 +57,8 @@ public final class Mover {
     final Cfg cfg;
     final Fisher.Out out;
     final Runnable check;                 // 멈춤 확인 (멈췄으면 Fisher.Stopped)
+    /** 손가락 탭 (게임 버튼 누르기 · 없으면 마우스) — 모바일 로블록스 메뉴 버튼은 손가락 탭이 제일 확실 */
+    public Fisher.Input touch;
 
     public Mover(Fisher.Screen scr, Pc pc, Ocr ocr, Map<String, double[]> base, Cfg cfg, Fisher.Out out, Runnable check) {
         this.scr = scr;
@@ -105,6 +110,23 @@ public final class Mover {
         pc.moveTo(p[0] + 3, p[1] + 3);
         sleep(0.05);
         pc.click(p[0], p[1], "left");
+    }
+
+    /** 게임 화면 버튼 누르기: 손가락 탭 (없으면 마우스) */
+    public void tapUi(double[] pos) {
+        int[] p = px(pos);
+        if (touch == null) {
+            press(pos);
+            return;
+        }
+        touch.tap(p[0], p[1], 150);
+        sleep(0.15);
+    }
+
+    void keyHold(String k) {
+        pc.keyDown(k);
+        sleep(RESET_HOLD_MS / 1000.0);
+        pc.keyUp(k);
     }
 
     public void releaseKeys() {
@@ -238,19 +260,23 @@ public final class Mover {
             out.log("방금 리셋함 — 리셋 건너뜀", 'd');
             return;
         }
-        for (String k : new String[]{"esc", "r", "enter"}) {
-            out.state("기준 장소로 이동 · 리셋 (" + k.toUpperCase() + ")");
-            pc.keyDown(k);
-            sleep(RESET_HOLD_MS / 1000.0);
-            pc.keyUp(k);
-            sleep(RESET_GAP);
+        out.state("기준 장소로 이동 · 리셋 (ESC)");
+        keyHold("esc");
+        sleep(RESET_GAP);
+        out.state("기준 장소로 이동 · 리셋 (재설정 버튼)");
+        tapUi(base.get("reset_btn"));
+        sleep(RESET_GAP);
+        for (int i = 1; i <= RESET_ENTERS; i++) {
+            out.state("기준 장소로 이동 · 리셋 (ENTER " + i + "/" + RESET_ENTERS + ")");
+            keyHold("enter");
+            sleep(ENTER_GAP);
         }
-        out.log("리셋 키 보냄 (Esc → R → Enter)", 'd');
+        out.log("리셋 보냄 (Esc → 재설정 버튼 → Enter 3번)", 'd');
         resetFresh = true;
         sleep(Math.max(0, cfg.resetWait - RESET_GAP));
     }
 
-    /** Esc → R → Enter → 3.5초 → 도감 열고 닫기 → W 1초 → W+A 7초 → A 1초 (끝 0.25초 W 같이) → S+D 0.25초 → 0.5초 → 내려다보기 + 최대 줌 */
+    /** Esc → 재설정 버튼 → Enter 3번 → 3.5초 → 도감 열고 닫기 → W 1초 → W+A 7초 → A 1초 (끝 0.25초 W 같이) → S+D 0.25초 → 0.5초 → 내려다보기 + 최대 줌 */
     public void goBase() {
         String m = baseMissing();
         if (m != null) throw new RuntimeException(m);

@@ -238,6 +238,7 @@ final class Hub {
         if (needKeys && pc == null) return "이동 · 판매는 Shizuku 연결이 필요함 (키보드 · 마우스 입력) — 앱 → ③ Shizuku";
         Fisher f = new Fisher(cap, fishInput(pc), OUT, cfg);
         Mover mv = pc != null ? new Mover(cap, pc, new MlOcr(), pos, move, OUT, CHECK) : null;
+        if (mv != null) mv.touch = fishInput(null);         // 재설정 · 도감 버튼은 손가락 탭으로
         Seller sl = mv != null ? seller(cap, mv, pc) : null;
         // 판매 한 번: 필요한 위치 · 지점이 없으면 시작 전에 바로 알려 줌 (예전엔 시작하자마자 멈추고 기록 칸에만 남았음)
         if (m.equals("sell") && sl != null) {

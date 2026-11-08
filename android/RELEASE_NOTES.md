@@ -1,3 +1,17 @@
+## Acrux Mobile V0.9.8 업데이트
+- **리셋 방법 변경 — R 키 대신 재설정 버튼을 눌러서 리셋**
+  - 모바일 로블록스는 Esc 메뉴에서 R 키가 안 먹어서 재설정 탭으로 안 넘어갔음
+  - 이제: Esc → 재설정 버튼 탭 → Enter 3번 (0.4초 간격)
+  - ⚙ → 공통 위치에 **재설정 버튼 (Esc 메뉴)** 추가 — Esc 메뉴를 열어 둔 채로 재설정 버튼 위치를 지정
+  - 재설정 · 도감 버튼은 마우스 대신 손가락 탭으로 누름
+
+## Acrux Mobile V0.9.8 Update
+- **Reset now presses the Reset button instead of the R key**
+  - On mobile Roblox the R key does nothing in the Esc menu, so it never got to the reset tab
+  - Now: Esc → tap the Reset button → Enter 3 times (0.4 s apart)
+  - Added **Reset button (Esc menu)** to ⚙ → common positions — open the Esc menu and set where the Reset button is
+  - The Reset and collection buttons are pressed with a finger tap instead of the mouse
+
 ## Acrux Mobile V0.9.7 업데이트
 - **도감 열고 닫기(카메라 정렬)를 다시 넣음 — 채팅 끄고 켜기만 뺌**
   - 기준 장소: 리셋 → 도감 열고 닫기 → 걷기 → 내려다보기
