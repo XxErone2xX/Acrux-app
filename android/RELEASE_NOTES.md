@@ -1,3 +1,17 @@
+## Acrux Mobile V0.9.7 업데이트
+- **도감 열고 닫기(카메라 정렬)를 다시 넣음 — 채팅 끄고 켜기만 뺌**
+  - 기준 장소: 리셋 → 도감 열고 닫기 → 걷기 → 내려다보기
+  - 판매: 판매 장소에 도착하면 도감 열고 닫은 뒤 E
+  - 이제 / 키 · 채팅 버튼 · Enter 는 안 누름
+  - 공통 위치는 2개만 (도감 버튼 · 도감 Exit) — 채팅 버튼은 지정 안 해도 됨
+
+## Acrux Mobile V0.9.7 Update
+- **Brought back the collection open-close (camera align) — only the chat toggle is removed**
+  - Base spot: reset → open and close the collection → walk → look down
+  - Selling: on reaching the sell spot, open and close the collection, then E
+  - The / key, chat button and Enter are no longer pressed
+  - Only 2 common positions (collection button · collection Exit) — the chat button is no longer needed
+
 ## Acrux Mobile V0.9.6 업데이트
 - **채팅 · 도감 열고 닫기(카메라 정렬)를 뺌**
   - 기준 장소로 갈 때 이제 리셋 → 걷기 → 내려다보기만 함

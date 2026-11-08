@@ -232,6 +232,8 @@ public final class Seller {
         out.state("판매 · 물고기 판매 장소로 가는 중");
         mv.goBase();
         mv.walk("물고기 판매 장소", sellPts, null);
+        out.state("판매 · 카메라 정렬 (도감)");
+        mv.alignCamera();                              // E 를 누르기 전에 화면부터 맞춤
         out.state("판매 · 대화");
         pc.keyTap("e");
         mv.sleep(0.2);

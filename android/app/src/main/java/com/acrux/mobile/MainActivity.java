@@ -364,7 +364,7 @@ public class MainActivity extends Activity {
                 "2. 떠 있는 Acrux 창에서 [보정] — Fish 를 한 번 던져 대기 창 · 미니게임 창 · 결과창 위치를 자동으로 맞춤",
                 "3. [시작] — 자동 낚시 · 멈출 때는 [정지]",
                 "4. Acrux 창은 어디든 잡고 끌어서 낚시 창 · 결과창을 가리지 않는 곳으로 옮기기",
-                "5. 이동 · 판매 (Shizuku 필요 · PC 와 같음): ⚙ → 낚시 장소 · 판매 장소 지점 추가 → 판매 자동 보정",
+                "5. 이동 · 판매 (Shizuku 필요 · PC 와 같음): ⚙ → 공통 위치 2개 → 낚시 장소 · 판매 장소 지점 추가 → 판매 자동 보정",
         };
         for (String s : steps) how.addView(Ui.text(this, s, 13, Ui.MUTED, false), Ui.fill(this, 6));
     }
