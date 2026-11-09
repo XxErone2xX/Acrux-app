@@ -603,11 +603,12 @@ final class Hub {
         sellMax = p.getInt("sellMax", 100);
         sellDelay = p.getFloat("sellDelay", 0f);
         move.resetWait = p.getFloat("m_reset_wait", (float) move.resetWait);
-        move.wTime = p.getFloat("m_w_time", (float) move.wTime);
-        move.waTime = p.getFloat("m_wa_time", (float) move.waTime);
-        move.aTime = p.getFloat("m_a_time", (float) move.aTime);
-        move.w2Time = p.getFloat("m_w2_time", (float) move.w2Time);
-        move.sdTime = p.getFloat("m_sd_time", (float) move.sdTime);
+        // V0.9.11 기준 장소 걷기가 바뀜 (W+A → A → A+W → 쉼 → D) — 예전 값(m_w_time …)은 안 씀
+        move.waTime = p.getFloat("m2_wa", (float) move.waTime);
+        move.aTime = p.getFloat("m2_a", (float) move.aTime);
+        move.awTime = p.getFloat("m2_aw", (float) move.awTime);
+        move.pauseTime = p.getFloat("m2_pause", (float) move.pauseTime);
+        move.dTime = p.getFloat("m2_d", (float) move.dTime);
         move.oTime = p.getFloat("m_o_time", (float) move.oTime);
         move.margin = p.getFloat("m_margin", (float) move.margin);
         move.tiltPx = p.getInt("m_tilt_px", move.tiltPx);
@@ -642,9 +643,9 @@ final class Hub {
                 .putBoolean("adaptive", cfg.adaptive).putBoolean("tapAbove", cfg.tapAbove)
                 .putBoolean("autoUpdate", autoUpdate).putBoolean("useMove", useMove).putBoolean("useSell", useSell).putBoolean("relDrag", relDrag)
                 .putInt("sellMax", sellMax).putFloat("sellDelay", (float) sellDelay)
-                .putFloat("m_reset_wait", (float) move.resetWait).putFloat("m_w_time", (float) move.wTime)
-                .putFloat("m_wa_time", (float) move.waTime).putFloat("m_a_time", (float) move.aTime)
-                .putFloat("m_w2_time", (float) move.w2Time).putFloat("m_sd_time", (float) move.sdTime)
+                .putFloat("m_reset_wait", (float) move.resetWait)
+                .putFloat("m2_wa", (float) move.waTime).putFloat("m2_a", (float) move.aTime).putFloat("m2_aw", (float) move.awTime)
+                .putFloat("m2_pause", (float) move.pauseTime).putFloat("m2_d", (float) move.dTime)
                 .putFloat("m_o_time", (float) move.oTime).putFloat("m_margin", (float) move.margin)
                 .putInt("m_tilt_px", move.tiltPx).putString("m_button", move.button)
                 .putString("pos", ps.toString())

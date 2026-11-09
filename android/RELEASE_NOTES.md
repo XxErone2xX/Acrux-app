@@ -1,3 +1,15 @@
+## Acrux Mobile V0.9.11 업데이트
+- **기준 장소로 걷는 방법 변경**
+  - 재설정 → 화면 맞추기 (도감 열고 닫기) 뒤에
+  - W+A 3.5초 → A 3초 → A+W 2초 → 0.5초 쉼 → D 1초
+  - 이동 · 판매 탭 → 기준 장소 (초) 에서 시간을 바꿀 수 있음 (예전에 바꾼 W · W+A · A · S+D 값은 새 기본값으로)
+
+## Acrux Mobile V0.9.11 Update
+- **Changed how it walks to the base spot**
+  - After reset → camera align (open and close the collection)
+  - W+A 3.5 s → A 3 s → A+W 2 s → 0.5 s pause → D 1 s
+  - Times can be changed in Move · Sell tab → Base spot (s) (old W · W+A · A · S+D values go back to the new defaults)
+
 ## Acrux Mobile V0.9.10 업데이트
 - **언어 선택 · 후원하기를 설정 탭 → 홈 탭으로 옮김**
   - 언어: 홈 맨 위

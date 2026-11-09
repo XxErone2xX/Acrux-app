@@ -455,11 +455,11 @@ public class MainActivity extends Activity {
         LinearLayout base = section(pg, "기준 장소 (초)");
         Mover.Cfg m = Hub.move;
         base.addView(num("리셋 후 대기", "기본 3.5", m.resetWait, v -> m.resetWait = clamp(v, 0.5, 30)), Ui.fill(this, 8));
-        base.addView(num("W", "기본 1", m.wTime, v -> m.wTime = clamp(v, 0, 30)), Ui.fill(this, 6));
-        base.addView(num("W + A", "기본 7", m.waTime, v -> m.waTime = clamp(v, 0, 30)), Ui.fill(this, 6));
-        base.addView(num("A", "기본 1", m.aTime, v -> m.aTime = clamp(v, 0, 30)), Ui.fill(this, 6));
-        base.addView(num("A 끝 W", "A 를 누른 채 마지막에 W · 기본 0.25", m.w2Time, v -> m.w2Time = clamp(v, 0, 10)), Ui.fill(this, 6));
-        base.addView(num("S + D", "기본 0.25", m.sdTime, v -> m.sdTime = clamp(v, 0, 10)), Ui.fill(this, 6));
+        base.addView(num("W + A", "기본 3.5", m.waTime, v -> m.waTime = clamp(v, 0, 30)), Ui.fill(this, 6));
+        base.addView(num("A", "기본 3", m.aTime, v -> m.aTime = clamp(v, 0, 30)), Ui.fill(this, 6));
+        base.addView(num("A + W", "기본 2", m.awTime, v -> m.awTime = clamp(v, 0, 30)), Ui.fill(this, 6));
+        base.addView(num("쉼", "D 누르기 전에 기다림 · 기본 0.5", m.pauseTime, v -> m.pauseTime = clamp(v, 0, 10)), Ui.fill(this, 6));
+        base.addView(num("D", "기본 1", m.dTime, v -> m.dTime = clamp(v, 0, 30)), Ui.fill(this, 6));
         base.addView(num("내려다보기 (px)", "우클릭 드래그 거리 · 기본 800", m.tiltPx, v -> m.tiltPx = (int) clamp(v, 0, 3000)), Ui.fill(this, 6));
         base.addView(num("O 줌 아웃", "기본 2.5", m.oTime, v -> m.oTime = clamp(v, 0, 10)), Ui.fill(this, 6));
         base.addView(num("걷기 여유", "지점마다 잰 시간에 더함 · 기본 0.3", m.margin, v -> m.margin = clamp(v, 0, 5)), Ui.fill(this, 6));

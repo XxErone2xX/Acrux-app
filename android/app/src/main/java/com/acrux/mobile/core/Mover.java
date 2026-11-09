@@ -9,7 +9,7 @@ import java.util.Map;
  * 기준 장소에서 화면의 한 점을 눌러(Click to Move · 우클릭) 원하는 장소로 걸어감
  * 외부 앱이라 게임 안 좌표를 모르므로, 매번 '같은 화면'을 만든 뒤 그 화면의 같은 점을 누름:
  *   1. 기준 장소: 리셋(Esc → 재설정 버튼 탭 → Enter 3번 · 모바일 로블록스는 R 이 안 먹음) → 도감 열고 닫기 (카메라 정렬 · 채팅은 안 건드림)
- *      → W 1초 → W+A 7초 → A 1초 (0.75초 뒤부터 W 0.25초 같이) → S+D 0.25초 → 우클릭 드래그(위에서 내려다보기) + O 2.5초 (최대 줌)
+ *      → W+A 3.5초 → A 3초 → A+W 2초 → 0.5초 쉼 → D 1초 → 우클릭 드래그(위에서 내려다보기) + O 2.5초 (최대 줌)
  *   2. 장소마다 지점 목록: [누를 곳, 걸리는 시간] — 지점이 여러 개면 앞 지점에 도착한 화면에서 다음 지점을 누름
  *   3. 걸리는 시간은 직접 잼: 누른 순간부터 [도착]을 누를 때까지
  */
@@ -21,7 +21,7 @@ public final class Mover {
 
     /** 기준 장소로 가는 방법 (PC MOVE_DEFAULT 와 같은 이름 · 같은 기본값) */
     public static final class Cfg {
-        public double resetWait = 3.5, wTime = 1.0, waTime = 7.0, aTime = 1.0, w2Time = 0.25, sdTime = 0.25, oTime = 2.5, margin = 0.3;
+        public double resetWait = 3.5, waTime = 3.5, aTime = 3.0, awTime = 2.0, pauseTime = 0.5, dTime = 1.0, oTime = 2.5, margin = 0.3;
         public int tiltPx = 800;
         public String button = "right";          // 이동할 곳을 누를 마우스 버튼 (Click to Move)
     }
@@ -276,7 +276,7 @@ public final class Mover {
         sleep(Math.max(0, cfg.resetWait - RESET_GAP));
     }
 
-    /** Esc → 재설정 버튼 → Enter 3번 → 3.5초 → 도감 열고 닫기 → W 1초 → W+A 7초 → A 1초 (끝 0.25초 W 같이) → S+D 0.25초 → 0.5초 → 내려다보기 + 최대 줌 */
+    /** Esc → 재설정 버튼 → Enter 3번 → 3.5초 → 도감 열고 닫기 → W+A 3.5초 → A 3초 → A+W 2초 → 0.5초 → D 1초 → 0.5초 → 내려다보기 + 최대 줌 */
     public void goBase() {
         String m = baseMissing();
         if (m != null) throw new RuntimeException(m);
@@ -284,11 +284,12 @@ public final class Mover {
         reset();
         out.state("기준 장소로 이동 · 카메라 정렬 (도감)");
         alignCamera();
-        out.state("기준 장소로 이동 · 걷기 (W → W+A → A → W → S+D)");
-        hold(new String[]{"w"}, cfg.wTime);
+        out.state("기준 장소로 이동 · 걷기 (W+A → A → A+W → 쉼 → D)");
         hold(new String[]{"w", "a"}, cfg.waTime);
-        holdWith("a", cfg.aTime, "w", cfg.w2Time);
-        hold(new String[]{"s", "d"}, cfg.sdTime);
+        hold(new String[]{"a"}, cfg.aTime);
+        hold(new String[]{"a", "w"}, cfg.awTime);
+        sleep(cfg.pauseTime);
+        hold(new String[]{"d"}, cfg.dTime);
         sleep(0.5);
         out.state("기준 장소로 이동 · 내려다보기 + 최대 줌 (우클릭 드래그 + O)");
         tiltAndZoom(cfg.tiltPx, cfg.oTime);
