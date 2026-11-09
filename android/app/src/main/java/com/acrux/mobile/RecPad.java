@@ -15,10 +15,9 @@ import com.acrux.mobile.core.Stick;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
- * 길 기록용 WASD 패드 · 점프 버튼 — 키를 톡 누르면 켜지고 다시 누르면 꺼짐 (켜 둔 동안 Acrux 가 로블록스 조이스틱을 그 방향으로 계속 밂)
- *  · 끌기가 아니라 톡 누르기인 이유: 손가락이 화면에 닿는 순간 안드로이드가 Acrux 가 누르던 터치를 끊음 → 닿는 순간만 끊기고 떼면 바로 다시 밂
- *  · W ↔ S, A ↔ D 는 반대라 하나를 켜면 반대쪽은 꺼짐 · W + A 같은 대각선은 둘 다 켜면 됨 · 가운데 ■ = 전부 끄기 (멈춤)
- *  · 점프: 톡 = 한 번 뜀 · 꾹 = 켜 두면 계속 뜀 (점프 버튼을 누르고 있음) · 다시 누르면 뗌
+ * 길 기록용 WASD 패드 · 점프 버튼 — 누르고 있는 동안 Acrux 가 로블록스 조이스틱을 그 방향으로 밂 · 점프 버튼을 누름
+ *  · 대각선: 손가락 두 개로 W + A 를 같이 누르거나 키 사이 빈 모서리 칸을 누름
+ *  · 안드로이드는 손가락이 화면에서 움직일 때마다 Acrux 가 누르던 터치를 끊음 → Joy 가 바로 다시 누름 (끄는 대신 가만히 누르는 거라 끊김이 적음)
  */
 final class RecPad implements Mover.Pad {
     volatile boolean w, a, s, d, hold;
@@ -47,7 +46,8 @@ final class RecPad implements Mover.Pad {
             keyView = new KeyView(t, b);
             jumpView = new JumpView(t, b);
             add(t, keyView, (int) (W * 0.32) - b * 3 / 2, (int) (H * 0.62) - b * 3 / 2, b * 3, b * 3);
-            add(t, jumpView, (int) (W * 0.66) - b, (int) (H * 0.62) - b / 2, b * 2, b);
+            int jr = b * 3 / 4;
+            add(t, jumpView, (int) (W * 0.66) - jr, (int) (H * 0.62) - jr, jr * 2, jr * 2);
         });
     }
 
@@ -102,7 +102,7 @@ final class RecPad implements Mover.Pad {
         c.drawText(s, x + b / 2, y + b / 2 + label.getTextSize() * 0.35f, label);
     }
 
-    /** W A S D (십자) · 가운데 ■ */
+    /** W A S D (십자) · 누르고 있는 동안만 · 손가락 두 개로 W + A 같이 누르기 · 빈 모서리 칸 = 대각선 */
     final class KeyView extends View {
         final int b;
         final Paint fill = new Paint(), line = new Paint(), label;
@@ -120,42 +120,44 @@ final class RecPad implements Mover.Pad {
         protected void onDraw(Canvas c) {
             cell(c, fill, line, label, b, 0, b, w, "W");
             cell(c, fill, line, label, 0, b, b, a, "A");
-            cell(c, fill, line, label, b, b, b, false, "■");
             cell(c, fill, line, label, b * 2, b, b, d, "D");
             cell(c, fill, line, label, b, b * 2, b, s, "S");
         }
 
         @Override
         public boolean onTouchEvent(MotionEvent e) {
-            if (e.getActionMasked() != MotionEvent.ACTION_DOWN) return true;
-            int col = (int) (e.getX() / b), row = (int) (e.getY() / b);
-            if (row == 0 && col == 1) {
-                w = !w;
-                if (w) s = false;
-            } else if (row == 2 && col == 1) {
-                s = !s;
-                if (s) w = false;
-            } else if (row == 1 && col == 0) {
-                a = !a;
-                if (a) d = false;
-            } else if (row == 1 && col == 2) {
-                d = !d;
-                if (d) a = false;
-            } else if (row == 1 && col == 1) {
-                w = a = s = d = false;
-            } else {
-                return true;
+            int act = e.getActionMasked();
+            int gone = act == MotionEvent.ACTION_UP || act == MotionEvent.ACTION_CANCEL ? -2
+                    : act == MotionEvent.ACTION_POINTER_UP ? e.getActionIndex() : -1;
+            boolean nw = false, na = false, ns = false, nd = false;
+            if (gone != -2) {
+                for (int i = 0; i < e.getPointerCount(); i++) {
+                    if (i == gone) continue;
+                    int col = (int) Math.floor(e.getX(i) / b), row = (int) Math.floor(e.getY(i) / b);
+                    if (col < 0 || col > 2 || row < 0 || row > 2) continue;
+                    if (row == 0) nw = true;
+                    if (row == 2) ns = true;
+                    if (col == 0) na = true;
+                    if (col == 2) nd = true;
+                }
             }
-            invalidate();
+            if (nw && ns) nw = ns = false;
+            if (na && nd) na = nd = false;
+            if (nw != w || na != a || ns != s || nd != d) {
+                w = nw;
+                a = na;
+                s = ns;
+                d = nd;
+                invalidate();
+            }
             return true;
         }
     }
 
-    /** 점프 (톡 = 한 번) · 꾹 (켜 두면 계속 누르고 있음) */
+    /** 점프 (동그라미) · 누르고 있는 동안 점프 버튼을 누르고 있음 */
     final class JumpView extends View {
         final int b;
-        final Paint fill = new Paint(), line = new Paint(), label;
-        boolean flash;
+        final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG), line = new Paint(Paint.ANTI_ALIAS_FLAG), label;
 
         JumpView(Context c, int b) {
             super(c);
@@ -169,25 +171,24 @@ final class RecPad implements Mover.Pad {
 
         @Override
         protected void onDraw(Canvas c) {
-            cell(c, fill, line, label, 0, 0, b, flash, Ui.tr("점프"));
-            cell(c, fill, line, label, b, 0, b, hold, Ui.tr("꾹"));
+            float r = getWidth() / 2f, m = b * 0.06f;
+            fill.setColor(hold ? 0xDD3BA55D : 0x88202225);
+            c.drawCircle(r, r, r - m, fill);
+            c.drawCircle(r, r, r - m, line);
+            c.drawText(Ui.tr("점프"), r, r + label.getTextSize() * 0.35f, label);
         }
 
         @Override
         public boolean onTouchEvent(MotionEvent e) {
-            if (e.getActionMasked() != MotionEvent.ACTION_DOWN) return true;
-            if (e.getX() < b) {
-                if (hold) return true;                       // 이미 누르고 있음
+            int act = e.getActionMasked();
+            if (act == MotionEvent.ACTION_DOWN && !hold) {
+                hold = true;
                 jumps.add(1);
-                flash = true;
-                postDelayed(() -> {                          // 0.2초 뒤 뗌 (로블록스가 누름을 볼 시간)
-                    if (!hold) jumps.add(-1);
-                    flash = false;
-                    invalidate();
-                }, 200);
+            } else if ((act == MotionEvent.ACTION_UP || act == MotionEvent.ACTION_CANCEL) && hold) {
+                hold = false;
+                jumps.add(-1);
             } else {
-                hold = !hold;
-                jumps.add(hold ? 1 : -1);
+                return true;
             }
             invalidate();
             return true;

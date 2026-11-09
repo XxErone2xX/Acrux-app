@@ -1,3 +1,17 @@
+## Acrux Mobile V0.11.3 업데이트
+- **WASD 패드를 누르고 있는 동안만 걷게 바꿈 (켜고 끄기 → 꾹 누르기)**
+  - 키에서 손을 떼면 멈춤 · 대각선은 손가락 두 개로 W + A 를 같이 누르거나 키 사이 빈 모서리 칸을 누르면 됨
+  - 가운데 ■ 멈춤 버튼은 뺌 (손을 떼면 멈추니까)
+- **점프 버튼을 동그라미로 · 누르고 있는 동안 점프 버튼을 누르고 있음 (꾹 누르기 그대로 저장)**
+  - [꾹] 버튼은 뺌
+
+## Acrux Mobile V0.11.3 Update
+- **The WASD pad now walks only while held (toggle → hold)**
+  - Letting go stops · for diagonals, hold W + A with two fingers or press the empty corner cell between the keys
+  - The center ■ stop button was removed (letting go stops)
+- **The jump button is now a circle · it keeps the jump button pressed while held (holds are saved as they are)**
+  - The [Hold] button was removed
+
 ## Acrux Mobile V0.11.2 업데이트
 - **길 기록을 Acrux WASD 패드로 (톡 누르기 방식)**
   - 길 기록을 시작하면 (기준 장소에 간 뒤) 화면에 **W · A · S · D 패드** 와 **점프 · 꾹** 버튼이 뜸

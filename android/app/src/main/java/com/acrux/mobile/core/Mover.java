@@ -431,8 +431,8 @@ public final class Mover {
     }
 
     /**
-     * 기준 장소로 간 뒤 WASD 패드 · 점프 버튼을 띄움 → 키를 톡 누르면 켜지고 (다시 누르면 꺼짐) Acrux 가 로블록스 조이스틱을 그 방향으로 계속 밀면서 저장
-     *  · 손가락이 화면에 닿는 순간 안드로이드가 대신 누르던 터치를 끊음 → 끄는 대신 톡 누르기라 끊김이 짧음
+     * 기준 장소로 간 뒤 WASD 패드 · 점프 버튼을 띄움 → 키를 누르고 있는 동안 Acrux 가 로블록스 조이스틱을 그 방향으로 밀면서 저장
+     *  · 손가락이 화면에 닿는 순간 안드로이드가 대신 누르던 터치를 끊음 → 끄는 대신 가만히 누르는 거라 끊김이 적음
      *  · 위치 길: 프레임마다 화면으로 캐릭터 위치를 잼 (다시 걸을 때 어긋남을 고치는 데 씀)
      */
     public Route recordPad(String name, Pad pad, BooleanSupplier arrived) {
@@ -444,7 +444,7 @@ public final class Mover {
         List<double[]> pts = rec.route().pts;
         int[] jp = jumpPos();
         out.state(name + " 길 기록 중 — WASD 패드로 걸어가서 도착하면 [도착]");
-        out.log(name + " 길 기록 시작 — W A S D 를 톡 누르면 켜짐 · 다시 누르면 꺼짐 · ■ = 멈춤 · 도착하면 [도착]", 'c');
+        out.log(name + " 길 기록 시작 — W A S D · 점프를 누르고 있는 동안 움직임 · 도착하면 [도착]", 'c');
         double t0 = now(), lastPt = -1;
         int jumps = 0, frames = 0, seen = 0;
         boolean down = false;
