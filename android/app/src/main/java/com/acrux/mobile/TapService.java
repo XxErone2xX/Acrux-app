@@ -16,6 +16,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.widget.FrameLayout;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -23,6 +24,7 @@ import android.widget.TextView;
 import com.acrux.mobile.core.Mover;
 import com.acrux.mobile.core.Seller;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
@@ -445,7 +447,11 @@ public class TapService extends AccessibilityService {
         refresh();
     }
 
-    // ---- ⚙ 메뉴 (PC 버전 이동 · 판매 탭과 같은 순서)
+    // ---- ⚙ 메뉴 — 위쪽 분류 (조이스틱 · 기준 장소 · 길 · 판매) 를 눌러서 그 분류만 보임 · 마지막에 본 분류를 기억
+    static final String[][] CATS = {{"stick", "조이스틱"}, {"base", "기준 장소"}, {"route", "길"}, {"sell", "판매"}};
+    LinearLayout catBody;
+    final List<TextView> catTabs = new ArrayList<>();
+
     void toggleMenu() {
         if (menu != null) {
             closeMenu();
@@ -453,55 +459,98 @@ public class TapService extends AccessibilityService {
         }
         menu = new LinearLayout(this);
         menu.setOrientation(LinearLayout.VERTICAL);
-        menu.addView(head("조이스틱 (W · A · S · D)"));
-        menu.addView(item(Hub.stick != null ? "✓ 조이스틱 저장됨 (눌러서 위치 보기)" : "· 조이스틱 없음 — 로블록스 설정 → 이동 방식: 조이스틱", Hub.stick != null ? v -> {
-            closeMenu();
-            Hub.showStick(2500);
-        } : null));
-        menu.addView(item("조이스틱 찾기 (화면에서 자동으로)", v -> toggle("stickfind")));
-        menu.addView(item("조이스틱 직접 지정 (가운데 → 가장자리)", v -> pickStick()));
-        menu.addView(item("조이스틱 테스트 (W · A · S · D 0.8초씩)", v -> toggle("sticktest")));
-        for (String[] k : Mover.JUMP_KEYS) {
-            menu.addView(item((Hub.pos.containsKey(k[0]) ? "✓ " : "· ") + k[1] + " — 길 기록에서 점프", v -> pickSave(k[0], k[1])));
+        HorizontalScrollView hs = new HorizontalScrollView(this);
+        hs.setHorizontalScrollBarEnabled(false);
+        LinearLayout tabs = new LinearLayout(this);
+        tabs.setOrientation(LinearLayout.HORIZONTAL);
+        catTabs.clear();
+        for (int i = 0; i < CATS.length; i++) {
+            String key = CATS[i][0];
+            TextView c = Ui.chip(this, CATS[i][1], v -> showCat(key));
+            c.setTextSize(12);
+            LinearLayout.LayoutParams lp = Ui.wrap();
+            if (i > 0) lp.leftMargin = Ui.dp(this, 4);
+            tabs.addView(c, lp);
+            catTabs.add(c);
         }
-        menu.addView(item("점프 테스트 (제자리 → 걸으면서)", v -> toggle("jumptest")));
-        menu.addView(head("공통 위치 (기준 장소 맞추기)"));
-        for (String[] k : Mover.BASE_KEYS) {
-            menu.addView(item((Hub.pos.containsKey(k[0]) ? "✓ " : "· ") + k[1], v -> pickSave(k[0], k[1])));
-        }
-        place(false);
-        place(true);
-        menu.addView(head("판매"));
-        for (String[] k : Seller.TALK) {
-            menu.addView(item((Hub.pos.containsKey(k[0]) ? "✓ " : "· ") + k[1] + " (판매 장소에 서서)", v -> pickSave(k[0], k[1])));
-        }
-        menu.addView(item("판매 자동 보정 (NPC 앞에서 시작 → 대화 버튼은 직접)", v -> toggle("sellcal")));
-        int set = 0;
-        for (String[] k : Seller.KEYS) if (Hub.pos.containsKey(k[0])) set++;
-        menu.addView(item("  판매 위치 " + set + " / " + Seller.KEYS.length + " 저장됨", null));
-        for (String[] k : new String[][]{{"first_fish_pos", "첫 번째 물고기 칸"}, {"shop_close_pos", "상점 닫기 X"}}) {
-            menu.addView(item((Hub.pos.containsKey(k[0]) ? "✓ " : "· ") + k[1] + " 직접 지정 (상점을 연 채로)", v -> pickSave(k[0], k[1])));
-        }
-        menu.addView(item("판매 한 번 해 보기", v -> toggle("sell")));
-        menu.addView(head("이동 테스트"));
-        menu.addView(item("기준 장소로", v -> toggle("base")));
-        menu.addView(item("기준 장소 → 낚시 장소", v -> toggle("fish")));
-        menu.addView(item("기준 장소 → 판매 장소", v -> toggle("sellgo")));
+        hs.addView(tabs);
+        catBody = new LinearLayout(this);
+        catBody.setOrientation(LinearLayout.VERTICAL);
         ScrollView sv = new ScrollView(this);
-        sv.addView(menu);
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(Ui.dp(this, 240), Math.min(Ui.dp(this, 300), screen()[1] * 2 / 3));
+        sv.addView(catBody);
+        menu.addView(hs);
+        menu.addView(sv, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.min(Ui.dp(this, 260), screen()[1] * 2 / 3 - Ui.dp(this, 40))));
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(Ui.dp(this, 250), LinearLayout.LayoutParams.WRAP_CONTENT);
         p.topMargin = Ui.dp(this, 6);
-        panel.addView(sv, p);
-        menu.setTag(sv);
+        panel.addView(menu, p);
+        menu.setTag(menu);
+        showCat(Hub.prefs().getString("menuCat", "stick"));
     }
 
-    /** 길 기록: 기준 장소로 간 뒤 '지금부터 기록' → 조이스틱으로 직접 걸어가서 [도착] */
-    void place(boolean sell) {
+    void showCat(String key) {
+        if (catBody == null) return;
+        Hub.prefs().edit().putString("menuCat", key).apply();
+        for (int i = 0; i < CATS.length; i++) Ui.chipOn(this, catTabs.get(i), CATS[i][0].equals(key));
+        LinearLayout m = catBody;
+        m.removeAllViews();
+        switch (key) {
+            case "base":
+                m.addView(head("공통 위치 (기준 장소 맞추기)"));
+                for (String[] k : Mover.BASE_KEYS) m.addView(posItem(k[0], k[1], ""));
+                m.addView(head("테스트"));
+                m.addView(item("기준 장소로", v -> toggle("base")));
+                break;
+            case "route":
+                place(m, false);
+                place(m, true);
+                m.addView(head("테스트"));
+                m.addView(item("기준 장소 → 낚시 장소", v -> toggle("fish")));
+                m.addView(item("기준 장소 → 판매 장소", v -> toggle("sellgo")));
+                break;
+            case "sell": {
+                m.addView(head("대화"));
+                for (String[] k : Seller.TALK) m.addView(posItem(k[0], k[1], " (판매 장소에 서서)"));
+                m.addView(head("상점"));
+                m.addView(item("판매 자동 보정 (NPC 앞에서 시작 → 대화 버튼은 직접)", v -> toggle("sellcal")));
+                int set = 0;
+                for (String[] k : Seller.KEYS) if (Hub.pos.containsKey(k[0])) set++;
+                m.addView(item("  판매 위치 " + set + " / " + Seller.KEYS.length + " 저장됨", null));
+                for (String[] k : new String[][]{{"first_fish_pos", "첫 번째 물고기 칸"}, {"shop_close_pos", "상점 닫기 X"}}) {
+                    m.addView(posItem(k[0], k[1], " 직접 지정 (상점을 연 채로)"));
+                }
+                m.addView(head("테스트"));
+                m.addView(item("판매 한 번 해 보기", v -> toggle("sell")));
+                break;
+            }
+            default:
+                m.addView(head("조이스틱 (W · A · S · D)"));
+                m.addView(item(Hub.stick != null ? "✓ 조이스틱 저장됨 (눌러서 위치 보기)" : "· 조이스틱 없음 — 로블록스 설정 → 이동 방식: 조이스틱", Hub.stick != null ? v -> {
+                    closeMenu();
+                    Hub.showStick(2500);
+                } : null));
+                m.addView(item("조이스틱 찾기 (화면에서 자동으로)", v -> toggle("stickfind")));
+                m.addView(item("조이스틱 직접 지정 (가운데 → 가장자리)", v -> pickStick()));
+                m.addView(head("점프"));
+                for (String[] k : Mover.JUMP_KEYS) m.addView(posItem(k[0], k[1], " — 길 기록에서 점프"));
+                m.addView(head("테스트"));
+                m.addView(item("조이스틱 테스트 (W · A · S · D 0.8초씩)", v -> toggle("sticktest")));
+                m.addView(item("점프 테스트 (제자리 → 걸으면서)", v -> toggle("jumptest")));
+                break;
+        }
+    }
+
+    /** 위치 하나 (✓ 저장됨 · · 없음) → 누르면 포인터로 지정 */
+    TextView posItem(String key, String label, String tail) {
+        return item((Hub.pos.containsKey(key) ? "✓ " : "· ") + label + tail, v -> pickSave(key, label));
+    }
+
+    /** 길 기록: 기준 장소로 간 뒤 '지금부터 기록' → WASD 패드로 걸어가서 [도착] */
+    void place(LinearLayout m, boolean sell) {
         com.acrux.mobile.core.Route r = sell ? Hub.sellRoute : Hub.fishRoute;
         String name = sell ? "물고기 판매 장소" : "낚시 장소";
-        menu.addView(head(name + " 길"));
-        menu.addView(item(r.isEmpty() ? "· 기록 없음" : "✓ 기록됨 · " + fmt(r.seconds()) + "초 · " + r.segs.size() + "조각 · 점프 " + r.jumps() + "번", null));
-        menu.addView(item((r.isEmpty() ? "● 길 기록" : "● 다시 기록") + " (기준 장소로 간 뒤 WASD 패드로 걸어감 → [도착])", v -> toggle(sell ? "rec_sell" : "rec_fish")));
+        m.addView(head(name + " 길"));
+        m.addView(item(r.isEmpty() ? "· 기록 없음" : "✓ 기록됨 · " + fmt(r.seconds()) + "초 · " + r.segs.size() + "조각 · 점프 " + r.jumps() + "번", null));
+        m.addView(item((r.isEmpty() ? "● 길 기록" : "● 다시 기록") + " (기준 장소로 간 뒤 WASD 패드로 걸어감 → [도착])", v -> toggle(sell ? "rec_sell" : "rec_fish")));
     }
 
     TextView head(String s) {
@@ -514,10 +563,11 @@ public class TapService extends AccessibilityService {
         if (menu == null) return;
         panel.removeView((View) menu.getTag());
         menu = null;
+        catBody = null;
     }
 
     void pickSave(String key, String label) {
-        pick(label, at -> {
+        pick(label, Hub.pos.get(key), at -> {
             if (at == null) return;
             Hub.pos.put(key, at);
             Hub.save();
@@ -527,9 +577,12 @@ public class TapService extends AccessibilityService {
 
     /** 조이스틱 직접 지정: 가운데를 누르고 → 바깥 판 가장자리를 누름 */
     void pickStick() {
-        pick("조이스틱 가운데", c -> {
+        double[] st = Hub.stick;
+        pick("조이스틱 가운데", st, c -> {
             if (c == null) return;
-            Hub.main.post(() -> pick("조이스틱 바깥 판 가장자리", e -> {
+            int[] s0 = screen();
+            double er = st != null ? st[2] * s0[1] : s0[1] * 0.1;
+            Hub.main.post(() -> pick("조이스틱 바깥 판 가장자리", new double[]{c[0] + er / s0[0], c[1]}, e -> {
                 if (e == null) return;
                 int[] s = screen();
                 double r = Math.hypot((e[0] - c[0]) * s[0], (e[1] - c[1]) * s[1]);
@@ -587,39 +640,60 @@ public class TapService extends AccessibilityService {
         }
     }
 
-    /** 위치 지정: 로블록스 화면 위에 투명한 막을 띄우고 누른 곳을 넘김 (화면 비율) · 취소하면 null */
     void pick(String name, java.util.function.Consumer<double[]> done) {
+        pick(name, null, done);
+    }
+
+    /**
+     * 위치 지정: 로블록스 화면 위에 포인터 (십자 · 동그라미) 를 띄움 → 화면 아무 데나 대고 끌면 포인터가 끈 만큼 움직임 (손가락 자리로 가지 않음)
+     *  · 손가락이 포인터를 가리지 않아서 정확하게 맞출 수 있음 · 끈 거리의 0.6 배만 움직임 (세밀하게)
+     *  · [확인] 으로 저장 · [취소] · 처음 자리 = 저장된 자리 (없으면 화면 가운데) · 화면 비율로 넘김 · 취소하면 null
+     */
+    void pick(String name, double[] init, java.util.function.Consumer<double[]> done) {
         closeMenu();
         if (picker != null) {
             done.accept(null);
             return;
         }
+        int[] s = screen();
         FrameLayout f = new FrameLayout(this);
-        f.setBackgroundColor(0x33000000);
-        TextView banner = Ui.text(this, "'" + name + "' 위치를 누르세요   ·   취소: 오른쪽 위 ✕", 14, Ui.WHITE, true);
-        banner.setBackgroundColor(0xCC1E1F22);
-        banner.setPadding(Ui.dp(this, 14), Ui.dp(this, 8), Ui.dp(this, 14), Ui.dp(this, 8));
-        FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
-                Gravity.TOP | Gravity.CENTER_HORIZONTAL);
-        bp.topMargin = Ui.dp(this, 10);
-        f.addView(banner, bp);
-        TextView x = Ui.text(this, "✕", 20, Ui.WHITE, true);
-        x.setPadding(Ui.dp(this, 16), Ui.dp(this, 8), Ui.dp(this, 16), Ui.dp(this, 8));
-        x.setOnClickListener(v -> {
-            removeView(picker);
-            picker = null;
-            done.accept(null);
-        });
-        f.addView(x, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.END));
-        f.setOnTouchListener((v, e) -> {
-            if (e.getActionMasked() != MotionEvent.ACTION_UP) return true;
-            int[] s = screen();
-            double[] at = {Math.round(e.getRawX() / s[0] * 10000) / 10000.0, Math.round(e.getRawY() / s[1] * 10000) / 10000.0};
+        PointerView pv = new PointerView(this, init != null ? (float) (init[0] * s[0]) : s[0] / 2f, init != null ? (float) (init[1] * s[1]) : s[1] / 2f);
+        f.addView(pv, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setBackgroundColor(0xE61E1F22);
+        bar.setPadding(Ui.dp(this, 12), Ui.dp(this, 6), Ui.dp(this, 6), Ui.dp(this, 6));
+        TextView label = Ui.text(this, "'" + name + "' — 화면을 끌어서 포인터를 옮기세요", 13, Ui.WHITE, true);
+        bar.addView(label, Ui.wrap());
+        java.util.function.Consumer<double[]> finish = at -> {
             removeView(picker);
             picker = null;
             done.accept(at);
-            return true;
+        };
+        TextView ok = small("확인", Ui.GREEN, v -> {
+            int[] loc = new int[2];
+            pv.getLocationOnScreen(loc);
+            finish.accept(new double[]{Math.round((pv.px + loc[0]) / s[0] * 10000) / 10000.0, Math.round((pv.py + loc[1]) / s[1] * 10000) / 10000.0});
         });
+        TextView no = small("취소", Ui.MUTED, v -> finish.accept(null));
+        bar.addView(ok, gap());
+        bar.addView(no, gap());
+        FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        bp.topMargin = Ui.dp(this, 10);
+        f.addView(bar, bp);
+        // 포인터가 위쪽 막대 근처면 막대를 아래로 (포인터를 가리지 않게)
+        pv.onMove = () -> {
+            boolean top = pv.py < s[1] * 0.25f;
+            int g = (top ? Gravity.BOTTOM : Gravity.TOP) | Gravity.CENTER_HORIZONTAL;
+            if (bp.gravity != g) {
+                bp.gravity = g;
+                bp.topMargin = top ? 0 : Ui.dp(this, 10);
+                bp.bottomMargin = top ? Ui.dp(this, 10) : 0;
+                bar.setLayoutParams(bp);
+            }
+        };
         WindowManager.LayoutParams p = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
@@ -633,9 +707,89 @@ public class TapService extends AccessibilityService {
         try {
             wm.addView(f, p);
             picker = f;
+            pv.post(pv.onMove);
         } catch (RuntimeException e) {
             Hub.log("위치 지정 창을 띄우지 못함: " + e, 'r');
             done.accept(null);
+        }
+    }
+
+    /** 위치 지정 포인터 — 끌면 끈 만큼 (0.6 배) 움직임 · 검정 테두리 + 흰 선 + 빨간 점이라 어떤 배경에서도 잘 보임 */
+    static final class PointerView extends View {
+        static final float SPEED = 0.6f;
+        float px, py, lx, ly;
+        int id = -1;
+        Runnable onMove;
+        final android.graphics.Paint dark = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG),
+                light = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG),
+                dot = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        final float u;
+
+        PointerView(Context c, float x, float y) {
+            super(c);
+            px = x;
+            py = y;
+            u = c.getResources().getDisplayMetrics().density;
+            dark.setStyle(android.graphics.Paint.Style.STROKE);
+            dark.setStrokeWidth(4.5f * u);
+            dark.setColor(0xFF000000);
+            light.setStyle(android.graphics.Paint.Style.STROKE);
+            light.setStrokeWidth(2f * u);
+            light.setColor(0xFFFFFFFF);
+            dot.setColor(0xFFFF3B3B);
+        }
+
+        @Override
+        protected void onDraw(android.graphics.Canvas c) {
+            c.drawColor(0x22000000);
+            float r = 18 * u, gap = 5 * u, arm = 46 * u;
+            for (android.graphics.Paint pt : new android.graphics.Paint[]{dark, light}) {
+                c.drawCircle(px, py, r, pt);
+                c.drawLine(px - arm, py, px - gap, py, pt);
+                c.drawLine(px + gap, py, px + arm, py, pt);
+                c.drawLine(px, py - arm, px, py - gap, pt);
+                c.drawLine(px, py + gap, px, py + arm, pt);
+            }
+            c.drawCircle(px, py, 2.2f * u, dot);
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent e) {
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                case MotionEvent.ACTION_POINTER_DOWN: {
+                    int i = e.getActionIndex();         // 마지막에 댄 손가락으로 끌기
+                    id = e.getPointerId(i);
+                    lx = e.getX(i);
+                    ly = e.getY(i);
+                    break;
+                }
+                case MotionEvent.ACTION_MOVE: {
+                    int i = e.findPointerIndex(id);
+                    if (i < 0) break;
+                    float x = e.getX(i), y = e.getY(i);
+                    px = Math.max(0, Math.min(getWidth() - 1, px + (x - lx) * SPEED));
+                    py = Math.max(0, Math.min(getHeight() - 1, py + (y - ly) * SPEED));
+                    lx = x;
+                    ly = y;
+                    invalidate();
+                    if (onMove != null) onMove.run();
+                    break;
+                }
+                case MotionEvent.ACTION_POINTER_UP: {
+                    if (e.getPointerId(e.getActionIndex()) == id) {
+                        int j = e.getActionIndex() == 0 ? 1 : 0;
+                        id = e.getPointerId(j);
+                        lx = e.getX(j);
+                        ly = e.getY(j);
+                    }
+                    break;
+                }
+                default:
+                    id = -1;
+                    break;
+            }
+            return true;
         }
     }
 

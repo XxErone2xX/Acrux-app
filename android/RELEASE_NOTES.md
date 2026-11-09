@@ -1,3 +1,27 @@
+## Acrux Mobile V0.12.0 업데이트
+- **⚙ 메뉴를 분류별로 나눔**
+  - 위쪽 [조이스틱] [기준 장소] [길] [판매] 를 누르면 그 분류만 보임 · 마지막에 본 분류를 기억
+  - 조이스틱: 찾기 · 직접 지정 · 점프 버튼 · 조이스틱 / 점프 테스트
+  - 기준 장소: 공통 위치 (메뉴 · 재설정 · 도감 등) · 기준 장소로 가기 테스트
+  - 길: 낚시 장소 · 판매 장소 길 기록 · 이동 테스트
+  - 판매: 대화 버튼 · 판매 자동 보정 · 첫 번째 물고기 칸 · 상점 닫기 X · 판매 한 번 해 보기
+- **위치 지정을 포인터 끌기로 바꿈 (더 정확하게)**
+  - 화면에 십자 + 동그라미 포인터가 뜸 · 화면 아무 데나 대고 끌면 포인터가 끈 만큼 움직임 (손가락 자리로 가지 않음 → 손가락이 포인터를 안 가림)
+  - 끈 거리의 0.6 배만 움직여서 세밀하게 맞출 수 있음 · 검정 테두리 · 흰 선 · 빨간 점이라 어떤 배경에서도 잘 보임
+  - [확인] 으로 저장 · [취소] · 처음 자리는 저장된 자리 (없으면 화면 가운데) · 포인터가 위쪽에 가면 버튼 막대는 아래로
+
+## Acrux Mobile V0.12.0 Update
+- **The ⚙ menu is split into categories**
+  - Tap [Joystick] [Base spot] [Routes] [Sell] at the top to see only that category · the last one viewed is remembered
+  - Joystick: find · set by hand · jump button · joystick / jump tests
+  - Base spot: common positions (menu · reset · collection, etc.) · go-to-base test
+  - Routes: fishing spot · sell spot route recording · movement tests
+  - Sell: talk button · sell auto-calibration · first fish slot · shop close X · try selling once
+- **Position picking now uses a draggable pointer (more accurate)**
+  - A crosshair + circle pointer appears · drag anywhere on the screen and the pointer moves by that amount (it does not jump to your finger → your finger does not cover it)
+  - It moves 0.6× the drag distance for fine adjustment · black outline, white lines and a red dot keep it visible on any background
+  - [OK] to save · [Cancel] · starts at the saved spot (or the screen center) · the button bar moves to the bottom when the pointer is near the top
+
 ## Acrux Mobile V0.11.9 업데이트
 - **판매 자동 보정에서 상점 Buy · Sell 탭 찾기를 뺌**
   - 탭을 못 찾으면 "상점 Buy · Sell 탭을 못 찾음" 으로 보정이 멈췄음 → 탭 없이 바로 찾음
