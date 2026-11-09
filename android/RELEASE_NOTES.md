@@ -1,3 +1,25 @@
+## Acrux Mobile V0.11.1 업데이트
+- **길 기록할 때 조이스틱이 계속 가운데부터 다시 시작해서 거의 안 움직이던 것 고침**
+  - 원인: 안드로이드는 사람이 화면을 만지는 순간 앱이 대신 누르고 있던 터치를 끊어 버림 → Acrux 조이스틱을 조금만 움직여도 로블록스 조이스틱이 떨어졌다가 가운데부터 다시 눌림
+  - 안드로이드가 막는 거라 '내 손가락을 대신 전달' 하는 방식은 뺌 (화면의 초록 Acrux 조이스틱 · 주황 점프 버튼 없어짐)
+  - 길 기록은 다시 **로블록스 조이스틱 · 점프 버튼으로 직접** 걸어가면 됨
+- **직접 걸어도 화면으로 위치를 재서 '위치 길' 저장 (따라가기 그대로)**
+  - 기록하는 동안 바닥이 밀린 만큼으로 캐릭터 위치를 같이 잼 → 다시 걸을 때 그 길을 보면서 따라감
+  - 조이스틱 그림을 조금 잘못 읽어도 위치 길은 바닥 움직임으로 재니까 영향이 적음
+  - 따라가는 동안 '조이스틱 방향 ↔ 실제로 움직인 방향' 차이를 계속 맞춤 (카메라가 조금 돌아가 있어도 덜 틀어짐)
+- V0.11.0 에서 기록한 길도 그대로 쓸 수 있음
+
+## Acrux Mobile V0.11.1 Update
+- **Fixed the joystick restarting from the center over and over (barely moving) while recording a route**
+  - Cause: Android cancels any touch an app is holding the moment a person touches the screen → every small move of the Acrux joystick dropped the Roblox joystick and pressed it again from the center
+  - Since Android blocks it, forwarding your finger was removed (the green Acrux joystick and orange jump button no longer appear)
+  - Record routes by walking with the **Roblox joystick and jump button directly** again
+- **Walking directly still saves a "position route" measured from the screen (following works the same)**
+  - While recording, the character position is measured from how far the ground moved → replay follows that route while watching the screen
+  - Small joystick-reading errors barely matter, because the position route comes from ground movement
+  - While following, the difference between joystick direction and actual movement direction keeps being corrected (less drift even if the camera is slightly rotated)
+- Routes recorded in V0.11.0 still work
+
 ## Acrux Mobile V0.11.0 업데이트
 - **길 기록을 Acrux 조이스틱으로 (화면 감지 없이 · 오차 없음)**
   - 길 기록을 시작하면 (기준 장소에 간 뒤) 화면에 초록 **Acrux 조이스틱** · 주황 **점프 버튼** 이 뜸

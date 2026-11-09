@@ -379,7 +379,7 @@ final class Hub {
         String name = sell ? "물고기 판매 장소" : "낚시 장소";
         arrived = false;
         try {
-            Route r = mv.recordPad(name, new RecPad(), () -> {
+            Route r = mv.record(name, () -> {
                 if (!measuring) {
                     measuring = true;              // 기준 장소에 도착해서 기록을 시작하면 [도착] 버튼을 보여 줌
                     changed();
