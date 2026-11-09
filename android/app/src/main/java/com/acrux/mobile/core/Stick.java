@@ -113,10 +113,10 @@ public final class Stick {
     /** 화면에서 조이스틱 찾기 (왼쪽 아래 · 얇은 회색 테두리 원) · minScore 보다 약하면 null */
     public static Found find(Img im, double minScore) {
         if (im == null || im.w < 50 || im.h < 50) return null;
-        int step = Math.max(1, Math.max(im.w, im.h) / 360);
+        int step = Math.max(1, Math.max(im.w, im.h) / 480);
         int w = im.w / step, h = im.h / step, mind = Math.min(w, h);
         float[] C = chroma(im, step);
-        int rMin = Math.max(6, (int) (mind * 0.04)), rMax = Math.max(rMin + 1, (int) (mind * 0.25));
+        int rMin = Math.max(4, (int) (mind * 0.025)), rMax = Math.max(rMin + 1, (int) (mind * 0.25));
         double best = 0, bx = 0, by = 0, br = 0;
         for (int r = rMin; r <= rMax; r++) {
             for (int y = (int) (h * 0.35); y < h - r * 1.15 - 2; y++) {
@@ -173,6 +173,10 @@ public final class Stick {
     /** prev: 바로 전 프레임의 손잡이 {dx, dy} (없으면 null) — 점수가 비슷한 후보끼리는 방금 자리와 가까운 쪽 (손잡이는 한 프레임에 순간이동하지 않음) */
     public static double[] knob(Img im, double cx, double cy, double r, double[] prev) {
         if (im == null || im.w < 8 || im.h < 8 || r < 4) return null;
+        // 1. 손잡이 그림(반투명 회색) 을 그대로 맞춰 봄 — 배경 · 겹친 UI 와 상관없이 가장 정확
+        double[] m = knobModelOn(im, cx, cy, r);
+        if (m != null && m[2] >= 20) return m;
+        // 2. 잘 안 맞으면 (손가락 · 효과로 많이 가려짐) 예전 방법 세 가지를 맞춰 봄
         // 세 가지로 따로 찾고 → 후보마다 두 가지 점수 (회색 원 · 테두리 원) 를 합쳐서 가장 그럴듯한 자리
         //  · 채도만: 하늘 · 흰 구름 위에서 정확  · 채도 + 어두움: 그늘 · 어두운 배경  · 테두리: 글자판 · 복잡한 배경
         float[] C0 = chroma(im, 1, 0), C1 = chroma(im, 1, 0.5), L = lum(im);
@@ -293,8 +297,8 @@ public final class Stick {
         public double[] step(Img im, int ox, int oy) {
             if (im == null || im.w < 8 || im.h < 8) return null;
             double[] got = null;
-            if (!Double.isNaN(curX)) got = nearSub(im, curX - ox, curY - oy);
-            if (got == null) got = nearSub(im, homeX - ox, homeY - oy);
+            if (!Double.isNaN(curX)) got = nearSub(im, curX - ox, curY - oy, 0.25);
+            if (got == null) got = nearSub(im, homeX - ox, homeY - oy, 0.65);   // 누른 자리로 옮겨진 판은 대개 원래 자리 근처
             if (got == null) got = wide(im);
             if (got == null) {
                 curX = Double.NaN;
@@ -313,15 +317,33 @@ public final class Stick {
             return k;
         }
 
-        static final double OK = 25;
+        static final double OK = 25, FIT_OK = 45;
+
+        /** 테두리 선 그림 맞추기로 (cx, cy) 근처에서 판 찾기 */
+        double[] nearFit(Img im, double cx, double cy, double lim) {
+            double best = 0, bx = 0, by = 0;
+            for (double y = cy - lim; y <= cy + lim; y += 1) {
+                for (double x = cx - lim; x <= cx + lim; x += 1) {
+                    double s = ringFit(im, x, y, r);
+                    if (s > best) {
+                        best = s;
+                        bx = x;
+                        by = y;
+                    }
+                }
+            }
+            return best >= FIT_OK ? new double[]{bx, by, best} : null;
+        }
 
         /** (cx, cy) 근처만 잘라서 판 찾기 (빠름) → 영역 좌표 */
-        double[] nearSub(Img im, double cx, double cy) {
-            int half = (int) (r * 1.45) + 6, sx = Math.max(0, (int) cx - half), sy = Math.max(0, (int) cy - half);
+        double[] nearSub(Img im, double cx, double cy, double limR) {
+            int half = (int) (r * (1.2 + limR)) + 6, sx = Math.max(0, (int) cx - half), sy = Math.max(0, (int) cy - half);
             int w = Math.min(im.w - sx, half * 2), h = Math.min(im.h - sy, half * 2);
             if (w < 8 || h < 8) return null;
             Img s = sub(im, sx, sy, w, h);
-            double[] g = near(chroma(s, 1), s.w, s.h, cx - sx, cy - sy, r * 0.25);
+            // 그림 맞추기 먼저 (겹친 UI 에 강함) → 안 되면 색 지도로 (작게 줄어 선이 흐릴 때)
+            double[] g = nearFit(s, cx - sx, cy - sy, r * limR);
+            if (g == null) g = near(chroma(s, 1), s.w, s.h, cx - sx, cy - sy, r * limR);
             if (g == null) return null;
             g[0] += sx;
             g[1] += sy;
@@ -359,8 +381,8 @@ public final class Stick {
                 }
             }
             if (best < OK) return null;
-            float[] C = chroma(im, 1);
-            return near(C, im.w, im.h, bx * st + st / 2.0, by * st + st / 2.0, st + 1);
+            double[] g = nearFit(im, bx * st + st / 2.0, by * st + st / 2.0, st + 1);
+            return g != null ? g : near(chroma(im, 1), im.w, im.h, bx * st + st / 2.0, by * st + st / 2.0, st + 1);
         }
     }
 
@@ -461,6 +483,107 @@ public final class Stick {
             fy /= m;
         }
         return new double[]{fx / r, fy / r, best};
+    }
+
+    /**
+     * 판 테두리 선 맞추기 (로블록스 그림: 반지름 r 에 불투명한 밝은 회색 선 ≈ 155)
+     * 선 위 화면이 '배경 (선 안팎 평균)' 보다 '회색 155' 에 얼마나 더 가까운가 · 8조각 중 약한 2조각은 뺌 (겹친 UI · 글자)
+     */
+    static final double RING_GRAY = 155;
+
+    static double ringFit(Img im, double cx, double cy, double r) {
+        double ro = r * 1.15 + 1.5, ri = r * 0.85 - 1.5;
+        if (ri < 2 || cx - ro < 0 || cy - ro < 0 || cx + ro >= im.w - 1 || cy + ro >= im.h - 1) return -1;
+        double[] sec = new double[SECT];
+        for (int i = 0; i < ANG; i++) {
+            double c = COS[i], s = SIN[i];
+            int ka = (int) (cy + s * ri) * im.w + (int) (cx + c * ri), kb = (int) (cy + s * ro) * im.w + (int) (cx + c * ro);
+            double br = (im.r[ka] + im.r[kb]) / 2.0, bg = (im.g[ka] + im.g[kb]) / 2.0, bb = (im.b[ka] + im.b[kb]) / 2.0;
+            double gain = -1e9;
+            for (double d = -1; d <= 1; d += 1) {          // 선 굵기 · 반지름 오차 1px
+                int k = (int) (cy + s * (r + d)) * im.w + (int) (cx + c * (r + d));
+                double eNone = Math.abs(im.r[k] - br) + Math.abs(im.g[k] - bg) + Math.abs(im.b[k] - bb);
+                double eRing = Math.abs(im.r[k] - RING_GRAY) + Math.abs(im.g[k] - RING_GRAY) + Math.abs(im.b[k] - RING_GRAY);
+                gain = Math.max(gain, eNone - eRing);
+            }
+            sec[i * SECT / ANG] += gain;
+        }
+        for (int i = 0; i < SECT; i++) sec[i] /= (double) ANG / SECT;
+        return weakest(sec, 2);
+    }
+
+    // ---- 손잡이 모양 맞추기 (로블록스 TouchControlsSheet 의 손잡이 그림 그대로)
+    // 손잡이 그림 반지름 = 판 테두리 선 반지름의 0.53배 · 반지름 비율별 (회색값, 불투명도)
+    static final double KR = 0.53;
+    static final double[] KF = {0.15, 0.4, 0.62, 0.88};
+    static final double[] KT = {117, 104, 89, 90};
+    static final double[] KA = {0.38, 0.46, 0.57, 0.77};
+    static final double KOUT = 1.22;
+
+    /**
+     * (cx, cy) 에 손잡이가 있다고 봤을 때 화면이 얼마나 잘 설명되나 — 손잡이는 반투명 회색이라 배경 b 위에 그리면 a·t + (1-a)·b
+     * 바깥(1.22배) 화면을 배경 b 로 보고 → 안쪽 4군데를 '손잡이 있음' 으로 예측한 오차 vs '없음 (배경 그대로)' 오차
+     * 배경이 밝든 어둡든 (풀 · 하늘 · 검은 UI 상자) 같은 식으로 맞음 · 8조각 중 약한 2조각은 뺌
+     */
+    static double knobFit(Img im, double cx, double cy, double kr) {
+        double ro = kr * KOUT;
+        if (cx - ro < 0 || cy - ro < 0 || cx + ro >= im.w - 1 || cy + ro >= im.h - 1) return -1;
+        double[] sec = new double[SECT];
+        for (int i = 0; i < ANG; i++) {
+            double c = COS[i], s = SIN[i];
+            int ko = (int) (cy + s * ro) * im.w + (int) (cx + c * ro);
+            int br = im.r[ko], bg = im.g[ko], bb = im.b[ko];
+            double gain = 0;
+            for (int j = 0; j < KF.length; j++) {
+                int k = (int) (cy + s * kr * KF[j]) * im.w + (int) (cx + c * kr * KF[j]);
+                double a = KA[j], t = KT[j] * a;
+                double pr = t + (1 - a) * br, pg = t + (1 - a) * bg, pb = t + (1 - a) * bb;
+                double eKnob = Math.abs(im.r[k] - pr) + Math.abs(im.g[k] - pg) + Math.abs(im.b[k] - pb);
+                double eNone = Math.abs(im.r[k] - br) + Math.abs(im.g[k] - bg) + Math.abs(im.b[k] - bb);
+                gain += eNone - eKnob;
+            }
+            sec[i * SECT / ANG] += gain / KF.length;
+        }
+        for (int i = 0; i < SECT; i++) sec[i] /= (double) ANG / SECT;
+        return weakest(sec, 2);
+    }
+
+    static double[] knobModelOn(Img im, double cx, double cy, double r) {
+        double kr = r * KR, lim = r * 1.1, st = Math.max(1, r / 20);
+        double best = 0, bx = 0, by = 0;
+        for (double oy = -lim; oy <= lim; oy += st) {
+            for (double ox = -lim; ox <= lim; ox += st) {
+                if (ox * ox + oy * oy > lim * lim) continue;
+                double sc = knobFit(im, cx + ox, cy + oy, kr);
+                if (sc > best) {
+                    best = sc;
+                    bx = ox;
+                    by = oy;
+                }
+            }
+        }
+        if (best <= 0) return null;
+        double fx = bx, fy = by;
+        for (double oy = by - st; oy <= by + st; oy += 1) {
+            for (double ox = bx - st; ox <= bx + st; ox += 1) {
+                double sc = knobFit(im, cx + ox, cy + oy, kr);
+                if (sc > best) {
+                    best = sc;
+                    fx = ox;
+                    fy = oy;
+                }
+            }
+        }
+        double m = Math.hypot(fx, fy) / r;
+        if (m > 1) {
+            fx /= m;
+            fy /= m;
+        }
+        return new double[]{fx / r, fy / r, best};
+    }
+
+    public static double[] knobModel(Img im, double cx, double cy, double r) {
+        return knobModelOn(im, cx, cy, r);
     }
 
     /** 점프 버튼 밝기 차이: (버튼 안 0.45r ~ 0.8r 의 평균 밝기) - (버튼 밖 1.15r ~ 1.35r 의 평균 밝기) · 평소엔 음수 (어두운 원) · 누르면 양수 (밝은 원) */

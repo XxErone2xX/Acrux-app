@@ -1,3 +1,23 @@
+## Acrux Mobile V0.10.11 업데이트
+- **폰에서 조이스틱을 가끔 못 읽던 것 고침 (작은 조이스틱 · 겹친 UI)**
+  - 보내 준 로블록스 조이스틱 그림(TouchControlsSheet) 그대로 맞춤
+    - 손잡이: 반투명 회색 그림을 '배경 위에 그렸을 때 이렇게 보여야 함' 으로 예측해서 맞춤 — 배경이 풀 · 하늘 · 검은 UI 상자 · 글자여도 같은 식으로 맞음
+    - 판 테두리: 불투명한 밝은 회색 선 (≈155) 을 그대로 맞춤 — 겹친 글자 · 상자는 조각 단위로 빼고 봄
+  - 폰 화면을 흉내 낸 시험 240번 (조이스틱 반지름 20 ~ 65px · 아래쪽에 재화 상자 · 버전 글자 겹침 · 누른 자리로 판 옮겨짐): 손잡이 틀림 12/60 → 2/240 · 판 놓침 3/60 → 0/240
+  - 보내 준 영상: 판 놓친 프레임 10 → 0 · 방향 튐 15 → 11 (남은 건 대부분 실제로 빠르게 돌린 것)
+  - 조이스틱 찾기: 더 작은 조이스틱(반지름 약 20px 까지)도 찾음
+  - 판이 누른 자리로 옮겨졌을 때 원래 자리 근처를 더 넓게 봄
+
+## Acrux Mobile V0.10.11 Update
+- **Fixed the joystick sometimes not being read on phones (small joystick · overlapping UI)**
+  - Matches the actual Roblox joystick image you sent (TouchControlsSheet)
+    - Knob: predicts how the translucent gray image should look drawn over the background and fits it — works the same over grass, sky, black UI boxes or text
+    - Ring: fits the opaque light gray line (≈155) directly — overlapping text and boxes are left out piece by piece
+  - 240 simulated phone screens (joystick radius 20-65px · currency boxes and version text overlapping below · ring moved to the press point): wrong knob 12/60 → 2/240 · lost ring 3/60 → 0/240
+  - Your video: frames with a lost ring 10 → 0 · direction jumps 15 → 11 (most of the rest are real fast turns)
+  - Find joystick: now also finds smaller joysticks (radius down to about 20px)
+  - Searches wider around the original spot when the ring moved to the press point
+
 ## Acrux Mobile V0.10.10 업데이트
 - **길을 다시 걸을 때 점프가 안 되던 것 고침**
   - 점프 탭 자리를 ⚙ 에서 찍은 자리 대신 화면에서 찾은 **점프 버튼 한가운데** 로 (찍은 자리가 버튼 가장자리에 가까우면 빗나갈 수 있었음)
