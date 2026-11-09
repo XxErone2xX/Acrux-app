@@ -324,7 +324,7 @@ public final class Mover {
                         Img ji = scr.grab(jx, jy, jsz, jsz);
                         if (ji != null && ji.w > 0) {
                             double tt = now() - jt0;
-                            int ev = jw.step(Stick.jumpLevel(ji, jcx - Math.max(0, jx), jcy - Math.max(0, jy), jr));
+                            int ev = jw.step(Stick.jumpLevel(ji, jcx - Math.max(0, jx), jcy - Math.max(0, jy), jr), tt);
                             if (ev != 0) jumpEv.add(ev);
                         }
                         Touch.nap(15);

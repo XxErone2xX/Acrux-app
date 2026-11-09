@@ -656,21 +656,25 @@ public final class Stick {
     }
 
     /**
-     * 점프 버튼 눌림 · 뗌 (실제 화면: 평소 약 -70 · 누르면 약 +20)
-     * 기준: 시작할 때 잰 '평소 값' base 에서 → base 의 35% 위로 올라오면 눌림 · 65% 아래로 내려가면 뗌 (기기 · 화면마다 밝기가 달라도)
-     * 꾹 누르고 있으면 눌림 → (누르고 있는 동안 아무 일 없음) → 뗌 : 다시 걸을 때도 그만큼 꾹 누름 (로블록스는 누르고 있으면 계속 뜀)
+     * 점프 버튼 눌림 · 뗌 — 버튼이 반투명이라 걸어가면서 뒤 배경이 바뀌면 '평소 밝기' 도 같이 바뀜
+     * (예전엔 시작할 때 잰 값으로만 판단해서, 배경이 밝은 곳으로 가면 손을 떼도 '누르고 있음' 으로 남았음 → 그 뒤 점프 · 길이 망가짐)
+     *  · 안 누를 때: 평소 밝기(base) 를 천천히 따라감
+     *  · 눌림: base 보다 ON 이상 갑자기 밝아짐 (ON = 시작 때 평소 밝기 크기의 절반 · 최소 20)
+     *  · 뗌: 누르는 동안의 가장 밝은 값(peak) 에서 (peak - 누르기 직전 base) 의 절반 넘게 다시 어두워짐
+     *  · 안전장치: 4초 넘게 '누르고 있음' 이면 뗀 걸로 보고 평소 밝기를 다시 잼
      */
     public static final class JumpWatch {
-        double on = -25, off = -45;
+        static final double MAX_HOLD = 4.0;
+        double base = Double.NaN, on = 30, pressBase, peak, downAt;
         boolean down;
 
         public JumpWatch() {}
 
-        /** base: 안 누를 때의 밝기 차이 (음수) */
-        public JumpWatch(double base) {
-            if (base < -15) {
-                on = base * 0.35;
-                off = base * 0.65;
+        /** base0: 시작할 때 잰 안 누를 때의 밝기 차이 (음수) */
+        public JumpWatch(double base0) {
+            if (!Double.isNaN(base0)) {
+                base = base0;
+                on = Math.max(20, Math.abs(base0) * 0.5);
             }
         }
 
@@ -678,15 +682,28 @@ public final class Stick {
             return down;
         }
 
-        /** 이번 프레임 밝기 차이 → +1 막 눌림 · -1 막 뗌 · 0 그대로 */
-        public int step(double v) {
+        /** 이번 프레임 밝기 차이 · t: 시각 (초) → +1 막 눌림 · -1 막 뗌 · 0 그대로 */
+        public int step(double v, double t) {
             if (Double.isNaN(v)) return 0;
-            if (!down && v >= on) {
-                down = true;
-                return 1;
+            if (Double.isNaN(base)) {
+                base = v;
+                return 0;
             }
-            if (down && v < off) {
+            if (!down) {
+                if (v - base >= on) {
+                    down = true;
+                    pressBase = base;
+                    peak = v;
+                    downAt = t;
+                    return 1;
+                }
+                base += (v - base) * 0.15;
+                return 0;
+            }
+            peak = Math.max(peak, v);
+            if (v < peak - (peak - pressBase) * 0.5 || t - downAt > MAX_HOLD) {
                 down = false;
+                base = v;
                 return -1;
             }
             return 0;

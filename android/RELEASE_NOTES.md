@@ -1,3 +1,19 @@
+## Acrux Mobile V0.10.15 업데이트
+- **길 기록 중 점프를 누른 뒤로 점프 · 길이 망가지던 것 고침**
+  - 점프 버튼은 반투명이라 걸어가면서 뒤 배경이 바뀌면 '안 누를 때 밝기' 도 바뀜 — 예전엔 시작할 때 잰 값으로만 판단해서 손을 떼도 '누르고 있음' 으로 남을 수 있었음
+    - 그러면 그 뒤 점프는 하나도 안 잡히고, 다시 걸을 때 점프 버튼을 끝까지 꾹 누르고 있어서 길까지 틀어졌음
+  - 이제: 안 누를 때 밝기를 계속 따라가고 · 뗌은 '누르는 동안 가장 밝았던 값에서 절반 넘게 어두워짐' 으로 봄 (배경과 상관없이)
+  - 안전장치: 4초 넘게 누르고 있으면 뗀 걸로 봄
+  - 보내 준 영상: 점프 7번 (짧게 6번 · 2.2초 꾹 1번) 전부 누름 · 뗌 짝이 맞게 잡힘
+
+## Acrux Mobile V0.10.15 Update
+- **Fixed jumps and the route breaking after pressing jump while recording**
+  - The jump button is translucent, so its "not pressed" brightness changes as the background behind it changes while walking — before, only the value measured at the start was used, so it could stay "pressed" after letting go
+    - Then no later jumps were caught, and on replay the jump button was held to the end, throwing the route off too
+  - Now: the not-pressed brightness is tracked continuously · release is "more than half way back down from the brightest value while pressed" (independent of the background)
+  - Safety: a press longer than 4 s counts as released
+  - Your video: all 7 jumps (6 short · 1 held 2.2 s) caught with matching press / release
+
 ## Acrux Mobile V0.10.14 업데이트
 - **Fish 버튼을 못 누르고 계속 기다리던 것 고침 (낚시 창이 보정 때와 다른 자리 · 크기로 뜬 경우)**
   - 보정한 Fish 버튼 자리에 버튼이 안 보이면 (1.5초 넘게) 화면에서 낚시 창을 다시 찾음
