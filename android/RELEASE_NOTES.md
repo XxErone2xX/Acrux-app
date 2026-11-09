@@ -1,3 +1,9 @@
+## Acrux Mobile V1.3.2 업데이트
+- 낚시 칸과 이동 · 판매 칸을 하나로 합침 [ 낚시 칸 ]
+
+## Acrux Mobile V1.3.2 Update
+- Merged the Fishing and Move · Sell tabs into one [ Fishing tab ]
+
 ## Acrux Mobile V1.3.1 업데이트
 - 튜토리얼 문구 변경 [ 안내 말투 통일 ]
 

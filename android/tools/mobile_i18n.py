@@ -311,7 +311,7 @@ E = [
     ["[보정] 누르기", "Tap [Calibrate]", "[補正] を押す"],
     ["Acrux 창에서 강조된 [보정] 을 누르고 끝날 때까지 기다려 주세요. Fish 를 한 번 던져 창 위치를 자동으로 맞춥니다.\n\n보정하는 동안에는 이 안내가 잠시 숨겨집니다.", "Tap the highlighted [Calibrate] in the Acrux window and wait until it finishes. It casts Fish once and fits the window positions automatically.\n\nThis guide is hidden while calibrating.", "Acrux ウィンドウで強調された [補正] を押し、終わるまでお待ちください。Fish を一度投げてウィンドウの位置を自動で合わせます。\n\n補正中はこの案内が一時的に隠れます。"],
     ["낚시 보정 완료", "Fishing calibration complete", "釣りの補正完了"],
-    ["Acrux 창의 [시작] 을 누르면 자동 낚시가 시작되며, [정지] 로 멈출 수 있습니다.\n\n가득 찼을 때 판매까지 하려면 앱의 이동 · 판매 칸에서 켜 주세요.", "Tap [Start] in the Acrux window to start auto fishing, and [Stop] to stop.\n\nTo also sell when full, turn it on in the app's Move · Sell tab.", "Acrux ウィンドウの [開始] で自動釣りが始まり、[停止] で止められます。\n\nいっぱいの時の販売まで行うには、アプリの 移動 · 販売 タブでオンにしてください。"],
+    ["Acrux 창의 [시작] 을 누르면 자동 낚시가 시작되며, [정지] 로 멈출 수 있습니다.\n\n가득 찼을 때 판매까지 하려면 앱의 낚시 칸 → 이동 · 판매에서 켜 주세요.", "Tap [Start] in the Acrux window to start auto fishing, and [Stop] to stop.\n\nTo also sell when full, turn it on in the app's Fishing tab → Move · Sell.", "Acrux ウィンドウの [開始] で自動釣りが始まり、[停止] で止められます。\n\nいっぱいの時の販売まで行うには、アプリの 釣り タブ → 移動 · 販売 でオンにしてください。"],
     ["이동 설정", "Movement setup", "移動の設定"],
     ["스폰 위치가 무작위이기 때문에, 리셋 후 '기준 장소' 에서 기록한 길을 따라 이동합니다.\n\n조이스틱 → 기준 장소 위치 → 낚시 장소 길 순서로 설정합니다.", "Spawn points are random, so after a reset the macro walks a recorded route from the 'base spot'.\n\nSet up in this order: joystick → base spot positions → fishing spot route.", "スポーン位置がランダムなため、リセット後に「基準地点」から記録した道に沿って移動します。\n\nジョイスティック → 基準地点の位置 → 釣り場の道 の順で設定します。"],
     ["조이스틱 찾기", "Find the joystick", "ジョイスティック検出"],

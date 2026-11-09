@@ -120,7 +120,7 @@ final class Guide {
                         "Acrux 창에서 강조된 [보정] 을 누르고 끝날 때까지 기다려 주세요. Fish 를 한 번 던져 창 위치를 자동으로 맞춥니다.\n\n보정하는 동안에는 이 안내가 잠시 숨겨집니다.")
                         .at(null, "cal").need(() -> Hub.cfg.ready()))
                 .add(new Step("낚시 보정 완료",
-                        "Acrux 창의 [시작] 을 누르면 자동 낚시가 시작되며, [정지] 로 멈출 수 있습니다.\n\n가득 찼을 때 판매까지 하려면 앱의 이동 · 판매 칸에서 켜 주세요.").at(null, "run")));
+                        "Acrux 창의 [시작] 을 누르면 자동 낚시가 시작되며, [정지] 로 멈출 수 있습니다.\n\n가득 찼을 때 판매까지 하려면 앱의 낚시 칸 → 이동 · 판매에서 켜 주세요.").at(null, "run")));
 
         Tut mv = new Tut("move", "이동 설정", () -> Hub.useMove && (Hub.stick == null || !baseReady() || Hub.fishRoute.isEmpty()))
                 .add(new Step("이동 설정",

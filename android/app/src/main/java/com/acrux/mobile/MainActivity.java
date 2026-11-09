@@ -213,8 +213,9 @@ public class MainActivity extends Activity {
         root.addView(content, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         buildHome(page("home", "홈"));
-        buildFishing(page("fish", "낚시"));
-        buildMove(page("move", "이동 · 판매"));
+        Page fishPg = page("fish", "낚시");              // 낚시 · 이동 · 판매 한 칸 (기능이 늘어도 칸이 너무 많아지지 않게)
+        buildFishing(fishPg);
+        buildMove(fishPg);
         buildBiome(page("biome", "바이옴"));
         buildLog(page("log", "기록"));
         buildSettings(page("settings", "설정"));
@@ -228,6 +229,7 @@ public class MainActivity extends Activity {
             content.addView(pg.root, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         }
         String last = Hub.prefs().getString("tab", "home");
+        if (last.equals("move")) last = "fish";            // 예전 '이동 · 판매' 칸 → 낚시 칸
         int start = 0;
         for (int i = 0; i < pages.size(); i++) if (pages.get(i).key.equals(last)) start = i;
         show(start, false);
