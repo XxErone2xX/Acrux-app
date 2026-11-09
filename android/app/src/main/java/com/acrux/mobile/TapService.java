@@ -41,7 +41,8 @@ public class TapService extends AccessibilityService {
     WindowManager wm;
     LinearLayout panel, menu, body;
     WindowManager.LayoutParams lp;
-    TextView status, calBtn, runBtn, gearBtn, arriveBtn;
+    TextView status, bioBtn, runBtn, gearBtn, arriveBtn;
+    int bioCol;
     View picker;
     final Runnable refresh = this::refresh;
 
@@ -337,10 +338,12 @@ public class TapService extends AccessibilityService {
         status.setMaxWidth(Ui.dp(this, 170));
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        calBtn = reg("cal", small("보정", Ui.YELLOW, v -> toggle("cal")));
+        // 바이옴 매크로 켜기 · 끄기 (꺼짐 = 회색 · 켜짐 + 감시 중 = 초록 · 켜짐 + 연결 안 됨 = 노랑) — 낚시 자동 보정은 ⚙ → 낚시
+        bioCol = Ui.MUTED;
+        bioBtn = reg("biome", small("바이옴 OFF", Ui.MUTED, v -> toggleBiome()));
         runBtn = reg("run", small("시작", Ui.ACCENT, v -> toggle("run")));
         gearBtn = reg("gear", small("⚙", Ui.MUTED, v -> toggleMenu()));
-        row.addView(calBtn, Ui.wrap());
+        row.addView(bioBtn, Ui.wrap());
         row.addView(runBtn, gap());
         row.addView(gearBtn, gap());
         arriveBtn = small("도착", Ui.GREEN, v -> {
@@ -526,6 +529,18 @@ public class TapService extends AccessibilityService {
             Hub.stop();
             return;
         }
+        // ⚙ 메뉴에서 시작했으면 메뉴를 먼저 닫고 창 크기가 줄어든 뒤에 시작 (열린 메뉴가 낚시 창을 가린다고 잘못 알리거나 화면 캡처에 찍히지 않게)
+        if (menu != null) {
+            closeMenu();
+            Hub.main.postDelayed(() -> startMode(m), 150);
+            return;
+        }
+        startMode(m);
+    }
+
+    void startMode(String m) {
+        if (Hub.running()) return;
+        updateRect();
         String err = Hub.start(m);
         if (!err.isEmpty()) {
             // 못 하는 이유: 기록 칸만이 아니라 떠 있는 창 · 화면 알림에도 (게임 화면에선 기록 칸이 안 보임)
@@ -538,8 +553,17 @@ public class TapService extends AccessibilityService {
         refresh();
     }
 
-    // ---- ⚙ 메뉴 — 위쪽 분류 (조이스틱 · 기준 장소 · 길 · 판매) 를 눌러서 그 분류만 보임 · 마지막에 본 분류를 기억
-    static final String[][] CATS = {{"stick", "조이스틱"}, {"base", "기준 장소"}, {"route", "길"}, {"sell", "판매"}};
+    /** 미니 UI 의 [바이옴]: 바이옴 매크로 켜기 · 끄기 (앱의 바이옴 칸 스위치와 같음) */
+    void toggleBiome() {
+        boolean on = !Biome.on();
+        Biome.set(this, on);
+        String msg = on ? (Biome.hooks().isEmpty() ? "바이옴 매크로 켜짐 — 웹후크는 앱의 바이옴 칸에서 입력" : "바이옴 매크로 켜짐") : "바이옴 매크로 꺼짐";
+        android.widget.Toast.makeText(this, com.acrux.mobile.core.I18n.t(msg), android.widget.Toast.LENGTH_SHORT).show();
+        refresh();
+    }
+
+    // ---- ⚙ 메뉴 — 위쪽 분류 (낚시 · 조이스틱 · 기준 장소 · 길 · 판매) 를 눌러서 그 분류만 보임 · 마지막에 본 분류를 기억
+    static final String[][] CATS = {{"fish", "낚시"}, {"stick", "조이스틱"}, {"base", "기준 장소"}, {"route", "길"}, {"sell", "판매"}};
     LinearLayout catBody;
     final List<TextView> catTabs = new ArrayList<>();
 
@@ -575,7 +599,7 @@ public class TapService extends AccessibilityService {
         p.topMargin = Ui.dp(this, 6);
         panel.addView(menu, p);
         menu.setTag(menu);
-        showCat(Hub.prefs().getString("menuCat", "stick"));
+        showCat(Hub.prefs().getString("menuCat", "fish"));
     }
 
     void showCat(String key) {
@@ -586,6 +610,11 @@ public class TapService extends AccessibilityService {
         m.removeAllViews();
         Hub.main.post(this::applyGuide);
         switch (key) {
+            case "fish":
+                m.addView(head("낚시 보정"));
+                m.addView(item(Hub.cfg.ready() ? "✓ 보정됨" : "· 보정 필요 — 낚시 자리에서 Fish 버튼이 보일 때", null));
+                m.addView(reg("act:cal", item((Hub.cfg.ready() ? "낚시 자동 보정 다시 하기" : "낚시 자동 보정") + " (Fish 를 한 번 던져 창 위치를 맞춤)", v -> toggle("cal"))));
+                break;
             case "base":
                 m.addView(head("공통 위치 (기준 장소 맞추기)"));
                 for (String[] k : Mover.BASE_KEYS) m.addView(posItem(k[0], k[1], ""));
@@ -894,13 +923,15 @@ public class TapService extends AccessibilityService {
         boolean run = Hub.running();
         String mode = Hub.mode;
         Ui.set(status, CaptureService.active == null ? "화면 캡처 꺼짐 · 앱에서 시작" : Hub.state);
-        Ui.set(calBtn, run && "cal".equals(mode) ? "취소" : "보정");
-        Ui.set(runBtn, run && !"cal".equals(mode) ? "정지" : "시작");
-        calBtn.setEnabled(!run || "cal".equals(mode));
-        runBtn.setEnabled(!run || !"cal".equals(mode));
-        calBtn.setAlpha(calBtn.isEnabled() ? 1f : 0.4f);
+        boolean bio = Biome.on();
+        Ui.set(bioBtn, bio ? "바이옴 ON" : "바이옴 OFF");
+        int col = !bio ? Ui.MUTED : Biome.watching ? Ui.GREEN : Ui.YELLOW;
+        if (col != bioCol) {
+            bioCol = col;
+            Ui.paintButton(this, bioBtn, col);
+        }
+        Ui.set(runBtn, run ? "정지" : "시작");            // 보정 · 테스트 · 기록 중에도 [정지] 로 멈춤
         arriveBtn.setVisibility(Hub.measuring ? View.VISIBLE : View.GONE);
-        runBtn.setAlpha(runBtn.isEnabled() ? 1f : 0.4f);
     }
 
     static String fmt(double v) {

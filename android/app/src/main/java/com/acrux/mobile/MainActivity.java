@@ -177,7 +177,7 @@ public class MainActivity extends Activity {
         LinearLayout names = new LinearLayout(this);
         names.setOrientation(LinearLayout.VERTICAL);
         names.addView(title);
-        names.addView(Ui.text(this, "자동 낚시 · 이동 · 판매", 13, Ui.MUTED, false));
+        names.addView(Ui.text(this, "Sol's RNG 매크로", 13, Ui.MUTED, false));
         // 사용자 수 (PC 와 같은 서버 · PC + 모바일)
         LinearLayout online = new LinearLayout(this);
         online.setOrientation(LinearLayout.HORIZONTAL);
@@ -398,7 +398,7 @@ public class MainActivity extends Activity {
         ready.addView(restricted, Ui.fill(this, 6));
         capState = Ui.text(this, "", 13, Ui.MUTED, false);
         capBtn = Ui.button(this, "시작", Ui.ACCENT, v -> toggleCapture());
-        ready.addView(row("② 화면 캡처", "화면 색을 보고 낚시 상태를 판단함 · 녹화 · 저장은 하지 않음 · '전체 화면' 공유를 고르기", capState, capBtn), Ui.fill(this, 12));
+        ready.addView(row("② 화면 캡처", "매크로가 화면을 보고 상태를 판단함 · 녹화 · 저장은 하지 않음 · '전체 화면' 공유를 고르기", capState, capBtn), Ui.fill(this, 12));
         TextView stickHelp = Ui.text(this, "③ 이동 · 판매: 로블록스 설정 → 이동 방식을 '조이스틱' (클래식) 으로",
                 12, Ui.YELLOW, false);
         ready.addView(stickHelp, Ui.fill(this, 6));
@@ -419,10 +419,11 @@ public class MainActivity extends Activity {
         LinearLayout how = section(pg, "사용법");
         String[] steps = {
                 "1. 로블록스(Sol's RNG)를 전체 화면 가로로 켜고 낚시 자리로 가서 Fish 버튼이 보이게 하기",
-                "2. 떠 있는 Acrux 창에서 [보정] — Fish 를 한 번 던져 대기 창 · 미니게임 창 · 결과창 위치를 자동으로 맞춤",
+                "2. 떠 있는 Acrux 창 ⚙ → [낚시] → 낚시 자동 보정 — Fish 를 한 번 던져 대기 창 · 미니게임 창 · 결과창 위치를 자동으로 맞춤",
                 "3. [시작] — 자동 낚시 · 멈출 때는 [정지]",
                 "4. Acrux 창은 어디든 잡고 끌어서 낚시 창 · 결과창을 가리지 않는 곳으로 옮기기",
                 "5. 이동 · 판매: ⚙ → [조이스틱] 조이스틱 찾기 → [기준 장소] 공통 위치 → [길] 낚시 장소 · 판매 장소 길 기록 → [판매] 대화 버튼 · 판매 자동 보정",
+                "6. 바이옴 알림: 바이옴 칸 → 무선 디버깅 연결 → 웹후크 입력 → Acrux 창의 [바이옴] 버튼으로 켜고 끄기",
         };
         for (String s : steps) how.addView(Ui.text(this, s, 13, Ui.MUTED, false), Ui.fill(this, 6));
         LinearLayout.LayoutParams tl = Ui.wrap();
@@ -572,7 +573,8 @@ public class MainActivity extends Activity {
         LinearLayout bm = section(pg, "바이옴 매크로");
         biomeState = Ui.text(this, "", 13, Ui.MUTED, true);
         bm.addView(biomeState, Ui.fill(this, 6));
-        bm.addView(sw("바이옴 매크로 켜기", Biome.on(), on -> Biome.set(this, on)), Ui.fill(this, 8));
+        biomeSw = (Switch) sw("바이옴 매크로 켜기", Biome.on(), on -> Biome.set(this, on));
+        bm.addView(biomeSw, Ui.fill(this, 8));
         bm.addView(Ui.text(this, "디스코드 웹후크 (여러 개면 줄바꿈)", 13, Ui.FG, true), Ui.fill(this, 10));
         bm.addView(field("https://discord.com/api/webhooks/…", Hub.prefs().getString("biomeHooks", ""), true,
                 v -> Hub.prefs().edit().putString("biomeHooks", v).apply()), Ui.fill(this, 4));
@@ -611,9 +613,11 @@ public class MainActivity extends Activity {
     }
 
     TextView biomeState;
+    Switch biomeSw;
 
     void showBiome() {
         if (biomeState == null) return;
+        if (biomeSw != null && biomeSw.isChecked() != Biome.on()) biomeSw.setChecked(Biome.on());   // 미니 UI 의 [바이옴] 으로 바꿨을 때
         String st = Biome.on() ? Biome.status : "꺼짐";
         Ui.set(biomeState, "지금 바이옴: " + Biome.show(Biome.current) + " · " + Ui.tr(st));
         biomeState.setTextColor(Biome.watching ? Ui.GREEN : Ui.MUTED);
@@ -1052,7 +1056,7 @@ public class MainActivity extends Activity {
 
         com.acrux.mobile.core.Settings c = Hub.cfg;
         Ui.set(calState, "대기 창: " + pos(c.panelRegion) + "  ·  미니게임 창: " + (c.reelRegion == null ? "없음" : c.reelDerived ? "대기 창으로 계산" : "있음")
-                + "  ·  결과창: " + pos(c.resultRegion) + (c.ready() ? "" : "\n→ 로블록스에서 [보정]을 해야 함"));
+                + "  ·  결과창: " + pos(c.resultRegion) + (c.ready() ? "" : "\n→ Acrux 창 ⚙ → 낚시 → 낚시 자동 보정을 해야 함"));
         long[] r = Hub.statRun.clone();
         String stats = "\n" + I18n.f("성공 {0} · 쓰레기 {1} · 실패 {2}", r[0], r[1], r[2]) + "  (" + Ui.tr("이번 실행") + ")";
         for (int k = 0; k < 2; k++) {

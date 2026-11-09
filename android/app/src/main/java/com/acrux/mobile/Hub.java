@@ -213,7 +213,7 @@ final class Hub {
         if (TapService.instance == null) return "접근성 권한(Acrux Mobile)을 먼저 켜야 함";
         CaptureService cap = CaptureService.active;
         if (cap == null) return "앱에서 [화면 캡처 시작]을 먼저 눌러야 함";
-        if (m.equals("run") && !cfg.ready()) return "먼저 [보정]을 해야 함 (낚시 자리에서 Fish 버튼이 보일 때)";
+        if (m.equals("run") && !cfg.ready()) return "먼저 ⚙ → 낚시 → 낚시 자동 보정을 해야 함 (낚시 자리에서 Fish 버튼이 보일 때)";
         if (m.equals("sticktest") && stick == null) return "먼저 조이스틱 찾기 (로블록스 설정 → 이동 방식: 조이스틱 · ⚙ → 조이스틱 찾기)";
         TouchIn touch = new TouchIn(cap.width(), cap.height());
         Fisher f = new Fisher(cap, fishInput(), OUT, cfg);

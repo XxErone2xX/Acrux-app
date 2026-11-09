@@ -84,9 +84,15 @@ final class Biome {
 
     /** 켜기 / 끄기 (설정 저장 + 감시 시작 / 멈춤 + 켜짐 · 꺼짐 웹후크) */
     static synchronized void set(Context c, boolean on) {
+        boolean running = loop != null && loop.isAlive();
+        if (on == on() && on == running) return;            // 이미 그 상태 (미니 UI 버튼 · 앱 스위치가 서로 맞춰질 때 알림이 두 번 가지 않게)
         Hub.prefs().edit().putBoolean("biomeOn", on).apply();
-        if (on) start(c, true);
-        else stop(true);
+        if (on) {
+            start(c, true);
+            Hub.changed();
+        } else {
+            stop(true);
+        }
     }
 
     /** 앱이 켜질 때: 켜져 있었으면 다시 감시 (웹후크 켜짐 알림은 안 보냄) */
@@ -138,7 +144,13 @@ final class Biome {
             String r = Adb.connect(c);
             if (!r.equals("ok")) {
                 watching = false;
-                setStatus(r.equals("pair") ? "무선 디버깅 페어링 필요" : "무선 디버깅 연결 안 됨 — 다시 시도 중");
+                String why = r.equals("pair") ? "무선 디버깅 페어링 필요" : "무선 디버깅 연결 안 됨 — 다시 시도 중";
+                if (!why.equals(status)) {                   // 처음 한 번만 기록 · 화면 알림 (미니 UI 의 [바이옴] 이 노랑인 이유)
+                    String msg = "바이옴 매크로: " + why;
+                    Hub.log(msg, 'y');
+                    Hub.main.post(() -> android.widget.Toast.makeText(Hub.app, com.acrux.mobile.core.I18n.t(msg), android.widget.Toast.LENGTH_LONG).show());
+                }
+                setStatus(why);
                 if (!sleep(10000)) return;
                 continue;
             }

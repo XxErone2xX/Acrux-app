@@ -1,3 +1,17 @@
+## Acrux Mobile V1.4.0 업데이트
+- Acrux 창에 [바이옴] 버튼 추가 — 바이옴 매크로 켜기 · 끄기
+  - 회색 = 꺼짐 · 초록 = 감시 중 · 노랑 = 무선 디버깅 연결 안 됨
+- 낚시 자동 보정을 Acrux 창 ⚙ → [낚시] 로 옮김
+  - 보정 · 테스트 · 길 기록 중에는 [정지] 로 멈춤
+- 앱 이름 아래 문구를 "Sol's RNG 매크로" 로 변경
+
+## Acrux Mobile V1.4.0 Update
+- Added a [Biome] button to the Acrux window — turns the biome macro on · off
+  - Gray = off · green = watching · yellow = wireless debugging not connected
+- Moved fishing auto-calibration to Acrux window ⚙ → [Fishing]
+  - [Stop] now also stops calibration · tests · route recording
+- Changed the line under the app name to "Sol's RNG macro"
+
 ## Acrux Mobile V1.3.6 업데이트
 - 새 앱 아이콘
 
