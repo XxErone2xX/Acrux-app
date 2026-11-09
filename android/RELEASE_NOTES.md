@@ -1,3 +1,21 @@
+## Acrux Mobile V0.11.2 업데이트
+- **길 기록을 Acrux WASD 패드로 (톡 누르기 방식)**
+  - 길 기록을 시작하면 (기준 장소에 간 뒤) 화면에 **W · A · S · D 패드** 와 **점프 · 꾹** 버튼이 뜸
+  - 키를 톡 누르면 켜지고 다시 누르면 꺼짐 · 켜 둔 동안 Acrux 가 로블록스 조이스틱을 그 방향으로 계속 밀어 줌
+  - W + A 처럼 두 개를 켜면 대각선 · 반대 키 (W ↔ S, A ↔ D) 를 켜면 반대쪽은 꺼짐 · 가운데 ■ = 멈춤
+  - 점프: 톡 = 한 번 뜀 · 꾹 = 켜 두면 점프 버튼을 계속 누르고 있음 (다시 누르면 뗌)
+  - 끄는 대신 톡 누르기라서, 손가락이 닿는 짧은 순간만 끊기고 바로 다시 밀어 줌 (안드로이드는 화면을 만지는 순간 앱이 누르던 터치를 끊음)
+- 누른 키를 그대로 저장해서 조이스틱 그림을 읽는 오차가 없음 · 위치 길 (화면으로 잰 캐릭터 위치) 도 같이 저장해서 다시 걸을 때 따라감
+
+## Acrux Mobile V0.11.2 Update
+- **Route recording now uses the Acrux WASD pad (tap to toggle)**
+  - When recording starts (after reaching the base spot), a **W · A · S · D pad** and **Jump · Hold** buttons appear
+  - Tap a key to turn it on, tap again to turn it off · while it is on, Acrux keeps pushing the Roblox joystick that way
+  - Turn on two keys like W + A for diagonals · turning on the opposite key (W ↔ S, A ↔ D) turns the other off · center ■ = stop
+  - Jump: tap = jump once · Hold = keeps the jump button pressed while on (tap again to release)
+  - Because it is tapping instead of dragging, the push is only interrupted for the brief moment your finger touches (Android cancels app touches when the screen is touched)
+- The pressed keys are saved exactly, so there is no joystick-reading error · the position route (character position measured from the screen) is saved too and followed on replay
+
 ## Acrux Mobile V0.11.1 업데이트
 - **길 기록할 때 조이스틱이 계속 가운데부터 다시 시작해서 거의 안 움직이던 것 고침**
   - 원인: 안드로이드는 사람이 화면을 만지는 순간 앱이 대신 누르고 있던 터치를 끊어 버림 → Acrux 조이스틱을 조금만 움직여도 로블록스 조이스틱이 떨어졌다가 가운데부터 다시 눌림

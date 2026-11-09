@@ -416,6 +416,88 @@ public final class Mover {
         out.log(name + " 길 따라가기 끝 (" + Math.round((now() - t0) * 10) / 10.0 + "초 · 화면 못 읽은 프레임 " + lost + "/" + frames + ")", 'd');
     }
 
+    // ---- 3-1. Acrux WASD 패드로 길 기록 (화면 감지 없음 · 누른 키 그대로)
+    /** 기록용 WASD 패드 · 점프 버튼 (안드로이드 쪽 화면) */
+    public interface Pad {
+        /** 지금 켜 둔 키의 방향 (단위 벡터 · 다 꺼졌으면 null) */
+        double[] stick();
+
+        /** 그 사이 점프 눌림 · 뗌 (+1 · -1) 하나씩 꺼냄 · 없으면 0 */
+        int pollJump();
+
+        void show();
+
+        void hide();
+    }
+
+    /**
+     * 기준 장소로 간 뒤 WASD 패드 · 점프 버튼을 띄움 → 키를 톡 누르면 켜지고 (다시 누르면 꺼짐) Acrux 가 로블록스 조이스틱을 그 방향으로 계속 밀면서 저장
+     *  · 손가락이 화면에 닿는 순간 안드로이드가 대신 누르던 터치를 끊음 → 끄는 대신 톡 누르기라 끊김이 짧음
+     *  · 위치 길: 프레임마다 화면으로 캐릭터 위치를 잼 (다시 걸을 때 어긋남을 고치는 데 씀)
+     */
+    public Route recordPad(String name, Pad pad, BooleanSupplier arrived) {
+        if (touch.stickAt() == null) throw new RuntimeException("먼저 조이스틱 찾기 (Acrux 창 → ⚙ → 조이스틱 찾기)");
+        goBase();
+        Odo odo = new Odo(scr);
+        odo.step();
+        Route.Recorder rec = new Route.Recorder(true);
+        List<double[]> pts = rec.route().pts;
+        int[] jp = jumpPos();
+        out.state(name + " 길 기록 중 — WASD 패드로 걸어가서 도착하면 [도착]");
+        out.log(name + " 길 기록 시작 — W A S D 를 톡 누르면 켜짐 · 다시 누르면 꺼짐 · ■ = 멈춤 · 도착하면 [도착]", 'c');
+        double t0 = now(), lastPt = -1;
+        int jumps = 0, frames = 0, seen = 0;
+        boolean down = false;
+        pad.show();
+        try {
+            while (!arrived.getAsBoolean()) {
+                check.run();
+                double t = now() - t0;
+                if (t > RECORD_MAX) throw new RuntimeException((int) RECORD_MAX + "초 안에 [도착]을 안 누름 — 기록 취소");
+                double[] v = pad.stick();
+                boolean jd = false, ju = false;
+                int ev;
+                while ((ev = pad.pollJump()) != 0) {
+                    if (ev > 0) {
+                        jd = true;
+                        jumps++;
+                        down = true;
+                    } else {
+                        ju = true;
+                        down = false;
+                    }
+                }
+                if (jp != null) {
+                    if (jd) touch.jumpDown(jp[0], jp[1]);
+                    if (ju && !(jd && down)) touch.jumpUp();
+                }
+                touch.stick(v);
+                frames++;
+                if (odo.step()) seen++;
+                rec.add(t, v, jd, ju);
+                if (jd || ju || t - lastPt >= 0.08) {
+                    pts.add(new double[]{t, odo.x, odo.y, (jd ? 1 : 0) | (ju ? 2 : 0), v == null ? 0 : v[0], v == null ? 0 : v[1]});
+                    lastPt = t;
+                }
+                Touch.nap(15);
+            }
+        } finally {
+            pad.hide();
+            touch.stick(null);
+            touch.jumpUp();
+        }
+        double te = now() - t0;
+        rec.add(te, null, false, down);
+        pts.add(new double[]{te, odo.x, odo.y, down ? 2 : 0, 0, 0});
+        trimPts(pts);
+        Route r = rec.done();
+        out.log(name + " 길 기록 끝: " + r.segs.size() + "조각 · " + Math.round(r.seconds() * 10) / 10.0 + "초 · 점프 " + jumps + "번 · 위치 " + pts.size() + "점 (화면으로 잰 프레임 "
+                + seen + "/" + frames + " · 각도 " + Math.round(Math.toDegrees(r.theta)) + "°)", r.isEmpty() ? 'y' : 'g');
+        if (r.isEmpty()) throw new RuntimeException("움직임이 없음 — WASD 패드로 걸어 주세요");
+        if (!r.hasPath()) out.log("화면으로 위치를 잘 못 재서 (단색 바닥 · 너무 짧은 길) 다시 걸을 때는 시간대로만 감", 'y');
+        return r;
+    }
+
     /** 위치 길 앞뒤의 안 움직인 부분 빼기 (점프 표시는 남김) */
     static void trimPts(List<double[]> p) {
         while (p.size() > 2 && p.get(0)[3] == 0 && Math.hypot(p.get(1)[1] - p.get(0)[1], p.get(1)[2] - p.get(0)[2]) < 0.5
