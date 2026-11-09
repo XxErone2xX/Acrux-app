@@ -189,24 +189,32 @@ final class Joy {
                 s = cur.continueStroke(line(px, py, nx, py), 0, ms, true);
                 px = nx;
             }
-            // 점프: 조이스틱 손가락은 그대로 두고 같은 터치에 점프 버튼 탭을 섞음
+            // 점프: '이어지는 터치' 에 새 손가락을 섞으면 로블록스가 점프로 안 받음 (실제 기기 확인)
+            // → 새 두 손가락 터치로 다시 시작: 조이스틱 가운데를 누르고 가던 방향으로 끌면서 + 0.03초 뒤 점프 버튼 탭
+            //   (예전 조이스틱 손가락은 이 새 터치가 시작될 때 떨어짐 — 바로 다시 눌러서 끊김은 한 프레임 정도)
             float[] j = jumpAt;
             jumpAt = null;
-            GestureDescription.StrokeDescription jp = null;
             if (j != null) {
+                GestureDescription.StrokeDescription s0 = new GestureDescription.StrokeDescription(line(cx, cy, gx, gy), 0, MOVE_MS + 30, true);
                 Path p = new Path();
                 p.moveTo(j[0], j[1]);
-                jp = new GestureDescription.StrokeDescription(p, 0, Math.min(ms, 80));
-            }
-            if (!send(s, ms, jp)) {
-                cur = null;              // 끊김 (다른 터치 · 사람이 화면을 누름) → 다음에 가운데부터 다시
-                holding = false;
-                // 점프를 섞어 보낸 터치가 안 먹혔으면 점프만 따로 한 번 더 (점프를 잃지 않게)
-                if (j != null) {
-                    TapService tj = TapService.instance;
+                GestureDescription.StrokeDescription jp = new GestureDescription.StrokeDescription(p, 30, 90);
+                if (send(s0, 120, jp)) {
+                    cur = s0;
+                    px = gx;
+                    py = gy;
+                } else {
+                    cur = null;
+                    holding = false;
+                    TapService tj = TapService.instance;     // 그래도 안 되면 점프만 따로
                     if (tj != null) tj.tap((int) j[0], (int) j[1], 90);
                     jumpFallbacks++;
                 }
+                continue;
+            }
+            if (!send(s, ms)) {
+                cur = null;              // 끊김 (다른 터치 · 사람이 화면을 누름) → 다음에 가운데부터 다시
+                holding = false;
                 continue;
             }
             cur = s;

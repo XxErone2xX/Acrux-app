@@ -1,3 +1,17 @@
+## Acrux Mobile V0.10.12 업데이트
+- **걸으면서 점프가 안 되던 것 고침**
+  - 누르고 있는 조이스틱 터치에 점프 손가락을 '이어 붙이면' 로블록스가 점프로 받지 않았음
+  - 이제 점프할 때는 새 두 손가락 터치로 다시 시작: 조이스틱 가운데를 누르고 가던 방향으로 끌면서 + 0.03초 뒤 점프 버튼 탭
+  - 조이스틱이 끊기는 건 한 프레임 정도라 가던 방향 · 속도는 거의 그대로
+  - ⚙ → 점프 테스트로 확인 (제자리 → 걸으면서 · 두 번 뛰면 성공)
+
+## Acrux Mobile V0.10.12 Update
+- **Fixed jumping while walking**
+  - Roblox ignored a jump finger "attached" to the held joystick touch
+  - Jumps now start a fresh two-finger touch: press the joystick center and drag toward the walking direction + tap the jump button 0.03 s later
+  - The joystick is interrupted for only about one frame, so direction and speed stay almost the same
+  - Check with ⚙ → Jump test (in place → while walking · success if it jumps twice)
+
 ## Acrux Mobile V0.10.11 업데이트
 - **폰에서 조이스틱을 가끔 못 읽던 것 고침 (작은 조이스틱 · 겹친 UI)**
   - 보내 준 로블록스 조이스틱 그림(TouchControlsSheet) 그대로 맞춤
