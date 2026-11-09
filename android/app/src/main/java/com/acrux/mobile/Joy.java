@@ -21,7 +21,7 @@ final class Joy {
     private Joy() {}
 
     static final double PUSH = 1.35;
-    static final long PRESS_MS = 60, MOVE_MS = 60, HOLD_MS = 100;
+    static final long PRESS_MS = 60, MOVE_MS = 35, HOLD_MS = 70;
 
     static final Object lock = new Object();
     static volatile double tx, ty;           // 원하는 방향 (길이 0 ~ 1 · 1 = 끝까지)

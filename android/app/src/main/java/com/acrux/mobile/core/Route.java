@@ -74,6 +74,12 @@ public final class Route {
         /** jump: 이 프레임에 점프 버튼이 막 눌림 */
         public void add(double t, double[] v, boolean jump) {
             double[] q = quant(v);
+            // 흔들림 막기: 방금 방향과 10도 · 길이 0.25 안쪽이면 방금 방향 그대로 (손가락은 그대로인데 읽은 값만 조금 튀는 것)
+            if (lastV != null && !(q[0] == 0 && q[1] == 0) && !(lastV[0] == 0 && lastV[1] == 0)) {
+                double da = Math.abs(Math.atan2(q[1], q[0]) - Math.atan2(lastV[1], lastV[0]));
+                if (da > Math.PI) da = 2 * Math.PI - da;
+                if (Math.toDegrees(da) <= 10 && Math.abs(Math.hypot(q[0], q[1]) - Math.hypot(lastV[0], lastV[1])) <= 0.25) q = lastV;
+            }
             if (lastT >= 0) {
                 double dt = t - lastT;
                 if (dt > 0) {
@@ -91,7 +97,7 @@ public final class Route {
             lastJump = jump;
         }
 
-        /** 끝: 앞뒤의 멈춘 시간은 뺌 · 아주 짧은 흔들림(0.08초 미만)은 앞 조각에 붙임 */
+        /** 끝: 앞뒤의 멈춘 시간은 뺌 · 아주 짧은 흔들림(0.12초 미만)은 앞 조각에 붙임 */
         public Route done() {
             List<Seg> s = r.segs;
             while (!s.isEmpty() && s.get(0).idle() && !s.get(0).jump) s.remove(0);
@@ -100,8 +106,8 @@ public final class Route {
                 Seg g = s.get(i);
                 if (g.jump) {
                     i++;                                   // 점프 조각은 안 합침
-                } else if (g.sec < 0.08 && i + 1 < s.size()) {
-                    s.get(i - 1).sec += g.sec;
+                } else if (g.sec < 0.12 && i + 1 < s.size() && close(s.get(i - 1), s.get(i + 1))) {
+                    s.get(i - 1).sec += g.sec;          // 앞뒤가 같은 방향인데 가운데만 잠깐 튄 것 (빠르게 돌린 건 그대로 둠)
                     s.remove(i);
                 } else if (s.get(i - 1).dx == g.dx && s.get(i - 1).dy == g.dy) {
                     s.get(i - 1).sec += g.sec;
@@ -113,6 +119,14 @@ public final class Route {
             for (Seg g : s) g.sec = Math.round(g.sec * 1000) / 1000.0;
             return r;
         }
+    }
+
+    /** 두 조각이 거의 같은 방향 (15도 · 길이 0.25 안) */
+    static boolean close(Seg a, Seg b) {
+        if (a.idle() || b.idle()) return a.idle() && b.idle();
+        double da = Math.abs(Math.atan2(a.dy, a.dx) - Math.atan2(b.dy, b.dx));
+        if (da > Math.PI) da = 2 * Math.PI - da;
+        return Math.toDegrees(da) <= 15 && Math.abs(Math.hypot(a.dx, a.dy) - Math.hypot(b.dx, b.dy)) <= 0.25;
     }
 
     /** "dx,dy,sec;dx,dy,sec,j;…" (j = 점프) */

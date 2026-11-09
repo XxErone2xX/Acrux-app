@@ -183,6 +183,12 @@ public final class Stick {
                 }
             }
         }
+        // 소수점 단위로 다듬기: 찾은 원 안 픽셀들의 '회색인 정도' 무게 중심 (격자 · 배경 무늬 때문에 1~2px 씩 튀는 걸 줄임)
+        double[] cg = centroid(C, im.w, im.h, cx + fx, cy + fy, kr);
+        if (cg != null && Math.hypot(cg[0] - (cx + fx), cg[1] - (cy + fy)) < kr * 0.3) {
+            fx = cg[0] - cx;
+            fy = cg[1] - cy;
+        }
         double m = Math.hypot(fx, fy) / r;
         if (m > 1) {                                // 손잡이는 판 반지름까지만 움직임
             fx /= m;
@@ -224,6 +230,33 @@ public final class Stick {
             }
         }
         return knob(im, fx, fy, r);
+    }
+
+    /** (x, y) 반지름 kr 원 안의 회색 무게 중심 — 무게 = (원 바깥 1.3kr 의 평균 채도) - (그 픽셀 채도) */
+    static double[] centroid(float[] C, int w, int h, double x, double y, double kr) {
+        double ref = 0;
+        int n = 0;
+        for (int i = 0; i < ANG; i++) {
+            double px = x + COS[i] * kr * 1.3, py = y + SIN[i] * kr * 1.3;
+            if (px < 0 || py < 0 || px >= w || py >= h) continue;
+            ref += at(C, w, px, py);
+            n++;
+        }
+        if (n < ANG / 2) return null;
+        ref /= n;
+        double sw = 0, sx = 0, sy = 0, rr = kr * 1.05;
+        for (int py = (int) Math.max(0, y - rr); py <= Math.min(h - 1, y + rr); py++) {
+            for (int px = (int) Math.max(0, x - rr); px <= Math.min(w - 1, x + rr); px++) {
+                double dx = px - x, dy = py - y;
+                if (dx * dx + dy * dy > rr * rr) continue;
+                double wt = ref - C[py * w + px];
+                if (wt <= 0) continue;
+                sw += wt;
+                sx += wt * px;
+                sy += wt * py;
+            }
+        }
+        return sw <= 0 ? null : new double[]{sx / sw, sy / sw};
     }
 
     /** 점프 버튼 밝기 차이: (버튼 안 0.45r ~ 0.8r 의 평균 밝기) - (버튼 밖 1.15r ~ 1.35r 의 평균 밝기) · 평소엔 음수 (어두운 원) · 누르면 양수 (밝은 원) */

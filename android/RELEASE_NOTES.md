@@ -1,3 +1,19 @@
+## Acrux Mobile V0.10.5 업데이트
+- **길 기록이 중간중간 튀던 것 줄임**
+  - 손잡이 위치를 소수점 단위로 잼 (찾은 원 안의 회색 무게 중심) — 배경 무늬 때문에 1~2px 씩 튀던 게 줄어듦
+    - 영상 기준: 안 누를 때 흔들림 0.21 → 0.17 이하 · 끝까지 밀 때 0.83 ~ 1.00 → 0.92 ~ 1.00
+  - 방금 방향과 10도 안쪽으로만 달라지면 같은 방향으로 봄 (손가락은 그대로인데 읽은 값만 조금 튀는 것)
+  - 앞뒤가 같은 방향인데 가운데만 잠깐(0.12초 미만) 튄 건 지움 — 빠르게 돌린 건 그대로 남김
+- 길을 다시 걸을 때 조이스틱 방향을 더 자주 바꿈 (0.06 ~ 0.1초 → 0.035 ~ 0.07초 마다) — 빠르게 돌린 길도 더 비슷하게
+
+## Acrux Mobile V0.10.5 Update
+- **Reduced jumps in recorded routes**
+  - Knob position is measured to sub-pixel precision (gray center of mass inside the found circle) — fewer 1-2px jumps caused by the background pattern
+    - In the video: idle wobble 0.21 → 0.17 or less · full push 0.83-1.00 → 0.92-1.00
+  - A change of less than 10° from the current direction counts as the same direction (the finger has not moved, only the reading wobbled)
+  - A short blip (under 0.12 s) between two segments in the same direction is removed — fast turns are kept
+- When replaying a route the joystick direction is updated more often (every 0.035-0.07 s instead of 0.06-0.1 s) — fast turns replay more closely
+
 ## Acrux Mobile V0.10.4 업데이트
 - **조이스틱 · 점프 버튼 읽기를 실제 화면에 맞춰 다시 만듦 (보내 준 플레이 영상 기준)**
   - 조이스틱 찾기: 얇은 회색 테두리 원 (바깥 판) 을 찾음 — 예전엔 속이 찬 원으로 생각해서 손잡이를 판으로 잘못 찾았음
