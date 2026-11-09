@@ -6,41 +6,37 @@ import android.graphics.Path;
 import android.os.Handler;
 import android.os.HandlerThread;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 로블록스 클래식 조이스틱을 손가락처럼 누르고 끌기 (접근성 터치 · Shizuku 없이)
- *  · 처음엔 조이스틱 가운데를 누르고 (0.06초) → 그 다음 원하는 방향으로 끌어서 계속 누르고 있음
- *  · 계속 누르는 건 '이어지는 터치' (StrokeDescription.continueStroke) 를 짧게 (0.1초) 계속 이어 붙임
- *  · 방향을 다 떼면 손가락을 뗌
- *  · 끄는 거리 = 반지름 × PUSH (로블록스는 판 밖으로 끌어도 최대 속도로 걸음 → 반지름을 조금 작게 재도 최대 속도)
- * 주의: 접근성 터치는 한 번에 하나 — 조이스틱을 누르는 중에 다른 탭을 보내면 조이스틱 손가락이 떨어짐 (다시 누름)
+ * 손가락 두 개 (조이스틱 · 점프 버튼) 를 따로따로 누르고 · 끌고 · 꾹 누르고 있기 (접근성 터치 · Shizuku 없이)
+ *  · 조이스틱 손가락: 가운데를 누르고 원하는 방향으로 끌어서 계속 누르고 있음 (끄는 거리 = 반지름 × PUSH · 판 밖이어도 최대 속도)
+ *  · 점프 손가락: 점프 버튼을 누르고 있음 (꾹 누르면 로블록스는 계속 뜀) → 떼라고 할 때 뗌
+ *  · 계속 누르는 건 '이어지는 터치' (continueStroke) 를 짧게 (0.06 ~ 0.1초) 계속 이어 붙임 — 두 손가락을 같은 터치로 함께 이어 감
+ *  · 새 손가락을 더해야 할 때 (조이스틱을 누르는 중에 점프 시작 등) 는 '이어지는 터치' 에 새 손가락을 섞으면 로블록스가 안 받음
+ *    → 지금 누르고 있어야 하는 손가락 전부를 새 터치로 다시 시작 (조이스틱은 가운데부터 다시 끌기 · 끊김은 한 프레임 정도)
+ * 주의: 접근성 터치는 한 번에 하나 — 이 밖에서 다른 탭을 보내면 지금 손가락들이 떨어짐 (다음 조각에서 다시 누름)
  */
 final class Joy {
     private Joy() {}
 
     static final double PUSH = 1.35;
-    static final long PRESS_MS = 60, MOVE_MS = 60, HOLD_MS = 100;
+    static final long MOVE_MS = 60, HOLD_MS = 100, START_MS = 90;
 
     static final Object lock = new Object();
-    static volatile double tx, ty;           // 원하는 방향 (길이 0 ~ 1 · 1 = 끝까지)
-    static volatile boolean want;            // 누르고 있어야 함
+    static volatile double tx, ty;           // 조이스틱 방향 (길이 0 ~ 1 · 1 = 끝까지)
+    static volatile boolean want;            // 조이스틱을 누르고 있어야 함
+    static volatile boolean wantJump;        // 점프 버튼을 누르고 있어야 함
+    static volatile float jx, jy;            // 점프 버튼 (px)
     static volatile double cx, cy, r;        // 조이스틱 (px)
     static Thread loop;
-    /** 조이스틱을 누르고 있는 중 (다른 탭을 따로 보내면 조이스틱 손가락이 떨어짐 → 점프는 같은 터치에 섞어 보냄) */
+    /** 조이스틱 손가락이 닿아 있음 */
     static volatile boolean holding;
-    /** 다음 조각에 같이 보낼 점프 탭 (px) · 없으면 null */
-    static volatile float[] jumpAt;
-    /** 점프를 섞은 터치가 안 먹혀서 따로 누른 횟수 (점프 테스트 기록용) */
+    /** 새 터치가 안 먹혀서 점프만 따로 누른 횟수 (점프 테스트 기록용) */
     static volatile int jumpFallbacks;
-
-    /** 조이스틱을 누르고 있으면 점프 탭을 그 손가락과 같이 보냄 → true · 안 누르고 있으면 false (그냥 탭하면 됨) */
-    static boolean jump(float x, float y) {
-        if (!holding) return false;
-        jumpAt = new float[]{x, y};
-        return true;
-    }
     static Handler cb;
 
     /** 조이스틱 위치 (px) */
@@ -50,7 +46,7 @@ final class Joy {
         r = radius;
     }
 
-    /** 방향 (길이 1 = 끝까지 · null = 뗌) */
+    /** 조이스틱 방향 (길이 1 = 끝까지 · null = 뗌) */
     static void set(double[] d) {
         synchronized (lock) {
             if (d == null) {
@@ -60,6 +56,17 @@ final class Joy {
                 ty = d[1];
                 want = true;
             }
+            start();
+            lock.notifyAll();
+        }
+    }
+
+    /** 점프 버튼 누르기 (down) · 떼기 (!down) */
+    static void jump(float x, float y, boolean down) {
+        synchronized (lock) {
+            jx = x;
+            jy = y;
+            wantJump = down;
             start();
             lock.notifyAll();
         }
@@ -77,16 +84,12 @@ final class Joy {
         loop.start();
     }
 
-    /** 터치 하나 보내고 끝날 때까지 기다림 → 끝까지 갔으면 true (취소 · 실패 · 접근성 꺼짐이면 false) */
-    static boolean send(GestureDescription.StrokeDescription s, long ms) {
-        return send(s, ms, null);
-    }
-
-    static boolean send(GestureDescription.StrokeDescription s, long ms, GestureDescription.StrokeDescription extra) {
+    /** 터치 하나 (손가락 여러 개) 보내고 끝날 때까지 기다림 → 끝까지 갔으면 true */
+    static boolean send(List<GestureDescription.StrokeDescription> strokes, long ms) {
         TapService t = TapService.instance;
-        if (t == null) return false;
-        GestureDescription.Builder gb = new GestureDescription.Builder().addStroke(s);
-        if (extra != null) gb.addStroke(extra);
+        if (t == null || strokes.isEmpty()) return false;
+        GestureDescription.Builder gb = new GestureDescription.Builder();
+        for (GestureDescription.StrokeDescription s : strokes) gb.addStroke(s);
         Semaphore done = new Semaphore(0);
         boolean[] ok = {false};
         boolean sent;
@@ -123,14 +126,15 @@ final class Joy {
     }
 
     static void run() {
-        GestureDescription.StrokeDescription cur = null;
-        double px = 0, py = 0;
-        boolean wiggle = false;
+        GestureDescription.StrokeDescription stick = null, jumpF = null;
+        double px = 0, py = 0, qx = 0, qy = 0;   // 조이스틱 손가락 · 점프 손가락 지금 자리
+        boolean wig = false;
         while (true) {
-            boolean w;
+            boolean ws, wj;
             double dx, dy;
+            float bx, by;
             synchronized (lock) {
-                if (!want && cur == null) {
+                if (!want && !wantJump && stick == null && jumpF == null) {
                     try {
                         lock.wait(5000);
                     } catch (InterruptedException e) {
@@ -138,86 +142,95 @@ final class Joy {
                     }
                     continue;
                 }
-                w = want;
+                ws = want;
+                wj = wantJump;
                 dx = tx;
                 dy = ty;
+                bx = jx;
+                by = jy;
             }
             TapService t = TapService.instance;
-            if (t == null || r <= 0) {
-                cur = null;
+            if (t == null || (ws && r <= 0)) {
+                stick = null;
+                jumpF = null;
                 holding = false;
                 synchronized (lock) {
                     want = false;
+                    wantJump = false;
                 }
                 continue;
-            }
-            if (!w) {
-                // 손가락 떼기
-                send(cur.continueStroke(line(px, py, px + (wiggle ? -1 : 1), py), 0, 30, false), 30);
-                cur = null;
-                holding = false;
-                continue;
-            }
-            if (cur == null) {
-                // 가운데를 먼저 누름 (클래식 조이스틱은 판 안에서 누르기 시작해야 잡힘)
-                t.letThrough((int) cx, (int) cy);
-                px = cx;
-                py = cy;
-                GestureDescription.StrokeDescription s = new GestureDescription.StrokeDescription(line(px, py, px + 1, py), 0, PRESS_MS, true);
-                px += 1;
-                if (!send(s, PRESS_MS)) {
-                    nap(50);
-                    continue;
-                }
-                cur = s;
-                holding = true;
             }
             double m = Math.hypot(dx, dy), k = m >= 0.95 ? PUSH / Math.max(m, 1e-9) : 1.0;     // 끝까지면 판 밖으로 조금 더 (최대 속도)
             double gx = cx + dx * r * k, gy = cy + dy * r * k;
-            GestureDescription.StrokeDescription s;
-            long ms;
-            if (Math.hypot(gx - px, gy - py) >= 2) {
-                ms = MOVE_MS;
-                s = cur.continueStroke(line(px, py, gx, gy), 0, ms, true);
-                px = gx;
-                py = gy;
-            } else {
-                // 그 자리에서 계속 누르고 있음 (1px 흔들기 · 이어지는 터치는 움직임이 있어야 함)
-                ms = HOLD_MS;
-                double nx = px + (wiggle ? -1 : 1);
-                wiggle = !wiggle;
-                s = cur.continueStroke(line(px, py, nx, py), 0, ms, true);
-                px = nx;
-            }
-            // 점프: '이어지는 터치' 에 새 손가락을 섞으면 로블록스가 점프로 안 받음 (실제 기기 확인)
-            // → 새 두 손가락 터치로 다시 시작: 조이스틱 가운데를 누르고 가던 방향으로 끌면서 + 0.03초 뒤 점프 버튼 탭
-            //   (예전 조이스틱 손가락은 이 새 터치가 시작될 때 떨어짐 — 바로 다시 눌러서 끊김은 한 프레임 정도)
-            float[] j = jumpAt;
-            jumpAt = null;
-            if (j != null) {
-                GestureDescription.StrokeDescription s0 = new GestureDescription.StrokeDescription(line(cx, cy, gx, gy), 0, MOVE_MS + 30, true);
-                Path p = new Path();
-                p.moveTo(j[0], j[1]);
-                GestureDescription.StrokeDescription jp = new GestureDescription.StrokeDescription(p, 30, 90);
-                if (send(s0, 120, jp)) {
-                    cur = s0;
+            List<GestureDescription.StrokeDescription> g = new ArrayList<>();
+
+            if ((ws && stick == null) || (wj && jumpF == null)) {
+                // 새 손가락이 필요 → 누르고 있어야 하는 손가락 전부를 새 터치로 다시 시작
+                GestureDescription.StrokeDescription ns = null, nj = null;
+                if (ws) {
+                    t.letThrough((int) cx, (int) cy);
+                    ns = new GestureDescription.StrokeDescription(line(cx, cy, gx, gy), 0, START_MS, true);   // 가운데를 누르고 그 방향으로 끌기
+                    g.add(ns);
+                }
+                if (wj) {
+                    t.letThrough((int) bx, (int) by);
+                    long st = ws ? 30 : 0;                                       // 조이스틱이 먼저 닿은 뒤
+                    nj = new GestureDescription.StrokeDescription(line(bx, by, bx + 1, by), st, START_MS - st, true);
+                    g.add(nj);
+                }
+                if (send(g, START_MS)) {
+                    stick = ns;
+                    jumpF = nj;
                     px = gx;
                     py = gy;
+                    qx = bx + 1;
+                    qy = by;
+                    holding = stick != null;
                 } else {
-                    cur = null;
+                    stick = null;
+                    jumpF = null;
                     holding = false;
-                    TapService tj = TapService.instance;     // 그래도 안 되면 점프만 따로
-                    if (tj != null) tj.tap((int) j[0], (int) j[1], 90);
-                    jumpFallbacks++;
+                    if (wj) {                                                    // 그래도 안 되면 점프만 따로 탭
+                        t.tap((int) bx, (int) by, 90);
+                        jumpFallbacks++;
+                    }
+                    nap(30);
                 }
                 continue;
             }
-            if (!send(s, ms)) {
-                cur = null;              // 끊김 (다른 터치 · 사람이 화면을 누름) → 다음에 가운데부터 다시
-                holding = false;
-                continue;
+
+            // 이어 가기: 손가락마다 그대로 · 움직임 · 떼기
+            boolean moving = stick != null && ws && Math.hypot(gx - px, gy - py) >= 2;
+            long ms = moving ? MOVE_MS : HOLD_MS;
+            if (stick == null && jumpF == null) continue;
+            if (!ws && !wj) ms = 30;                                             // 다 뗌
+            GestureDescription.StrokeDescription ns = null, nj = null;
+            if (stick != null) {
+                if (!ws) {
+                    ns = stick.continueStroke(line(px, py, px + (wig ? -1 : 1), py), 0, ms, false);
+                } else if (moving) {
+                    ns = stick.continueStroke(line(px, py, gx, gy), 0, ms, true);
+                    px = gx;
+                    py = gy;
+                } else {
+                    double nx = px + (wig ? -1 : 1);                             // 그 자리 (1px 흔들기 · 이어지는 터치는 움직임이 있어야 함)
+                    ns = stick.continueStroke(line(px, py, nx, py), 0, ms, true);
+                    px = nx;
+                }
+                g.add(ns);
             }
-            cur = s;
+            if (jumpF != null) {
+                double nx = qx + (wig ? -1 : 1);
+                nj = jumpF.continueStroke(line(qx, qy, nx, qy), 0, ms, wj);
+                qx = nx;
+                g.add(nj);
+            }
+            wig = !wig;
+            boolean ok = send(g, ms);
+            stick = ok && ns != null && ws ? ns : null;
+            jumpF = ok && nj != null && wj ? nj : null;
+            holding = stick != null;
+            if (!ok) nap(10);              // 끊김 (다른 터치 · 사람이 화면을 누름) → 다음 조각에서 다시 누름
         }
     }
 

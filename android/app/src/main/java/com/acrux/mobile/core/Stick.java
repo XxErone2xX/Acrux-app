@@ -656,15 +656,13 @@ public final class Stick {
     }
 
     /**
-     * 점프 버튼 눌림 (실제 화면: 평소 약 -70 · 누르면 약 +20)
+     * 점프 버튼 눌림 · 뗌 (실제 화면: 평소 약 -70 · 누르면 약 +20)
      * 기준: 시작할 때 잰 '평소 값' base 에서 → base 의 35% 위로 올라오면 눌림 · 65% 아래로 내려가면 뗌 (기기 · 화면마다 밝기가 달라도)
-     * 누르고 있으면 로블록스는 계속 뜀 → 누르고 있는 동안 REPEAT 초마다 한 번씩 더 점프로 셈
+     * 꾹 누르고 있으면 눌림 → (누르고 있는 동안 아무 일 없음) → 뗌 : 다시 걸을 때도 그만큼 꾹 누름 (로블록스는 누르고 있으면 계속 뜀)
      */
     public static final class JumpWatch {
-        static final double REPEAT = 0.45;
         double on = -25, off = -45;
         boolean down;
-        double last;
 
         public JumpWatch() {}
 
@@ -676,26 +674,22 @@ public final class Stick {
             }
         }
 
-        /** 이번 프레임 밝기 차이 · t: 시각 (초) → 점프로 셀 때 true */
-        public boolean step(double v, double t) {
-            if (Double.isNaN(v)) return false;
-            if (!down) {
-                if (v >= on) {
-                    down = true;
-                    last = t;
-                    return true;
-                }
-                return false;
+        public boolean isDown() {
+            return down;
+        }
+
+        /** 이번 프레임 밝기 차이 → +1 막 눌림 · -1 막 뗌 · 0 그대로 */
+        public int step(double v) {
+            if (Double.isNaN(v)) return 0;
+            if (!down && v >= on) {
+                down = true;
+                return 1;
             }
-            if (v < off) {
+            if (down && v < off) {
                 down = false;
-                return false;
+                return -1;
             }
-            if (t - last >= REPEAT) {
-                last = t;
-                return true;
-            }
-            return false;
+            return 0;
         }
     }
 

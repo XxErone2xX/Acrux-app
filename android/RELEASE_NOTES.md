@@ -1,3 +1,19 @@
+## Acrux Mobile V0.10.13 업데이트
+- **점프 버튼을 꾹 누른 것도 그대로 기록 · 재생**
+  - 기록: 점프 버튼을 누른 때와 뗀 때를 따로 저장 (예전엔 누르고 있으면 0.45초마다 한 번씩 톡 누른 걸로 바꿨음)
+  - 재생: 그 시간만큼 점프 버튼을 꾹 누르고 있음 — 로블록스가 누르고 있는 동안 계속 뛰는 것까지 그대로
+  - 조이스틱 손가락 · 점프 손가락을 따로 누르고 떼서 걸으면서 꾹 누르기도 됨
+- ⚙ → 점프 테스트: 제자리 → 걸으면서 → 걸으면서 1.5초 꾹 누르기
+- 예전에 기록한 길의 점프는 '톡 누르기' 로 재생됨 (꾹 누르기를 쓰려면 길을 다시 기록)
+
+## Acrux Mobile V0.10.13 Update
+- **Holding the jump button is now recorded and replayed as a hold**
+  - Recording: press and release of the jump button are saved separately (before, holding was turned into a tap every 0.45 s)
+  - Replay: the jump button is held for that long — including Roblox jumping repeatedly while held
+  - The joystick finger and jump finger are pressed and released independently, so holding jump while walking works
+- ⚙ → Jump test: in place → while walking → hold for 1.5 s while walking
+- Jumps in routes recorded before this version replay as taps (record the route again to use holds)
+
 ## Acrux Mobile V0.10.12 업데이트
 - **걸으면서 점프가 안 되던 것 고침**
   - 누르고 있는 조이스틱 터치에 점프 손가락을 '이어 붙이면' 로블록스가 점프로 받지 않았음

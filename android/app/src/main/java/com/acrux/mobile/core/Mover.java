@@ -210,16 +210,22 @@ public final class Mover {
         try {
             for (Route.Seg g : r.segs) {
                 touch.stick(g.idle() ? null : new double[]{g.dx, g.dy});
-                if (g.jump && jp != null) {
-                    if (!g.idle()) sleep(0.13);            // 조이스틱 손가락이 먼저 닿은 뒤 같이 보냄
-                    touch.jump(jp[0], jp[1]);
-                    sleep(Math.max(0, g.sec - (g.idle() ? 0 : 0.13)));
-                } else {
-                    sleep(g.sec);
+                if (jp != null && g.jumpUp && !g.jump) touch.jumpUp();
+                if (jp != null && g.jump) {
+                    touch.jumpDown(jp[0], jp[1]);
+                    if (g.jumpUp) {                         // 톡 누르고 바로 뗀 점프 (한 조각 안에서)
+                        double hold = Math.min(0.12, g.sec);
+                        sleep(hold);
+                        touch.jumpUp();
+                        sleep(Math.max(0, g.sec - hold));
+                        continue;
+                    }
                 }
+                sleep(g.sec);
             }
         } finally {
             touch.stick(null);
+            if (jp != null) touch.jumpUp();
         }
         sleep(cfg.margin);
     }
@@ -239,24 +245,34 @@ public final class Mover {
         return new int[]{qx + (int) Math.round(jl[0]), qy + (int) Math.round(jl[1])};
     }
 
-    /** 점프 테스트: 제자리 점프 → 1초 뒤 앞으로 걸으면서 점프 */
+    /** 점프 테스트: 제자리 점프 → 앞으로 걸으면서 점프 → 걸으면서 1.5초 꾹 누르기 */
     public void jumpTest() {
         int[] jp = jumpPos();
         if (jp == null) throw new RuntimeException("먼저 지정 필요: 점프 버튼 (Acrux 창 → ⚙)");
         out.log("점프 테스트: 점프 버튼 (" + jp[0] + ", " + jp[1] + ") — 초록 점이 버튼 위에 뜨는지 보세요", 'c');
-        out.state("점프 테스트 — 제자리");
-        touch.jump(jp[0], jp[1]);
-        sleep(1.2);
-        if (touch.stickAt() != null) {
-            out.state("점프 테스트 — 걸으면서");
-            try {
+        try {
+            out.state("점프 테스트 — 제자리");
+            touch.jumpDown(jp[0], jp[1]);
+            sleep(0.12);
+            touch.jumpUp();
+            sleep(1.2);
+            if (touch.stickAt() != null) {
+                out.state("점프 테스트 — 걸으면서");
                 touch.stick(new double[]{0, -1});
                 sleep(0.4);
-                touch.jump(jp[0], jp[1]);
+                touch.jumpDown(jp[0], jp[1]);
+                sleep(0.12);
+                touch.jumpUp();
                 sleep(0.9);
-            } finally {
-                touch.stick(null);
+                out.state("점프 테스트 — 걸으면서 꾹 누르기 (1.5초)");
+                touch.jumpDown(jp[0], jp[1]);
+                sleep(1.5);
+                touch.jumpUp();
+                sleep(0.4);
             }
+        } finally {
+            touch.stick(null);
+            touch.jumpUp();
         }
     }
 
@@ -284,7 +300,7 @@ public final class Mover {
         Route.Recorder rec = new Route.Recorder();
         double[] jb = base.get("jump_btn");
         // 점프 버튼은 따로 빠르게 (약 60번/초) 봄 — 짧게 톡 누른 점프도 놓치지 않게 (조이스틱 읽기는 한 번에 시간이 더 걸림)
-        java.util.concurrent.ConcurrentLinkedQueue<Double> jumpTimes = new java.util.concurrent.ConcurrentLinkedQueue<>();
+        java.util.concurrent.ConcurrentLinkedQueue<Integer> jumpEv = new java.util.concurrent.ConcurrentLinkedQueue<>();
         java.util.concurrent.atomic.AtomicBoolean jumpRun = new java.util.concurrent.atomic.AtomicBoolean(true);
         Thread jumpThread = null;
         if (jb != null) {
@@ -305,7 +321,8 @@ public final class Mover {
                         Img ji = scr.grab(jx, jy, jsz, jsz);
                         if (ji != null && ji.w > 0) {
                             double tt = now() - jt0;
-                            if (jw.step(Stick.jumpLevel(ji, jcx - Math.max(0, jx), jcy - Math.max(0, jy), jr), tt)) jumpTimes.add(tt);
+                            int ev = jw.step(Stick.jumpLevel(ji, jcx - Math.max(0, jx), jcy - Math.max(0, jy), jr));
+                            if (ev != 0) jumpEv.add(ev);
                         }
                         Touch.nap(15);
                     }
@@ -343,18 +360,23 @@ public final class Mover {
             last[1] = last[2];
             last[2] = Route.quant(v);
             // 그 사이 눌린 점프 (따로 보는 스레드) — 시각은 기록 시작 기준이라 거의 같음
-            boolean jump = false;
-            while (jumpTimes.poll() != null) {
-                jump = true;
-                jumps++;
+            boolean jump = false, up = false;
+            Integer ev;
+            while ((ev = jumpEv.poll()) != null) {
+                if (ev > 0) {
+                    jump = true;
+                    jumps++;
+                } else {
+                    up = true;
+                }
             }
-            rec.add(t, steady(last), jump);
+            rec.add(t, steady(last), jump, up);
             Touch.nap(10);
         }
         } finally {
             jumpRun.set(false);
         }
-        rec.add(now() - t0, null);
+        rec.add(now() - t0, null, false, true);          // 끝날 때 점프 버튼은 뗀 걸로
         Route r = rec.done();
         out.log(name + " 길 기록 끝: " + r.segs.size() + "조각 · " + Math.round(r.seconds() * 10) / 10.0 + "초 · 점프 " + r.jumps() + "번 (프레임 " + frames + " · 움직임 " + seen + ")",
                 r.isEmpty() ? 'y' : 'g');

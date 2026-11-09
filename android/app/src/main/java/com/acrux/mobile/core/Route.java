@@ -13,8 +13,12 @@ import java.util.Locale;
 public final class Route {
     public static final class Seg {
         public double dx, dy, sec;
-        /** 이 조각을 시작할 때 점프 */
-        public boolean jump;
+        /** 이 조각을 시작할 때 점프 버튼을 누름 · 뗌 (꾹 누르고 있으면 누름 → 몇 조각 뒤 뗌) */
+        public boolean jump, jumpUp;
+
+        boolean marked() {
+            return jump || jumpUp;
+        }
 
         public Seg(double dx, double dy, double sec) {
             this.dx = dx;
@@ -65,14 +69,18 @@ public final class Route {
         final Route r = new Route();
         double lastT = -1;
         double[] lastV;
-        boolean lastJump;
+        boolean lastJump, lastUp;
 
         public void add(double t, double[] v) {
-            add(t, v, false);
+            add(t, v, false, false);
         }
 
-        /** jump: 이 프레임에 점프 버튼이 막 눌림 */
         public void add(double t, double[] v, boolean jump) {
+            add(t, v, jump, false);
+        }
+
+        /** jump: 이 프레임에 점프 버튼이 막 눌림 · up: 막 뗌 */
+        public void add(double t, double[] v, boolean jump, boolean up) {
             double[] q = quant(v);
             // 흔들림 막기: 방금 방향과 10도 · 길이 0.25 안쪽이면 방금 방향 그대로 (손가락은 그대로인데 읽은 값만 조금 튀는 것)
             if (lastV != null && !(q[0] == 0 && q[1] == 0) && !(lastV[0] == 0 && lastV[1] == 0)) {
@@ -84,10 +92,11 @@ public final class Route {
                 double dt = t - lastT;
                 if (dt > 0) {
                     Seg last = r.segs.isEmpty() ? null : r.segs.get(r.segs.size() - 1);
-                    if (last != null && !lastJump && last.dx == lastV[0] && last.dy == lastV[1]) last.sec += dt;
+                    if (last != null && !lastJump && !lastUp && last.dx == lastV[0] && last.dy == lastV[1]) last.sec += dt;
                     else {
                         Seg g = new Seg(lastV[0], lastV[1], dt);
                         g.jump = lastJump;
+                        g.jumpUp = lastUp;
                         r.segs.add(g);
                     }
                 }
@@ -95,16 +104,17 @@ public final class Route {
             lastT = t;
             lastV = q;
             lastJump = jump;
+            lastUp = up;
         }
 
         /** 끝: 앞뒤의 멈춘 시간은 뺌 · 아주 짧은 흔들림(0.12초 미만)은 앞 조각에 붙임 */
         public Route done() {
             List<Seg> s = r.segs;
-            while (!s.isEmpty() && s.get(0).idle() && !s.get(0).jump) s.remove(0);
-            while (!s.isEmpty() && s.get(s.size() - 1).idle() && !s.get(s.size() - 1).jump) s.remove(s.size() - 1);
+            while (!s.isEmpty() && s.get(0).idle() && !s.get(0).marked()) s.remove(0);
+            while (!s.isEmpty() && s.get(s.size() - 1).idle() && !s.get(s.size() - 1).marked()) s.remove(s.size() - 1);
             for (int i = 1; i < s.size(); ) {
                 Seg g = s.get(i);
-                if (g.jump) {
+                if (g.marked()) {
                     i++;                                   // 점프 조각은 안 합침
                 } else if (g.sec < 0.12 && i + 1 < s.size() && close(s.get(i - 1), s.get(i + 1))) {
                     s.get(i - 1).sec += g.sec;          // 앞뒤가 같은 방향인데 가운데만 잠깐 튄 것 (빠르게 돌린 건 그대로 둠)
@@ -135,7 +145,7 @@ public final class Route {
         for (Seg g : segs) {
             if (b.length() > 0) b.append(';');
             b.append(String.format(Locale.ROOT, "%s,%s,%s", g.dx, g.dy, g.sec));
-            if (g.jump) b.append(",j");
+            if (g.jump || g.jumpUp) b.append(',').append(g.jump ? "j" : "").append(g.jumpUp ? "u" : "");
         }
         return b.toString();
     }
@@ -148,7 +158,8 @@ public final class Route {
             if (v.length < 3) continue;
             try {
                 Seg g = new Seg(Double.parseDouble(v[0]), Double.parseDouble(v[1]), Double.parseDouble(v[2]));
-                g.jump = v.length > 3 && v[3].equals("j");
+                g.jump = v.length > 3 && v[3].contains("j");
+                g.jumpUp = v.length > 3 && v[3].contains("u");
                 r.segs.add(g);
             } catch (NumberFormatException ignored) {
             }

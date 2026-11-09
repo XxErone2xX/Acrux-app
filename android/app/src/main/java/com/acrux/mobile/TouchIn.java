@@ -39,9 +39,18 @@ final class TouchIn implements Touch {
         Joy.set(v);
     }
 
+    int jx, jy;
+
     @Override
-    public void jump(int x, int y) {
-        if (!Joy.jump(x, y)) svc().tap(x, y, 90);     // 조이스틱을 안 누르고 있으면 그냥 탭
+    public void jumpUp() {
+        Joy.jump(jx, jy, false);
+    }
+
+    @Override
+    public void jumpDown(int x, int y) {
+        jx = x;
+        jy = y;
+        Joy.jump(x, y, true);
         // 어디를 눌렀는지 잠깐 보여 줌 (점프가 안 될 때 위치가 틀렸는지 바로 보이게)
         Hub.main.post(() -> {
             TapService t = TapService.instance;

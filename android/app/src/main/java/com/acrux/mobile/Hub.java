@@ -262,7 +262,7 @@ final class Hub {
                 else if (m.equals("jumptest")) {
                     int fb = Joy.jumpFallbacks;
                     mv.jumpTest();
-                    log("점프 테스트 끝 — 두 번 뛰었으면 성공" + (Joy.jumpFallbacks > fb ? " (걸으면서 점프는 따로 다시 눌렀음)" : ""), 'g');
+                    log("점프 테스트 끝 — 제자리 1번 · 걸으면서 1번 · 꾹 누르는 1.5초 동안 계속 뛰었으면 성공" + (Joy.jumpFallbacks > fb ? " (점프를 따로 다시 누른 적 있음)" : ""), 'g');
                 }
                 else work(m, f, mv, sl);
             } catch (Fisher.Stopped e) {
