@@ -232,6 +232,82 @@ public final class Stick {
         return knob(im, fx, fy, r);
     }
 
+    /**
+     * 기록용 조이스틱 따라가기 — 로블록스 클래식 조이스틱은 누를 때마다 판이 누른 자리로 옮겨짐 (떼면 원래 자리)
+     *  1. 방금 판 자리 근처 → 2. 원래 자리 근처 → 3. 그래도 없으면 넓게 (화면 왼쪽 아래 전체 · 줄여서) 찾음
+     *  판을 찾으면 손잡이는 그 판 가운데 기준으로 잼
+     * 화면 좌표: im 은 (ox, oy) 부터 잘라 온 넓은 영역
+     */
+    public static final class Tracker {
+        public final double homeX, homeY, r;
+        double curX = Double.NaN, curY;
+        /** 마지막으로 찾은 판 가운데 (화면 좌표) · 디버그용 */
+        public double ringX, ringY, ringScore;
+
+        public Tracker(double homeX, double homeY, double r) {
+            this.homeX = homeX;
+            this.homeY = homeY;
+            this.r = r;
+        }
+
+        /** → {dx, dy, 점수} (반지름 단위) · 판을 못 찾으면 null */
+        public double[] step(Img im, int ox, int oy) {
+            if (im == null || im.w < 8 || im.h < 8) return null;
+            float[] C = chroma(im, 1);
+            double[] got = null;
+            if (!Double.isNaN(curX)) got = near(C, im.w, im.h, curX - ox, curY - oy, r * 0.25);
+            if (got == null) got = near(C, im.w, im.h, homeX - ox, homeY - oy, r * 0.25);
+            if (got == null) got = wide(im);
+            if (got == null) {
+                curX = Double.NaN;
+                return null;
+            }
+            curX = got[0] + ox;
+            curY = got[1] + oy;
+            ringX = curX;
+            ringY = curY;
+            ringScore = got[2];
+            return knob(im, got[0], got[1], r);
+        }
+
+        static final double OK = 25;
+
+        double[] near(float[] C, int w, int h, double cx, double cy, double lim) {
+            double best = 0, bx = 0, by = 0;
+            for (double y = cy - lim; y <= cy + lim; y += 1) {
+                for (double x = cx - lim; x <= cx + lim; x += 1) {
+                    double s = thinRing(C, w, h, x, y, r);
+                    if (s > best) {
+                        best = s;
+                        bx = x;
+                        by = y;
+                    }
+                }
+            }
+            return best >= OK ? new double[]{bx, by, best} : null;
+        }
+
+        /** 넓게: 3칸씩 줄인 화면에서 반지름 r/3 원을 찾고 → 원래 크기에서 근처만 다시 */
+        double[] wide(Img im) {
+            int st = 3, w = im.w / st, h = im.h / st;
+            float[] D = chroma(im, st);
+            double rr = r / st, best = 0, bx = 0, by = 0;
+            for (int y = 0; y < h; y++) {
+                for (int x = 0; x < w; x++) {
+                    double s = thinRing(D, w, h, x, y, rr);
+                    if (s > best) {
+                        best = s;
+                        bx = x;
+                        by = y;
+                    }
+                }
+            }
+            if (best < OK) return null;
+            float[] C = chroma(im, 1);
+            return near(C, im.w, im.h, bx * st + st / 2.0, by * st + st / 2.0, st + 1);
+        }
+    }
+
     /** (x, y) 반지름 kr 원 안의 회색 무게 중심 — 무게 = (원 바깥 1.3kr 의 평균 채도) - (그 픽셀 채도) */
     static double[] centroid(float[] C, int w, int h, double x, double y, double kr) {
         double ref = 0;
@@ -244,6 +320,7 @@ public final class Stick {
         }
         if (n < ANG / 2) return null;
         ref /= n;
+        if (ref < 40) return null;                  // 배경도 색이 옅으면 (흰 구름 · 회색 바닥) 무게 중심이 끌려감 → 안 씀
         double sw = 0, sx = 0, sy = 0, rr = kr * 1.05;
         for (int py = (int) Math.max(0, y - rr); py <= Math.min(h - 1, y + rr); py++) {
             for (int px = (int) Math.max(0, x - rr); px <= Math.min(w - 1, x + rr); px++) {

@@ -236,7 +236,11 @@ public final class Mover {
         double[] st = touch.stickAt();
         if (st == null) throw new RuntimeException("먼저 조이스틱 찾기 (Acrux 창 → ⚙ → 조이스틱 찾기)");
         goBase();
-        int x0 = (int) (st[0] - st[2] * 2.3), y0 = (int) (st[1] - st[2] * 2.3), sz = (int) (st[2] * 4.6);
+        // 조이스틱은 누를 때마다 판이 누른 자리로 옮겨짐 → 화면 왼쪽 아래를 넓게 보면서 판을 따라감 (Stick.Tracker)
+        int rx0 = 0, ry0 = (int) (scr.height() * 0.3), rw = scr.width() / 2, rh = scr.height() - ry0;
+        Stick.Tracker tk = new Stick.Tracker(st[0], st[1], st[2]);
+        double[] held = null;
+        double heldAt = -1;
         out.state(name + " 길 기록 중 — 조이스틱으로 걸어가서 도착하면 [도착]");
         out.log(name + " 길 기록 시작 — 지금부터 조이스틱 움직임을 저장 · 도착하면 Acrux 창의 [도착]", 'c');
         Route.Recorder rec = new Route.Recorder();
@@ -258,15 +262,18 @@ public final class Mover {
             check.run();
             double t = now() - t0;
             if (t > RECORD_MAX) throw new RuntimeException((int) RECORD_MAX + "초 안에 [도착]을 안 누름 — 기록 취소");
-            Img im = scr.grab(x0, y0, sz, sz);
+            Img im = scr.grab(rx0, ry0, rw, rh);
             double[] v = null;
             if (im != null && im.w > 0) {
-                // 잘린 화면 안에서의 판 가운데 (화면 가장자리에서 잘렸을 수 있음)
-                double[] k = Stick.track(im, st[0] - Math.max(0, x0), st[1] - Math.max(0, y0), st[2]);
+                double[] k = tk.step(im, rx0, ry0);
                 frames++;
                 if (k != null) {
                     v = new double[]{k[0], k[1]};
+                    held = v;
+                    heldAt = t;
                     if (Math.hypot(k[0], k[1]) >= 0.3) seen++;
+                } else if (held != null && t - heldAt <= 0.3) {
+                    v = held;                       // 잠깐 판을 못 찾음 (흰 구름 · 효과에 가려짐) → 0.3초까지는 방금 방향 그대로
                 }
             }
             // 3프레임 중 2프레임이 같은 쪽이면 그 값 (한 프레임 튀는 건 무시)

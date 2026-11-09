@@ -1,3 +1,19 @@
+## Acrux Mobile V0.10.6 업데이트
+- **길 기록: 누를 때마다 옮겨지는 조이스틱 판을 따라감**
+  - 로블록스 조이스틱은 누른 자리로 판이 옮겨짐 — 예전엔 원래 자리 근처만 봐서, 멀리 누르면 판을 놓치고 엉뚱한 방향을 읽었음
+  - 이제 화면 왼쪽 아래를 넓게 보면서: 방금 판 자리 → 원래 자리 → 그래도 없으면 넓게 찾음
+  - 잠깐 판이 안 보이면 (흰 구름 · 효과에 가려짐) 0.3초까지는 방금 방향 그대로 (예전엔 '멈춤' 으로 기록됐음)
+  - 배경도 색이 옅을 때 (흰 구름 · 회색 바닥) 손잡이 위치가 끌려가던 것 막음
+- V0.10.5 에서 빠르게 바꾼 재생 간격을 원래대로 되돌림 (0.06 ~ 0.1초) — 너무 짧으면 터치가 끊겨 조이스틱을 다시 누르게 될 수 있음
+
+## Acrux Mobile V0.10.6 Update
+- **Route recording follows the joystick ring that moves each time you press**
+  - The Roblox joystick ring jumps to where you press — before, it only looked near the original spot, so pressing far away lost the ring and read wrong directions
+  - Now it watches the whole bottom-left area: the last ring spot → the original spot → a wide search if still not found
+  - If the ring is briefly hidden (white clouds · effects), the last direction is kept for up to 0.3 s (before, this was recorded as "stopped")
+  - Stopped the knob position being pulled off when the background is also low-color (white clouds · gray floors)
+- Restored the replay step timing changed in V0.10.5 (0.06-0.1 s) — steps that are too short can break the touch and re-press the joystick
+
 ## Acrux Mobile V0.10.5 업데이트
 - **길 기록이 중간중간 튀던 것 줄임**
   - 손잡이 위치를 소수점 단위로 잼 (찾은 원 안의 회색 무게 중심) — 배경 무늬 때문에 1~2px 씩 튀던 게 줄어듦
