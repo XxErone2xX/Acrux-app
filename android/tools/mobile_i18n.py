@@ -220,6 +220,8 @@ E = [
     ['재설정 버튼 (Esc 메뉴)', 'Reset button (Esc menu)', 'リセットボタン (Esc メニュー)'], ['재설정 버튼', 'Reset button', 'リセットボタン'],
     ['ENTER {0}/{1}', 'ENTER {0}/{1}', 'ENTER {0}/{1}'],
     ['1초 뒤 시작', 'Starting in 1 second', '1秒後に開始'],
+    ["점프 버튼: 가운데 ({0}, {1}) · 반지름 {2}px · 평소 밝기 차이 {3}", "Jump button: center ({0}, {1}) · radius {2}px · idle contrast {3}", "ジャンプボタン: 中心 ({0}, {1}) · 半径 {2}px · 通常の明るさの差 {3}"],
+    ["점프 버튼이 잘 안 보임 — ⚙ → 점프 버튼 위치를 버튼 한가운데로 다시 지정해 주세요 (점프를 못 읽을 수 있음)", "Jump button is hard to see — set ⚙ → Jump button again at the center of the button (jumps may be missed)", "ジャンプボタンが見えにくい — ⚙ → ジャンプボタンをボタンの中心に指定し直してください (ジャンプを読めないことがある)"],
     ["사용자 수 집계: 켜져 있다는 신호만 보냄 (무작위 번호 · 개인 정보 없음)", "User count: only sends an \"app is on\" signal (random number · no personal info)", "ユーザー数集計: 起動中という信号だけ送る (ランダム番号 · 個人情報なし)"],
     ["기준 장소로 이동 · 줌 아웃", "To the base spot · zoom out", "基準地点へ移動 · ズームアウト"],
     ["기준 장소로 이동 · 내려다보기", "To the base spot · look down", "基準地点へ移動 · 見下ろし"],

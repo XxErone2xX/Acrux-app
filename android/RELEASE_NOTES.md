@@ -1,3 +1,17 @@
+## Acrux Mobile V0.10.9 업데이트
+- **길 기록에서 점프를 못 읽던 문제 수정**
+  - 점프 버튼을 따로 빠르게 봄 (약 60번/초) — 예전엔 조이스틱을 읽는 사이사이에만 봐서 짧게 톡 누른 점프를 놓쳤음
+  - 기록을 시작할 때 점프 버튼 자리 · 크기를 화면에서 다시 맞춤 — ⚙ 에서 찍은 자리가 버튼 한가운데에서 50px 쯤 어긋나도 됨
+  - 눌림 기준을 기기 화면에 맞춤 (시작할 때 잰 '안 누를 때 밝기' 기준)
+  - 기록 칸에 점프 버튼을 어떻게 찾았는지 남김 · 버튼이 잘 안 보이면 다시 지정하라고 알려 줌
+
+## Acrux Mobile V0.10.9 Update
+- **Fixed jumps not being read in route recording**
+  - The jump button is now watched separately and quickly (about 60 times/s) — before, it was only checked between joystick reads, so quick taps were missed
+  - When recording starts, the jump button position and size are re-fitted from the screen — the spot set in ⚙ can be about 50px off the button center
+  - The press threshold adapts to the device screen (based on the "not pressed" brightness measured at the start)
+  - The log shows how the jump button was found, and asks you to set it again if the button is hard to see
+
 ## Acrux Mobile V0.10.8 업데이트
 - **길 기록 오탐 줄임 (보내 준 영상 650프레임으로 하나씩 맞춤)**
   - 판(테두리 원)을 못 찾는 프레임: 42 → 10 — 어두운 배경 (나무 그늘 · 검은 글자판) 에서도 찾게 '어두움' 을 같이 봄

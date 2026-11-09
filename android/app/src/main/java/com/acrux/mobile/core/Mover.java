@@ -245,19 +245,43 @@ public final class Mover {
         out.log(name + " 길 기록 시작 — 지금부터 조이스틱 움직임을 저장 · 도착하면 Acrux 창의 [도착]", 'c');
         Route.Recorder rec = new Route.Recorder();
         double[] jb = base.get("jump_btn");
-        int jx = 0, jy = 0, jsz = 0;
-        Stick.JumpWatch jw = new Stick.JumpWatch();
+        // 점프 버튼은 따로 빠르게 (약 60번/초) 봄 — 짧게 톡 누른 점프도 놓치지 않게 (조이스틱 읽기는 한 번에 시간이 더 걸림)
+        java.util.concurrent.ConcurrentLinkedQueue<Double> jumpTimes = new java.util.concurrent.ConcurrentLinkedQueue<>();
+        java.util.concurrent.atomic.AtomicBoolean jumpRun = new java.util.concurrent.atomic.AtomicBoolean(true);
+        Thread jumpThread = null;
         if (jb != null) {
             int[] p = px(jb);
-            jsz = (int) (st[2] * 2.9);
-            jx = p[0] - jsz / 2;
-            jy = p[1] - jsz / 2;
+            int half = (int) (st[2] * 2.2), qx = Math.max(0, p[0] - half), qy = Math.max(0, p[1] - half);
+            Img first = scr.grab(qx, qy, half * 2, half * 2);
+            if (first != null && first.w > 0) {
+                double[] jl = Stick.locateJump(first, p[0] - qx, p[1] - qy, st[2]);
+                int jcx = qx + (int) Math.round(jl[0]), jcy = qy + (int) Math.round(jl[1]);
+                double jr = jl[2], jbase = jl[3];
+                out.log("점프 버튼: 가운데 (" + jcx + ", " + jcy + ") · 반지름 " + Math.round(jr) + "px · 평소 밝기 차이 " + Math.round(jbase), 'd');
+                if (jbase > -15) out.log("점프 버튼이 잘 안 보임 — ⚙ → 점프 버튼 위치를 버튼 한가운데로 다시 지정해 주세요 (점프를 못 읽을 수 있음)", 'y');
+                int jsz = (int) (jr * 2.9), jx = jcx - jsz / 2, jy = jcy - jsz / 2;
+                Stick.JumpWatch jw = new Stick.JumpWatch(jbase);
+                double jt0 = now();
+                jumpThread = new Thread(() -> {
+                    while (jumpRun.get()) {
+                        Img ji = scr.grab(jx, jy, jsz, jsz);
+                        if (ji != null && ji.w > 0) {
+                            double tt = now() - jt0;
+                            if (jw.step(Stick.jumpLevel(ji, jcx - Math.max(0, jx), jcy - Math.max(0, jy), jr), tt)) jumpTimes.add(tt);
+                        }
+                        Touch.nap(15);
+                    }
+                }, "acrux-jump");
+                jumpThread.setDaemon(true);
+            }
         } else {
             out.log("점프 버튼 위치가 없어서 점프는 기록 안 함 (Acrux 창 → ⚙ → 점프 버튼)", 'y');
         }
         double t0 = now();
+        if (jumpThread != null) jumpThread.start();
         double[][] last = new double[3][];
         int frames = 0, seen = 0, jumps = 0;
+        try {
         while (!arrived.getAsBoolean()) {
             check.run();
             double t = now() - t0;
@@ -280,16 +304,17 @@ public final class Mover {
             last[0] = last[1];
             last[1] = last[2];
             last[2] = Route.quant(v);
+            // 그 사이 눌린 점프 (따로 보는 스레드) — 시각은 기록 시작 기준이라 거의 같음
             boolean jump = false;
-            if (jb != null) {
-                Img ji = scr.grab(jx, jy, jsz, jsz);
-                if (ji != null && ji.w > 0) {
-                    jump = jw.step(Stick.jumpLevel(ji, jsz / 2.0 - Math.max(0, -jx), jsz / 2.0 - Math.max(0, -jy), st[2]), t);
-                    if (jump) jumps++;
-                }
+            while (jumpTimes.poll() != null) {
+                jump = true;
+                jumps++;
             }
             rec.add(t, steady(last), jump);
-            Touch.nap(25);
+            Touch.nap(10);
+        }
+        } finally {
+            jumpRun.set(false);
         }
         rec.add(now() - t0, null);
         Route r = rec.done();

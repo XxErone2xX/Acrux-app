@@ -487,26 +487,84 @@ public final class Stick {
     }
 
     /**
-     * 점프 버튼 눌림 (실제 화면: 평소 약 -70 · 누르면 약 +20) — ON 위로 올라가면 눌림 · OFF 아래로 내려오면 뗌
+     * 점프 버튼 자리 · 크기 맞추기 (안 누를 때): 지정한 자리 근처 (반지름의 0.5배 안) · 크기 0.8 ~ 1.3배 중
+     * '안은 어둡고 바깥은 밝은' 차이가 가장 큰 곳 — 손으로 찍은 자리가 조금 어긋나도 버튼 한가운데로
+     * → {가운데 x, 가운데 y, 반지름, 밝기 차이} (im 좌표)
+     */
+    public static double[] locateJump(Img im, double cx, double cy, double r) {
+        double best = Double.MAX_VALUE, bx = cx, by = cy, br = r;
+        float[] L = lum(im);
+        double st = Math.max(1, r / 16);
+        for (double f = 0.8; f <= 1.31; f += 0.05) {
+            double rr = r * f;
+            for (double y = cy - r * 0.5; y <= cy + r * 0.5; y += st) {
+                for (double x = cx - r * 0.5; x <= cx + r * 0.5; x += st) {
+                    double v = level(L, im.w, im.h, x, y, rr);
+                    if (!Double.isNaN(v) && v < best) {
+                        best = v;
+                        bx = x;
+                        by = y;
+                        br = rr;
+                    }
+                }
+            }
+        }
+        return new double[]{bx, by, br, best};
+    }
+
+    static double level(float[] L, int w, int h, double cx, double cy, double r) {
+        double in = 0, out = 0;
+        int ni = 0, no = 0;
+        for (int i = 0; i < ANG; i += 2) {
+            for (double f : new double[]{0.45, 0.6, 0.8}) {
+                double x = cx + COS[i] * r * f, y = cy + SIN[i] * r * f;
+                if (x < 0 || y < 0 || x >= w || y >= h) continue;
+                in += at(L, w, x, y);
+                ni++;
+            }
+            for (double f : new double[]{1.15, 1.25, 1.35}) {
+                double x = cx + COS[i] * r * f, y = cy + SIN[i] * r * f;
+                if (x < 0 || y < 0 || x >= w || y >= h) continue;
+                out += at(L, w, x, y);
+                no++;
+            }
+        }
+        return ni < 8 || no < 8 ? Double.NaN : in / ni - out / no;
+    }
+
+    /**
+     * 점프 버튼 눌림 (실제 화면: 평소 약 -70 · 누르면 약 +20)
+     * 기준: 시작할 때 잰 '평소 값' base 에서 → base 의 35% 위로 올라오면 눌림 · 65% 아래로 내려가면 뗌 (기기 · 화면마다 밝기가 달라도)
      * 누르고 있으면 로블록스는 계속 뜀 → 누르고 있는 동안 REPEAT 초마다 한 번씩 더 점프로 셈
      */
     public static final class JumpWatch {
-        static final double ON = -25, OFF = -45, REPEAT = 0.45;
+        static final double REPEAT = 0.45;
+        double on = -25, off = -45;
         boolean down;
         double last;
+
+        public JumpWatch() {}
+
+        /** base: 안 누를 때의 밝기 차이 (음수) */
+        public JumpWatch(double base) {
+            if (base < -15) {
+                on = base * 0.35;
+                off = base * 0.65;
+            }
+        }
 
         /** 이번 프레임 밝기 차이 · t: 시각 (초) → 점프로 셀 때 true */
         public boolean step(double v, double t) {
             if (Double.isNaN(v)) return false;
             if (!down) {
-                if (v >= ON) {
+                if (v >= on) {
                     down = true;
                     last = t;
                     return true;
                 }
                 return false;
             }
-            if (v < OFF) {
+            if (v < off) {
                 down = false;
                 return false;
             }
