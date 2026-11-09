@@ -100,7 +100,7 @@ final class Guide {
         List<Tut> l = new ArrayList<>();
         l.add(new Tut("ready", "시작 준비", () -> TapService.instance == null || CaptureService.active == null)
                 .add(new Step("Acrux Mobile 에 오신 걸 환영해요",
-                        "Sol's RNG 자동 낚시 매크로예요. 가득 차면 판매하러 갔다가 돌아오는 것까지 자동이에요.\n\n루팅 · Shizuku 없이 화면 터치만 써요. 먼저 권한 두 개를 켜 주세요.").later())
+                        "Sol's RNG 자동 낚시 매크로예요. 가득 차면 판매하러 갔다가 돌아오는 것까지 자동이에요.\n\n먼저 권한 두 개를 켜 주세요.").later())
                 .add(new Step("접근성 권한을 켜 주세요",
                         "Acrux 가 로블록스 화면을 대신 터치하려면 필요해요.\n\n설정 → 접근성 → 설치된 앱 → Acrux Mobile → 켜기\n\n'제한된 설정' 이라며 안 켜지면: 설정 → 앱 → Acrux Mobile → 오른쪽 위 ⋮ → '제한된 설정 허용' 후 다시")
                         .act("acc").need(() -> TapService.instance != null))

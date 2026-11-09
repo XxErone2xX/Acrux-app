@@ -83,6 +83,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         Hub.init(this);
+        Biome.resume(this);                                // 바이옴 매크로가 켜져 있었으면 다시 감시
         getWindow().getDecorView().setBackgroundColor(Ui.BG);
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != 0) {
             requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
@@ -396,7 +397,7 @@ public class MainActivity extends Activity {
         capState = Ui.text(this, "", 13, Ui.MUTED, false);
         capBtn = Ui.button(this, "시작", Ui.ACCENT, v -> toggleCapture());
         ready.addView(row("② 화면 캡처", "화면 색을 보고 낚시 상태를 판단함 · 녹화 · 저장은 하지 않음 · '전체 화면' 공유를 고르기", capState, capBtn), Ui.fill(this, 12));
-        TextView stickHelp = Ui.text(this, "③ 이동 · 판매: 로블록스 설정 → 이동 방식을 '조이스틱'(클래식)으로 · 루팅 · Shizuku 필요 없음 (전부 화면 터치)",
+        TextView stickHelp = Ui.text(this, "③ 이동 · 판매: 로블록스 설정 → 이동 방식을 '조이스틱' (클래식) 으로",
                 12, Ui.YELLOW, false);
         ready.addView(stickHelp, Ui.fill(this, 6));
 
@@ -470,7 +471,7 @@ public class MainActivity extends Activity {
         set.addView(sw("터치 지연에 맞춰 기다리기", Hub.cfg.adaptive, on -> Hub.cfg.adaptive = on), Ui.fill(this, 10));
         set.addView(Ui.text(this, "누른 뒤 반응이 보일 때까지 다시 누르지 않는 시간을 이 폰의 터치 속도에 맞춤", 12, Ui.MUTED, false));
         set.addView(sw("릴링 때 미니게임 창 위쪽을 누름", Hub.cfg.tapAbove, on -> Hub.cfg.tapAbove = on), Ui.fill(this, 10));
-        set.addView(Ui.text(this, "모바일은 미니게임 창 바로 아래가 Roll 버튼이라 위쪽 빈 화면(캐릭터 쪽)을 누름 · 끄면 PC 처럼 창 아래", 12, Ui.MUTED, false));
+        set.addView(Ui.text(this, "모바일은 미니게임 창 바로 아래가 Roll 버튼이라 위쪽 빈 화면 (캐릭터 쪽) 을 누름 · 끄면 창 아래를 누름", 12, Ui.MUTED, false));
     }
 
     /** 통계 한 줄: 이름 | 이번 실행 | 전체 */
@@ -544,8 +545,8 @@ public class MainActivity extends Activity {
 
     void buildBiome(Page pg) {
         LinearLayout c = section(pg, "무선 디버깅 연결");
-        c.addView(Ui.text(this, "PC 처럼 로블록스 로그로 바이옴을 정확하게 읽으려면 로그를 읽을 권한이 필요해요. "
-                + "안드로이드의 '무선 디버깅' 으로 Acrux 가 이 폰에 직접 연결해요 (PC · 루팅 · Shizuku 필요 없음 · 안드로이드 11 이상 · 와이파이 필요).", 13, Ui.MUTED, false), Ui.fill(this, 6));
+        c.addView(Ui.text(this, "로블록스 로그로 바이옴을 읽으려면 로그를 읽을 권한이 필요해요. "
+                + "안드로이드의 무선 디버깅 기능으로 Acrux 가 이 폰에 직접 연결해요 [ 안드로이드 11 이상, 와이파이 필요 ]", 13, Ui.MUTED, false), Ui.fill(this, 6));
         adbState = Ui.text(this, "", 13, Ui.MUTED, true);
         c.addView(adbState, Ui.fill(this, 10));
         String[] steps = {
@@ -565,9 +566,31 @@ public class MainActivity extends Activity {
         row.addView(Ui.button(this, "개발자 옵션", Ui.MUTED, v -> openDevSettings()), g2);
         c.addView(row, Ui.fill(this, 12));
 
+        // 바이옴 매크로 (웹후크)
+        LinearLayout bm = section(pg, "바이옴 매크로");
+        biomeState = Ui.text(this, "", 13, Ui.MUTED, true);
+        bm.addView(biomeState, Ui.fill(this, 6));
+        bm.addView(sw("바이옴 매크로 켜기", Biome.on(), on -> Biome.set(this, on)), Ui.fill(this, 8));
+        bm.addView(Ui.text(this, "디스코드 웹후크 (여러 개면 줄바꿈)", 13, Ui.FG, true), Ui.fill(this, 10));
+        bm.addView(field("https://discord.com/api/webhooks/…", Hub.prefs().getString("biomeHooks", ""), true,
+                v -> Hub.prefs().edit().putString("biomeHooks", v).apply()), Ui.fill(this, 4));
+        bm.addView(Ui.text(this, "비공개 서버 링크", 13, Ui.FG, true), Ui.fill(this, 10));
+        bm.addView(field("https://www.roblox.com/share?code=…", Biome.ps(), false,
+                v -> Hub.prefs().edit().putString("biomePs", v).apply()), Ui.fill(this, 4));
+        bm.addView(sw("레어 바이옴 @everyone [ GLITCHED, DREAMSPACE, CYBERSPACE ]", Biome.everyone(),
+                on -> Hub.prefs().edit().putBoolean("biomeEveryone", on).apply()), Ui.fill(this, 10));
+        bm.addView(Ui.button(this, "웹후크 테스트", Ui.MUTED, v -> {
+            if (Biome.hooks().isEmpty()) {
+                Hub.log("웹후크를 먼저 입력해 주세요", 'y');
+                return;
+            }
+            Biome.sendAll(Biome.test());
+            Hub.log("웹후크 테스트를 보냈어요", 'c');
+        }), Ui.fill(this, 10));
+        showBiome();
+
         LinearLayout t = section(pg, "바이옴 로그 테스트");
-        t.addView(Ui.text(this, "모바일 로블록스가 PC 처럼 바이옴 정보 ([BloxstrapRPC]) 를 로그에 남기는지 확인해요. "
-                + "남기면 PC 버전처럼 정확한 바이옴 감지 · 웹후크 알림을 만들 수 있어요.", 13, Ui.MUTED, false), Ui.fill(this, 6));
+        t.addView(Ui.text(this, "모바일 로블록스가 바이옴 정보를 로그에 남기는지 확인해요.", 13, Ui.MUTED, false), Ui.fill(this, 6));
         t.addView(Ui.text(this, "무선 디버깅을 연결한 뒤 [테스트 시작] → 로블록스로 Sol's RNG 에 들어가서 90초 동안 두기 (바이옴이 바뀌는 때면 더 좋아요). 결과는 기록 칸에 떠요.", 13, Ui.FG, false), Ui.fill(this, 6));
         testBtn = Ui.button(this, biomeTesting ? "테스트 중…" : "테스트 시작 (90초)", Ui.ACCENT, v -> biomeTest());
         t.addView(testBtn, Ui.fill(this, 10));
@@ -583,6 +606,45 @@ public class MainActivity extends Activity {
             Adb.connect(getApplicationContext());
             runOnUiThread(this::refreshAdb);
         }, "acrux-adb").start();
+    }
+
+    TextView biomeState;
+
+    void showBiome() {
+        if (biomeState == null) return;
+        String st = Biome.on() ? Biome.status : "꺼짐";
+        Ui.set(biomeState, "지금 바이옴: " + Biome.show(Biome.current) + " · " + Ui.tr(st));
+        biomeState.setTextColor(Biome.watching ? Ui.GREEN : Ui.MUTED);
+    }
+
+    interface Str {
+        void set(String v);
+    }
+
+    /** 글자 입력칸 (포커스를 잃으면 저장) */
+    View field(String hint, String value, boolean multi, Str on) {
+        EditText e = new EditText(this);
+        e.setHint(hint);
+        e.setHintTextColor(Ui.MUTED);
+        e.setText(value);
+        e.setTextColor(Ui.FG);
+        e.setTextSize(13);
+        e.setBackground(Ui.field(this));
+        e.setPadding(Ui.dp(this, 10), Ui.dp(this, 8), Ui.dp(this, 10), Ui.dp(this, 8));
+        e.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI | (multi ? InputType.TYPE_TEXT_FLAG_MULTI_LINE : 0));
+        if (multi) e.setMinLines(2);
+        else e.setSingleLine(true);
+        e.setOnFocusChangeListener((v, has) -> {
+            if (!has) on.set(e.getText().toString().trim());
+        });
+        e.addTextChangedListener(new android.text.TextWatcher() {
+            public void beforeTextChanged(CharSequence a, int b, int c, int d) {}
+            public void onTextChanged(CharSequence a, int b, int c, int d) {}
+            public void afterTextChanged(android.text.Editable a) {
+                on.set(a.toString().trim());
+            }
+        });
+        return e;
     }
 
     void refreshAdb() {
@@ -721,7 +783,7 @@ public class MainActivity extends Activity {
                 });
                 int h3 = hits[0] - h1 - h2;
                 say("③ 로그 " + seen[0] + "줄 중 바이옴 " + h3 + "줄", h3 > 0 ? 'g' : 'y');
-                if (hits[0] > 0) say("결과: 바이옴 줄 발견! → PC 처럼 정확한 바이옴 감지를 만들 수 있어요. 이 기록을 캡처해서 보내 주세요", 'g');
+                if (hits[0] > 0) say("결과: 바이옴 줄 발견 — 위의 바이옴 매크로를 쓸 수 있어요", 'g');
                 else if (seen[0] > 0) say("결과: 로그는 읽히는데 바이옴 줄이 없음 — Sol's RNG 에 들어가 있었는지 확인하고 한 번 더 · 그래도 없으면 모바일 로블록스가 바이옴 정보를 안 남기는 것", 'y');
                 else say("결과: 로그를 하나도 못 읽음 — 이 기록을 캡처해서 보내 주세요", 'r');
             } catch (Throwable th) {
@@ -956,6 +1018,7 @@ public class MainActivity extends Activity {
     // ---------------------------------------------------------------- 새로 그리기
     void refresh() {
         showGuide();
+        showBiome();
         Integer on = Online.count;
         onText.setText("Now Active : " + (on == null ? "--" : String.valueOf(on)));
         onDot.setTextColor(on == null ? Ui.MUTED : Ui.GREEN);

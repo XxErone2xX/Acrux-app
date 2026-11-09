@@ -138,6 +138,7 @@ public class TapService extends AccessibilityService {
         instance = this;
         Hub.listeners.add(refresh);
         Guide.views.add(guideView);
+        Biome.resume(this);
         showPanel();
         Hub.log("접근성 권한 켜짐 · 터치 준비됨", 'g');
         Hub.changed();
