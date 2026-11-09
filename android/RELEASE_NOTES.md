@@ -1,3 +1,11 @@
+## Acrux Mobile V1.3.5 업데이트
+- 사용자 수 서버를 acruxmacro.com 으로 변경 [ 이전 서버 주소는 폐기 ]
+  - 접속 중 · 비활성 · 총 인원은 acruxmacro.com/active 에서 확인
+
+## Acrux Mobile V1.3.5 Update
+- Moved the user count server to acruxmacro.com [ the old server address is retired ]
+  - See online · inactive · total users at acruxmacro.com/active
+
 ## Acrux Mobile V1.3.4 업데이트
 - 길 기록 점프 버튼에 [점프 W] 추가 [ 점프 버튼 오른쪽 위 ]
   - 누르면 점프하면서 0.5초 동안 앞 [ W ] 으로 이동

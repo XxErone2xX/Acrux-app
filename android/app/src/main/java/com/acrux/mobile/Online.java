@@ -18,7 +18,7 @@ import java.security.SecureRandom;
 final class Online {
     private Online() {}
 
-    static final String URL = "https://acrux.pentagration.com";
+    static final String URL = "https://acruxmacro.com/api";      // 사용자 수 (acruxmacro.com/active 에서 한눈에)
     static volatile Integer count;          // 모르면 null
     static Thread loop;
 
@@ -82,7 +82,7 @@ final class Online {
         while (true) {
             try {
                 if (share() && System.currentTimeMillis() - lastPing >= pingEvery) {
-                    JSONObject r = call("/ping", new JSONObject().put("id", id()).toString());
+                    JSONObject r = call("/ping", new JSONObject().put("id", id()).put("app", "mobile").toString());
                     lastPing = System.currentTimeMillis();
                     pingEvery = Math.min(3600, Math.max(60, r.optInt("next", 300))) * 1000L;
                 }

@@ -747,7 +747,7 @@ class Bridge:
 
     # 사용자 수: Acrux 가 켜져 있는 동안 몇 분마다 '켜져 있음' 신호 (설치마다 만든 무작위 번호만 보냄)
     # 집계에 참여하지 않으면 신호 없이 숫자만 받아 봄 · 서버 코드는 server/online
-    ONLINE_URL = "https://acrux.pentagration.com/"   # 사용자 수 서버
+    ONLINE_URL = "https://acruxmacro.com/api/"      # 사용자 수 서버 (acruxmacro.com/active 에서 한눈에)
 
     def _online_loop(self):
         """1분마다 /count 로 사용자 수를 읽어 표시 · 집계에 참여하면 서버가 알려준 간격(기본 5분)마다 /ping 신호
@@ -765,7 +765,7 @@ class Bridge:
             if self.ONLINE_URL:
                 try:
                     if self.data.get("online_share", True) and time.time() - last_ping >= ping_every:
-                        res = call("/ping", json.dumps({"id": self.data.get("install_id", "")}).encode())
+                        res = call("/ping", json.dumps({"id": self.data.get("install_id", ""), "app": "pc"}).encode())
                         last_ping = time.time()
                         ping_every = min(3600, max(60, int(res.get("next", 300))))
                     self.online = int(call("/count")["online"])
