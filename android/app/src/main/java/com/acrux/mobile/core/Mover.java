@@ -205,12 +205,14 @@ public final class Mover {
         if (r == null || r.isEmpty()) throw new RuntimeException(name + " 길을 먼저 기록해야 함 (Acrux 창 → ⚙ → " + name + " 길 기록)");
         markMoved();
         out.state(name + " 가는 중 (" + Math.round(r.seconds()) + "초)");
+        int[] jp = r.jumps() > 0 ? jumpPos() : null;
+        if (r.jumps() > 0 && jp == null) out.log("점프 버튼 위치가 없어서 길의 점프는 건너뜀 (Acrux 창 → ⚙ → 점프 버튼)", 'y');
         try {
             for (Route.Seg g : r.segs) {
                 touch.stick(g.idle() ? null : new double[]{g.dx, g.dy});
-                if (g.jump) {
+                if (g.jump && jp != null) {
                     if (!g.idle()) sleep(0.13);            // 조이스틱 손가락이 먼저 닿은 뒤 같이 보냄
-                    touch.jump();
+                    touch.jump(jp[0], jp[1]);
                     sleep(Math.max(0, g.sec - (g.idle() ? 0 : 0.13)));
                 } else {
                     sleep(g.sec);
@@ -220,6 +222,42 @@ public final class Mover {
             touch.stick(null);
         }
         sleep(cfg.margin);
+    }
+
+    /** 점프 버튼 한가운데 (px) — ⚙ 에서 찍은 자리 근처를 화면에서 다시 맞춤 · 위치가 없으면 null */
+    public int[] jumpPos() {
+        double[] jb = base.get("jump_btn");
+        double[] st = touch.stickAt();
+        if (jb == null) return null;
+        int[] p = px(jb);
+        if (st == null) return p;
+        int half = (int) (st[2] * 2.2), qx = Math.max(0, p[0] - half), qy = Math.max(0, p[1] - half);
+        Img im = scr.grab(qx, qy, half * 2, half * 2);
+        if (im == null || im.w == 0) return p;
+        double[] jl = Stick.locateJump(im, p[0] - qx, p[1] - qy, st[2]);
+        if (jl[3] > -15) return p;                     // 버튼이 잘 안 보이면 찍은 자리 그대로
+        return new int[]{qx + (int) Math.round(jl[0]), qy + (int) Math.round(jl[1])};
+    }
+
+    /** 점프 테스트: 제자리 점프 → 1초 뒤 앞으로 걸으면서 점프 */
+    public void jumpTest() {
+        int[] jp = jumpPos();
+        if (jp == null) throw new RuntimeException("먼저 지정 필요: 점프 버튼 (Acrux 창 → ⚙)");
+        out.log("점프 테스트: 점프 버튼 (" + jp[0] + ", " + jp[1] + ") — 초록 점이 버튼 위에 뜨는지 보세요", 'c');
+        out.state("점프 테스트 — 제자리");
+        touch.jump(jp[0], jp[1]);
+        sleep(1.2);
+        if (touch.stickAt() != null) {
+            out.state("점프 테스트 — 걸으면서");
+            try {
+                touch.stick(new double[]{0, -1});
+                sleep(0.4);
+                touch.jump(jp[0], jp[1]);
+                sleep(0.9);
+            } finally {
+                touch.stick(null);
+            }
+        }
     }
 
     public void goPlace(String name, Route r) {

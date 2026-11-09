@@ -1,3 +1,17 @@
+## Acrux Mobile V0.10.10 업데이트
+- **길을 다시 걸을 때 점프가 안 되던 것 고침**
+  - 점프 탭 자리를 ⚙ 에서 찍은 자리 대신 화면에서 찾은 **점프 버튼 한가운데** 로 (찍은 자리가 버튼 가장자리에 가까우면 빗나갈 수 있었음)
+  - 조이스틱을 누른 채로 섞어 보낸 점프 터치가 안 먹히면 점프만 따로 한 번 더 누름
+  - 점프를 누를 때마다 누른 자리에 **초록 점** 이 잠깐 뜸 — 엉뚱한 데를 누르는지 바로 보임
+- ⚙ → **점프 테스트**: 제자리 점프 → 앞으로 걸으면서 점프 (두 번 뛰면 성공)
+
+## Acrux Mobile V0.10.10 Update
+- **Fixed jumps not happening when replaying a route**
+  - Jump taps now go to the **center of the jump button** found on screen instead of the spot set in ⚙ (a spot near the button edge could miss)
+  - If the jump touch sent together with the held joystick does not go through, the jump is pressed again on its own
+  - A **green dot** briefly shows where each jump is pressed — you can see right away if it presses the wrong place
+- ⚙ → **Jump test**: jump in place → jump while walking forward (success if it jumps twice)
+
 ## Acrux Mobile V0.10.9 업데이트
 - **길 기록에서 점프를 못 읽던 문제 수정**
   - 점프 버튼을 따로 빠르게 봄 (약 60번/초) — 예전엔 조이스틱을 읽는 사이사이에만 봐서 짧게 톡 누른 점프를 놓쳤음

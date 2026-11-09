@@ -464,6 +464,7 @@ public class TapService extends AccessibilityService {
         for (String[] k : Mover.JUMP_KEYS) {
             menu.addView(item((Hub.pos.containsKey(k[0]) ? "✓ " : "· ") + k[1] + " — 길 기록에서 점프", v -> pickSave(k[0], k[1])));
         }
+        menu.addView(item("점프 테스트 (제자리 → 걸으면서)", v -> toggle("jumptest")));
         menu.addView(head("공통 위치 (기준 장소 맞추기)"));
         for (String[] k : Mover.BASE_KEYS) {
             menu.addView(item((Hub.pos.containsKey(k[0]) ? "✓ " : "· ") + k[1], v -> pickSave(k[0], k[1])));
@@ -539,6 +540,13 @@ public class TapService extends AccessibilityService {
                 showRing(Hub.stick, 2500);
             }));
         });
+    }
+
+    /** (x, y) 에 작은 초록 점을 ms 동안 (점프 탭 자리 보여 주기) */
+    void showDot(int x, int y, long ms) {
+        int[] s = screen();
+        double r = Math.max(10, s[1] * 0.012);
+        showRing(new double[]{(double) x / s[0], (double) y / s[1], r / s[1]}, ms);
     }
 
     /** 조이스틱 자리에 초록 원을 ms 동안 그려 줌 (터치는 그대로 아래로) */

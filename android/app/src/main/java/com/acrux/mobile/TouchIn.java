@@ -40,12 +40,13 @@ final class TouchIn implements Touch {
     }
 
     @Override
-    public boolean jump() {
-        double[] j = Hub.pos.get("jump_btn");
-        if (j == null) return false;
-        float x = (float) (j[0] * sw), y = (float) (j[1] * sh);
-        if (!Joy.jump(x, y)) svc().tap((int) x, (int) y, 80);     // 조이스틱을 안 누르고 있으면 그냥 탭
-        return true;
+    public void jump(int x, int y) {
+        if (!Joy.jump(x, y)) svc().tap(x, y, 90);     // 조이스틱을 안 누르고 있으면 그냥 탭
+        // 어디를 눌렀는지 잠깐 보여 줌 (점프가 안 될 때 위치가 틀렸는지 바로 보이게)
+        Hub.main.post(() -> {
+            TapService t = TapService.instance;
+            if (t != null) t.showDot(x, y, 450);
+        });
     }
 
     @Override

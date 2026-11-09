@@ -32,6 +32,8 @@ final class Joy {
     static volatile boolean holding;
     /** 다음 조각에 같이 보낼 점프 탭 (px) · 없으면 null */
     static volatile float[] jumpAt;
+    /** 점프를 섞은 터치가 안 먹혀서 따로 누른 횟수 (점프 테스트 기록용) */
+    static volatile int jumpFallbacks;
 
     /** 조이스틱을 누르고 있으면 점프 탭을 그 손가락과 같이 보냄 → true · 안 누르고 있으면 false (그냥 탭하면 됨) */
     static boolean jump(float x, float y) {
@@ -199,6 +201,12 @@ final class Joy {
             if (!send(s, ms, jp)) {
                 cur = null;              // 끊김 (다른 터치 · 사람이 화면을 누름) → 다음에 가운데부터 다시
                 holding = false;
+                // 점프를 섞어 보낸 터치가 안 먹혔으면 점프만 따로 한 번 더 (점프를 잃지 않게)
+                if (j != null) {
+                    TapService tj = TapService.instance;
+                    if (tj != null) tj.tap((int) j[0], (int) j[1], 90);
+                    jumpFallbacks++;
+                }
                 continue;
             }
             cur = s;

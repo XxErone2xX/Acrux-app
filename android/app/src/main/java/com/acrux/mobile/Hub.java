@@ -259,6 +259,11 @@ final class Hub {
                 }
                 if (m.equals("stickfind")) stickFind(cap);
                 else if (m.equals("sticktest")) stickTest(touch);
+                else if (m.equals("jumptest")) {
+                    int fb = Joy.jumpFallbacks;
+                    mv.jumpTest();
+                    log("점프 테스트 끝 — 두 번 뛰었으면 성공" + (Joy.jumpFallbacks > fb ? " (걸으면서 점프는 따로 다시 눌렀음)" : ""), 'g');
+                }
                 else work(m, f, mv, sl);
             } catch (Fisher.Stopped e) {
                 log("멈춤", 'd');
