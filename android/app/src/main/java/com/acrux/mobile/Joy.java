@@ -31,6 +31,10 @@ final class Joy {
     static volatile boolean want;            // 조이스틱을 누르고 있어야 함
     static volatile boolean wantJump;        // 점프 버튼을 누르고 있어야 함
     static volatile float jx, jy;            // 점프 버튼 (px)
+    /** 점프를 누르라고 한 횟수 · 실제로 누른 횟수 — 눌렀다가 금방 떼라고 해도 (손가락을 다시 누르는 중이라 늦어도) 한 번은 꼭 누름 */
+    static volatile int jumpAsked, jumpDone;
+    /** 한 번 누르면 최소 이만큼은 누르고 있음 (로블록스가 누름을 보게) */
+    static final long JUMP_MIN_MS = 150;
     static volatile double cx, cy, r;        // 조이스틱 (px)
     static Thread loop;
     /** 조이스틱 손가락이 닿아 있음 */
@@ -66,6 +70,7 @@ final class Joy {
         synchronized (lock) {
             jx = x;
             jy = y;
+            if (down && !wantJump) jumpAsked++;
             wantJump = down;
             start();
             lock.notifyAll();
@@ -129,12 +134,13 @@ final class Joy {
         GestureDescription.StrokeDescription stick = null, jumpF = null;
         double px = 0, py = 0, qx = 0, qy = 0;   // 조이스틱 손가락 · 점프 손가락 지금 자리
         boolean wig = false;
+        long jumpUntil = 0;                      // 이 시각까지는 점프 손가락을 떼지 않음
         while (true) {
             boolean ws, wj;
             double dx, dy;
             float bx, by;
             synchronized (lock) {
-                if (!want && !wantJump && stick == null && jumpF == null) {
+                if (!want && !wantJump && jumpAsked == jumpDone && stick == null && jumpF == null) {
                     try {
                         lock.wait(5000);
                     } catch (InterruptedException e) {
@@ -143,7 +149,7 @@ final class Joy {
                     continue;
                 }
                 ws = want;
-                wj = wantJump;
+                wj = wantJump || jumpAsked != jumpDone || (jumpF != null && System.currentTimeMillis() < jumpUntil);
                 dx = tx;
                 dy = ty;
                 bx = jx;
@@ -157,6 +163,7 @@ final class Joy {
                 synchronized (lock) {
                     want = false;
                     wantJump = false;
+                    jumpDone = jumpAsked;
                 }
                 continue;
             }
@@ -178,9 +185,14 @@ final class Joy {
                     nj = new GestureDescription.StrokeDescription(line(bx, by, bx + 1, by), st, START_MS - st, true);
                     g.add(nj);
                 }
+                int asked = jumpAsked;
                 if (send(g, START_MS)) {
                     stick = ns;
                     jumpF = nj;
+                    if (nj != null && jumpDone != asked) {
+                        jumpDone = asked;
+                        jumpUntil = System.currentTimeMillis() + JUMP_MIN_MS - (START_MS - 30);
+                    }
                     px = gx;
                     py = gy;
                     qx = bx + 1;
@@ -190,11 +202,8 @@ final class Joy {
                     stick = null;
                     jumpF = null;
                     holding = false;
-                    if (wj) {                                                    // 그래도 안 되면 점프만 따로 탭
-                        t.tap((int) bx, (int) by, 90);
-                        jumpFallbacks++;
-                    }
-                    nap(30);
+                    if (wj) jumpFallbacks++;                                     // 끊김 (사람이 화면을 누르는 중 등) → 조이스틱 · 점프를 같이 다시 누름
+                    nap(15);
                 }
                 continue;
             }

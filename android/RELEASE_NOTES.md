@@ -1,3 +1,15 @@
+## Acrux Mobile V0.11.8 업데이트
+- **점프를 누르면 이동 키가 안 먹히던 것 고침 (기록 · 다시 걷기 둘 다)**
+  - 점프를 누를 때마다 누른 자리를 보여 주려고 화면 전체에 창을 새로 띄웠는데, 그동안 로블록스가 조이스틱 터치를 놓칠 수 있었음 → 뺌
+  - 조이스틱 · 점프를 같이 다시 누르다가 끊기면 점프만 따로 톡 눌렀는데, 그동안 조이스틱이 떨어져서 걷기가 멈췄음 → 이제 끊기면 조이스틱 · 점프를 같이 다시 누름
+  - 점프를 눌렀다가 금방 떼라고 해도 (손가락을 다시 누르는 중이라 늦어도) 한 번은 꼭 0.15초 이상 누름 (점프가 씹히던 것)
+
+## Acrux Mobile V0.11.8 Update
+- **Fixed movement keys not working while jumping (both recording and replay)**
+  - Each jump opened a new full-screen window to show where it pressed, and Roblox could lose the joystick touch meanwhile → removed
+  - When re-pressing the joystick and jump together got interrupted, only the jump was tapped separately, dropping the joystick and stopping the walk → now both are pressed again together
+  - Even when told to release right after pressing (late because fingers are being re-pressed), the jump is always held at least 0.15 s once (fixes missed jumps)
+
 ## Acrux Mobile V0.11.7 업데이트
 - **길을 기록했는데 저장이 안 되고 전에 기록한 길로 걷던 것 고침**
   - 기록을 [멈춤] 으로 끝내면 '취소' 로 처리돼서 새 길이 버려지고 전에 저장한 길이 그대로 남았음

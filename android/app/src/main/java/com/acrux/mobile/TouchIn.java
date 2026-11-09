@@ -56,11 +56,7 @@ final class TouchIn implements Touch {
         jx = x;
         jy = y;
         Joy.jump(x, y, true);
-        // 어디를 눌렀는지 잠깐 보여 줌 (점프가 안 될 때 위치가 틀렸는지 바로 보이게)
-        Hub.main.post(() -> {
-            TapService t = TapService.instance;
-            if (t != null) t.showDot(x, y, 450);
-        });
+        // (전에는 누른 자리에 점을 띄웠는데 · 화면 전체 창을 새로 띄우는 동안 로블록스가 다른 터치를 놓칠 수 있어서 뺌)
     }
 
     @Override
