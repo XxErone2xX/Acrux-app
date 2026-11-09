@@ -12,8 +12,8 @@ import java.security.SecureRandom;
 /**
  * 사용자 수 (Now Active) — PC 버전 app.py _online_loop 와 같은 서버 · 같은 방식 (PC · 모바일을 합친 수)
  *  · 1분마다 GET /count → {"online": 사용자 수} 를 읽어 표시
- *  · 집계에 참여하면 (기본 켜짐) 서버가 알려준 간격(기본 5분)마다 POST /ping {"id": 설치마다 만든 무작위 32자리}
- *  · 보내는 건 무작위 번호뿐 (개인 정보 없음) · 꺼도 숫자는 보임
+ *  · 항상 집계에 참여: 서버가 알려준 간격(기본 5분)마다 POST /ping {"id": 설치마다 만든 무작위 32자리}
+ *  · 보내는 건 무작위 번호뿐 (개인 정보 없음)
  */
 final class Online {
     private Online() {}
@@ -29,8 +29,9 @@ final class Online {
         loop.start();
     }
 
+    /** 집계 참여는 항상 켜짐 (V0.10.7 부터 끄는 스위치 없음) */
     static boolean share() {
-        return Hub.prefs().getBoolean("onlineShare", true);
+        return true;
     }
 
     static String id() {

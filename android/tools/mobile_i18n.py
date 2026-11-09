@@ -220,6 +220,7 @@ E = [
     ['재설정 버튼 (Esc 메뉴)', 'Reset button (Esc menu)', 'リセットボタン (Esc メニュー)'], ['재설정 버튼', 'Reset button', 'リセットボタン'],
     ['ENTER {0}/{1}', 'ENTER {0}/{1}', 'ENTER {0}/{1}'],
     ['1초 뒤 시작', 'Starting in 1 second', '1秒後に開始'],
+    ["사용자 수 집계: 켜져 있다는 신호만 보냄 (무작위 번호 · 개인 정보 없음)", "User count: only sends an \"app is on\" signal (random number · no personal info)", "ユーザー数集計: 起動中という信号だけ送る (ランダム番号 · 個人情報なし)"],
     ["기준 장소로 이동 · 줌 아웃", "To the base spot · zoom out", "基準地点へ移動 · ズームアウト"],
     ["기준 장소로 이동 · 내려다보기", "To the base spot · look down", "基準地点へ移動 · 見下ろし"],
     ["점프 버튼 (오른쪽 아래)", "Jump button (bottom right)", "ジャンプボタン (右下)"],

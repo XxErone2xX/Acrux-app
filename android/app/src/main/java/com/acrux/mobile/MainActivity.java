@@ -573,8 +573,7 @@ public class MainActivity extends Activity {
         win.addView(home, hp);
 
         LinearLayout info = section(pg, "정보");
-        info.addView(sw("사용자 수 집계에 참여", Online.share(), on -> Hub.prefs().edit().putBoolean("onlineShare", on).apply()), Ui.fill(this, 8));
-        info.addView(Ui.text(this, "켜져 있다는 신호만 보냄 (무작위 번호 · 개인 정보 없음) · 꺼도 사용자 수는 보임", 12, Ui.MUTED, false));
+        info.addView(Ui.text(this, "사용자 수 집계: 켜져 있다는 신호만 보냄 (무작위 번호 · 개인 정보 없음)", 12, Ui.MUTED, false), Ui.fill(this, 8));
         info.addView(Ui.text(this, "Acrux Mobile V" + version(), 13, Ui.FG, false), Ui.fill(this, 6));
         info.addView(Ui.text(this, "Made by 얼로니", 12, Ui.MUTED, false));
     }

@@ -1,3 +1,13 @@
+## Acrux Mobile V0.10.7 업데이트
+- **사용자 수 집계를 끌 수 없게 바꿈**
+  - 설정 → 정보의 '사용자 수 집계에 참여' 스위치를 없앰 — 항상 참여
+  - 보내는 건 그대로 '켜져 있다는 신호' 뿐 (설치마다 만든 무작위 번호 · 개인 정보 없음)
+
+## Acrux Mobile V0.10.7 Update
+- **The user count can no longer be turned off**
+  - Removed the "Join the user count" switch from Settings → Info — always on
+  - It still only sends an "app is on" signal (a random number made per install · no personal info)
+
 ## Acrux Mobile V0.10.6 업데이트
 - **길 기록: 누를 때마다 옮겨지는 조이스틱 판을 따라감**
   - 로블록스 조이스틱은 누른 자리로 판이 옮겨짐 — 예전엔 원래 자리 근처만 봐서, 멀리 누르면 판을 놓치고 엉뚱한 방향을 읽었음
