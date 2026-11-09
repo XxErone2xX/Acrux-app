@@ -31,6 +31,8 @@ public final class Mover {
     public static final String[][] BASE_KEYS = {
             {"menu_btn", "로블록스 메뉴 버튼 (왼쪽 위)"}, {"reset_btn", "캐릭터 재설정 버튼 (메뉴 안)"}, {"reset_confirm", "재설정 확인 버튼"},
             {"collection_pos", "도감 버튼"}, {"collection_close", "도감 Exit"}};
+    /** 점프 버튼 (길 기록 · 재생에서 점프) — 없어도 됨 (그러면 점프는 기록 안 함) */
+    public static final String[][] JUMP_KEYS = {{"jump_btn", "점프 버튼 (오른쪽 아래)"}};
     public static final double RECORD_MAX = 300.0;
     /** 방금 리셋하고 안 움직였음 (리셋 쿨타임 때문에 또 리셋하지 않음) */
     static volatile boolean resetFresh = false;
@@ -199,7 +201,13 @@ public final class Mover {
         try {
             for (Route.Seg g : r.segs) {
                 touch.stick(g.idle() ? null : new double[]{g.dx, g.dy});
-                sleep(g.sec);
+                if (g.jump) {
+                    if (!g.idle()) sleep(0.13);            // 조이스틱 손가락이 먼저 닿은 뒤 같이 보냄
+                    touch.jump();
+                    sleep(Math.max(0, g.sec - (g.idle() ? 0 : 0.13)));
+                } else {
+                    sleep(g.sec);
+                }
             }
         } finally {
             touch.stick(null);
@@ -225,9 +233,20 @@ public final class Mover {
         out.state(name + " 길 기록 중 — 조이스틱으로 걸어가서 도착하면 [도착]");
         out.log(name + " 길 기록 시작 — 지금부터 조이스틱 움직임을 저장 · 도착하면 Acrux 창의 [도착]", 'c');
         Route.Recorder rec = new Route.Recorder();
+        double[] jb = base.get("jump_btn");
+        int jx = 0, jy = 0, jsz = 0;
+        Stick.JumpWatch jw = new Stick.JumpWatch();
+        if (jb != null) {
+            int[] p = px(jb);
+            jsz = (int) (st[2] * 2.2);
+            jx = p[0] - jsz / 2;
+            jy = p[1] - jsz / 2;
+        } else {
+            out.log("점프 버튼 위치가 없어서 점프는 기록 안 함 (Acrux 창 → ⚙ → 점프 버튼)", 'y');
+        }
         double t0 = now();
         double[][] last = new double[3][];
-        int frames = 0, seen = 0;
+        int frames = 0, seen = 0, jumps = 0;
         while (!arrived.getAsBoolean()) {
             check.run();
             double t = now() - t0;
@@ -247,12 +266,20 @@ public final class Mover {
             last[0] = last[1];
             last[1] = last[2];
             last[2] = Route.quant(v);
-            rec.add(t, steady(last));
+            boolean jump = false;
+            if (jb != null) {
+                Img ji = scr.grab(jx, jy, jsz, jsz);
+                if (ji != null && ji.w > 0) {
+                    jump = jw.step(Stick.glow(ji, jsz / 2.0 - Math.max(0, -jx), jsz / 2.0 - Math.max(0, -jy), st[2]));
+                    if (jump) jumps++;
+                }
+            }
+            rec.add(t, steady(last), jump);
             Touch.nap(25);
         }
         rec.add(now() - t0, null);
         Route r = rec.done();
-        out.log(name + " 길 기록 끝: " + r.segs.size() + "조각 · " + Math.round(r.seconds() * 10) / 10.0 + "초 (프레임 " + frames + " · 움직임 " + seen + ")",
+        out.log(name + " 길 기록 끝: " + r.segs.size() + "조각 · " + Math.round(r.seconds() * 10) / 10.0 + "초 · 점프 " + r.jumps() + "번 (프레임 " + frames + " · 움직임 " + seen + ")",
                 r.isEmpty() ? 'y' : 'g');
         if (r.isEmpty()) throw new RuntimeException("조이스틱 움직임을 못 읽음 — 조이스틱 찾기를 다시 하거나, 조이스틱을 끝까지 밀어서 걸어 주세요");
         return r;

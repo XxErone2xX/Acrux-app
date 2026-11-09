@@ -209,6 +209,51 @@ public final class Stick {
         return new double[]{fx / r, fy / r, best};
     }
 
+    /** 점프 버튼 안쪽 (반지름 0.6r 원) 의 평균 밝기 — 누르면 버튼이 밝아짐 · im: 버튼 둘레를 잘라 온 화면 · (cx, cy): 그 안의 버튼 가운데 */
+    public static double glow(Img im, double cx, double cy, double r) {
+        if (im == null || im.w == 0) return -1;
+        double rr = r * 0.6, sum = 0;
+        int n = 0;
+        for (int y = (int) Math.max(0, cy - rr); y < Math.min(im.h, cy + rr); y++) {
+            for (int x = (int) Math.max(0, cx - rr); x < Math.min(im.w, cx + rr); x++) {
+                double dx = x - cx, dy = y - cy;
+                if (dx * dx + dy * dy > rr * rr) continue;
+                int k = y * im.w + x;
+                sum += (im.r[k] * 3 + im.g[k] * 6 + im.b[k]) / 10.0;
+                n++;
+            }
+        }
+        return n == 0 ? -1 : sum / n;
+    }
+
+    /** 점프 버튼 눌림 감지: 안 눌렸을 때의 밝기를 천천히 따라가다가 갑자기 ON 만큼 밝아지면 눌림 · OFF 아래로 내려오면 뗌 */
+    public static final class JumpWatch {
+        static final double ON = 14, OFF = 7;
+        double base = -1;
+        boolean down;
+
+        /** 이번 프레임 밝기 → 막 눌렸으면 true */
+        public boolean step(double v) {
+            if (v < 0) return false;
+            if (base < 0) {
+                base = v;
+                return false;
+            }
+            double d = v - base;
+            if (!down) {
+                if (d >= ON) {
+                    down = true;
+                    return true;
+                }
+                base += (v - base) * 0.2;           // 걸어가면서 배경이 바뀌는 건 천천히 따라감
+            } else if (d < OFF) {
+                down = false;
+                base += (v - base) * 0.2;
+            }
+            return false;
+        }
+    }
+
     /** WASD → 조이스틱 방향 (단위 벡터 · 화면 좌표: 오른쪽 +x, 아래 +y) · 아무것도 안 눌렸으면 null */
     public static double[] dir(boolean w, boolean a, boolean s, boolean d) {
         double x = (d ? 1 : 0) - (a ? 1 : 0), y = (s ? 1 : 0) - (w ? 1 : 0);

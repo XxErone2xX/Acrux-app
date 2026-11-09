@@ -6,13 +6,15 @@ import java.util.Locale;
 
 /**
  * 기준 장소에서 목적지까지 플레이어가 직접 걸어간 길 — 조이스틱 방향을 시간 순서대로
- *  · 한 조각: 방향 (dx, dy · 길이 0 ~ 1 · 0 이면 멈춤) 을 sec 초 동안
+ *  · 한 조각: 방향 (dx, dy · 길이 0 ~ 1 · 0 이면 멈춤) 을 sec 초 동안 · 시작할 때 점프할지
  *  · 기록할 때: 화면에서 조이스틱 손잡이 위치를 매 프레임 읽어서 (Stick.knob) → 같은 방향끼리 이어 붙임
  *  · 재생할 때: 조각마다 조이스틱을 그 방향으로 그 시간만큼 밂
  */
 public final class Route {
     public static final class Seg {
         public double dx, dy, sec;
+        /** 이 조각을 시작할 때 점프 */
+        public boolean jump;
 
         public Seg(double dx, double dy, double sec) {
             this.dx = dx;
@@ -29,6 +31,12 @@ public final class Route {
 
     public boolean isEmpty() {
         return segs.isEmpty();
+    }
+
+    public int jumps() {
+        int n = 0;
+        for (Seg g : segs) if (g.jump) n++;
+        return n;
     }
 
     public double seconds() {
@@ -57,29 +65,42 @@ public final class Route {
         final Route r = new Route();
         double lastT = -1;
         double[] lastV;
+        boolean lastJump;
 
         public void add(double t, double[] v) {
+            add(t, v, false);
+        }
+
+        /** jump: 이 프레임에 점프 버튼이 막 눌림 */
+        public void add(double t, double[] v, boolean jump) {
             double[] q = quant(v);
             if (lastT >= 0) {
                 double dt = t - lastT;
                 if (dt > 0) {
                     Seg last = r.segs.isEmpty() ? null : r.segs.get(r.segs.size() - 1);
-                    if (last != null && last.dx == lastV[0] && last.dy == lastV[1]) last.sec += dt;
-                    else r.segs.add(new Seg(lastV[0], lastV[1], dt));
+                    if (last != null && !lastJump && last.dx == lastV[0] && last.dy == lastV[1]) last.sec += dt;
+                    else {
+                        Seg g = new Seg(lastV[0], lastV[1], dt);
+                        g.jump = lastJump;
+                        r.segs.add(g);
+                    }
                 }
             }
             lastT = t;
             lastV = q;
+            lastJump = jump;
         }
 
         /** 끝: 앞뒤의 멈춘 시간은 뺌 · 아주 짧은 흔들림(0.08초 미만)은 앞 조각에 붙임 */
         public Route done() {
             List<Seg> s = r.segs;
-            while (!s.isEmpty() && s.get(0).idle()) s.remove(0);
-            while (!s.isEmpty() && s.get(s.size() - 1).idle()) s.remove(s.size() - 1);
+            while (!s.isEmpty() && s.get(0).idle() && !s.get(0).jump) s.remove(0);
+            while (!s.isEmpty() && s.get(s.size() - 1).idle() && !s.get(s.size() - 1).jump) s.remove(s.size() - 1);
             for (int i = 1; i < s.size(); ) {
                 Seg g = s.get(i);
-                if (g.sec < 0.08 && i + 1 < s.size()) {
+                if (g.jump) {
+                    i++;                                   // 점프 조각은 안 합침
+                } else if (g.sec < 0.08 && i + 1 < s.size()) {
                     s.get(i - 1).sec += g.sec;
                     s.remove(i);
                 } else if (s.get(i - 1).dx == g.dx && s.get(i - 1).dy == g.dy) {
@@ -94,12 +115,13 @@ public final class Route {
         }
     }
 
-    /** "dx,dy,sec;dx,dy,sec;…" */
+    /** "dx,dy,sec;dx,dy,sec,j;…" (j = 점프) */
     public String save() {
         StringBuilder b = new StringBuilder();
         for (Seg g : segs) {
             if (b.length() > 0) b.append(';');
             b.append(String.format(Locale.ROOT, "%s,%s,%s", g.dx, g.dy, g.sec));
+            if (g.jump) b.append(",j");
         }
         return b.toString();
     }
@@ -109,9 +131,11 @@ public final class Route {
         if (s == null || s.isEmpty()) return r;
         for (String p : s.split(";")) {
             String[] v = p.split(",");
-            if (v.length != 3) continue;
+            if (v.length < 3) continue;
             try {
-                r.segs.add(new Seg(Double.parseDouble(v[0]), Double.parseDouble(v[1]), Double.parseDouble(v[2])));
+                Seg g = new Seg(Double.parseDouble(v[0]), Double.parseDouble(v[1]), Double.parseDouble(v[2]));
+                g.jump = v.length > 3 && v[3].equals("j");
+                r.segs.add(g);
             } catch (NumberFormatException ignored) {
             }
         }

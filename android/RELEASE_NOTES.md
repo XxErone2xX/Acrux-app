@@ -1,3 +1,17 @@
+## Acrux Mobile V0.10.2 업데이트
+- **길 기록이 조이스틱 위치 + 점프 버튼만 봄 (화면 터치 표시 · 개발자 옵션 필요 없음)**
+  - 기록 중에 화면에서 읽는 건 두 가지뿐: 조이스틱 손잡이가 밀린 방향 · 점프 버튼이 눌렸는지 (누르면 버튼이 밝아짐)
+  - ⚙ → **점프 버튼 (오른쪽 아래)** 위치를 한 번 지정 — 없으면 점프는 기록 안 함
+  - 재생할 때 점프는 조이스틱 손가락을 뗀 채로 따로 누르지 않고 같은 터치에 섞어서 보냄 (걷던 방향이 안 끊김)
+  - 길 정보에 점프 횟수도 보임
+
+## Acrux Mobile V0.10.2 Update
+- **Route recording now only reads the joystick position and the jump button (no "show taps" or developer options needed)**
+  - While recording it reads just two things from the screen: which way the joystick knob is pushed · whether the jump button is pressed (it lights up when pressed)
+  - Set ⚙ → **Jump button (bottom right)** once — without it, jumps are not recorded
+  - On replay the jump tap is sent together with the joystick finger instead of on its own (walking direction is not interrupted)
+  - Route info also shows the jump count
+
 ## Acrux Mobile V0.10.1 업데이트
 - **줌 아웃할 때 화면이 돌아가던 문제 수정**
   - 두 손가락을 좌우 대신 **위아래** 로 놓고 오므림 — 손가락이 조금 어긋나도 화면이 좌우로 안 돎

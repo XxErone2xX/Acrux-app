@@ -28,6 +28,17 @@ final class Joy {
     static volatile boolean want;            // 누르고 있어야 함
     static volatile double cx, cy, r;        // 조이스틱 (px)
     static Thread loop;
+    /** 조이스틱을 누르고 있는 중 (다른 탭을 따로 보내면 조이스틱 손가락이 떨어짐 → 점프는 같은 터치에 섞어 보냄) */
+    static volatile boolean holding;
+    /** 다음 조각에 같이 보낼 점프 탭 (px) · 없으면 null */
+    static volatile float[] jumpAt;
+
+    /** 조이스틱을 누르고 있으면 점프 탭을 그 손가락과 같이 보냄 → true · 안 누르고 있으면 false (그냥 탭하면 됨) */
+    static boolean jump(float x, float y) {
+        if (!holding) return false;
+        jumpAt = new float[]{x, y};
+        return true;
+    }
     static Handler cb;
 
     /** 조이스틱 위치 (px) */
@@ -66,13 +77,19 @@ final class Joy {
 
     /** 터치 하나 보내고 끝날 때까지 기다림 → 끝까지 갔으면 true (취소 · 실패 · 접근성 꺼짐이면 false) */
     static boolean send(GestureDescription.StrokeDescription s, long ms) {
+        return send(s, ms, null);
+    }
+
+    static boolean send(GestureDescription.StrokeDescription s, long ms, GestureDescription.StrokeDescription extra) {
         TapService t = TapService.instance;
         if (t == null) return false;
+        GestureDescription.Builder gb = new GestureDescription.Builder().addStroke(s);
+        if (extra != null) gb.addStroke(extra);
         Semaphore done = new Semaphore(0);
         boolean[] ok = {false};
         boolean sent;
         try {
-            sent = t.dispatchGesture(new GestureDescription.Builder().addStroke(s).build(), new AccessibilityService.GestureResultCallback() {
+            sent = t.dispatchGesture(gb.build(), new AccessibilityService.GestureResultCallback() {
                 @Override
                 public void onCompleted(GestureDescription g) {
                     ok[0] = true;
@@ -126,6 +143,7 @@ final class Joy {
             TapService t = TapService.instance;
             if (t == null || r <= 0) {
                 cur = null;
+                holding = false;
                 synchronized (lock) {
                     want = false;
                 }
@@ -135,6 +153,7 @@ final class Joy {
                 // 손가락 떼기
                 send(cur.continueStroke(line(px, py, px + (wiggle ? -1 : 1), py), 0, 30, false), 30);
                 cur = null;
+                holding = false;
                 continue;
             }
             if (cur == null) {
@@ -149,6 +168,7 @@ final class Joy {
                     continue;
                 }
                 cur = s;
+                holding = true;
             }
             double m = Math.hypot(dx, dy), k = m >= 0.95 ? PUSH / Math.max(m, 1e-9) : 1.0;     // 끝까지면 판 밖으로 조금 더 (최대 속도)
             double gx = cx + dx * r * k, gy = cy + dy * r * k;
@@ -167,8 +187,18 @@ final class Joy {
                 s = cur.continueStroke(line(px, py, nx, py), 0, ms, true);
                 px = nx;
             }
-            if (!send(s, ms)) {
+            // 점프: 조이스틱 손가락은 그대로 두고 같은 터치에 점프 버튼 탭을 섞음
+            float[] j = jumpAt;
+            jumpAt = null;
+            GestureDescription.StrokeDescription jp = null;
+            if (j != null) {
+                Path p = new Path();
+                p.moveTo(j[0], j[1]);
+                jp = new GestureDescription.StrokeDescription(p, 0, Math.min(ms, 80));
+            }
+            if (!send(s, ms, jp)) {
                 cur = null;              // 끊김 (다른 터치 · 사람이 화면을 누름) → 다음에 가운데부터 다시
+                holding = false;
                 continue;
             }
             cur = s;

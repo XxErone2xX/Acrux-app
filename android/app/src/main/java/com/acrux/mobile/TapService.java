@@ -461,6 +461,9 @@ public class TapService extends AccessibilityService {
         menu.addView(item("조이스틱 찾기 (화면에서 자동으로)", v -> toggle("stickfind")));
         menu.addView(item("조이스틱 직접 지정 (가운데 → 가장자리)", v -> pickStick()));
         menu.addView(item("조이스틱 테스트 (W · A · S · D 0.8초씩)", v -> toggle("sticktest")));
+        for (String[] k : Mover.JUMP_KEYS) {
+            menu.addView(item((Hub.pos.containsKey(k[0]) ? "✓ " : "· ") + k[1] + " — 길 기록에서 점프", v -> pickSave(k[0], k[1])));
+        }
         menu.addView(head("공통 위치 (기준 장소 맞추기)"));
         for (String[] k : Mover.BASE_KEYS) {
             menu.addView(item((Hub.pos.containsKey(k[0]) ? "✓ " : "· ") + k[1], v -> pickSave(k[0], k[1])));
@@ -493,7 +496,7 @@ public class TapService extends AccessibilityService {
         com.acrux.mobile.core.Route r = sell ? Hub.sellRoute : Hub.fishRoute;
         String name = sell ? "물고기 판매 장소" : "낚시 장소";
         menu.addView(head(name + " 길"));
-        menu.addView(item(r.isEmpty() ? "· 기록 없음" : "✓ 기록됨 · " + fmt(r.seconds()) + "초 · " + r.segs.size() + "조각", null));
+        menu.addView(item(r.isEmpty() ? "· 기록 없음" : "✓ 기록됨 · " + fmt(r.seconds()) + "초 · " + r.segs.size() + "조각 · 점프 " + r.jumps() + "번", null));
         menu.addView(item((r.isEmpty() ? "● 길 기록" : "● 다시 기록") + " (기준 장소로 간 뒤 직접 걸어감 → [도착])", v -> toggle(sell ? "rec_sell" : "rec_fish")));
     }
 

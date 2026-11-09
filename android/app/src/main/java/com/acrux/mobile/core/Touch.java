@@ -17,6 +17,9 @@ public interface Touch {
     /** 조이스틱 방향 (화면 좌표: 오른쪽 +x · 아래 +y) · null = 손가락 뗌 */
     void stick(double[] v);
 
+    /** 점프 버튼 탭 (조이스틱을 누르고 있으면 그 손가락은 그대로 둔 채) · 점프 버튼 위치가 없으면 false */
+    boolean jump();
+
     /** 조이스틱 {가운데 x, 가운데 y, 반지름} (px) · 없으면 null */
     double[] stickAt();
 

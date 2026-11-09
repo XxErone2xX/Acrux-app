@@ -746,6 +746,7 @@ public class MainActivity extends Activity {
         double[] stk = Hub.stick;
         ps.append(stk == null ? "· " : "✓ ").append(Ui.tr("조이스틱")).append(stk == null ? "" : "  " + TapService.fmt(stk[0]) + ", " + TapService.fmt(stk[1]) + "  r " + TapService.fmt(stk[2])).append('\n');
         for (String[] k : Mover.BASE_KEYS) line(ps, Ui.tr(k[1]), Hub.pos.get(k[0]));
+        for (String[] k : Mover.JUMP_KEYS) line(ps, Ui.tr(k[1]), Hub.pos.get(k[0]));
         for (String[] k : Seller.TALK) line(ps, Ui.tr(k[1]), Hub.pos.get(k[0]));
         for (String[] k : Seller.KEYS) line(ps, I18n.f("{0} (판매)", Ui.tr(k[1])), Hub.pos.get(k[0]));
         route(ps, Ui.tr("낚시 장소 길"), Hub.fishRoute);
@@ -766,7 +767,8 @@ public class MainActivity extends Activity {
 
     static void route(StringBuilder b, String name, com.acrux.mobile.core.Route r) {
         b.append(r.isEmpty() ? "· " : "✓ ").append(name);
-        if (!r.isEmpty()) b.append("  ").append(I18n.f("{0}초", TapService.fmt(r.seconds()))).append(" · ").append(I18n.f("{0}조각", r.segs.size()));
+        if (!r.isEmpty()) b.append("  ").append(I18n.f("{0}초", TapService.fmt(r.seconds()))).append(" · ").append(I18n.f("{0}조각", r.segs.size()))
+                .append(" · ").append(I18n.f("점프 {0}번", r.jumps()));
         b.append('\n');
     }
 }
