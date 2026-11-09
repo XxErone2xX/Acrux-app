@@ -1,3 +1,15 @@
+## Acrux Mobile V0.11.6 업데이트
+- **기록한 길이랑 다시 걷는 게 방향 · 거리가 다르던 것 고침**
+  - 다시 걸을 때 화면으로 위치를 재면서 따라가던 방식이 실제 로블록스 화면에서는 위치를 잘못 재서 방향이 틀어졌음 → WASD 패드로 기록한 길은 누른 키를 기록한 시간 그대로 다시 누름 (화면으로 따라가기는 시간 정보가 없는 길에만)
+  - 패드를 누르는 순간 안드로이드가 조이스틱 터치를 끊고 다시 누르는 동안은 캐릭터가 안 걷는데, 그동안도 걸은 걸로 저장해서 다시 걸을 때 더 멀리 갔음 → 실제로 조이스틱을 누르고 있던 시간만 저장
+  - 이미 기록한 길도 시간대로 다시 걷지만, 거리를 정확하게 하려면 다시 기록해 주세요
+
+## Acrux Mobile V0.11.6 Update
+- **Fixed replay going in a different direction and distance from what was recorded**
+  - Replay that followed the route by measuring position from the screen mismeasured on real Roblox screens and drifted → routes recorded with the WASD pad now replay the pressed keys with their recorded timing (screen following is only used for routes with no timing)
+  - While Android cancels and re-presses the joystick touch at the moment you tap the pad, the character does not walk, but that time was saved as walking, so replay went farther → only time when the joystick was actually held is saved
+  - Already recorded routes also replay by timing, but record them again for accurate distance
+
 ## Acrux Mobile V0.11.5 업데이트
 - **[홀드] 버튼을 점프 버튼 오른쪽 아래의 작은 동그라미로 바꿈**
   - 점프 버튼보다 조금 작고 서로 안 겹침 · 톡 = 점프 버튼을 계속 누르고 있음 · 다시 톡 = 뗌

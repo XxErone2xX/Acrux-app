@@ -42,6 +42,11 @@ final class TouchIn implements Touch {
     int jx, jy;
 
     @Override
+    public boolean stickHeld() {
+        return Joy.holding;
+    }
+
+    @Override
     public void jumpUp() {
         Joy.jump(jx, jy, false);
     }

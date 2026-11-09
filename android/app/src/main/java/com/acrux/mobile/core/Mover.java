@@ -277,7 +277,7 @@ public final class Mover {
         out.state(name + " 가는 중 (" + Math.round(r.seconds()) + "초)");
         int[] jp = r.jumps() > 0 ? jumpPos() : null;
         if (r.jumps() > 0 && jp == null) out.log("점프 버튼 위치가 없어서 길의 점프는 건너뜀 (Acrux 창 → ⚙ → 점프 버튼)", 'y');
-        if (r.hasPath()) {
+        if (r.isEmpty() && r.hasPath()) {                     // 시간대로 걸을 조각이 없을 때만 화면 보면서 따라가기
             follow(name, r, jp);
             sleep(cfg.margin);
             return;
@@ -474,9 +474,11 @@ public final class Mover {
                 touch.stick(v);
                 frames++;
                 if (odo.step()) seen++;
-                rec.add(t, v, jd, ju);
+                // 실제로 로블록스 조이스틱을 누르고 있던 동안만 걸은 걸로 (패드를 누르는 순간 안드로이드가 끊고 다시 누르는 동안은 안 걸음)
+                double[] eff = v != null && touch.stickHeld() ? v : null;
+                rec.add(t, eff, jd, ju);
                 if (jd || ju || t - lastPt >= 0.08) {
-                    pts.add(new double[]{t, odo.x, odo.y, (jd ? 1 : 0) | (ju ? 2 : 0), v == null ? 0 : v[0], v == null ? 0 : v[1]});
+                    pts.add(new double[]{t, odo.x, odo.y, (jd ? 1 : 0) | (ju ? 2 : 0), eff == null ? 0 : eff[0], eff == null ? 0 : eff[1]});
                     lastPt = t;
                 }
                 Touch.nap(15);

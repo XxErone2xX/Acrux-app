@@ -23,6 +23,11 @@ public interface Touch {
     /** 점프 버튼 뗌 */
     void jumpUp();
 
+    /** 조이스틱을 지금 실제로 누르고 있나 (안드로이드가 터치를 끊고 다시 누르는 중이면 false) */
+    default boolean stickHeld() {
+        return true;
+    }
+
     /** 조이스틱 {가운데 x, 가운데 y, 반지름} (px) · 없으면 null */
     double[] stickAt();
 
