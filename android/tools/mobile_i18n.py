@@ -220,6 +220,7 @@ E = [
     ['재설정 버튼 (Esc 메뉴)', 'Reset button (Esc menu)', 'リセットボタン (Esc メニュー)'], ['재설정 버튼', 'Reset button', 'リセットボタン'],
     ['ENTER {0}/{1}', 'ENTER {0}/{1}', 'ENTER {0}/{1}'],
     ['1초 뒤 시작', 'Starting in 1 second', '1秒後に開始'],
+    ["낚시 창 자리가 바뀜 → 위치를 다시 맞춤 (Fish 버튼 {0}, {1})", "Fishing window moved → positions re-fitted (Fish button {0}, {1})", "釣りウィンドウの位置が変わった → 位置を合わせ直し (Fish ボタン {0}, {1})"],
     ["점프 테스트 끝 — 제자리 1번 · 걸으면서 1번 · 꾹 누르는 1.5초 동안 계속 뛰었으면 성공", "Jump test done — success if it jumped once in place, once while walking, and kept jumping during the 1.5 s hold", "ジャンプテスト完了 — その場で1回 · 歩きながら1回 · 長押し1.5秒の間跳び続ければ成功"],
     ["점프 테스트 끝 — 제자리 1번 · 걸으면서 1번 · 꾹 누르는 1.5초 동안 계속 뛰었으면 성공 (점프를 따로 다시 누른 적 있음)", "Jump test done — success if it jumped once in place, once while walking, and kept jumping during the 1.5 s hold (a jump was re-pressed on its own)", "ジャンプテスト完了 — その場で1回 · 歩きながら1回 · 長押し1.5秒の間跳び続ければ成功 (ジャンプを別に押し直した)"],
     ["점프 테스트 — 걸으면서 꾹 누르기 (1.5초)", "Jump test — hold while walking (1.5 s)", "ジャンプテスト — 歩きながら長押し (1.5秒)"],

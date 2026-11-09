@@ -1,3 +1,15 @@
+## Acrux Mobile V0.10.14 업데이트
+- **Fish 버튼을 못 누르고 계속 기다리던 것 고침 (낚시 창이 보정 때와 다른 자리 · 크기로 뜬 경우)**
+  - 보정한 Fish 버튼 자리에 버튼이 안 보이면 (1.5초 넘게) 화면에서 낚시 창을 다시 찾음
+  - 창이 옮겨지거나 커지고 작아졌으면 Fish 버튼 · 릴링 바 · 결과창 X · 제목 위치를 전부 그만큼 옮겨서 맞춤
+  - 옮긴 자리에 정말 Fish / Exit 버튼이 있을 때만 바꿈 · 기록 칸에 '낚시 창 자리가 바뀜' 이 남음
+
+## Acrux Mobile V0.10.14 Update
+- **Fixed getting stuck without pressing Fish (when the fishing window appears at a different spot or size than at calibration)**
+  - If no button is seen at the calibrated Fish spot (for over 1.5 s), it finds the fishing window on screen again
+  - If the window moved or changed size, the Fish button, reel bar, result X and title positions are all shifted to match
+  - Only applied when a Fish / Exit button is really at the new spot · the log shows "Fishing window moved"
+
 ## Acrux Mobile V0.10.13 업데이트
 - **점프 버튼을 꾹 누른 것도 그대로 기록 · 재생**
   - 기록: 점프 버튼을 누른 때와 뗀 때를 따로 저장 (예전엔 누르고 있으면 0.45초마다 한 번씩 톡 누른 걸로 바꿨음)

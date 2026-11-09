@@ -198,6 +198,45 @@ public final class Fisher {
         }
     }
 
+    double refitAt = -1;
+
+    /**
+     * 낚시 창을 화면에서 다시 찾아서, 보정 때 창 자리 → 지금 창 자리로 모든 위치 (Fish 버튼 · 릴링 바 · 결과창 X · 제목 · 창 영역) 를 옮김
+     * → 옮겼으면 true (Fish / Exit 버튼이 보이는 낚시 창을 찾았고, 자리가 달라졌을 때)
+     */
+    boolean refit() {
+        double[] old = cfg.panelRegion;
+        if (old == null) return false;
+        double[] now = frameOf(full(), 0);
+        if (now == null) return false;
+        double ow = old[2] - old[0], oh = old[3] - old[1], nw = now[2] - now[0], nh = now[3] - now[1];
+        if (ow <= 0 || oh <= 0) return false;
+        double moved = Math.abs(now[0] - old[0]) + Math.abs(now[1] - old[1]) + Math.abs(nw - ow) + Math.abs(nh - oh);
+        if (moved < 0.006) return false;
+        double sx = nw / ow, sy = nh / oh;
+        java.util.function.UnaryOperator<double[]> map = p -> {
+            if (p == null) return null;
+            double[] q = p.clone();
+            for (int i = 0; i + 1 < q.length; i += 2) {
+                q[i] = now[0] + (p[i] - old[0]) * sx;
+                q[i + 1] = now[1] + (p[i + 1] - old[1]) * sy;
+            }
+            return q;
+        };
+        // 옮긴 Fish 버튼 자리에 정말 버튼이 있는지 확인한 뒤에만 바꿈
+        double[] fb = map.apply(cfg.fishBtn);
+        if (fb == null || Vision.buttonState(grabBox(fb)) == null) return false;
+        cfg.fishBtn = fb;
+        cfg.barRegion = map.apply(cfg.barRegion);
+        cfg.closePos = map.apply(cfg.closePos);
+        cfg.titlePos = map.apply(cfg.titlePos);
+        cfg.reelRegion = map.apply(cfg.reelRegion);
+        cfg.resultRegion = map.apply(cfg.resultRegion);
+        cfg.panelRegion = now.clone();
+        out.log("낚시 창 자리가 바뀜 → 위치를 다시 맞춤 (Fish 버튼 " + SellText.r4(fb[0]) + ", " + SellText.r4(fb[1]) + ")", 'c');
+        return true;
+    }
+
     void loop() {
         Double castAt = null, waitAt = null, unknownAt = null;
         int tries = 0, rescues = 0, maybe = 0, relocs = 0;
@@ -299,6 +338,15 @@ public final class Fisher {
                     knownAt = progressAt = now();
                     unknownAt = null;
                     continue;
+                }
+                // Fish 버튼 자리에 버튼이 안 보임 → 낚시 창이 다른 자리 · 크기로 떴을 수 있음 (화면 회전 · 해상도 · UI 크기 바뀜)
+                // → 화면에서 낚시 창을 다시 찾아서 위치를 옮겨 맞춤 (그 뒤 바로 다시 읽음)
+                if (t - unknownAt > 1.5 && t - refitAt > 2.0) {
+                    refitAt = t;
+                    if (refit()) {
+                        unknownAt = null;
+                        continue;
+                    }
                 }
                 if (t - unknownAt > 3.0) {
                     tapClose();
