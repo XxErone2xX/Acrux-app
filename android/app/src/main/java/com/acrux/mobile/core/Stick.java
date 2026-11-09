@@ -31,8 +31,18 @@ public final class Stick {
         }
     }
 
-    /** 채도 지도 (0 = 회색) · step 칸씩 줄일 때는 가장 회색인 값 (얇은 회색 선이 안 사라지게) */
+    /**
+     * '조이스틱 색이 아닌 정도' 지도 = 채도 + 0.5 × (255 - 밝기)  (작을수록 조이스틱의 밝은 회색에 가까움)
+     *  · 채도만 보면 어두운 배경 (나무 그늘 · 밤 · 검은 글자판) 도 채도가 낮아서 회색 선과 구별이 안 됐음 → 어두움도 더함
+     *  · 풀 ≈ 165 · 하늘 ≈ 115 · 어두운 배경 ≈ 135 · 조이스틱 테두리 선 ≈ 30 · 손잡이 안 ≈ 90 ~ 115 (흰 구름 위에서만 구별이 어려움)
+     * step 칸씩 줄일 때는 가장 작은 값 (얇은 선이 안 사라지게)
+     */
     static float[] chroma(Img im, int step) {
+        return chroma(im, step, 0.5);
+    }
+
+    /** dark: 어두움을 얼마나 더할지 (0 = 채도만) */
+    static float[] chroma(Img im, int step, double dark) {
         int w = im.w / step, h = im.h / step;
         float[] C = new float[w * h];
         for (int y = 0; y < h; y++) {
@@ -44,6 +54,7 @@ public final class Stick {
                         int k = row + x * step + dx;
                         int r = im.r[k], g = im.g[k], b = im.b[k];
                         int c = Math.max(r, Math.max(g, b)) - Math.min(r, Math.min(g, b));
+                        if (dark > 0) c += (int) ((255 - (r * 3 + g * 6 + b) / 10) * dark);
                         if (c < mn) mn = c;
                     }
                 }
@@ -156,14 +167,41 @@ public final class Stick {
      * → {dx, dy, 점수} (반지름 단위 · 길이 1 = 끝까지) · 못 찾으면 null
      */
     public static double[] knob(Img im, double cx, double cy, double r) {
+        return knob(im, cx, cy, r, null);
+    }
+
+    /** prev: 바로 전 프레임의 손잡이 {dx, dy} (없으면 null) — 점수가 비슷한 후보끼리는 방금 자리와 가까운 쪽 (손잡이는 한 프레임에 순간이동하지 않음) */
+    public static double[] knob(Img im, double cx, double cy, double r, double[] prev) {
         if (im == null || im.w < 8 || im.h < 8 || r < 4) return null;
-        float[] C = chroma(im, 1);
+        // 세 가지로 따로 찾고 → 후보마다 두 가지 점수 (회색 원 · 테두리 원) 를 합쳐서 가장 그럴듯한 자리
+        //  · 채도만: 하늘 · 흰 구름 위에서 정확  · 채도 + 어두움: 그늘 · 어두운 배경  · 테두리: 글자판 · 복잡한 배경
+        float[] C0 = chroma(im, 1, 0), C1 = chroma(im, 1, 0.5), L = lum(im);
+        double[][] cand = {knobOn(C0, im.w, im.h, cx, cy, r), knobOn(C1, im.w, im.h, cx, cy, r), knobEdgeOn(L, im.w, im.h, cx, cy, r)};
+        double[] best = null;
+        double bs = -1;
+        for (double[] k : cand) {
+            if (k == null) continue;
+            double x = cx + k[0] * r, y = cy + k[1] * r, kr = r * 0.5;
+            double e = 0;
+            for (double f : new double[]{0.46, 0.5, 0.54}) e = Math.max(e, edgeCircle(L, im.w, im.h, x, y, r * f));
+            double g = Math.max(grayDisk(C0, im.w, im.h, x, y, kr), grayDisk(C1, im.w, im.h, x, y, kr) * 0.8);
+            double sc = Math.max(0, e) / 50 + Math.max(0, g) / 45;
+            if (prev != null) sc -= 0.35 * Math.min(2, Math.hypot(k[0] - prev[0], k[1] - prev[1]));
+            if (sc > bs) {
+                bs = sc;
+                best = new double[]{k[0], k[1], sc};
+            }
+        }
+        return best;
+    }
+
+    static double[] knobOn(float[] C, int imw, int imh, double cx, double cy, double r) {
         double kr = r * 0.5, lim = r * 1.1, st = Math.max(1, r / 20);
         double best = 0, bx = 0, by = 0;
         for (double oy = -lim; oy <= lim; oy += st) {
             for (double ox = -lim; ox <= lim; ox += st) {
                 if (ox * ox + oy * oy > lim * lim) continue;
-                double s = grayDisk(C, im.w, im.h, cx + ox, cy + oy, kr);
+                double s = grayDisk(C, imw, imh, cx + ox, cy + oy, kr);
                 if (s > best) {
                     best = s;
                     bx = ox;
@@ -175,7 +213,7 @@ public final class Stick {
         double fx = bx, fy = by;
         for (double oy = by - st; oy <= by + st; oy += 1) {
             for (double ox = bx - st; ox <= bx + st; ox += 1) {
-                double s = grayDisk(C, im.w, im.h, cx + ox, cy + oy, kr);
+                double s = grayDisk(C, imw, imh, cx + ox, cy + oy, kr);
                 if (s > best) {
                     best = s;
                     fx = ox;
@@ -184,7 +222,7 @@ public final class Stick {
             }
         }
         // 소수점 단위로 다듬기: 찾은 원 안 픽셀들의 '회색인 정도' 무게 중심 (격자 · 배경 무늬 때문에 1~2px 씩 튀는 걸 줄임)
-        double[] cg = centroid(C, im.w, im.h, cx + fx, cy + fy, kr);
+        double[] cg = centroid(C, imw, imh, cx + fx, cy + fy, kr);
         if (cg != null && Math.hypot(cg[0] - (cx + fx), cg[1] - (cy + fy)) < kr * 0.3) {
             fx = cg[0] - cx;
             fy = cg[1] - cy;
@@ -241,6 +279,7 @@ public final class Stick {
     public static final class Tracker {
         public final double homeX, homeY, r;
         double curX = Double.NaN, curY;
+        double[] prevKnob;
         /** 마지막으로 찾은 판 가운데 (화면 좌표) · 디버그용 */
         public double ringX, ringY, ringScore;
 
@@ -253,10 +292,9 @@ public final class Stick {
         /** → {dx, dy, 점수} (반지름 단위) · 판을 못 찾으면 null */
         public double[] step(Img im, int ox, int oy) {
             if (im == null || im.w < 8 || im.h < 8) return null;
-            float[] C = chroma(im, 1);
             double[] got = null;
-            if (!Double.isNaN(curX)) got = near(C, im.w, im.h, curX - ox, curY - oy, r * 0.25);
-            if (got == null) got = near(C, im.w, im.h, homeX - ox, homeY - oy, r * 0.25);
+            if (!Double.isNaN(curX)) got = nearSub(im, curX - ox, curY - oy);
+            if (got == null) got = nearSub(im, homeX - ox, homeY - oy);
             if (got == null) got = wide(im);
             if (got == null) {
                 curX = Double.NaN;
@@ -267,10 +305,28 @@ public final class Stick {
             ringX = curX;
             ringY = curY;
             ringScore = got[2];
-            return knob(im, got[0], got[1], r);
+            // 손잡이는 판 둘레만 잘라서 봄 (넓은 영역 전체를 세 번 훑으면 느림)
+            int half = (int) (r * 2.3), sx = Math.max(0, (int) got[0] - half), sy = Math.max(0, (int) got[1] - half);
+            Img sub = sub(im, sx, sy, Math.min(im.w - sx, half * 2), Math.min(im.h - sy, half * 2));
+            double[] k = knob(sub, got[0] - sx, got[1] - sy, r, prevKnob);
+            prevKnob = k == null ? null : new double[]{k[0], k[1]};
+            return k;
         }
 
         static final double OK = 25;
+
+        /** (cx, cy) 근처만 잘라서 판 찾기 (빠름) → 영역 좌표 */
+        double[] nearSub(Img im, double cx, double cy) {
+            int half = (int) (r * 1.45) + 6, sx = Math.max(0, (int) cx - half), sy = Math.max(0, (int) cy - half);
+            int w = Math.min(im.w - sx, half * 2), h = Math.min(im.h - sy, half * 2);
+            if (w < 8 || h < 8) return null;
+            Img s = sub(im, sx, sy, w, h);
+            double[] g = near(chroma(s, 1), s.w, s.h, cx - sx, cy - sy, r * 0.25);
+            if (g == null) return null;
+            g[0] += sx;
+            g[1] += sy;
+            return g;
+        }
 
         double[] near(float[] C, int w, int h, double cx, double cy, double lim) {
             double best = 0, bx = 0, by = 0;
@@ -308,6 +364,17 @@ public final class Stick {
         }
     }
 
+    static Img sub(Img im, int x0, int y0, int w, int h) {
+        Img o = new Img(Math.max(0, w), Math.max(0, h));
+        for (int y = 0; y < o.h; y++) {
+            int a = (y0 + y) * im.w + x0, b = y * o.w;
+            System.arraycopy(im.r, a, o.r, b, o.w);
+            System.arraycopy(im.g, a, o.g, b, o.w);
+            System.arraycopy(im.b, a, o.b, b, o.w);
+        }
+        return o;
+    }
+
     /** (x, y) 반지름 kr 원 안의 회색 무게 중심 — 무게 = (원 바깥 1.3kr 의 평균 채도) - (그 픽셀 채도) */
     static double[] centroid(float[] C, int w, int h, double x, double y, double kr) {
         double ref = 0;
@@ -334,6 +401,66 @@ public final class Stick {
             }
         }
         return sw <= 0 ? null : new double[]{sx / sw, sy / sw};
+    }
+
+    /**
+     * 손잡이 테두리 찾기 (배경색과 상관없이): 반지름 kr 원 둘레에서 안쪽(kr-2) · 바깥쪽(kr+2) 밝기 차이가 한 바퀴 내내 큰가
+     * 손잡이는 테두리 선이 또렷한 원 → 글자 · 무늬 같은 배경 모서리는 한 바퀴 내내 원 모양으로 이어지지 않음
+     * 8조각 중 가장 약한 2조각은 뺌 (손가락 · 판 테두리와 겹침)
+     */
+    static double edgeCircle(float[] L, int w, int h, double cx, double cy, double kr) {
+        double ro = kr + 2.5, ri = kr - 2.5;
+        if (ri < 2 || cx - ro < 0 || cy - ro < 0 || cx + ro >= w - 1 || cy + ro >= h - 1) return -1;
+        double[] sec = new double[SECT];
+        for (int i = 0; i < ANG; i++) {
+            double c = COS[i], s = SIN[i];
+            sec[i * SECT / ANG] += Math.abs(at(L, w, cx + c * ro, cy + s * ro) - at(L, w, cx + c * ri, cy + s * ri));
+        }
+        for (int i = 0; i < SECT; i++) sec[i] /= (double) ANG / SECT;
+        return weakest(sec, 2);
+    }
+
+    /** 테두리로 손잡이 찾기 → {dx, dy, 점수} (반지름 단위) · 못 찾으면 null */
+    public static double[] knobEdge(Img im, double cx, double cy, double r) {
+        return knobEdgeOn(lum(im), im.w, im.h, cx, cy, r);
+    }
+
+    static double[] knobEdgeOn(float[] L, int imw, int imh, double cx, double cy, double r) {
+        double best = 0, bx = 0, by = 0, lim = r * 1.1, st = Math.max(1, r / 20);
+        double[] krs = {r * 0.46, r * 0.5, r * 0.54};
+        double bk = r * 0.5;
+        for (double oy = -lim; oy <= lim; oy += st) {
+            for (double ox = -lim; ox <= lim; ox += st) {
+                if (ox * ox + oy * oy > lim * lim) continue;
+                for (double kr : krs) {
+                    double s = edgeCircle(L, imw, imh, cx + ox, cy + oy, kr);
+                    if (s > best) {
+                        best = s;
+                        bx = ox;
+                        by = oy;
+                        bk = kr;
+                    }
+                }
+            }
+        }
+        if (best <= 0) return null;
+        double fx = bx, fy = by;
+        for (double oy = by - st; oy <= by + st; oy += 1) {
+            for (double ox = bx - st; ox <= bx + st; ox += 1) {
+                double s = edgeCircle(L, imw, imh, cx + ox, cy + oy, bk);
+                if (s > best) {
+                    best = s;
+                    fx = ox;
+                    fy = oy;
+                }
+            }
+        }
+        double m = Math.hypot(fx, fy) / r;
+        if (m > 1) {
+            fx /= m;
+            fy /= m;
+        }
+        return new double[]{fx / r, fy / r, best};
     }
 
     /** 점프 버튼 밝기 차이: (버튼 안 0.45r ~ 0.8r 의 평균 밝기) - (버튼 밖 1.15r ~ 1.35r 의 평균 밝기) · 평소엔 음수 (어두운 원) · 누르면 양수 (밝은 원) */

@@ -1,3 +1,19 @@
+## Acrux Mobile V0.10.8 업데이트
+- **길 기록 오탐 줄임 (보내 준 영상 650프레임으로 하나씩 맞춤)**
+  - 판(테두리 원)을 못 찾는 프레임: 42 → 10 — 어두운 배경 (나무 그늘 · 검은 글자판) 에서도 찾게 '어두움' 을 같이 봄
+  - 손잡이를 세 가지 방법으로 따로 찾고 서로 맞춰 봄: 회색 원 (하늘 · 흰 구름) · 회색 원 + 어두움 (그늘) · 둥근 테두리 선 (글자판 · 복잡한 배경)
+    - 하늘 배경에서 안 누르고 있는데 밀었다고 읽던 것 · 글자판 위에서 위아래가 뒤집혀 읽히던 것 고침
+  - 점수가 비슷하면 바로 전 프레임 자리와 가까운 쪽을 고름 (손잡이는 순간이동하지 않음) — 방향이 확 튀는 프레임: 35 → 15 (남은 건 대부분 실제로 빠르게 돌린 것)
+  - 판 근처만 잘라서 봐서 한 프레임 처리 시간 절반 (약 15ms → 7.5ms · PC 기준)
+
+## Acrux Mobile V0.10.8 Update
+- **Fewer false readings in route recording (checked frame by frame on the 650 frames of the video you sent)**
+  - Frames where the ring was not found: 42 → 10 — darkness is now considered too, so it also works on dark backgrounds (tree shade · black text boards)
+  - The knob is found three separate ways and cross-checked: gray circle (sky · white clouds) · gray circle + darkness (shade) · round outline (text boards · busy backgrounds)
+    - Fixed reading a push on sky backgrounds while not touching, and up/down being flipped over text boards
+  - When scores are close it picks the spot nearest the previous frame (the knob does not teleport) — frames with sudden direction jumps: 35 → 15 (most of the rest are real fast turns)
+  - Only the area around the ring is examined, halving the time per frame (about 15ms → 7.5ms on PC)
+
 ## Acrux Mobile V0.10.7 업데이트
 - **사용자 수 집계를 끌 수 없게 바꿈**
   - 설정 → 정보의 '사용자 수 집계에 참여' 스위치를 없앰 — 항상 참여
