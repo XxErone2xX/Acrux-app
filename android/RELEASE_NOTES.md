@@ -1,3 +1,15 @@
+## Acrux Mobile V0.11.7 업데이트
+- **길을 기록했는데 저장이 안 되고 전에 기록한 길로 걷던 것 고침**
+  - 기록을 [멈춤] 으로 끝내면 '취소' 로 처리돼서 새 길이 버려지고 전에 저장한 길이 그대로 남았음
+  - 이제 걷는 중 (기록 중) 에 [멈춤] 을 누르면 [도착] 과 같이 지금까지 걸은 길을 저장함 (기준 장소로 가는 중에 누르면 그대로 취소)
+  - 저장되면 화면 알림으로 "낚시 장소 길 저장됨 (몇 초 · 점프 몇 번)" 이 뜸 · 알림이 안 뜨면 저장이 안 된 것
+
+## Acrux Mobile V0.11.7 Update
+- **Fixed recorded routes not being saved, so the previously recorded route was walked**
+  - Ending a recording with [Stop] counted as a cancel, so the new route was thrown away and the old one stayed
+  - Now pressing [Stop] while walking (recording) saves the route walked so far, the same as [Arrived] (pressing it while going to the base spot still cancels)
+  - When saved, a notice "Fishing spot route saved (seconds · jumps)" appears · no notice means it was not saved
+
 ## Acrux Mobile V0.11.6 업데이트
 - **기록한 길이랑 다시 걷는 게 방향 · 거리가 다르던 것 고침**
   - 다시 걸을 때 화면으로 위치를 재면서 따라가던 방식이 실제 로블록스 화면에서는 위치를 잘못 재서 방향이 틀어졌음 → WASD 패드로 기록한 길은 누른 키를 기록한 시간 그대로 다시 누름 (화면으로 따라가기는 시간 정보가 없는 길에만)

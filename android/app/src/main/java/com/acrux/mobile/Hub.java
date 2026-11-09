@@ -389,6 +389,9 @@ final class Hub {
             if (sell) sellRoute = r;
             else fishRoute = r;
             save();
+            String msg = name + " 길 저장됨 (" + Math.round(r.seconds() * 10) / 10.0 + "초 · 점프 " + r.jumps() + "번)";
+            log(msg, 'g');
+            main.post(() -> android.widget.Toast.makeText(app, com.acrux.mobile.core.I18n.t(msg), android.widget.Toast.LENGTH_LONG).show());
         } finally {
             measuring = false;
             changed();
@@ -455,6 +458,12 @@ final class Hub {
     }
 
     static void stop() {
+        // 길 기록 중에 [멈춤] = [도착] (걸어온 길을 저장) · 저장하는 중에 한 번 더 누르면 그때 멈춤
+        if (measuring && mode.startsWith("rec_") && !arrived) {
+            arrived = true;
+            log("도착 — 길 저장", 'g');
+            return;
+        }
         stopFlag = true;
         Fisher f = fisher;
         if (f != null) f.stop();

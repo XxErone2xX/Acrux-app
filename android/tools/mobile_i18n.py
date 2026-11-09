@@ -220,6 +220,8 @@ E = [
     ['재설정 버튼 (Esc 메뉴)', 'Reset button (Esc menu)', 'リセットボタン (Esc メニュー)'], ['재설정 버튼', 'Reset button', 'リセットボタン'],
     ['ENTER {0}/{1}', 'ENTER {0}/{1}', 'ENTER {0}/{1}'],
     ['1초 뒤 시작', 'Starting in 1 second', '1秒後に開始'],
+    ["{0} 길 저장됨 ({1}초 · 점프 {2}번)", "{0} route saved ({1} s · {2} jumps)", "{0} の道を保存 ({1}秒 · ジャンプ {2}回)"],
+    ["도착 — 길 저장", "Arrived — saving route", "到着 — 道を保存"],
     ["● 길 기록 (기준 장소로 간 뒤 WASD 패드로 걸어감 → [도착])", "● Record route (goes to the base spot, then you walk with the WASD pad → [Arrived])", "● 道を記録 (基準地点へ行った後に WASD パッドで歩く → [到着])"],
     ["● 다시 기록 (기준 장소로 간 뒤 WASD 패드로 걸어감 → [도착])", "● Record again (goes to the base spot, then you walk with the WASD pad → [Arrived])", "● 記録し直す (基準地点へ行った後に WASD パッドで歩く → [到着])"],
     ["{0} 길 기록 중 — WASD 패드로 걸어가서 도착하면 [도착]", "Recording the {0} route — walk there with the WASD pad, then [Arrived]", "{0} の道を記録中 — WASD パッドで歩いて着いたら [到着]"],
