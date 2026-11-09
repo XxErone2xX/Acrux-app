@@ -99,59 +99,50 @@ public final class SellText {
         return r(0.5, sum / n);
     }
 
-    /** 상점 글자들 → {닫기 X, 첫 칸, 확인 Sell} 위치 · aspect = 화면 너비 / 높이 · 못 재면 null */
-    public static double[][] shopLayout(List<Box> boxes, Box title, Box sellAll, double aspect) {
-        Box buy = null, tab = null;
+    /** 상점에 늘 있는 글자 (물고기 이름이 아님) */
+    static final java.util.Set<String> SHOP_WORDS = new java.util.HashSet<>(java.util.Arrays.asList(
+            "sell", "sellall", "buy", "flshlngshop", "fishingshop", "concel", "cancel", "exit", "close"));
+
+    /**
+     * 첫 번째 물고기 칸 (Buy · Sell 탭 없이) — 제목 (Fishing Shop) 아래 · Sell All 위에 있는 물고기 이름들 → 맨 윗줄 맨 왼쪽 이름의 칸
+     * 이름은 칸 아래쪽에 있음 → 줄 간격의 0.3 만큼 위 · 이름을 못 읽으면 null
+     */
+    public static double[] firstFish(List<Box> boxes, Box title, Box sellAll, double aspect) {
+        List<Box> names = new ArrayList<>();
         for (Box b : boxes) {
-            if (norm(b.text).equals("buy") && b.y > title.y) {
-                buy = b;
+            String n = norm(b.text);
+            if (n.length() < 3 || SHOP_WORDS.contains(n)) continue;
+            if (b.y > title.y + title.h && b.y < sellAll.y + 0.05) names.add(b);
+        }
+        if (names.isEmpty()) return null;
+        names.sort(Comparator.comparingDouble(b -> b.y));
+        Box f = names.get(0);
+        double top = f.y;
+        TreeSet<Double> rows = new TreeSet<>();
+        for (Box b : names) rows.add(Math.round(b.y * 100.0) / 100.0);
+        Double pitch = null;
+        for (double y : rows) {
+            if (y - top > f.h * 1.5) {
+                pitch = y - top;
                 break;
             }
         }
-        if (buy != null) {
-            for (Box b : boxes) {
-                if (norm(b.text).equals("sell") && Math.abs(b.y - buy.y) < 0.03 && b.x > buy.x) {
-                    tab = b;
-                    break;
-                }
-            }
-        }
-        if (buy == null || tab == null) return null;
-        double half = (tab.x - buy.x) / 2, left = buy.x - half, right = tab.x + half, span = sellAll.y - title.y;
-        double[] close = r(right - 0.85 * title.h / aspect, title.y);
-        List<Box> names = new ArrayList<>();
+        List<Double> xs = new ArrayList<>();
+        for (Box b : names) if (Math.abs(b.y - top) < f.h) xs.add(b.x);
+        xs.sort(null);
+        if (pitch == null) pitch = xs.size() > 1 ? (xs.get(1) - xs.get(0)) * aspect : f.h * 3;
+        return r(xs.get(0), top - 0.3 * pitch);
+    }
+
+    /** 상점 닫기 X — 제목 줄 오른쪽의 'X' 글자 · 못 읽으면 null */
+    public static double[] closeX(List<Box> boxes, Box title) {
+        Box best = null;
         for (Box b : boxes) {
-            if (left < b.x && b.x < right && buy.y + 0.02 < b.y && b.y < sellAll.y + 0.05 && norm(b.text).length() >= 3) names.add(b);
+            String t = String.valueOf(b.text).trim();
+            boolean x = t.equalsIgnoreCase("x") || t.equals("×") || t.equals("✕") || t.equals("✖");
+            if (x && b.x > title.x && Math.abs(b.y - title.y) < 0.08 && (best == null || b.x > best.x)) best = b;
         }
-        names.sort(Comparator.comparingDouble(b -> b.y));
-        double[] first;
-        if (!names.isEmpty()) {
-            double top = names.get(0).y;
-            TreeSet<Double> rows = new TreeSet<>();
-            for (Box b : names) rows.add(Math.round(b.y * 100.0) / 100.0);
-            Double pitch = null;
-            for (double y : rows) {
-                if (y - top > names.get(0).h * 1.5) {
-                    pitch = y - top;
-                    break;
-                }
-            }
-            if (pitch == null) {
-                List<Double> xs = new ArrayList<>();
-                for (Box b : names) if (Math.abs(b.y - top) < names.get(0).h) xs.add(b.x);
-                xs.sort(null);
-                pitch = xs.size() > 1 ? (xs.get(1) - xs.get(0)) * aspect : names.get(0).h * 3;
-            }
-            double col = Double.MAX_VALUE;
-            for (Box b : names) col = Math.min(col, b.x);
-            first = r(col, top - 0.3 * pitch);
-        } else {
-            double w = (right - left) / 5;
-            first = r(left + w * 0.55, buy.y + w * aspect * 0.8);
-        }
-        double x1 = title.x - title.w / 2 - 0.005;
-        double[] confirm = r((x1 + right) / 2 - 0.155 * (right - x1), title.y + 0.66 * span);
-        return new double[][]{close, first, confirm};
+        return best == null ? null : r(best.x, best.y);
     }
 
     /** 확인창의 초록 Sell · 빨강 Cancel → {sell 위치, cancel 위치} 또는 null */

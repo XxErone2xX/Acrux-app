@@ -1,3 +1,21 @@
+## Acrux Mobile V0.11.9 업데이트
+- **판매 자동 보정에서 상점 Buy · Sell 탭 찾기를 뺌**
+  - 탭을 못 찾으면 "상점 Buy · Sell 탭을 못 찾음" 으로 보정이 멈췄음 → 탭 없이 바로 찾음
+  - 첫 번째 물고기 칸: 제목 (Fishing Shop) 아래 · Sell All 위의 물고기 이름 중 맨 윗줄 맨 왼쪽
+  - 상점 닫기 X: 제목 줄 오른쪽의 X 글자
+  - 확인 Sell: 확인창의 Sell · Cancel 글자 (전과 같음)
+  - 못 찾으면 저장된 자리를 그대로 씀 · ⚙ → 판매에 **첫 번째 물고기 칸 · 상점 닫기 X 직접 지정** 추가
+- 판매할 때 대화 버튼을 누르기 전에 카메라 정렬 (도감 열고 닫기) 을 하는 건 그대로
+
+## Acrux Mobile V0.11.9 Update
+- **Removed finding the shop Buy · Sell tabs from sell auto-calibration**
+  - Calibration stopped with "Could not find the shop Buy · Sell tabs" when the tabs were not found → now finds things without the tabs
+  - First fish slot: the top-left fish name below the title (Fishing Shop) and above Sell All
+  - Shop close X: the X text on the right of the title row
+  - Confirm Sell: the Sell · Cancel text in the confirm window (same as before)
+  - If not found, the saved spot is kept · added **set the first fish slot · shop close X by hand** to ⚙ → Sell
+- Camera alignment (open and close the collection) before tapping the talk button when selling stays as before
+
 ## Acrux Mobile V0.11.8 업데이트
 - **점프를 누르면 이동 키가 안 먹히던 것 고침 (기록 · 다시 걷기 둘 다)**
   - 점프를 누를 때마다 누른 자리를 보여 주려고 화면 전체에 창을 새로 띄웠는데, 그동안 로블록스가 조이스틱 터치를 놓칠 수 있었음 → 뺌

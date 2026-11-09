@@ -479,6 +479,9 @@ public class TapService extends AccessibilityService {
         int set = 0;
         for (String[] k : Seller.KEYS) if (Hub.pos.containsKey(k[0])) set++;
         menu.addView(item("  판매 위치 " + set + " / " + Seller.KEYS.length + " 저장됨", null));
+        for (String[] k : new String[][]{{"first_fish_pos", "첫 번째 물고기 칸"}, {"shop_close_pos", "상점 닫기 X"}}) {
+            menu.addView(item((Hub.pos.containsKey(k[0]) ? "✓ " : "· ") + k[1] + " 직접 지정 (상점을 연 채로)", v -> pickSave(k[0], k[1])));
+        }
         menu.addView(item("판매 한 번 해 보기", v -> toggle("sell")));
         menu.addView(head("이동 테스트"));
         menu.addView(item("기준 장소로", v -> toggle("base")));

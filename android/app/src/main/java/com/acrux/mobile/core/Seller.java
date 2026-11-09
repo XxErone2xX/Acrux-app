@@ -295,12 +295,17 @@ public final class Seller {
         SellText.Box t2 = SellText.findText(boxes, "fishingshop"), s2 = SellText.findText(boxes, true, "sellall");
         if (t2 != null) title = t2;
         if (s2 != null) sa = s2;
-        double[][] geo = SellText.shopLayout(boxes, title, sa, (double) scr.width() / Math.max(1, scr.height()));
-        if (geo == null) throw new RuntimeException("상점 Buy · Sell 탭을 못 찾음");
+        // Buy · Sell 탭은 안 찾음 — 물고기 이름 · X 글자로 바로 찾고 · 못 찾으면 저장된 자리 (⚙ → 직접 지정) 그대로
+        double aspect = (double) scr.width() / Math.max(1, scr.height());
+        double[] first = SellText.firstFish(boxes, title, sa, aspect), close = SellText.closeX(boxes, title);
         double[] saAt = findSellAll();                  // 색으로 찾은 자리가 있으면 그걸로 (글자 자리보다 버튼 한가운데)
         pos.put("sell_all_pos", saAt != null ? saAt : new double[]{SellText.r4(sa.x), SellText.r4(sa.y)});
-        pos.put("first_fish_pos", geo[1]);
-        pos.put("shop_close_pos", geo[0]);
+        if (first != null) pos.put("first_fish_pos", first);
+        else if (p("first_fish_pos") != null) notes.add("물고기 이름을 못 읽어서 첫 번째 물고기 칸은 저장된 자리 그대로");
+        else throw new RuntimeException("첫 번째 물고기 칸을 못 찾음 (물고기가 있을 때 다시 하거나 ⚙ → 첫 번째 물고기 칸 직접 지정)");
+        if (close != null) pos.put("shop_close_pos", close);
+        else if (p("shop_close_pos") != null) notes.add("X 를 못 읽어서 상점 닫기는 저장된 자리 그대로");
+        else notes.add("상점 닫기 X 를 못 찾음 — ⚙ → 상점 닫기 X 직접 지정");
         out.state("확인창 확인 중 (팔지는 않음)");
         ui(p("first_fish_pos"), 0);
         mv.sleep(0.6);
@@ -317,13 +322,15 @@ public final class Seller {
             ui(conf[1], 0);                           // Cancel
             mv.sleep(0.6);
         } else {
-            pos.put("confirm_sell_pos", geo[2]);
-            notes.add("확인창이 안 떠서(물고기 없음?) 확인 Sell 은 계산한 자리");
+            notes.add(p("confirm_sell_pos") != null ? "확인창이 안 떠서(물고기 없음?) 확인 Sell 은 저장된 자리 그대로"
+                    : "확인창이 안 떠서(물고기 없음?) 확인 Sell 을 못 찾음 — 물고기가 있을 때 다시 보정해 주세요");
         }
-        out.state("상점 닫는 중");
-        ui(p("shop_close_pos"), 0);
-        mv.sleep(0.8);
-        if (SellText.findText(ocr.read(null), "fishingshop") != null) notes.add("상점이 안 닫힘 — 상점 닫기 X 위치를 확인해 주세요");
+        if (p("shop_close_pos") != null) {
+            out.state("상점 닫는 중");
+            ui(p("shop_close_pos"), 0);
+            mv.sleep(0.8);
+            if (SellText.findText(ocr.read(null), "fishingshop") != null) notes.add("상점이 안 닫힘 — 상점 닫기 X 위치를 확인해 주세요");
+        }
         return notes;
     }
 }
