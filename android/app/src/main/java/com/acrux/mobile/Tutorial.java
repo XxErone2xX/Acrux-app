@@ -91,7 +91,7 @@ final class Tutorial {
         head.setGravity(Gravity.CENTER_VERTICAL);
         name = Ui.text(a, "", 11, Ui.ACCENT, true);
         head.addView(name, Ui.wrap());
-        head.addView(new View(a), Ui.weight());
+        head.addView(new View(a), new LinearLayout.LayoutParams(0, 1, 1f));
         count = Ui.text(a, "", 11, Ui.MUTED, true);
         head.addView(count, Ui.wrap());
         card.addView(head, Ui.fill(a, 8));
@@ -117,7 +117,7 @@ final class Tutorial {
         nav.setOrientation(LinearLayout.HORIZONTAL);
         nav.setGravity(Gravity.CENTER_VERTICAL);
         nav.addView(small(Ui.button(a, "스킵", Ui.MUTED, v -> close())), Ui.wrap());
-        nav.addView(new View(a), Ui.weight());
+        nav.addView(new View(a), new LinearLayout.LayoutParams(0, 1, 1f));
         prev = small(Ui.button(a, "이전", Ui.MUTED, v -> go(step - 1)));
         nav.addView(prev, Ui.wrap());
         next = small(Ui.button(a, "다음", Ui.ACCENT, v -> {

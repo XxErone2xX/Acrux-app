@@ -1,3 +1,9 @@
+## Acrux Mobile V1.0.2 업데이트
+- 튜토리얼 카드가 화면을 꽉 채우고 제목 · 설명 · 버튼이 안 보이던 것 고침 (칸 사이 빈 공간이 화면 높이만큼 커지던 버그)
+
+## Acrux Mobile V1.0.2 Update
+- Fixed the tutorial card filling the whole screen with the title, text and buttons not visible (a spacer grew to the full screen height)
+
 ## Acrux Mobile V1.0.1 업데이트
 - 안드로이드 15 이상에서 앱 화면이 위 알림 줄 · 아래 내비게이션 바에 가려지던 것 고침
 - 튜토리얼 카드를 PC 처럼 작게 (최대 420dp · 네 모서리 ㄱ · [튜토리얼] 표 · 단계 이름 · n / N · 스킵 / 이전 / 다음)
