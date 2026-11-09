@@ -207,13 +207,16 @@ public final class Mover {
         out.state(name + " 가는 중 (" + Math.round(r.seconds()) + "초)");
         int[] jp = r.jumps() > 0 ? jumpPos() : null;
         if (r.jumps() > 0 && jp == null) out.log("점프 버튼 위치가 없어서 길의 점프는 건너뜀 (Acrux 창 → ⚙ → 점프 버튼)", 'y');
+        // V0.10.13 전에 기록한 길은 '뗌' 이 없음 → 점프는 전부 톡 누르기로
+        boolean legacy = true;
+        for (Route.Seg g : r.segs) if (g.jumpUp) legacy = false;
         try {
             for (Route.Seg g : r.segs) {
                 touch.stick(g.idle() ? null : new double[]{g.dx, g.dy});
                 if (jp != null && g.jumpUp && !g.jump) touch.jumpUp();
                 if (jp != null && g.jump) {
                     touch.jumpDown(jp[0], jp[1]);
-                    if (g.jumpUp) {                         // 톡 누르고 바로 뗀 점프 (한 조각 안에서)
+                    if (g.jumpUp || legacy) {                         // 톡 누르고 바로 뗀 점프 (한 조각 안에서)
                         double hold = Math.min(0.12, g.sec);
                         sleep(hold);
                         touch.jumpUp();
