@@ -339,21 +339,32 @@ final class Biome {
         return u != null && HOOK.matcher(u.trim()).matches();
     }
 
-    /** 모든 웹후크로 (백그라운드) · 디스코드 웹후크 주소가 아니면 안 보냄 */
+    /** 웹후크는 한 줄로 차례대로 (끝 → 시작 순서가 뒤바뀌지 않게 · 전에는 알림마다 따로 보내서 가끔 시작이 먼저 도착) */
+    static final java.util.concurrent.ExecutorService QUEUE = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "acrux-webhook");
+        t.setDaemon(true);
+        return t;
+    });
+
+    /** 모든 웹후크로 (보낸 순서 그대로) · 디스코드 웹후크 주소가 아니면 안 보냄 */
     static void sendAll(JSONObject payload) {
         if (payload == null) return;
         List<String> hs = hooks();
         if (hs.isEmpty()) return;
-        new Thread(() -> {
+        QUEUE.execute(() -> {
             for (String h : hs) {
                 if (!isHook(h)) {
                     Hub.log("디스코드 웹후크 주소가 아니라서 안 보냄 (…" + h.substring(Math.max(0, h.length() - 6)) + ")", 'y');
                     continue;
                 }
                 int code = post(h, payload);
+                for (int tries = 0; code == 429 && tries < 3; tries++) {     // 디스코드가 너무 빠르다고 하면 잠깐 기다렸다 다시 (순서 유지)
+                    sleep(1500L * (tries + 1));
+                    code = post(h, payload);
+                }
                 if (code != 200 && code != 204) Hub.log("웹후크 전송 실패 (" + code + ")", 'r');
             }
-        }, "acrux-webhook").start();
+        });
     }
 
     static int post(String url, JSONObject payload) {

@@ -134,29 +134,75 @@ def is_webhook(url):
     return bool(WEBHOOK_RE.fullmatch((url or "").strip()))
 
 
+# 웹후크마다 한 줄로 차례대로 보냄 — 전에는 알림마다 스레드를 따로 띄워서 바이옴 끝 · 시작이 동시에 나가면
+# 가끔 Started 가 Ended 보다 먼저 도착했음 (같은 웹후크로 가는 건 보낸 순서 그대로)
+_queues = {}
+_queues_lock = threading.Lock()
+
+
+def _hook_worker(q):
+    while True:
+        h, payload, done = q.get()
+        try:
+            done(_send_one(h, payload))
+        except Exception as e:
+            _log(f"웹후크 처리 오류: {e}", "r")
+
+
+def _send_one(h, payload):
+    """한 웹후크로 전송 → True / 에러 글자 · 디스코드가 너무 빠르다고(429) 하면 잠깐 기다렸다 다시 (순서 유지)"""
+    import urllib.error
+    for tries in range(4):
+        try:
+            st = _post(h, payload)
+            return st in (200, 204)
+        except urllib.error.HTTPError as e:
+            if e.code == 429 and tries < 3:
+                try:
+                    wait = float(e.headers.get("Retry-After") or 1.5)
+                except ValueError:
+                    wait = 1.5
+                time.sleep(min(10.0, max(0.5, wait)))
+                continue
+            _log(f"웹후크 전송 실패: {e}", "r")
+            return str(e)
+        except Exception as e:
+            _log(f"웹후크 전송 실패: {e}", "r")
+            return str(e)
+    return "429"
+
+
+def _enqueue(h, payload, done):
+    with _queues_lock:
+        q = _queues.get(h)
+        if q is None:
+            import queue
+            q = queue.Queue()
+            _queues[h] = q
+            threading.Thread(target=_hook_worker, args=(q,), daemon=True).start()
+    q.put((h, payload, done))
+
+
 def send_all(hooks, payload, wait=False):
     """모든 웹후크로 전송. wait=True 면 결과 [(url 끝부분, 성공여부/에러)] 반환
     디스코드 웹후크 주소가 아닌 건 보내지 않음 (내 브섭 링크가 들어 있는 내용이라 다른 곳으로 새지 않게)"""
     hooks = [h.strip() for h in hooks if h and h.strip()]
     results = []
-
-    def one(h):
+    pending = []
+    for h in hooks:
         if not is_webhook(h):
             results.append((h[-8:], "디스코드 웹후크 주소 형식이 아님"))
-            return
-        try:
-            st = _post(h, payload)
-            results.append((h[-8:], st in (200, 204)))
-        except Exception as e:
-            results.append((h[-8:], str(e)))
-            _log(f"웹후크 전송 실패: {e}", "r")
+            continue
+        ev = threading.Event()
+        pending.append(ev)
 
-    threads = [threading.Thread(target=one, args=(h,), daemon=True) for h in hooks]
-    for t in threads:
-        t.start()
+        def done(r, h=h, ev=ev):
+            results.append((h[-8:], r))
+            ev.set()
+        _enqueue(h, payload, done)
     if wait:
-        for t in threads:
-            t.join(10)
+        for ev in pending:
+            ev.wait(15)
     return results
 
 
