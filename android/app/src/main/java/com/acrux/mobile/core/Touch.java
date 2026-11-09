@@ -11,7 +11,7 @@ public interface Touch {
 
     void swipe(int x0, int y0, int x1, int y1, int ms);
 
-    /** (cx, cy) 를 가운데로 두 손가락을 가로로 d0 → d1 간격으로 (d1 < d0: 오므리기 = 줌 아웃) */
+    /** (cx, cy) 를 가운데로 두 손가락을 위아래로 d0 → d1 간격으로 (d1 < d0: 오므리기 = 줌 아웃) · 처음에 잠깐 가만히 댄 뒤 움직임 */
     void pinch(int cx, int cy, int d0, int d1, int ms);
 
     /** 조이스틱 방향 (화면 좌표: 오른쪽 +x · 아래 +y) · null = 손가락 뗌 */

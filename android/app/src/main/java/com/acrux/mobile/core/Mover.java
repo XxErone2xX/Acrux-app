@@ -10,7 +10,7 @@ import java.util.function.BooleanSupplier;
  *   1. 기준 장소 (스폰이 랜덤이라 어디서 시작하든 같은 곳으로 모음):
  *      재설정 (로블록스 메뉴 → 캐릭터 재설정 → 재설정 확인 · 탭) → 도감 열고 닫기 (화면 맞추기)
  *      → 조이스틱 W+A 3.5초 → A 3초 → A+W 2초 → 0.5초 쉼 → D 1초
- *      → 내려다보기 (화면을 아래로 끌기) + 최대 줌 아웃 (두 손가락 오므리기)
+ *      → 최대 줌 아웃 (두 손가락을 위아래로 오므리기) → 내려다보기 (화면을 아래로 끌기)
  *   2. 기준 장소 → 목적지: 플레이어가 조이스틱으로 직접 걸어간 길(Route) 을 그대로 다시 걸음
  *      길 기록: 기준 장소에 도착하면 '지금부터 기록' → 화면에서 조이스틱 손잡이를 매 프레임 읽음 → [도착]
  */
@@ -124,16 +124,20 @@ public final class Mover {
         }
     }
 
-    /** 내려다보기 + 최대 줌 아웃: 화면 오른쪽 가운데를 위 → 아래로 여러 번 끌기 · 화면 가운데에서 두 손가락 오므리기 여러 번 */
+    /**
+     * 최대 줌 아웃 → 내려다보기
+     *  · 줌 아웃: 화면 가운데에서 두 손가락(위아래)을 오므리기 여러 번 — 화면이 좌우로 돌지 않게 세로로만
+     *  · 내려다보기: 화면 오른쪽 가운데를 위 → 아래로 여러 번 끌기 (줌 아웃 중에 위아래로 조금 기운 것도 여기서 다시 맞춰짐)
+     */
     void lookDown() {
         int W = scr.width(), H = scr.height();
+        for (int i = 0; i < cfg.zoomPinches; i++) {
+            touch.pinch((int) (W * 0.55), (int) (H * 0.5), (int) (H * 0.6), (int) (H * 0.06), 300);
+            sleep(0.6);
+        }
         for (int i = 0; i < cfg.tiltSwipes; i++) {
             touch.swipe((int) (W * 0.62), (int) (H * 0.22), (int) (W * 0.62), (int) (H * 0.80), 250);
             sleep(0.4);
-        }
-        for (int i = 0; i < cfg.zoomPinches; i++) {
-            touch.pinch((int) (W * 0.55), (int) (H * 0.45), (int) (H * 0.7), (int) (H * 0.06), 300);
-            sleep(0.45);
         }
     }
 
@@ -168,7 +172,7 @@ public final class Mover {
         sleep(cfg.resetWait);
     }
 
-    /** 재설정 → 도감 열고 닫기 → W+A → A → A+W → 쉼 → D → 내려다보기 + 줌 아웃 */
+    /** 재설정 → 도감 열고 닫기 → W+A → A → A+W → 쉼 → D → 줌 아웃 + 내려다보기 */
     public void goBase() {
         String m = baseMissing();
         if (m != null) throw new RuntimeException(m);
@@ -182,7 +186,7 @@ public final class Mover {
         sleep(cfg.pauseTime);
         hold(new String[]{"d"}, cfg.dTime);
         sleep(0.5);
-        out.state("기준 장소로 이동 · 내려다보기 + 줌 아웃");
+        out.state("기준 장소로 이동 · 줌 아웃 + 내려다보기");
         lookDown();
         sleep(0.3);
     }

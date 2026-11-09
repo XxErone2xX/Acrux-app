@@ -118,18 +118,35 @@ public class TapService extends AccessibilityService {
         dispatchGesture(new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(p, 0, Math.max(1, ms))).build(), null, null);
     }
 
-    /** 두 손가락: (cx, cy) 양옆 d0/2 에서 d1/2 로 (d1 < d0 = 오므리기 = 줌 아웃) */
+    /**
+     * 두 손가락 줌: (cx, cy) 위아래 d0/2 에서 d1/2 로 (d1 < d0 = 오므리기 = 줌 아웃)
+     *  · 위아래로 놓음: 두 손가락이 조금 어긋나도 가로로는 안 움직여서 화면이 좌우로 안 돌아감 (세로로 기우는 건 뒤의 내려다보기가 다시 맞춤)
+     *  · 두 손가락을 먼저 0.12초 가만히 대고 있다가 (로블록스가 '두 손가락' 으로 알아보게) 똑같이 오므림 — 한 손가락만 먼저 닿으면 화면 돌리기로 봄
+     */
     void pinch(int cx, int cy, int d0, int d1, int ms) {
         letThrough(cx, cy);
-        Path a = new Path(), b = new Path();
-        a.moveTo(cx - d0 / 2f, cy);
-        a.lineTo(cx - d1 / 2f, cy);
-        b.moveTo(cx + d0 / 2f, cy);
-        b.lineTo(cx + d1 / 2f, cy);
-        GestureDescription.Builder g = new GestureDescription.Builder();
-        g.addStroke(new GestureDescription.StrokeDescription(a, 0, Math.max(1, ms)));
-        g.addStroke(new GestureDescription.StrokeDescription(b, 0, Math.max(1, ms)));
-        dispatchGesture(g.build(), null, null);
+        float ya = cy - d0 / 2f, yb = cy + d0 / 2f;
+        GestureDescription.StrokeDescription a0 = new GestureDescription.StrokeDescription(line(cx, ya, cx, ya + 1), 0, 120, true);
+        GestureDescription.StrokeDescription b0 = new GestureDescription.StrokeDescription(line(cx, yb, cx, yb - 1), 0, 120, true);
+        GestureDescription.Builder g0 = new GestureDescription.Builder();
+        g0.addStroke(a0);
+        g0.addStroke(b0);
+        dispatchGesture(g0.build(), new GestureResultCallback() {
+            @Override
+            public void onCompleted(GestureDescription gd) {
+                GestureDescription.Builder g1 = new GestureDescription.Builder();
+                g1.addStroke(a0.continueStroke(line(cx, ya + 1, cx, cy - d1 / 2f), 0, Math.max(1, ms), false));
+                g1.addStroke(b0.continueStroke(line(cx, yb - 1, cx, cy + d1 / 2f), 0, Math.max(1, ms), false));
+                dispatchGesture(g1.build(), null, null);
+            }
+        }, null);
+    }
+
+    static Path line(float x0, float y0, float x1, float y1) {
+        Path p = new Path();
+        p.moveTo(x0, y0);
+        p.lineTo(x1, y1);
+        return p;
     }
 
     // ---- 매크로의 터치 · 클릭이 Acrux 창에 걸리지 않게

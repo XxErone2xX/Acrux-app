@@ -220,6 +220,7 @@ E = [
     ['재설정 버튼 (Esc 메뉴)', 'Reset button (Esc menu)', 'リセットボタン (Esc メニュー)'], ['재설정 버튼', 'Reset button', 'リセットボタン'],
     ['ENTER {0}/{1}', 'ENTER {0}/{1}', 'ENTER {0}/{1}'],
     ['1초 뒤 시작', 'Starting in 1 second', '1秒後に開始'],
+    ['기준 장소로 이동 · 줌 아웃 + 내려다보기', 'To the base spot · zoom out + look down', '基準地点へ移動 · ズームアウト + 見下ろし'],
     ["로블록스 메뉴 버튼 (왼쪽 위)", "Roblox menu button (top left)", "Roblox メニューボタン (左上)"],
     ["캐릭터 재설정 버튼 (메뉴 안)", "Reset Character button (in the menu)", "キャラクターリセットボタン (メニュー内)"],
     ["재설정 확인 버튼", "Reset confirm button", "リセット確認ボタン"],

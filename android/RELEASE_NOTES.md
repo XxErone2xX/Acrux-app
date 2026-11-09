@@ -1,3 +1,15 @@
+## Acrux Mobile V0.10.1 업데이트
+- **줌 아웃할 때 화면이 돌아가던 문제 수정**
+  - 두 손가락을 좌우 대신 **위아래** 로 놓고 오므림 — 손가락이 조금 어긋나도 화면이 좌우로 안 돎
+  - 두 손가락을 먼저 0.12초 가만히 댄 뒤 똑같이 오므림 (한 손가락이 먼저 움직이면 로블록스가 화면 돌리기로 봤음)
+  - 순서를 **줌 아웃 → 내려다보기** 로 바꿈 — 줌 아웃 중에 위아래로 조금 기운 건 내려다보기가 다시 맞춤
+
+## Acrux Mobile V0.10.1 Update
+- **Fixed the camera turning while zooming out**
+  - The two fingers are now placed **top and bottom** instead of left and right — a slight mismatch no longer turns the camera sideways
+  - Both fingers rest still for 0.12 s first, then pinch together (Roblox took one finger moving first as a camera turn)
+  - Order changed to **zoom out → look down** — any small up/down tilt from zooming is fixed by the look-down
+
 ## Acrux Mobile V0.10.0 업데이트
 - **Shizuku 를 완전히 뺌 — 모든 기능이 화면 터치로 (루팅 · Shizuku · 무선 디버깅 필요 없음)**
   - 필요한 건 접근성 권한 · 화면 캡처 둘뿐
