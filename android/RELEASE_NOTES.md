@@ -1,3 +1,15 @@
+## Acrux Mobile V0.10.3 업데이트
+- **줌 아웃할 때 화면이 돌아가서 방향이 틀어지던 문제 수정**
+  - 로블록스는 두 손가락 줌을 하는 동안 화면도 같이 돌려 버림 (손가락 방향을 바꿔도 막을 수 없음)
+  - 그래서 줌 아웃을 **도감 열고 닫기(카메라 정렬) 전에** 함 → 돌아간 화면은 정렬이 캐릭터 뒤로 되돌리고, 줌 거리는 그대로
+  - 기준 장소 순서: 재설정 → 줌 아웃 → 도감 열고 닫기 → 조이스틱 걷기 → 내려다보기
+
+## Acrux Mobile V0.10.3 Update
+- **Fixed the camera turning during zoom-out and throwing off directions**
+  - Roblox also turns the camera during a two-finger zoom (changing the finger direction cannot prevent it)
+  - So zoom-out now happens **before opening and closing the collection (camera align)** → the align turns the camera back behind the character, and the zoom distance stays
+  - Base spot order: reset → zoom out → open and close the collection → joystick walk → look down
+
 ## Acrux Mobile V0.10.2 업데이트
 - **길 기록이 조이스틱 위치 + 점프 버튼만 봄 (화면 터치 표시 · 개발자 옵션 필요 없음)**
   - 기록 중에 화면에서 읽는 건 두 가지뿐: 조이스틱 손잡이가 밀린 방향 · 점프 버튼이 눌렸는지 (누르면 버튼이 밝아짐)

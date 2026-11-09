@@ -220,6 +220,8 @@ E = [
     ['재설정 버튼 (Esc 메뉴)', 'Reset button (Esc menu)', 'リセットボタン (Esc メニュー)'], ['재설정 버튼', 'Reset button', 'リセットボタン'],
     ['ENTER {0}/{1}', 'ENTER {0}/{1}', 'ENTER {0}/{1}'],
     ['1초 뒤 시작', 'Starting in 1 second', '1秒後に開始'],
+    ["기준 장소로 이동 · 줌 아웃", "To the base spot · zoom out", "基準地点へ移動 · ズームアウト"],
+    ["기준 장소로 이동 · 내려다보기", "To the base spot · look down", "基準地点へ移動 · 見下ろし"],
     ["점프 버튼 (오른쪽 아래)", "Jump button (bottom right)", "ジャンプボタン (右下)"],
     ["{0} — 길 기록에서 점프", "{0} — jumps in routes", "{0} — 道の記録でジャンプ"],
     ["점프 버튼 위치가 없어서 점프는 기록 안 함 (Acrux 창 → ⚙ → 점프 버튼)", "No jump button position, so jumps are not recorded (Acrux window → ⚙ → Jump button)", "ジャンプボタンの位置がないのでジャンプは記録しない (Acrux ウィンドウ → ⚙ → ジャンプボタン)"],
