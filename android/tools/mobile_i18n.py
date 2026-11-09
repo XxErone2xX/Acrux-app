@@ -219,6 +219,7 @@ E = [
     ['재설정 버튼 (Esc 메뉴)', 'Reset button (Esc menu)', 'リセットボタン (Esc メニュー)'], ['재설정 버튼', 'Reset button', 'リセットボタン'],
     ['ENTER {0}/{1}', 'ENTER {0}/{1}', 'ENTER {0}/{1}'],
     ['1초 뒤 시작', 'Starting in 1 second', '1秒後に開始'],
+    ["점프 W", "Jump W", "ジャンプ W"],
     ["바이옴 매크로", "Biome macro", "バイオームマクロ"],
     ["바이옴 매크로 켜기", "Turn on biome macro", "バイオームマクロをオン"],
     ["디스코드 웹후크 (여러 개면 줄바꿈)", "Discord webhooks (one per line)", "Discord Webhook (複数なら改行)"],

@@ -22,11 +22,15 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  */
 final class RecPad implements Mover.Pad {
     volatile boolean w, a, s, d, hold;
+    /** [점프 W] 를 누른 뒤 이 시각까지는 앞 (W) 으로만 감 (켜 둔 키는 그 뒤에 다시) */
+    volatile long dashUntil;
+    static final long DASH_MS = 500;
     final ConcurrentLinkedQueue<Integer> jumps = new ConcurrentLinkedQueue<>();
     View keyView, jumpView;
 
     @Override
     public double[] stick() {
+        if (System.currentTimeMillis() < dashUntil) return Stick.dir(true, false, false, false);
         return Stick.dir(w, a, s, d);
     }
 
@@ -49,7 +53,8 @@ final class RecPad implements Mover.Pad {
             jumpView = new JumpView(t, b, jr);
             add(t, keyView, (int) (W * 0.32) - b * 3 / 2, (int) (H * 0.62) - b * 3 / 2, b * 3, b * 3);
             int js = jumpSize(b, jr);
-            add(t, jumpView, (int) (W * 0.66) - jr, (int) (H * 0.62) - jr, js, js);
+            int top = jumpTop(b, jr);
+            add(t, jumpView, (int) (W * 0.66) - jr, (int) (H * 0.62) - top, js, top + js - jr);
         });
     }
 
@@ -85,7 +90,13 @@ final class RecPad implements Mover.Pad {
         }
     }
 
-    /** 점프 창 한 변 (큰 동그라미 + 오른쪽 아래 작은 동그라미가 다 들어가게) */
+    /** 점프 동그라미 가운데의 창 안 높이 (위쪽 [점프 W] 동그라미가 들어갈 자리) */
+    static int jumpTop(int b, int jr) {
+        float R = jr, h = jr * 0.6f;
+        return (int) Math.ceil(Math.max(R, (R + h + b * 0.08f) * 0.7071f + h)) + 2;
+    }
+
+    /** 점프 창 너비 (큰 동그라미 + 오른쪽 위 · 아래 작은 동그라미가 다 들어가게) */
     static int jumpSize(int b, int jr) {
         float R = jr, h = jr * 0.6f;
         return (int) Math.ceil(R + (R + h + b * 0.08f) * 0.7071f + h) + 2;
@@ -156,11 +167,12 @@ final class RecPad implements Mover.Pad {
     }
 
     /** 점프 (큰 동그라미 · 톡 = 한 번 뜀) + 오른쪽 아래 작은 동그라미 [홀드] (톡 = 점프 버튼을 계속 누르고 있기 / 떼기) */
+    /** 점프 (큰 동그라미 · 톡 = 한 번 뜀) + 오른쪽 위 [점프 W] (뛰면서 0.5초 앞으로) + 오른쪽 아래 [홀드] (톡 = 계속 누르고 있기 / 떼기) */
     final class JumpView extends View {
         final int b;
-        final float R, h, hc;          // 점프 반지름 · 홀드 반지름 · 홀드 가운데 (점프 가운데에서 오른쪽 아래로)
+        final float R, h, hc, T;       // 점프 반지름 · 작은 동그라미 반지름 · 작은 동그라미까지 (대각선) · 점프 가운데 높이
         final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG), line = new Paint(Paint.ANTI_ALIAS_FLAG), label, small;
-        boolean flash;
+        boolean flash, dash;
 
         JumpView(Context c, int b, int jr) {
             super(c);
@@ -168,6 +180,7 @@ final class RecPad implements Mover.Pad {
             R = jr;
             h = jr * 0.6f;
             hc = (R + h + b * 0.08f) * 0.7071f;
+            T = jumpTop(b, jr);
             line.setStyle(Paint.Style.STROKE);
             line.setStrokeWidth(Math.max(2, b / 24f));
             line.setColor(0xCCFFFFFF);
@@ -177,34 +190,49 @@ final class RecPad implements Mover.Pad {
             small.setTextSize(Math.max(16, b * 0.18f));
         }
 
+        void circle(Canvas c, float x, float y, float r, boolean on, String s, Paint p, int off) {
+            float m = b * 0.04f;
+            fill.setColor(on ? 0xEE3BA55D : off);
+            c.drawCircle(x, y, r - m, fill);
+            c.drawCircle(x, y, r - m, line);
+            c.drawText(Ui.tr(s), x, y + p.getTextSize() * 0.35f, p);
+        }
+
         @Override
         protected void onDraw(Canvas c) {
-            float m = b * 0.04f;
-            fill.setColor(flash || hold ? 0xFF3BA55D : 0xEE202225);
-            c.drawCircle(R, R, R - m, fill);
-            c.drawCircle(R, R, R - m, line);
-            c.drawText(Ui.tr("점프"), R, R + label.getTextSize() * 0.35f, label);
-            float x = R + hc, y = R + hc;
-            fill.setColor(hold ? 0xDD3BA55D : 0xCC202225);
-            c.drawCircle(x, y, h - m, fill);
-            c.drawCircle(x, y, h - m, line);
-            c.drawText(Ui.tr("홀드"), x, y + small.getTextSize() * 0.35f, small);
+            circle(c, R, T, R, flash || hold || dash, "점프", label, 0xEE202225);
+            circle(c, R + hc, T - hc, h, dash, "점프 W", small, 0xCC202225);
+            circle(c, R + hc, T + hc, h, hold, "홀드", small, 0xCC202225);
+        }
+
+        /** 톡 점프 (0.2초 뒤 뗌) */
+        void tapJump() {
+            if (hold || flash) return;                       // 이미 누르고 있음
+            jumps.add(1);
+            flash = true;
+            postDelayed(() -> {                              // 0.2초 뒤 뗌 (로블록스가 누름을 볼 시간)
+                if (!hold) jumps.add(-1);
+                flash = false;
+                invalidate();
+            }, 200);
         }
 
         @Override
         public boolean onTouchEvent(MotionEvent e) {
             if (e.getActionMasked() != MotionEvent.ACTION_DOWN) return true;
             float ex = e.getX(), ey = e.getY();
-            if (Math.hypot(ex - R, ey - R) <= R) {
-                if (hold || flash) return true;              // 이미 누르고 있음
-                jumps.add(1);
-                flash = true;
-                postDelayed(() -> {                          // 0.2초 뒤 뗌 (로블록스가 누름을 볼 시간)
-                    if (!hold) jumps.add(-1);
-                    flash = false;
+            if (Math.hypot(ex - R, ey - T) <= R) {
+                tapJump();
+            } else if (Math.hypot(ex - R - hc, ey - T + hc) <= h * 1.15) {
+                // 점프 W: 뛰면서 0.5초 앞으로 (W 를 누른 채 점프보다 안정적)
+                tapJump();
+                dashUntil = System.currentTimeMillis() + DASH_MS;
+                dash = true;
+                postDelayed(() -> {
+                    dash = false;
                     invalidate();
-                }, 200);
-            } else if (Math.hypot(ex - R - hc, ey - R - hc) <= h * 1.15) {
+                }, DASH_MS);
+            } else if (Math.hypot(ex - R - hc, ey - T - hc) <= h * 1.15) {
                 hold = !hold;
                 if (!flash) jumps.add(hold ? 1 : -1);        // 톡 점프 중에 켜면 그대로 이어서 누르고 있음
                 else if (!hold) jumps.add(-1);

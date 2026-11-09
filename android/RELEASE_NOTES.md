@@ -1,3 +1,13 @@
+## Acrux Mobile V1.3.4 업데이트
+- 길 기록 점프 버튼에 [점프 W] 추가 [ 점프 버튼 오른쪽 위 ]
+  - 누르면 점프하면서 0.5초 동안 앞 [ W ] 으로 이동
+  - W 를 켠 채로 점프하는 것보다 안정적
+
+## Acrux Mobile V1.3.4 Update
+- Added [Jump W] to the route recording jump button [ top right of the jump button ]
+  - Jumps while moving forward [ W ] for 0.5 seconds
+  - More stable than jumping with W turned on
+
 ## Acrux Mobile V1.3.3 업데이트
 - 바이옴 웹후크 순서가 가끔 바뀌던 버그 수정
   - 바이옴 끝 · 시작 알림이 동시에 나갈 때 Started 가 Ended 보다 먼저 오던 문제
