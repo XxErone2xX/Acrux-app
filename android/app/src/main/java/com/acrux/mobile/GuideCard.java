@@ -122,9 +122,9 @@ final class GuideCard {
         // 떠 있는 창에서 어디를 눌러야 하는지 (메뉴가 닫혀 있으면 ⚙ 부터)
         String tg = app == null ? Guide.target(menuOpen, menuCat) : null;
         String h = "";
-        if (app != null && s.target != null) h = "로블록스 화면의 Acrux 창에서 해 주세요";
-        else if ("gear".equals(tg)) h = "→ Acrux 창의 ⚙ 를 눌러 주세요";
-        else if (tg != null && tg.startsWith("cat:")) h = "→ 위쪽 [" + catName(tg.substring(4)) + "] 을 눌러 주세요";
+        if (app != null && s.target != null) h = "로블록스 화면의 Acrux 창에서 진행해 주세요.";
+        else if ("gear".equals(tg)) h = "→ Acrux 창의 ⚙ 를 눌러 주세요.";
+        else if (tg != null && tg.startsWith("cat:")) h = "→ 위쪽 [" + catName(tg.substring(4)) + "] 을 눌러 주세요.";
         Ui.set(hint, h);
         hint.setVisibility(h.isEmpty() ? View.GONE : View.VISIBLE);
         // 해야 할 것
@@ -137,7 +137,7 @@ final class GuideCard {
             boolean showAct = app != null && s.action != null && !ok;
             act.setVisibility(showAct ? View.VISIBLE : View.GONE);
             if (showAct) Ui.set(act, s.action.equals("acc") ? "접근성 설정 열기" : "화면 캡처 시작");
-            Ui.set(state, ok ? "✓ 됨" : "· 아직 안 됨 — 해야 다음으로 넘어가요");
+            Ui.set(state, ok ? "✓ 완료" : "· 이 단계를 완료해야 다음으로 넘어갈 수 있습니다.");
             state.setTextColor(ok ? Ui.GREEN : Ui.YELLOW);
         }
         boolean last = Guide.idx >= t.steps.size() - 1;

@@ -1,3 +1,9 @@
+## Acrux Mobile V1.3.1 업데이트
+- 튜토리얼 문구 변경 [ 안내 말투 통일 ]
+
+## Acrux Mobile V1.3.1 Update
+- Updated tutorial text [ consistent wording ]
+
 ## Acrux Mobile V1.3.0 업데이트
 - 바이옴 매크로 추가 — 디스코드 웹후크 알림
   - 바이옴 칸 → 바이옴 매크로 켜기 · 웹후크 · 비공개 서버 링크 입력
