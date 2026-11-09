@@ -65,6 +65,7 @@ public class MainActivity extends Activity {
     }
 
     final List<Page> pages = new ArrayList<>();
+    Tutorial tutorial;
     FrameLayout content;
     HorizontalScrollView tabScroll;
     int current = -1;
@@ -77,7 +78,11 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != 0) {
             requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
         }
-        setContentView(build());
+        FrameLayout frame = new FrameLayout(this);
+        frame.addView(build(), new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        setContentView(frame);
+        tutorial = new Tutorial(this, frame);
+        if (!Tutorial.seen()) tutorial.show();             // 처음 켰을 때 한 번
         Hub.langListeners.add(relang);
         if (Hub.autoUpdate && !Updater.checkedOnce) {        // 앱을 켤 때 한 번: 새 버전이 있으면 받아서 설치 화면까지
             Updater.checkedOnce = true;
@@ -98,7 +103,16 @@ public class MainActivity extends Activity {
         Hub.appVisible = true;
         TapService t = TapService.instance;
         if (t != null) t.updateVisible();
-        refresh();
+        refresh();                                         // (튜토리얼 권한 상태도 같이)
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (tutorial != null && tutorial.open()) {
+            tutorial.close();
+            return;
+        }
+        super.onBackPressed();
     }
 
     @Override
@@ -133,7 +147,7 @@ public class MainActivity extends Activity {
         LinearLayout names = new LinearLayout(this);
         names.setOrientation(LinearLayout.VERTICAL);
         names.addView(title);
-        names.addView(Ui.text(this, "자동 낚시 [ Beta ]", 13, Ui.MUTED, false));
+        names.addView(Ui.text(this, "자동 낚시 · 이동 · 판매", 13, Ui.MUTED, false));
         // 사용자 수 (PC 와 같은 서버 · PC + 모바일)
         LinearLayout online = new LinearLayout(this);
         online.setOrientation(LinearLayout.HORIZONTAL);
@@ -375,9 +389,12 @@ public class MainActivity extends Activity {
                 "2. 떠 있는 Acrux 창에서 [보정] — Fish 를 한 번 던져 대기 창 · 미니게임 창 · 결과창 위치를 자동으로 맞춤",
                 "3. [시작] — 자동 낚시 · 멈출 때는 [정지]",
                 "4. Acrux 창은 어디든 잡고 끌어서 낚시 창 · 결과창을 가리지 않는 곳으로 옮기기",
-                "5. 이동 · 판매: ⚙ → 조이스틱 찾기 → 공통 위치 5개 → 낚시 장소 · 판매 장소 길 기록 → 대화 버튼 · 판매 자동 보정",
+                "5. 이동 · 판매: ⚙ → [조이스틱] 조이스틱 찾기 → [기준 장소] 공통 위치 → [길] 낚시 장소 · 판매 장소 길 기록 → [판매] 대화 버튼 · 판매 자동 보정",
         };
         for (String s : steps) how.addView(Ui.text(this, s, 13, Ui.MUTED, false), Ui.fill(this, 6));
+        LinearLayout.LayoutParams tl = Ui.wrap();
+        tl.topMargin = Ui.dp(this, 10);
+        how.addView(Ui.button(this, "튜토리얼 다시 보기", Ui.ACCENT, v -> tutorial.show()), tl);
 
         LinearLayout don = section(pg, "후원");
         don.addView(Ui.text(this, "Acrux 가 도움이 됐다면 후원으로 응원해 주세요", 12, Ui.MUTED, false));
@@ -696,6 +713,7 @@ public class MainActivity extends Activity {
 
     // ---------------------------------------------------------------- 새로 그리기
     void refresh() {
+        if (tutorial != null) tutorial.refresh();
         Integer on = Online.count;
         onText.setText("Now Active : " + (on == null ? "--" : String.valueOf(on)));
         onDot.setTextColor(on == null ? Ui.MUTED : Ui.GREEN);

@@ -1,3 +1,21 @@
+## Acrux Mobile V1.0.0 업데이트
+- **첫 공식 배포 버전** · 이름 아래 [ Beta ] 를 빼고 "자동 낚시 · 이동 · 판매" 로
+- **튜토리얼 추가**
+  - 앱을 처음 켜면 한 단계씩 안내: 환영 → 접근성 권한 → 화면 캡처 → 로블록스 준비 → 낚시 보정 · 시작 → 이동 준비 (조이스틱 · 기준 장소) → 길 기록 (WASD 패드) → 판매 준비
+  - 권한 단계에는 바로 여는 버튼과 지금 켜졌는지 (✓ 켜짐 · 아직 꺼짐) 가 보임 · 켜고 돌아오면 바로 바뀜
+  - [이전] [다음] · [건너뛰기] · 뒤로 가기로 닫기 · 홈 → 사용법 → **튜토리얼 다시 보기** 로 언제든
+- 홈 → 사용법의 이동 · 판매 안내를 새 ⚙ 분류 ([조이스틱] [기준 장소] [길] [판매]) 에 맞춤
+- V1.0.0 까지 들어간 것: 자동 낚시 (자동 보정) · 인벤토리 가득 → 판매 → 복귀 · 접근성 터치만 (루팅 · Shizuku 없이) · 클래식 조이스틱 감지 · WASD 패드 길 기록 · 포인터 위치 지정 · 한국어 · English · 日本語
+
+## Acrux Mobile V1.0.0 Update
+- **First official release** · removed [ Beta ] under the name, now "Auto fishing · movement · selling"
+- **Added a tutorial**
+  - On first launch it guides you step by step: welcome → accessibility permission → screen capture → Roblox setup → fishing calibration · start → movement setup (joystick · base spot) → route recording (WASD pad) → selling setup
+  - Permission steps show a button to open them directly and whether they are on (✓ On · Still off) · updates as soon as you come back
+  - [Back] [Next] · [Skip] · close with the back button · see it again anytime from Home → How to use → **Show tutorial again**
+- Updated the movement · selling guide in Home → How to use for the new ⚙ categories ([Joystick] [Base spot] [Routes] [Sell])
+- Included through V1.0.0: auto fishing (auto calibration) · inventory full → sell → return · accessibility touches only (no root · Shizuku) · classic joystick detection · WASD pad route recording · pointer position picking · Korean · English · Japanese
+
 ## Acrux Mobile V0.12.0 업데이트
 - **⚙ 메뉴를 분류별로 나눔**
   - 위쪽 [조이스틱] [기준 장소] [길] [판매] 를 누르면 그 분류만 보임 · 마지막에 본 분류를 기억
