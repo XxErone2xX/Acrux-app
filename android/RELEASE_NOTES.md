@@ -1,3 +1,17 @@
+## Acrux Mobile V0.11.4 업데이트
+- **WASD 패드를 다시 홀드 (톡 = 켜기 · 다시 톡 = 끄기) 로**
+  - 꾹 누르고 있으면 손가락이 조금만 움직여도 안드로이드가 Acrux 가 누르던 터치를 끊어서 버벅였음 → 톡 누르는 순간만 끊기게
+  - 반대 키 (W ↔ S, A ↔ D) 를 켜면 반대쪽은 꺼짐 · 키 사이 빈 모서리 칸 = 대각선 · 가운데 ■ = 멈춤
+- **점프 버튼 오른쪽에 [홀드] 가 이어져 붙음**
+  - 동그라미 점프 톡 = 한 번 뜀 · [홀드] 톡 = 점프 버튼을 계속 누르고 있음 · 다시 톡 = 뗌
+
+## Acrux Mobile V0.11.4 Update
+- **The WASD pad is back to hold-toggle (tap = on · tap again = off)**
+  - Holding a key made Android cancel Acrux's touch whenever the finger moved slightly, causing stutter → now it is only interrupted at the moment of the tap
+  - Turning on the opposite key (W ↔ S, A ↔ D) turns the other off · the empty corner cells between keys = diagonals · center ■ = stop
+- **A [Hold] tab is attached to the right of the jump button**
+  - Tap the round jump = jump once · tap [Hold] = keep the jump button pressed · tap again = release
+
 ## Acrux Mobile V0.11.3 업데이트
 - **WASD 패드를 누르고 있는 동안만 걷게 바꿈 (켜고 끄기 → 꾹 누르기)**
   - 키에서 손을 떼면 멈춤 · 대각선은 손가락 두 개로 W + A 를 같이 누르거나 키 사이 빈 모서리 칸을 누르면 됨
