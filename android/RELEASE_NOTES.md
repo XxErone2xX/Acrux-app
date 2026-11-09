@@ -1,3 +1,17 @@
+## Acrux Mobile V0.10.16 업데이트
+- **도감을 열 때 'Loading Assets...' 때문에 [Exit] 가 씹히던 것 고침**
+  - 도감 버튼을 누른 뒤 화면 글자를 읽어서: 도감이 열렸는지 ([Exit] · Collections) · 가운데 'Loading Assets' 가 사라졌는지 확인한 뒤에 [Exit]
+  - [Exit] 를 누른 뒤 닫혔는지 확인 · 안 닫혔으면 (로딩 중이면 끝날 때까지 기다렸다가) 다시 누름 (최대 5번)
+  - 글자를 못 읽는 기기면 예전처럼 시간으로 하되 더 기다리고 [Exit] 를 두 번 누름
+  - 기준 장소로 갈 때 · 판매 장소에서 화면 맞출 때 둘 다
+
+## Acrux Mobile V0.10.16 Update
+- **Fixed [Exit] being missed while the collection shows "Loading Assets..."**
+  - After pressing the collection button it reads the screen text: waits until the collection is open ([Exit] · Collections) and the "Loading Assets" in the middle is gone, then presses [Exit]
+  - After pressing [Exit] it checks that it closed · if not (waiting for loading to finish first), it presses again (up to 5 times)
+  - On devices where text cannot be read it falls back to timing, but waits longer and presses [Exit] twice
+  - Applies both when going to the base spot and when aligning the camera at the sell spot
+
 ## Acrux Mobile V0.10.15 업데이트
 - **길 기록 중 점프를 누른 뒤로 점프 · 길이 망가지던 것 고침**
   - 점프 버튼은 반투명이라 걸어가면서 뒤 배경이 바뀌면 '안 누를 때 밝기' 도 바뀜 — 예전엔 시작할 때 잰 값으로만 판단해서 손을 떼도 '누르고 있음' 으로 남을 수 있었음

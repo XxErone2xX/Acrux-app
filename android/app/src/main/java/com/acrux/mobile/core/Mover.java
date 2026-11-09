@@ -152,10 +152,80 @@ public final class Mover {
     public void alignCamera() {
         String m = baseMissing();
         if (m != null) throw new RuntimeException(m);
-        tapUi(base.get("collection_pos"));
-        sleep(0.5);
-        tapUi(base.get("collection_close"));
-        sleep(0.5);
+        double[] open = base.get("collection_pos"), exit = base.get("collection_close");
+        // 도감을 열면 가운데에 'Loading Assets...' 가 뜨는 동안은 [Exit] 를 눌러도 씹힘 → 화면 글자를 읽어서
+        //  1. 도감이 열렸는지 ([Exit] · Collections 글자) · 2. Loading Assets 가 사라졌는지 확인한 뒤 [Exit]
+        //  3. 닫혔는지 확인 · 안 닫혔으면 다시 [Exit] (글자를 못 읽는 기기면 예전처럼 시간으로)
+        double[] exitBox = {Math.max(0, exit[0] - 0.14), Math.max(0, exit[1] - 0.06), Math.min(1, exit[0] + 0.08), Math.min(1, exit[1] + 0.06)};
+        double[] center = {0.3, 0.25, 0.7, 0.7};
+        tapUi(open);
+        double t0 = now(), ready = -1;
+        int ocrFails = 0;
+        boolean seenOpen = false;
+        while (now() - t0 < 15) {
+            sleep(0.35);
+            Boolean opened = hasText(exitBox, "exit", "collection");
+            Boolean loading = hasText(center, "loading", "assets");
+            if (opened == null || loading == null) {
+                if (++ocrFails >= 3) break;                       // 글자 읽기가 안 되는 기기 → 시간으로
+                continue;
+            }
+            if (opened) seenOpen = true;
+            if (opened && !loading) {
+                if (ready < 0) ready = now();
+                else if (now() - ready >= 0.3) break;             // 0.3초 넘게 그대로면 다 열림
+            } else {
+                ready = -1;
+                if (loading) out.state("기준 장소로 이동 · 도감 Loading Assets 기다리는 중");
+            }
+            // 6초 동안 [Exit] 글자를 한 번도 못 읽음 (글자가 작거나 읽기 실패) · 로딩도 안 보임 → 시간으로
+            if (!seenOpen && !loading && now() - t0 > 6) {
+                ocrFails = 3;
+                break;
+            }
+        }
+        if (ocrFails >= 3) {
+            sleep(1.5);                                           // 예전 방식 (조금 더 기다림)
+            tapUi(exit);
+            sleep(0.8);
+            tapUi(exit);
+            sleep(0.5);
+            return;
+        }
+        for (int i = 0; i < 5; i++) {
+            tapUi(exit);
+            sleep(0.6);
+            Boolean opened = hasText(exitBox, "exit", "collection");
+            if (opened == null || !opened) {
+                if (i > 0) out.log("도감 닫힘", 'd');
+                return;                                           // 닫힘
+            }
+            Boolean loading = hasText(center, "loading", "assets");
+            if (Boolean.TRUE.equals(loading)) {                   // 아직 로딩 중 → 끝날 때까지 기다렸다가 다시
+                out.state("기준 장소로 이동 · 도감 Loading Assets 기다리는 중");
+                double w0 = now();
+                while (now() - w0 < 8 && Boolean.TRUE.equals(hasText(center, "loading", "assets"))) sleep(0.3);
+            }
+            out.log("도감 [Exit] 가 씹힘 — 다시 누름 (" + (i + 1) + "/5)", 'y');
+        }
+        out.log("도감이 안 닫힘 — 그대로 진행", 'r');
+    }
+
+    /** 화면 영역에 이 글자들 중 하나가 보이나 (대소문자 무시) · 글자 읽기 실패면 null */
+    Boolean hasText(double[] region, String... words) {
+        if (ocr == null) return null;
+        List<SellText.Box> bs;
+        try {
+            bs = ocr.read(region);
+        } catch (RuntimeException e) {
+            return null;
+        }
+        if (bs == null) return null;
+        for (SellText.Box b : bs) {
+            String t = b.text == null ? "" : b.text.toLowerCase(java.util.Locale.ROOT);
+            for (String w : words) if (t.contains(w)) return true;
+        }
+        return false;
     }
 
     /** 재설정: 로블록스 메뉴 → 캐릭터 재설정 → 재설정 확인 (탭 · 0.8초 간격) */
