@@ -32,8 +32,13 @@ jobs:
             echo "${{ secrets.ACRUX_KEYSTORE_B64 }}" | base64 -d > /tmp/acrux.jks
             export ACRUX_KEYSTORE=/tmp/acrux.jks ACRUX_KEYSTORE_PASS="${{ secrets.ACRUX_KEYSTORE_PASS }}"
           fi
-          curl -sSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
-          unzip -q /tmp/gradle.zip -d /tmp
+          # Gradle 받기: 서버가 잠깐 이상하면 (HTML · 빈 파일) unzip 이 실패했음 → 다시 시도 + 받은 파일 확인
+          for i in 1 2 3 4 5; do
+            curl -fsSL --retry 3 --retry-delay 5 -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.10.2-bin.zip \
+              && unzip -tq /tmp/gradle.zip >/dev/null 2>&1 && break
+            echo "gradle 받기 실패 ($i) — 다시"; sleep 10
+          done
+          unzip -q -o /tmp/gradle.zip -d /tmp
           cd android
           /tmp/gradle-8.10.2/bin/gradle --no-daemon --stacktrace assembleDebug lintDebug 2>&1 | tee ../build.log
 
