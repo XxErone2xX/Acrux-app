@@ -10,6 +10,7 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven { url "https://jitpack.io" }        // 무선 디버깅 ADB (libadb-android · sun-security-android)
     }
 }
 rootProject.name = "AcruxMobile"

@@ -214,6 +214,7 @@ public class MainActivity extends Activity {
         buildHome(page("home", "홈"));
         buildFishing(page("fish", "낚시"));
         buildMove(page("move", "이동 · 판매"));
+        buildBiome(page("biome", "바이옴"));
         buildLog(page("log", "기록"));
         buildSettings(page("settings", "설정"));
 
@@ -536,6 +537,151 @@ public class MainActivity extends Activity {
     }
 
     // ---------------------------------------------------------------- 기록
+    // ---- 바이옴 (무선 디버깅으로 로블록스 로그 읽기 · PC 버전과 같은 방식 · 1단계: 로그에 바이옴 줄이 있는지 테스트)
+    TextView adbState;
+    volatile boolean biomeTesting;
+
+    void buildBiome(Page pg) {
+        LinearLayout c = section(pg, "무선 디버깅 연결");
+        c.addView(Ui.text(this, "PC 처럼 로블록스 로그로 바이옴을 정확하게 읽으려면 로그를 읽을 권한이 필요해요. "
+                + "안드로이드의 '무선 디버깅' 으로 Acrux 가 이 폰에 직접 연결해요 (PC · 루팅 · Shizuku 필요 없음 · 안드로이드 11 이상 · 와이파이 필요).", 13, Ui.MUTED, false), Ui.fill(this, 6));
+        adbState = Ui.text(this, "", 13, Ui.MUTED, true);
+        c.addView(adbState, Ui.fill(this, 10));
+        String[] steps = {
+                "1. 설정 → 휴대전화 정보 → 소프트웨어 정보 → '빌드 번호' 7번 눌러서 개발자 옵션 켜기",
+                "2. 아래 [페어링 시작] → 개발자 옵션 → 무선 디버깅 켜기 → '페어링 코드로 기기 페어링'",
+                "3. 코드 창을 띄운 채로 화면 위를 내려서 Acrux 알림의 [코드 입력] 에 6자리 코드",
+                "4. 한 번 페어링하면 다음부터는 무선 디버깅만 켜져 있으면 [연결] (재부팅 · 와이파이가 바뀌면 다시 켜기)"};
+        for (String st : steps) c.addView(Ui.text(this, st, 13, Ui.FG, false), Ui.fill(this, 4));
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.addView(Ui.button(this, "페어링 시작", Ui.ACCENT, v -> startPair()), Ui.wrap());
+        LinearLayout.LayoutParams g = Ui.wrap();
+        g.leftMargin = Ui.dp(this, 8);
+        row.addView(Ui.button(this, "연결", Ui.MUTED, v -> adbConnect(true)), g);
+        LinearLayout.LayoutParams g2 = Ui.wrap();
+        g2.leftMargin = Ui.dp(this, 8);
+        row.addView(Ui.button(this, "개발자 옵션", Ui.MUTED, v -> openDevSettings()), g2);
+        c.addView(row, Ui.fill(this, 12));
+
+        LinearLayout t = section(pg, "바이옴 로그 테스트");
+        t.addView(Ui.text(this, "모바일 로블록스가 PC 처럼 바이옴 정보 ([BloxstrapRPC]) 를 로그에 남기는지 확인해요. "
+                + "남기면 PC 버전처럼 정확한 바이옴 감지 · 웹후크 알림을 만들 수 있어요.", 13, Ui.MUTED, false), Ui.fill(this, 6));
+        t.addView(Ui.text(this, "무선 디버깅을 연결한 뒤 [테스트 시작] → 로블록스로 Sol's RNG 에 들어가서 90초 동안 두기 (바이옴이 바뀌는 때면 더 좋아요). 결과는 기록 칸에 떠요.", 13, Ui.FG, false), Ui.fill(this, 6));
+        t.addView(Ui.button(this, "테스트 시작 (90초)", Ui.ACCENT, v -> biomeTest()), Ui.fill(this, 10));
+        refreshAdb();
+        if (Adb.supported()) new Thread(() -> {                // 켜져 있으면 조용히 연결해 둠
+            Adb.connect(getApplicationContext());
+            runOnUiThread(this::refreshAdb);
+        }, "acrux-adb").start();
+    }
+
+    void refreshAdb() {
+        if (adbState == null) return;
+        if (!Adb.supported()) {
+            Ui.set(adbState, "✗ 안드로이드 11 이상만 돼요");
+            adbState.setTextColor(Ui.RED);
+        } else if (Adb.connected) {
+            Ui.set(adbState, "✓ 연결됨");
+            adbState.setTextColor(Ui.GREEN);
+        } else {
+            Ui.set(adbState, "· 연결 안 됨");
+            adbState.setTextColor(Ui.MUTED);
+        }
+    }
+
+    void openDevSettings() {
+        try {
+            startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS));
+        } catch (RuntimeException e) {
+            Hub.log("개발자 옵션이 아직 꺼져 있어요 — 설정 → 휴대전화 정보 → 소프트웨어 정보 → '빌드 번호' 7번", 'y');
+        }
+    }
+
+    void startPair() {
+        if (!Adb.supported()) {
+            Hub.log("무선 디버깅 페어링은 안드로이드 11 이상만 돼요", 'r');
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 41);
+        }
+        Adb.showPairNotice(this, "무선 디버깅 → '페어링 코드로 기기 페어링' 창을 띄운 채로 여기 [코드 입력] 에 6자리 코드를 넣으세요");
+        Hub.log("페어링: 무선 디버깅 → '페어링 코드로 기기 페어링' → 알림 칸의 Acrux [코드 입력] 에 6자리 코드", 'c');
+        openDevSettings();
+    }
+
+    void adbConnect(boolean say) {
+        new Thread(() -> {
+            String r = Adb.connect(getApplicationContext());
+            if (say) {
+                switch (r) {
+                    case "ok": Hub.log("무선 디버깅 연결됨", 'g'); break;
+                    case "pair": Hub.log("페어링이 먼저 필요해요 — [페어링 시작]", 'y'); break;
+                    case "old": Hub.log("안드로이드 11 이상만 돼요", 'r'); break;
+                    default: Hub.log("연결 안 됨 — 개발자 옵션 → 무선 디버깅이 켜져 있는지 · 와이파이에 연결돼 있는지 확인", 'y'); break;
+                }
+            }
+            runOnUiThread(this::refreshAdb);
+        }, "acrux-adb").start();
+    }
+
+    /** 1단계 테스트: ① 지금까지 쌓인 로그 ② 로블록스 폴더의 로그 파일 ③ 90초 동안 새로 나오는 로그 — 바이옴 줄이 있는지 */
+    void biomeTest() {
+        if (biomeTesting) {
+            Hub.log("바이옴 로그 테스트가 이미 진행 중이에요", 'y');
+            return;
+        }
+        biomeTesting = true;
+        Hub.log("바이옴 로그 테스트 시작 — 지금 로블록스로 Sol's RNG 에 들어가 주세요 (90초)", 'c');
+        new Thread(() -> {
+            android.content.Context ctx = getApplicationContext();
+            int[] hits = {0};
+            try {
+                String r = Adb.connect(ctx);
+                runOnUiThread(this::refreshAdb);
+                if (!r.equals("ok")) {
+                    Hub.log(r.equals("pair") ? "테스트 못 함 — 무선 디버깅 페어링이 먼저 필요해요" : "테스트 못 함 — 무선 디버깅이 연결 안 됨 (개발자 옵션 → 무선 디버깅 켜기)", 'r');
+                    return;
+                }
+                java.util.function.Consumer<String> show = l -> {
+                    hits[0]++;
+                    if (hits[0] <= 40) Hub.log("  " + (l.length() > 220 ? l.substring(0, 220) + "…" : l), 'g');
+                };
+                Hub.log("① 쌓인 로그에서 찾는 중", 'c');
+                Adb.shell(ctx, "logcat -d -v brief 2>&1 | grep -i -E 'bloxstrap|biome' | tail -n 15", 20000, show);
+                int h1 = hits[0];
+                Hub.log("① " + h1 + "줄", h1 > 0 ? 'g' : 'y');
+                Hub.log("② 로블록스 폴더의 로그 파일", 'c');
+                int[] files = {0};
+                Adb.shell(ctx, "ls /sdcard/Android/data/com.roblox.client/files 2>&1 | head -n 20; "
+                        + "find /sdcard/Android/data/com.roblox.client -maxdepth 6 -iname '*log*' 2>/dev/null | head -n 15", 20000, l -> {
+                    files[0]++;
+                    if (files[0] <= 35) Hub.log("  " + l, 'c');
+                });
+                Adb.shell(ctx, "for f in $(grep -rli 'BloxstrapRPC' /sdcard/Android/data/com.roblox.client 2>/dev/null | head -n 3); do echo \"== $f\"; grep -i 'BloxstrapRPC' \"$f\" | tail -n 3; done", 30000, show);
+                int h2 = hits[0] - h1;
+                Hub.log("② " + h2 + "줄", h2 > 0 ? 'g' : 'y');
+                Hub.log("③ 90초 동안 새로 나오는 로그 지켜보는 중 (로블록스를 켜 두세요)", 'c');
+                int[] seen = {0};
+                Adb.shell(ctx, "logcat -T 1 -v brief", 90000, l -> {
+                    seen[0]++;
+                    String low = l.toLowerCase(java.util.Locale.ROOT);
+                    if (low.contains("bloxstrap") || low.contains("biome")) show.accept(l);
+                });
+                int h3 = hits[0] - h1 - h2;
+                Hub.log("③ 로그 " + seen[0] + "줄 중 바이옴 " + h3 + "줄", h3 > 0 ? 'g' : 'y');
+                if (hits[0] > 0) Hub.log("결과: 바이옴 줄 발견! → PC 처럼 정확한 바이옴 감지를 만들 수 있어요. 이 기록을 캡처해서 보내 주세요", 'g');
+                else if (seen[0] > 0) Hub.log("결과: 로그는 읽히는데 바이옴 줄이 없음 — Sol's RNG 에 들어가 있었는지 확인하고 한 번 더 · 그래도 없으면 모바일 로블록스가 바이옴 정보를 안 남기는 것", 'y');
+                else Hub.log("결과: 로그를 하나도 못 읽음 — 이 기록을 캡처해서 보내 주세요", 'r');
+            } catch (Throwable th) {
+                Hub.log("바이옴 로그 테스트 오류: " + th, 'r');
+            } finally {
+                biomeTesting = false;
+            }
+        }, "acrux-biome-test").start();
+    }
+
     void buildLog(Page pg) {
         LinearLayout lg = section(pg, "기록");
         lg.addView(Ui.text(this, "최근 기록 (최대 300줄)", 12, Ui.MUTED, false));

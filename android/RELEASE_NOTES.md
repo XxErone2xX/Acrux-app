@@ -1,3 +1,21 @@
+## Acrux Mobile V1.2.0 업데이트
+- **바이옴 칸 추가 — 무선 디버깅 연결 (PC · 루팅 · Shizuku 없이)**
+  - PC 처럼 로블록스 로그로 바이옴을 읽으려면 로그를 읽을 권한이 필요해서, 안드로이드의 '무선 디버깅' 으로 Acrux 가 이 폰에 직접 연결함 (안드로이드 11 이상 · 와이파이 필요)
+  - 처음 한 번만 페어링: [페어링 시작] → 개발자 옵션 → 무선 디버깅 → '페어링 코드로 기기 페어링' → 코드 창을 띄운 채로 알림 칸의 Acrux [코드 입력] 에 6자리 코드
+  - 그다음부터는 무선 디버깅만 켜져 있으면 [연결] (앱을 켤 때 저절로 연결도 해 둠) · 연결 키는 앱 안에만 저장
+- **바이옴 로그 테스트 (1단계)**
+  - 모바일 로블록스가 PC 처럼 바이옴 정보 ([BloxstrapRPC]) 를 로그에 남기는지 확인: ① 쌓인 로그 ② 로블록스 폴더의 로그 파일 ③ 90초 동안 새로 나오는 로그
+  - 결과는 기록 칸에 · 바이옴 줄이 나오면 다음 버전에서 PC 처럼 정확한 바이옴 감지 · 웹후크 알림을 만듦
+
+## Acrux Mobile V1.2.0 Update
+- **Added a Biome tab — wireless debugging connection (no PC · root · Shizuku)**
+  - Reading the biome from Roblox logs like on PC needs permission to read logs, so Acrux connects to this phone itself through Android's 'Wireless debugging' (Android 11+ · Wi-Fi needed)
+  - Pair once: [Start pairing] → Developer options → Wireless debugging → 'Pair device with pairing code' → with the code window open, enter the 6-digit code in the Acrux notification's [Enter code]
+  - After that, just [Connect] while Wireless debugging is on (it also connects automatically when the app opens) · the connection key is stored only inside the app
+- **Biome log test (step 1)**
+  - Checks whether mobile Roblox writes biome info ([BloxstrapRPC]) to its logs like on PC: ① existing logs ② log files in the Roblox folder ③ new logs for 90 seconds
+  - Results go to the Log tab · if biome lines show up, the next version adds accurate biome detection · webhook alerts like on PC
+
 ## Acrux Mobile V1.1.0 업데이트
 - **튜토리얼을 기능별 설정 안내로 바꿈 (PC 튜토리얼과 같은 방식)**
   - 시작 준비 · 낚시 보정 · 이동 설정 · 판매 설정 — 지금 필요한 것만 차례로 뜨고 하나 끝나면 다음 것으로 이어짐 · 위에 [남은 튜토리얼 n개]
