@@ -41,6 +41,7 @@ final class Tutorial {
     int step;
     TextView count, title, body, state, act, prev, next;
 
+
     Tutorial(MainActivity a, FrameLayout host) {
         this.a = a;
         this.host = host;
@@ -50,62 +51,107 @@ final class Tutorial {
         return Hub.prefs().getBoolean("tutorialDone", false);
     }
 
+    /** 단계마다 위쪽 작은 이름 (PC 튜토리얼의 기능 이름 자리) */
+    static final String[] NAMES = {"시작", "권한", "권한", "준비", "낚시", "이동", "이동", "판매", "완료"};
+
+    TextView name;
+    LinearLayout card;
+
+    /** 높이가 maxH 를 넘지 않는 스크롤 (긴 설명만 스크롤) */
+    static final class CapScroll extends ScrollView {
+        int maxH;
+
+        CapScroll(android.content.Context c) {
+            super(c);
+        }
+
+        @Override
+        protected void onMeasure(int w, int h) {
+            super.onMeasure(w, View.MeasureSpec.makeMeasureSpec(maxH, View.MeasureSpec.AT_MOST));
+        }
+    }
+
+    /** PC 튜토리얼과 같은 모양: 작은 카드 (최대 420dp) · 네 모서리 ㄱ (파랑) · 위에 [튜토리얼] 표 · 이름 · n / N · 제목 · 설명 · 스킵 / 이전 / 다음 */
     void show() {
         if (root != null) return;
         FrameLayout dim = new FrameLayout(a);
-        dim.setBackgroundColor(0xCC000000);
+        dim.setBackgroundColor(0x9E000000);
         dim.setClickable(true);                         // 뒤 화면은 안 눌림
-        LinearLayout card = Ui.card(a);
-        count = Ui.text(a, "", 12, Ui.MUTED, true);
-        card.addView(count);
-        title = Ui.text(a, "", 19, Ui.FG, true);
-        card.addView(title, Ui.fill(a, 6));
-        body = Ui.text(a, "", 14, Ui.FG, false);
-        body.setLineSpacing(0, 1.15f);
-        ScrollView sv = new ScrollView(a);
+        card = new LinearLayout(a);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(Ui.dp(a, 20), Ui.dp(a, 18), Ui.dp(a, 20), Ui.dp(a, 14));
+        card.setBackground(new Ui.Deco(a, Ui.PANEL, Ui.LINE, Ui.ACCENT, true, 14, 2));
+        card.setClickable(true);
+        TextView badge = Ui.text(a, "튜토리얼", 11, 0xFFFFFFFF, true);
+        badge.setBackgroundColor(Ui.ACCENT);
+        badge.setPadding(Ui.dp(a, 8), Ui.dp(a, 2), Ui.dp(a, 8), Ui.dp(a, 2));
+        card.addView(badge, Ui.wrap());
+        LinearLayout head = new LinearLayout(a);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        name = Ui.text(a, "", 11, Ui.ACCENT, true);
+        head.addView(name, Ui.wrap());
+        head.addView(new View(a), Ui.weight());
+        count = Ui.text(a, "", 11, Ui.MUTED, true);
+        head.addView(count, Ui.wrap());
+        card.addView(head, Ui.fill(a, 8));
+        title = Ui.text(a, "", 17, Ui.FG, true);
+        card.addView(title, Ui.fill(a, 4));
+        body = Ui.text(a, "", 13, Ui.FG, false);
+        body.setLineSpacing(0, 1.35f);
+        CapScroll sv = new CapScroll(a);
+        sv.maxH = (int) (a.getResources().getDisplayMetrics().heightPixels * 0.42);
         sv.addView(body);
-        LinearLayout.LayoutParams sp = Ui.fill(a, 10);
-        sp.height = LinearLayout.LayoutParams.WRAP_CONTENT;
-        card.addView(sv, sp);
+        card.addView(sv, Ui.fill(a, 8));
         LinearLayout ar = new LinearLayout(a);
         ar.setOrientation(LinearLayout.HORIZONTAL);
         ar.setGravity(Gravity.CENTER_VERTICAL);
-        act = Ui.button(a, "", Ui.ACCENT, v -> doAction());
+        act = small(Ui.button(a, "", Ui.ACCENT, v -> doAction()));
         ar.addView(act, Ui.wrap());
-        state = Ui.text(a, "", 13, Ui.MUTED, true);
+        state = Ui.text(a, "", 12, Ui.MUTED, true);
         LinearLayout.LayoutParams stp = Ui.wrap();
         stp.leftMargin = Ui.dp(a, 10);
         ar.addView(state, stp);
-        card.addView(ar, Ui.fill(a, 12));
-        ar.setTag("act");
+        card.addView(ar, Ui.fill(a, 10));
         LinearLayout nav = new LinearLayout(a);
         nav.setOrientation(LinearLayout.HORIZONTAL);
         nav.setGravity(Gravity.CENTER_VERTICAL);
-        nav.addView(Ui.button(a, "건너뛰기", Ui.MUTED, v -> close()), Ui.wrap());
+        nav.addView(small(Ui.button(a, "스킵", Ui.MUTED, v -> close())), Ui.wrap());
         nav.addView(new View(a), Ui.weight());
-        prev = Ui.button(a, "이전", Ui.MUTED, v -> go(step - 1));
+        prev = small(Ui.button(a, "이전", Ui.MUTED, v -> go(step - 1)));
         nav.addView(prev, Ui.wrap());
-        next = Ui.button(a, "다음", Ui.ACCENT, v -> {
+        next = small(Ui.button(a, "다음", Ui.ACCENT, v -> {
             if (step >= STEPS.length - 1) close();
             else go(step + 1);
-        });
+        }));
         LinearLayout.LayoutParams np = Ui.wrap();
         np.leftMargin = Ui.dp(a, 8);
         nav.addView(next, np);
-        card.addView(nav, Ui.fill(a, 16));
-        FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
-        int m = Ui.dp(a, 18);
-        cp.setMargins(m, Ui.dp(a, 40), m, Ui.dp(a, 40));
+        card.addView(nav, Ui.fill(a, 14));
+        int sw = a.getResources().getDisplayMetrics().widthPixels;
+        FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(Math.min(Ui.dp(a, 420), sw - Ui.dp(a, 32)), FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
         dim.addView(card, cp);
         host.addView(dim, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         root = dim;
         go(0);
     }
 
+    /** 버튼을 조금 작게 (PC 튜토리얼 버튼 크기) */
+    TextView small(TextView b) {
+        b.setTextSize(13);
+        b.setPadding(Ui.dp(a, 14), Ui.dp(a, 7), Ui.dp(a, 14), Ui.dp(a, 7));
+        return b;
+    }
+
     void go(int i) {
         step = Math.max(0, Math.min(STEPS.length - 1, i));
         String[] s = STEPS[step];
-        Ui.set(count, "튜토리얼 " + (step + 1) + " / " + STEPS.length);
+        Ui.set(count, (step + 1) + " / " + STEPS.length);
+        Ui.set(name, NAMES[step]);
+        // 단계가 바뀔 때 살짝 떠오르며 나타남 (PC 와 같음)
+        card.setAlpha(0f);
+        card.setTranslationY(Ui.dp(a, 8));
+        card.animate().alpha(1f).translationY(0).setDuration(200).start();
         Ui.set(title, s[0]);
         Ui.set(body, s[1]);
         prev.setVisibility(step == 0 ? View.INVISIBLE : View.VISIBLE);

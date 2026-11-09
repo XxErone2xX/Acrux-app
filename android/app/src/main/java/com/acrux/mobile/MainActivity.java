@@ -79,6 +79,16 @@ public class MainActivity extends Activity {
             requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
         }
         FrameLayout frame = new FrameLayout(this);
+        frame.setBackgroundColor(Ui.BG);
+        // 안드로이드 15 부터 앱 화면이 위 알림 줄 · 아래 내비게이션 바 (||| ○ <) 밑까지 깔림 → 그만큼 안쪽으로 (키보드가 뜨면 키보드 위까지)
+        if (Build.VERSION.SDK_INT >= 35) {               // (14 이하는 안드로이드가 알아서 비켜 줌)
+            frame.setOnApplyWindowInsetsListener((v, in) -> {
+                android.graphics.Insets i = in.getInsets(android.view.WindowInsets.Type.systemBars()
+                        | android.view.WindowInsets.Type.displayCutout() | android.view.WindowInsets.Type.ime());
+                v.setPadding(i.left, i.top, i.right, i.bottom);
+                return in;
+            });
+        }
         frame.addView(build(), new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         setContentView(frame);
         tutorial = new Tutorial(this, frame);
@@ -134,7 +144,7 @@ public class MainActivity extends Activity {
         // 머리말
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.VERTICAL);
-        head.setPadding(p, Ui.dp(this, 36), p, Ui.dp(this, 6));
+        head.setPadding(p, Ui.dp(this, Build.VERSION.SDK_INT >= 35 ? 14 : 36), p, Ui.dp(this, 6));     // 15 이상은 위 알림 줄 높이를 화면 여백 (insets) 으로 따로 뺌
         LinearLayout title = new LinearLayout(this);
         title.setOrientation(LinearLayout.HORIZONTAL);
         title.setGravity(Gravity.BOTTOM);

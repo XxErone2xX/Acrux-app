@@ -5,6 +5,8 @@
   - 권한 단계에는 바로 여는 버튼과 지금 켜졌는지 (✓ 켜짐 · 아직 꺼짐) 가 보임 · 켜고 돌아오면 바로 바뀜
   - [이전] [다음] · [건너뛰기] · 뒤로 가기로 닫기 · 홈 → 사용법 → **튜토리얼 다시 보기** 로 언제든
 - 홈 → 사용법의 이동 · 판매 안내를 새 ⚙ 분류 ([조이스틱] [기준 장소] [길] [판매]) 에 맞춤
+- 안드로이드 15 이상에서 앱 화면이 위 알림 줄 · 아래 내비게이션 바에 가려지던 것 고침
+- 튜토리얼 카드를 PC 처럼 작게 (최대 420dp · 네 모서리 ㄱ · [튜토리얼] 표 · 단계 이름 · n / N · 스킵 / 이전 / 다음)
 - V1.0.0 까지 들어간 것: 자동 낚시 (자동 보정) · 인벤토리 가득 → 판매 → 복귀 · 접근성 터치만 (루팅 · Shizuku 없이) · 클래식 조이스틱 감지 · WASD 패드 길 기록 · 포인터 위치 지정 · 한국어 · English · 日本語
 
 ## Acrux Mobile V1.0.0 Update
@@ -14,6 +16,8 @@
   - Permission steps show a button to open them directly and whether they are on (✓ On · Still off) · updates as soon as you come back
   - [Back] [Next] · [Skip] · close with the back button · see it again anytime from Home → How to use → **Show tutorial again**
 - Updated the movement · selling guide in Home → How to use for the new ⚙ categories ([Joystick] [Base spot] [Routes] [Sell])
+- Fixed the app screen being covered by the top notification bar and the bottom navigation bar on Android 15+
+- Made the tutorial card compact like the PC version (max 420dp · ㄱ corners · [Tutorial] badge · step name · n / N · Skip / Back / Next)
 - Included through V1.0.0: auto fishing (auto calibration) · inventory full → sell → return · accessibility touches only (no root · Shizuku) · classic joystick detection · WASD pad route recording · pointer position picking · Korean · English · Japanese
 
 ## Acrux Mobile V0.12.0 업데이트
