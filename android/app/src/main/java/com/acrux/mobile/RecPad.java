@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * 길 기록용 WASD 패드 · 점프 버튼 — 키를 톡 누르면 켜지고 (홀드) 다시 누르면 꺼짐 · 켜 둔 동안 Acrux 가 로블록스 조이스틱을 그 방향으로 계속 밂
  *  · 꾹 누르기가 아닌 이유: 손가락이 화면에서 움직일 때마다 안드로이드가 Acrux 가 누르던 터치를 끊음 → 톡 누르는 순간만 끊기고 바로 다시 밂
  *  · W ↔ S, A ↔ D 는 반대라 하나를 켜면 반대쪽은 꺼짐 · 빈 모서리 칸 = 대각선 · 가운데 ■ = 전부 끄기
- *  · 점프: 동그라미 톡 = 한 번 뜀 · 오른쪽으로 이어진 [홀드] = 켜 둔 동안 점프 버튼을 계속 누르고 있음
+ *  · 점프: 동그라미 톡 = 한 번 뜀 · 오른쪽 아래 작은 [홀드] = 켜 둔 동안 점프 버튼을 계속 누르고 있음
  */
 final class RecPad implements Mover.Pad {
     volatile boolean w, a, s, d, hold;
@@ -45,10 +45,11 @@ final class RecPad implements Mover.Pad {
             int W = sc[0], H = sc[1];
             int b = (int) Math.max(H * 0.10, 56 * t.getResources().getDisplayMetrics().density);
             keyView = new KeyView(t, b);
-            jumpView = new JumpView(t, b);
-            add(t, keyView, (int) (W * 0.32) - b * 3 / 2, (int) (H * 0.62) - b * 3 / 2, b * 3, b * 3);
             int jr = b * 3 / 4;
-            add(t, jumpView, (int) (W * 0.66) - jr, (int) (H * 0.62) - jr, jr * 2 + (int) (b * 1.3), jr * 2);
+            jumpView = new JumpView(t, b, jr);
+            add(t, keyView, (int) (W * 0.32) - b * 3 / 2, (int) (H * 0.62) - b * 3 / 2, b * 3, b * 3);
+            int js = jumpSize(b, jr);
+            add(t, jumpView, (int) (W * 0.66) - jr, (int) (H * 0.62) - jr, js, js);
         });
     }
 
@@ -82,6 +83,12 @@ final class RecPad implements Mover.Pad {
         } catch (RuntimeException e) {
             Hub.log("기록용 패드를 못 띄움: " + e, 'r');
         }
+    }
+
+    /** 점프 창 한 변 (큰 동그라미 + 오른쪽 아래 작은 동그라미가 다 들어가게) */
+    static int jumpSize(int b, int jr) {
+        float R = jr, h = jr * 0.6f;
+        return (int) Math.ceil(R + (R + h + b * 0.08f) * 0.7071f + h) + 2;
     }
 
     static Paint text(int b) {
@@ -148,44 +155,47 @@ final class RecPad implements Mover.Pad {
         }
     }
 
-    /** 점프 (동그라미 · 톡 = 한 번 뜀) + 오른쪽으로 이어진 [홀드] (톡 = 점프 버튼을 계속 누르고 있기 / 떼기) */
+    /** 점프 (큰 동그라미 · 톡 = 한 번 뜀) + 오른쪽 아래 작은 동그라미 [홀드] (톡 = 점프 버튼을 계속 누르고 있기 / 떼기) */
     final class JumpView extends View {
         final int b;
+        final float R, h, hc;          // 점프 반지름 · 홀드 반지름 · 홀드 가운데 (점프 가운데에서 오른쪽 아래로)
         final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG), line = new Paint(Paint.ANTI_ALIAS_FLAG), label, small;
         boolean flash;
 
-        JumpView(Context c, int b) {
+        JumpView(Context c, int b, int jr) {
             super(c);
             this.b = b;
+            R = jr;
+            h = jr * 0.6f;
+            hc = (R + h + b * 0.08f) * 0.7071f;
             line.setStyle(Paint.Style.STROKE);
             line.setStrokeWidth(Math.max(2, b / 24f));
             line.setColor(0xCCFFFFFF);
             label = text(b);
             label.setTextSize(Math.max(20, b * 0.26f));
             small = text(b);
-            small.setTextSize(Math.max(18, b * 0.22f));
+            small.setTextSize(Math.max(16, b * 0.18f));
         }
 
         @Override
         protected void onDraw(Canvas c) {
-            float h = getHeight(), r = h / 2f, m = b * 0.06f, bh = h * 0.30f;
-            // 오른쪽 홀드 막대 (동그라미 가운데부터 이어짐)
-            fill.setColor(hold ? 0xDD3BA55D : 0x88202225);
-            c.drawRect(r, r - bh, getWidth() - m, r + bh, fill);
-            c.drawRect(r, r - bh, getWidth() - m, r + bh, line);
-            c.drawText(Ui.tr("홀드"), (r * 2 + getWidth() - m) / 2f, r + small.getTextSize() * 0.35f, small);
-            // 점프 동그라미
+            float m = b * 0.04f;
             fill.setColor(flash || hold ? 0xFF3BA55D : 0xEE202225);
-            c.drawCircle(r, r, r - m, fill);
-            c.drawCircle(r, r, r - m, line);
-            c.drawText(Ui.tr("점프"), r, r + label.getTextSize() * 0.35f, label);
+            c.drawCircle(R, R, R - m, fill);
+            c.drawCircle(R, R, R - m, line);
+            c.drawText(Ui.tr("점프"), R, R + label.getTextSize() * 0.35f, label);
+            float x = R + hc, y = R + hc;
+            fill.setColor(hold ? 0xDD3BA55D : 0xCC202225);
+            c.drawCircle(x, y, h - m, fill);
+            c.drawCircle(x, y, h - m, line);
+            c.drawText(Ui.tr("홀드"), x, y + small.getTextSize() * 0.35f, small);
         }
 
         @Override
         public boolean onTouchEvent(MotionEvent e) {
             if (e.getActionMasked() != MotionEvent.ACTION_DOWN) return true;
-            float r = getHeight() / 2f;
-            if (e.getX() < r * 2) {
+            float ex = e.getX(), ey = e.getY();
+            if (Math.hypot(ex - R, ey - R) <= R) {
                 if (hold || flash) return true;              // 이미 누르고 있음
                 jumps.add(1);
                 flash = true;
@@ -194,10 +204,12 @@ final class RecPad implements Mover.Pad {
                     flash = false;
                     invalidate();
                 }, 200);
-            } else {
+            } else if (Math.hypot(ex - R - hc, ey - R - hc) <= h * 1.15) {
                 hold = !hold;
                 if (!flash) jumps.add(hold ? 1 : -1);        // 톡 점프 중에 켜면 그대로 이어서 누르고 있음
                 else if (!hold) jumps.add(-1);
+            } else {
+                return false;                                // 빈 곳은 그냥 통과
             }
             invalidate();
             return true;

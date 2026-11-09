@@ -1,3 +1,11 @@
+## Acrux Mobile V0.11.5 업데이트
+- **[홀드] 버튼을 점프 버튼 오른쪽 아래의 작은 동그라미로 바꿈**
+  - 점프 버튼보다 조금 작고 서로 안 겹침 · 톡 = 점프 버튼을 계속 누르고 있음 · 다시 톡 = 뗌
+
+## Acrux Mobile V0.11.5 Update
+- **The [Hold] button is now a small circle at the bottom right of the jump button**
+  - Slightly smaller than the jump button and not overlapping · tap = keep the jump button pressed · tap again = release
+
 ## Acrux Mobile V0.11.4 업데이트
 - **WASD 패드를 다시 홀드 (톡 = 켜기 · 다시 톡 = 끄기) 로**
   - 꾹 누르고 있으면 손가락이 조금만 움직여도 안드로이드가 Acrux 가 누르던 터치를 끊어서 버벅였음 → 톡 누르는 순간만 끊기게
