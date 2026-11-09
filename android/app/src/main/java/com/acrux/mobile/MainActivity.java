@@ -65,7 +65,16 @@ public class MainActivity extends Activity {
     }
 
     final List<Page> pages = new ArrayList<>();
-    Tutorial tutorial;
+    GuideCard guide;
+    FrameLayout guideDim;
+    final Runnable guideView = this::showGuide;
+
+    void showGuide() {
+        if (guideDim == null) return;
+        boolean on = Guide.cur != null;
+        guideDim.setVisibility(on ? View.VISIBLE : View.GONE);
+        if (on) guide.bind(false, null);
+    }
     FrameLayout content;
     HorizontalScrollView tabScroll;
     int current = -1;
@@ -91,8 +100,16 @@ public class MainActivity extends Activity {
         }
         frame.addView(build(), new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         setContentView(frame);
-        tutorial = new Tutorial(this, frame);
-        if (!Tutorial.seen()) tutorial.show();             // 처음 켰을 때 한 번
+        // 설정 안내 (PC 튜토리얼처럼): 앱 위에 어둡게 깔고 가운데 카드
+        guideDim = new FrameLayout(this);
+        guideDim.setBackgroundColor(0x9E000000);
+        guideDim.setClickable(true);                       // 뒤 화면은 안 눌림
+        guide = new GuideCard(this, this, 0.42f, false);
+        int sw = getResources().getDisplayMetrics().widthPixels;
+        guideDim.addView(guide.card, new FrameLayout.LayoutParams(Math.min(Ui.dp(this, 420), sw - Ui.dp(this, 32)), FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
+        guideDim.setVisibility(View.GONE);
+        frame.addView(guideDim, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        Guide.views.add(guideView);
         Hub.langListeners.add(relang);
         if (Hub.autoUpdate && !Updater.checkedOnce) {        // 앱을 켤 때 한 번: 새 버전이 있으면 받아서 설치 화면까지
             Updater.checkedOnce = true;
@@ -103,6 +120,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         Hub.langListeners.remove(relang);
+        Guide.views.remove(guideView);
         super.onDestroy();
     }
 
@@ -113,13 +131,14 @@ public class MainActivity extends Activity {
         Hub.appVisible = true;
         TapService t = TapService.instance;
         if (t != null) t.updateVisible();
-        refresh();                                         // (튜토리얼 권한 상태도 같이)
+        refresh();                                         // (안내 권한 상태도 같이)
+        Guide.auto();                                      // 필요한 설정 안내가 있으면 띄움
     }
 
     @Override
     public void onBackPressed() {
-        if (tutorial != null && tutorial.open()) {
-            tutorial.close();
+        if (Guide.cur != null) {                           // 뒤로 가기 = [나중에]
+            Guide.postpone();
             return;
         }
         super.onBackPressed();
@@ -404,7 +423,14 @@ public class MainActivity extends Activity {
         for (String s : steps) how.addView(Ui.text(this, s, 13, Ui.MUTED, false), Ui.fill(this, 6));
         LinearLayout.LayoutParams tl = Ui.wrap();
         tl.topMargin = Ui.dp(this, 10);
-        how.addView(Ui.button(this, "튜토리얼 다시 보기", Ui.ACCENT, v -> tutorial.show()), tl);
+        how.addView(Ui.text(this, "설정 안내 — 기능별로 하나씩 따라 하기 (PC 튜토리얼과 같음)", 13, Ui.FG, true), tl);
+        LinearLayout gl = new LinearLayout(this);
+        gl.setOrientation(LinearLayout.VERTICAL);
+        for (Guide.Tut t : Guide.all()) {
+            LinearLayout.LayoutParams gp = Ui.fill(this, 6);
+            gl.addView(Ui.button(this, t.name, Ui.ACCENT, v -> Guide.start(t.id)), gp);
+        }
+        how.addView(gl, Ui.fill(this, 4));
 
         LinearLayout don = section(pg, "후원");
         don.addView(Ui.text(this, "Acrux 가 도움이 됐다면 후원으로 응원해 주세요", 12, Ui.MUTED, false));
@@ -467,8 +493,14 @@ public class MainActivity extends Activity {
         LinearLayout mv = section(pg, "이동 · 판매");
         mv.addView(Ui.text(this, "시작하면 재설정 → 기준 장소 → 기록한 길로 낚시 장소 · 인벤토리가 가득 차면 판매 장소에서 팔고 돌아옴 · 전부 화면 터치 (조이스틱 · 탭) · 위치 · 길은 Acrux 창 ⚙ 에서",
                 12, Ui.MUTED, false), Ui.fill(this, 4));
-        mv.addView(sw("시작할 때 낚시 장소로 이동", Hub.useMove, on -> Hub.useMove = on), Ui.fill(this, 8));
-        mv.addView(sw("가득 차면 판매하러 가기", Hub.useSell, on -> Hub.useSell = on), Ui.fill(this, 4));
+        mv.addView(sw("시작할 때 낚시 장소로 이동", Hub.useMove, on -> {
+            Hub.useMove = on;
+            if (on) Guide.featureOn("move");              // 설정이 덜 돼 있으면 이동 설정 안내
+        }), Ui.fill(this, 8));
+        mv.addView(sw("가득 차면 판매하러 가기", Hub.useSell, on -> {
+            Hub.useSell = on;
+            if (on) Guide.featureOn(Guide.find("move").needed.getAsBoolean() ? "move" : "sell");
+        }), Ui.fill(this, 4));
 
         LinearLayout base = section(pg, "기준 장소 (초)");
         Mover.Cfg m = Hub.move;
@@ -723,7 +755,7 @@ public class MainActivity extends Activity {
 
     // ---------------------------------------------------------------- 새로 그리기
     void refresh() {
-        if (tutorial != null) tutorial.refresh();
+        showGuide();
         Integer on = Online.count;
         onText.setText("Now Active : " + (on == null ? "--" : String.valueOf(on)));
         onDot.setTextColor(on == null ? Ui.MUTED : Ui.GREEN);

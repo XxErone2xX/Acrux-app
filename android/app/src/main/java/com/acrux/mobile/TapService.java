@@ -45,12 +45,99 @@ public class TapService extends AccessibilityService {
     View picker;
     final Runnable refresh = this::refresh;
 
+    // ---- 설정 안내 (로블록스 화면 위) — 앱 밖일 때 Acrux 창 옆에 안내 카드 · 눌러야 할 곳을 파랗게 강조
+    /** 강조할 수 있는 곳들 (gear · cal · run · cat:분류 · pos:위치 · act:실행) */
+    final java.util.Map<String, View> targets = new java.util.HashMap<>();
+    View lit;
+    FrameLayout guideWin;
+    WindowManager.LayoutParams guideLp;
+    GuideCard fcard;
+    final Runnable guideView = this::applyGuide;
+
+    <T extends View> T reg(String key, T v) {
+        targets.put(key, v);
+        return v;
+    }
+
+    void applyGuide() {
+        boolean menuOpen = menu != null;
+        String cat = Hub.prefs().getString("menuCat", "stick");
+        String tg = Guide.cur == null ? null : Guide.target(menuOpen, cat);
+        View v = tg == null ? null : targets.get(tg);
+        if (v != null && !v.isAttachedToWindow()) v = null;
+        if (v != lit) {
+            if (lit != null) lit.setForeground(null);
+            if (v != null) v.setForeground(new Ui.Deco(this, 0x405865F2, Ui.ACCENT, 0xFFFFFFFF, true, 7, 2));
+            lit = v;
+        }
+        boolean show = Guide.cur != null && !Hub.appVisible && !Hub.running() && picker == null;
+        if (show) {
+            if (guideWin == null) makeGuideWin();
+            if (guideWin == null) return;
+            guideWin.setVisibility(View.VISIBLE);
+            fcard.bind(menuOpen, cat);
+        } else if (guideWin != null) {
+            guideWin.setVisibility(View.GONE);
+        }
+    }
+
+    /** 안내 카드 창 (오른쪽 위 · 위쪽 줄을 잡고 끌어서 옮김 · 카드 밖은 게임이 그대로 눌림) */
+    void makeGuideWin() {
+        int[] sc = screen();
+        int w = Math.min(Ui.dp(this, 330), sc[0] / 2);
+        fcard = new GuideCard(this, null, 0.38f, true);
+        guideWin = new FrameLayout(this);
+        guideWin.addView(fcard.card, new FrameLayout.LayoutParams(w, FrameLayout.LayoutParams.WRAP_CONTENT));
+        guideLp = new WindowManager.LayoutParams(w, WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT);
+        guideLp.gravity = Gravity.TOP | Gravity.START;
+        guideLp.x = Hub.prefs().getInt("guideX", sc[0] - w - Ui.dp(this, 12));
+        guideLp.y = Hub.prefs().getInt("guideY", Ui.dp(this, 12));
+        View drag = fcard.card.findViewWithTag("head");
+        float[] st = new float[4];
+        View.OnTouchListener mover = (v, e) -> {
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    st[0] = e.getRawX();
+                    st[1] = e.getRawY();
+                    st[2] = guideLp.x;
+                    st[3] = guideLp.y;
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    guideLp.x = (int) (st[2] + e.getRawX() - st[0]);
+                    guideLp.y = (int) (st[3] + e.getRawY() - st[1]);
+                    try {
+                        wm.updateViewLayout(guideWin, guideLp);
+                    } catch (RuntimeException ignored) {
+                    }
+                    return true;
+                case MotionEvent.ACTION_UP:
+                    Hub.prefs().edit().putInt("guideX", guideLp.x).putInt("guideY", guideLp.y).apply();
+                    return true;
+                default:
+                    return true;
+            }
+        };
+        if (drag != null) drag.setOnTouchListener(mover);
+        fcard.badge.setOnTouchListener(mover);
+        try {
+            wm.addView(guideWin, guideLp);
+        } catch (RuntimeException e) {
+            Hub.log("안내 창을 띄우지 못함: " + e, 'r');
+            guideWin = null;
+        }
+    }
+
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
         Hub.init(this);
         instance = this;
         Hub.listeners.add(refresh);
+        Guide.views.add(guideView);
         showPanel();
         Hub.log("접근성 권한 켜짐 · 터치 준비됨", 'g');
         Hub.changed();
@@ -77,6 +164,9 @@ public class TapService extends AccessibilityService {
     void cleanup() {
         if (instance == this) instance = null;
         Hub.listeners.remove(refresh);
+        Guide.views.remove(guideView);
+        removeView(guideWin);
+        guideWin = null;
         Hub.stop();
         removeView(picker);
         picker = null;
@@ -246,9 +336,9 @@ public class TapService extends AccessibilityService {
         status.setMaxWidth(Ui.dp(this, 170));
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        calBtn = small("보정", Ui.YELLOW, v -> toggle("cal"));
-        runBtn = small("시작", Ui.ACCENT, v -> toggle("run"));
-        gearBtn = small("⚙", Ui.MUTED, v -> toggleMenu());
+        calBtn = reg("cal", small("보정", Ui.YELLOW, v -> toggle("cal")));
+        runBtn = reg("run", small("시작", Ui.ACCENT, v -> toggle("run")));
+        gearBtn = reg("gear", small("⚙", Ui.MUTED, v -> toggleMenu()));
         row.addView(calBtn, Ui.wrap());
         row.addView(runBtn, gap());
         row.addView(gearBtn, gap());
@@ -466,7 +556,7 @@ public class TapService extends AccessibilityService {
         catTabs.clear();
         for (int i = 0; i < CATS.length; i++) {
             String key = CATS[i][0];
-            TextView c = Ui.chip(this, CATS[i][1], v -> showCat(key));
+            TextView c = reg("cat:" + key, Ui.chip(this, CATS[i][1], v -> showCat(key)));
             c.setTextSize(12);
             LinearLayout.LayoutParams lp = Ui.wrap();
             if (i > 0) lp.leftMargin = Ui.dp(this, 4);
@@ -493,25 +583,26 @@ public class TapService extends AccessibilityService {
         for (int i = 0; i < CATS.length; i++) Ui.chipOn(this, catTabs.get(i), CATS[i][0].equals(key));
         LinearLayout m = catBody;
         m.removeAllViews();
+        Hub.main.post(this::applyGuide);
         switch (key) {
             case "base":
                 m.addView(head("공통 위치 (기준 장소 맞추기)"));
                 for (String[] k : Mover.BASE_KEYS) m.addView(posItem(k[0], k[1], ""));
                 m.addView(head("테스트"));
-                m.addView(item("기준 장소로", v -> toggle("base")));
+                m.addView(reg("act:base", item("기준 장소로", v -> toggle("base"))));
                 break;
             case "route":
                 place(m, false);
                 place(m, true);
                 m.addView(head("테스트"));
-                m.addView(item("기준 장소 → 낚시 장소", v -> toggle("fish")));
-                m.addView(item("기준 장소 → 판매 장소", v -> toggle("sellgo")));
+                m.addView(reg("act:fish", item("기준 장소 → 낚시 장소", v -> toggle("fish"))));
+                m.addView(reg("act:sellgo", item("기준 장소 → 판매 장소", v -> toggle("sellgo"))));
                 break;
             case "sell": {
                 m.addView(head("대화"));
                 for (String[] k : Seller.TALK) m.addView(posItem(k[0], k[1], " (판매 장소에 서서)"));
                 m.addView(head("상점"));
-                m.addView(item("판매 자동 보정 (NPC 앞에서 시작 → 대화 버튼은 직접)", v -> toggle("sellcal")));
+                m.addView(reg("act:sellcal", item("판매 자동 보정 (NPC 앞에서 시작 → 대화 버튼은 직접)", v -> toggle("sellcal"))));
                 int set = 0;
                 for (String[] k : Seller.KEYS) if (Hub.pos.containsKey(k[0])) set++;
                 m.addView(item("  판매 위치 " + set + " / " + Seller.KEYS.length + " 저장됨", null));
@@ -519,7 +610,7 @@ public class TapService extends AccessibilityService {
                     m.addView(posItem(k[0], k[1], " 직접 지정 (상점을 연 채로)"));
                 }
                 m.addView(head("테스트"));
-                m.addView(item("판매 한 번 해 보기", v -> toggle("sell")));
+                m.addView(reg("act:sell", item("판매 한 번 해 보기", v -> toggle("sell"))));
                 break;
             }
             default:
@@ -528,20 +619,20 @@ public class TapService extends AccessibilityService {
                     closeMenu();
                     Hub.showStick(2500);
                 } : null));
-                m.addView(item("조이스틱 찾기 (화면에서 자동으로)", v -> toggle("stickfind")));
+                m.addView(reg("act:stickfind", item("조이스틱 찾기 (화면에서 자동으로)", v -> toggle("stickfind"))));
                 m.addView(item("조이스틱 직접 지정 (가운데 → 가장자리)", v -> pickStick()));
                 m.addView(head("점프"));
                 for (String[] k : Mover.JUMP_KEYS) m.addView(posItem(k[0], k[1], " — 길 기록에서 점프"));
                 m.addView(head("테스트"));
-                m.addView(item("조이스틱 테스트 (W · A · S · D 0.8초씩)", v -> toggle("sticktest")));
-                m.addView(item("점프 테스트 (제자리 → 걸으면서)", v -> toggle("jumptest")));
+                m.addView(reg("act:sticktest", item("조이스틱 테스트 (W · A · S · D 0.8초씩)", v -> toggle("sticktest"))));
+                m.addView(reg("act:jumptest", item("점프 테스트 (제자리 → 걸으면서)", v -> toggle("jumptest"))));
                 break;
         }
     }
 
     /** 위치 하나 (✓ 저장됨 · · 없음) → 누르면 포인터로 지정 */
     TextView posItem(String key, String label, String tail) {
-        return item((Hub.pos.containsKey(key) ? "✓ " : "· ") + label + tail, v -> pickSave(key, label));
+        return reg("pos:" + key, item((Hub.pos.containsKey(key) ? "✓ " : "· ") + label + tail, v -> pickSave(key, label)));
     }
 
     /** 길 기록: 기준 장소로 간 뒤 '지금부터 기록' → WASD 패드로 걸어가서 [도착] */
@@ -550,7 +641,7 @@ public class TapService extends AccessibilityService {
         String name = sell ? "물고기 판매 장소" : "낚시 장소";
         m.addView(head(name + " 길"));
         m.addView(item(r.isEmpty() ? "· 기록 없음" : "✓ 기록됨 · " + fmt(r.seconds()) + "초 · " + r.segs.size() + "조각 · 점프 " + r.jumps() + "번", null));
-        m.addView(item((r.isEmpty() ? "● 길 기록" : "● 다시 기록") + " (기준 장소로 간 뒤 WASD 패드로 걸어감 → [도착])", v -> toggle(sell ? "rec_sell" : "rec_fish")));
+        m.addView(reg(sell ? "act:rec_sell" : "act:rec_fish", item((r.isEmpty() ? "● 길 기록" : "● 다시 기록") + " (기준 장소로 간 뒤 WASD 패드로 걸어감 → [도착])", v -> toggle(sell ? "rec_sell" : "rec_fish"))));
     }
 
     TextView head(String s) {
@@ -564,6 +655,7 @@ public class TapService extends AccessibilityService {
         panel.removeView((View) menu.getTag());
         menu = null;
         catBody = null;
+        Hub.main.post(this::applyGuide);
     }
 
     void pickSave(String key, String label) {
@@ -572,6 +664,9 @@ public class TapService extends AccessibilityService {
             Hub.pos.put(key, at);
             Hub.save();
             Hub.log("'" + label + "' 위치 저장 (" + at[0] + ", " + at[1] + ")", 'g');
+            if (Guide.cur != null) Hub.main.post(() -> {        // 설정 안내 중이면 메뉴를 다시 열어 둠 (다음 위치로 바로)
+                if (menu == null) toggleMenu();
+            });
         });
     }
 

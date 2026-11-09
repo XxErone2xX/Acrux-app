@@ -1,3 +1,21 @@
+## Acrux Mobile V1.1.0 업데이트
+- **튜토리얼을 기능별 설정 안내로 바꿈 (PC 튜토리얼과 같은 방식)**
+  - 시작 준비 · 낚시 보정 · 이동 설정 · 판매 설정 — 지금 필요한 것만 차례로 뜨고 하나 끝나면 다음 것으로 이어짐 · 위에 [남은 튜토리얼 n개]
+  - 단계마다 해야 할 것 (권한 켜기 · 보정 · 조이스틱 찾기 · 위치 지정 · 길 기록 등) 을 해야 [다음] 이 눌림 · 하면 저절로 다음 단계
+  - 선택 단계 (점프 버튼 · 판매 한 번 해 보기) 만 [이 단계 건너뛰기] · 첫 단계에서만 [나중에]
+  - 로블록스 화면에서는 떠 있는 Acrux 창 옆에 안내가 뜨고 (위쪽 줄을 잡고 끌어서 옮김) 눌러야 할 곳 (⚙ · 분류 · 항목 · [보정] 등) 을 파랗게 강조 · 메뉴가 닫혀 있으면 ⚙ 부터 · 다른 분류면 그 분류부터 알려 줌
+  - 위치를 저장하면 메뉴가 다시 열려서 다음 위치로 바로 · 보정 · 기록처럼 실행 중일 때는 안내가 잠깐 숨음
+  - 이동 · 판매 스위치를 켰는데 설정이 덜 돼 있으면 그 안내가 뜸 · 홈 → 사용법에서 기능별 안내를 언제든 다시 시작
+
+## Acrux Mobile V1.1.0 Update
+- **The tutorial is now per-feature setup guides (same style as the PC tutorial)**
+  - Getting started · fishing calibration · movement setup · selling setup — only the ones needed now appear in order, continuing to the next when one ends · [n tutorials left] on top
+  - Each step requires its task (turn on permissions · calibrate · find joystick · set positions · record routes, etc.) before [Next] works · doing it moves on automatically
+  - Only optional steps (jump button · try selling once) have [Skip this step] · only the first step has [Later]
+  - On the Roblox screen the guide appears next to the floating Acrux window (drag its top row to move it) and highlights where to tap (⚙ · categories · items · [Calibrate], etc.) in blue · if the menu is closed it points to ⚙ first, and to the right category if another is open
+  - After saving a position the menu reopens for the next one · the guide hides briefly while calibrating or recording
+  - Turning on the movement · selling switch with setup unfinished opens that guide · restart any feature guide anytime from Home → How to use
+
 ## Acrux Mobile V1.0.2 업데이트
 - 튜토리얼 카드가 화면을 꽉 채우고 제목 · 설명 · 버튼이 안 보이던 것 고침 (칸 사이 빈 공간이 화면 높이만큼 커지던 버그)
 
