@@ -29,8 +29,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 접근성 서비스 — 로블록스 위에 떠 있는 조작 창 + Shizuku 가 없을 때 자동 낚시 터치 (dispatchGesture)
- * 키보드 · 마우스(이동 · 판매)는 Shizuku 로 보냄 (ShizukuPc)
+ * 접근성 서비스 — 로블록스 위에 떠 있는 조작 창 + 모든 터치 (dispatchGesture · 루팅 · Shizuku 없음)
+ * 자동 낚시 탭 · 이동 (조이스틱 · 화면 끌기 · 두 손가락 줌) · 판매 버튼
  * 화면 내용은 읽지 않음 (canRetrieveWindowContent = false · 화면 색은 화면 캡처로 봄)
  */
 public class TapService extends AccessibilityService {
@@ -107,6 +107,29 @@ public class TapService extends AccessibilityService {
         Path p = new Path();
         p.moveTo(x, y);
         dispatchGesture(new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(p, 0, Math.max(1, ms))).build(), null, null);
+    }
+
+    /** 한 손가락으로 (x0, y0) → (x1, y1) 끌기 (화면 돌리기) */
+    void swipe(int x0, int y0, int x1, int y1, int ms) {
+        letThrough(x0, y0);
+        Path p = new Path();
+        p.moveTo(x0, y0);
+        p.lineTo(x1, y1);
+        dispatchGesture(new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(p, 0, Math.max(1, ms))).build(), null, null);
+    }
+
+    /** 두 손가락: (cx, cy) 양옆 d0/2 에서 d1/2 로 (d1 < d0 = 오므리기 = 줌 아웃) */
+    void pinch(int cx, int cy, int d0, int d1, int ms) {
+        letThrough(cx, cy);
+        Path a = new Path(), b = new Path();
+        a.moveTo(cx - d0 / 2f, cy);
+        a.lineTo(cx - d1 / 2f, cy);
+        b.moveTo(cx + d0 / 2f, cy);
+        b.lineTo(cx + d1 / 2f, cy);
+        GestureDescription.Builder g = new GestureDescription.Builder();
+        g.addStroke(new GestureDescription.StrokeDescription(a, 0, Math.max(1, ms)));
+        g.addStroke(new GestureDescription.StrokeDescription(b, 0, Math.max(1, ms)));
+        dispatchGesture(g.build(), null, null);
     }
 
     // ---- 매크로의 터치 · 클릭이 Acrux 창에 걸리지 않게
@@ -421,20 +444,17 @@ public class TapService extends AccessibilityService {
         menu.addView(item("조이스틱 찾기 (화면에서 자동으로)", v -> toggle("stickfind")));
         menu.addView(item("조이스틱 직접 지정 (가운데 → 가장자리)", v -> pickStick()));
         menu.addView(item("조이스틱 테스트 (W · A · S · D 0.8초씩)", v -> toggle("sticktest")));
-        menu.addView(head("Shizuku (키보드 · 마우스)"));
-        menu.addView(item(ShizukuPc.ready() ? "✓ 연결됨" : "· " + ShizukuPc.status() + " — 눌러서 연결", v -> {
-            closeMenu();
-            ShizukuPc.connect();
-        }));
-        menu.addView(item("키 테스트 (W 를 1초 누름 → 캐릭터가 앞으로 가면 성공)", v -> toggle("keytest")));
-        if (Mover.BASE_KEYS.length > 0) menu.addView(head("공통 위치 (기준 장소 맞추기)"));
+        menu.addView(head("공통 위치 (기준 장소 맞추기)"));
         for (String[] k : Mover.BASE_KEYS) {
             menu.addView(item((Hub.pos.containsKey(k[0]) ? "✓ " : "· ") + k[1], v -> pickSave(k[0], k[1])));
         }
         place(false);
         place(true);
         menu.addView(head("판매"));
-        menu.addView(item("판매 자동 보정 (NPC 앞에서 시작 → E 는 직접)", v -> toggle("sellcal")));
+        for (String[] k : Seller.TALK) {
+            menu.addView(item((Hub.pos.containsKey(k[0]) ? "✓ " : "· ") + k[1] + " (판매 장소에 서서)", v -> pickSave(k[0], k[1])));
+        }
+        menu.addView(item("판매 자동 보정 (NPC 앞에서 시작 → 대화 버튼은 직접)", v -> toggle("sellcal")));
         int set = 0;
         for (String[] k : Seller.KEYS) if (Hub.pos.containsKey(k[0])) set++;
         menu.addView(item("  판매 위치 " + set + " / " + Seller.KEYS.length + " 저장됨", null));
@@ -451,25 +471,13 @@ public class TapService extends AccessibilityService {
         menu.setTag(sv);
     }
 
+    /** 길 기록: 기준 장소로 간 뒤 '지금부터 기록' → 조이스틱으로 직접 걸어가서 [도착] */
     void place(boolean sell) {
-        List<Mover.Point> pts = sell ? Hub.sellPts : Hub.fishPts;
-        String key = sell ? "sell" : "fish";
-        menu.addView(head((sell ? "물고기 판매 장소" : "낚시 장소") + " · 지점 " + pts.size() + "개"));
-        for (int i = 0; i < pts.size(); i++) {
-            Mover.Point pt = pts.get(i);
-            int j = i;
-            String t = pt.time == null ? "시간 없음" : fmt(pt.time) + "초";
-            menu.addView(item("  " + (i + 1) + "번 · " + t + " — 다시 재기", v -> toggle("measure_" + key + ":" + j)));
-        }
-        menu.addView(item("+ 지점 추가 (기준 장소부터 걸어감)", v -> toggle("addpt_" + key)));
-        if (!pts.isEmpty()) {
-            menu.addView(item("− 마지막 지점 지우기", v -> {
-                pts.remove(pts.size() - 1);
-                Hub.save();
-                Hub.log((sell ? "판매" : "낚시") + " 장소 마지막 지점 지움", 'd');
-                closeMenu();
-            }));
-        }
+        com.acrux.mobile.core.Route r = sell ? Hub.sellRoute : Hub.fishRoute;
+        String name = sell ? "물고기 판매 장소" : "낚시 장소";
+        menu.addView(head(name + " 길"));
+        menu.addView(item(r.isEmpty() ? "· 기록 없음" : "✓ 기록됨 · " + fmt(r.seconds()) + "초 · " + r.segs.size() + "조각", null));
+        menu.addView(item((r.isEmpty() ? "● 길 기록" : "● 다시 기록") + " (기준 장소로 간 뒤 직접 걸어감 → [도착])", v -> toggle(sell ? "rec_sell" : "rec_fish")));
     }
 
     TextView head(String s) {

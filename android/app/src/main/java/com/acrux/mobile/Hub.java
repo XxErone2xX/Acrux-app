@@ -8,7 +8,8 @@ import android.os.Process;
 
 import com.acrux.mobile.core.Fisher;
 import com.acrux.mobile.core.Mover;
-import com.acrux.mobile.core.Pc;
+import com.acrux.mobile.core.Route;
+import com.acrux.mobile.core.Touch;
 import com.acrux.mobile.core.Seller;
 import com.acrux.mobile.core.Settings;
 
@@ -28,15 +29,15 @@ final class Hub {
     private Hub() {}
 
     static final Settings cfg = new Settings();
-    /** 위치 (화면 비율): 공통 위치(chat_pos · collection_pos · collection_close) + 판매 자동 보정(dialog_pos …) */
+    /** 위치 (화면 비율): 공통 위치(menu_btn · reset_btn · reset_confirm · collection_pos · collection_close) + 대화 버튼 + 판매 자동 보정(dialog_pos …) */
     static final Map<String, double[]> pos = new ConcurrentHashMap<>();
     static final Mover.Cfg move = new Mover.Cfg();
-    static final List<Mover.Point> fishPts = new CopyOnWriteArrayList<>(), sellPts = new CopyOnWriteArrayList<>();
+    /** 기준 장소 → 낚시 장소 · 판매 장소: 플레이어가 조이스틱으로 직접 걸어간 길 */
+    static volatile Route fishRoute = new Route(), sellRoute = new Route();
     static boolean autoUpdate = true;
-    static boolean useMove = true, useSell = true, relDrag = false;
+    static boolean useMove = true, useSell = true;
     /** 로블록스 클래식 조이스틱 {가운데 x / 화면 너비, 가운데 y / 화면 높이, 반지름 / 화면 높이} (못 찾았으면 null) · W A S D 를 조이스틱 터치로 */
     static volatile double[] stick;
-    static boolean useStick = true;
     static int sellMax = 100;
     static double sellDelay = 0;
 
@@ -194,39 +195,16 @@ final class Hub {
         return w != null && w.isAlive();
     }
 
-    /** 자동 낚시가 누르는 입력: Shizuku 가 연결돼 있으면 PC 처럼 마우스 클릭 · 아니면 화면 터치 */
-    static Fisher.Input fishInput(Pc pc) {
-        if (pc == null) {
-            return (x, y, ms) -> {
-                TapService t = TapService.instance;
-                if (t != null) t.tap(x, y, Math.max(ms, 40));
-            };
-        }
-        return new Fisher.Input() {
-            int hx = -1, hy = -1;
-
-            @Override
-            public void tap(int x, int y, int ms) {
-                if (x == hx && y == hy) {
-                    pc.clickHere("left", ms);           // 릴링: 마우스를 안 움직이고 지금 자리에서 (PC mouse_click_here)
-                } else {
-                    pc.click(x, y, "left");
-                    hx = x;
-                    hy = y;
-                }
-            }
-
-            @Override
-            public void hover(int x, int y) {
-                pc.moveTo(x, y);
-                hx = x;
-                hy = y;
-            }
+    /** 자동 낚시가 누르는 입력: 화면 터치 */
+    static Fisher.Input fishInput() {
+        return (x, y, ms) -> {
+            TapService t = TapService.instance;
+            if (t != null) t.tap(x, y, Math.max(ms, 40));
         };
     }
 
     /** m: run 자동 낚시 · cal 낚시 자동 보정 · sellcal 판매 자동 보정 · sell 판매 한 번 · base / fish / sellgo 이동 테스트
-     *  · addpt_fish / addpt_sell 지점 추가 · measure_fish:N / measure_sell:N 시간 다시 재기 → 못 하면 이유 */
+     *  · rec_fish / rec_sell 길 기록 · stickfind / sticktest 조이스틱 → 못 하면 이유 */
     static synchronized String start(String m) {
         if (running()) return "이미 실행 중";
         lastError = null;
@@ -236,27 +214,23 @@ final class Hub {
         CaptureService cap = CaptureService.active;
         if (cap == null) return "앱에서 [화면 캡처 시작]을 먼저 눌러야 함";
         if (m.equals("run") && !cfg.ready()) return "먼저 [보정]을 해야 함 (낚시 자리에서 Fish 버튼이 보일 때)";
-        Pc shz = ShizukuPc.ready() ? new ShizukuPc(relDrag) : null;
-        double[] st = stick;
-        // W A S D 는 조이스틱 터치로 (조이스틱을 찾아 뒀으면) · 나머지 키 · 마우스는 Shizuku
-        Pc pc = useStick && st != null ? new StickPc(shz, st, cap.width(), cap.height()) : shz;
-        if (m.equals("sticktest") && st == null) return "먼저 조이스틱 찾기 (로블록스 설정 → 이동 방식: 조이스틱 · ⚙ → 조이스틱 찾기)";
-        boolean needKeys = !m.equals("run") && !m.equals("cal") && !m.startsWith("stick");
-        if (needKeys && pc == null) return "이동 · 판매는 조이스틱 찾기 또는 Shizuku 연결이 필요함 — ⚙ → 조이스틱 찾기";
-        Fisher f = new Fisher(cap, fishInput(shz), OUT, cfg);
-        Mover mv = pc != null ? new Mover(cap, pc, new MlOcr(), pos, move, OUT, CHECK) : null;
-        if (mv != null) mv.touch = fishInput(null);         // 재설정 · 도감 버튼은 손가락 탭으로
-        Seller sl = mv != null ? seller(cap, mv, pc) : null;
-        // 판매 한 번: 필요한 위치 · 지점이 없으면 시작 전에 바로 알려 줌 (예전엔 시작하자마자 멈추고 기록 칸에만 남았음)
-        if (m.equals("sell") && sl != null) {
+        if (m.equals("sticktest") && stick == null) return "먼저 조이스틱 찾기 (로블록스 설정 → 이동 방식: 조이스틱 · ⚙ → 조이스틱 찾기)";
+        TouchIn touch = new TouchIn(cap.width(), cap.height());
+        Fisher f = new Fisher(cap, fishInput(), OUT, cfg);
+        Mover mv = new Mover(cap, touch, new MlOcr(), pos, move, OUT, CHECK);
+        Seller sl = seller(cap, mv);
+        // 필요한 위치 · 길이 없으면 시작 전에 바로 알려 줌
+        if (m.equals("sell")) {
             String miss = sl.missing();
+            if (miss != null) return miss;
+        }
+        if (m.equals("base") || m.equals("fish") || m.equals("sellgo") || m.startsWith("rec_")) {
+            String miss = mv.baseMissing();
             if (miss != null) return miss;
         }
         if (m.equals("run")) {
             if (!useMove) {
                 log("낚시 장소로 이동 꺼짐 — 지금 자리에서 낚시", 'd');
-            } else if (sl == null) {
-                log("Shizuku 가 연결 안 됨 — 이동 · 판매 없이 지금 자리에서 낚시", 'y');
             } else {
                 String why = sl.fishMissing();
                 if (why == null) f.onStart = sl::goFish;
@@ -281,11 +255,10 @@ final class Hub {
                 long t0 = System.nanoTime();
                 while (System.nanoTime() - t0 < 1_000_000_000L) {
                     CHECK.run();
-                    Pc.nap(20);
+                    Touch.nap(20);
                 }
-                if (m.equals("keytest")) keyTest(pc);
-                else if (m.equals("stickfind")) stickFind(cap);
-                else if (m.equals("sticktest")) stickTest(new StickPc(null, st, cap.width(), cap.height()));
+                if (m.equals("stickfind")) stickFind(cap);
+                else if (m.equals("sticktest")) stickTest(touch);
                 else work(m, f, mv, sl);
             } catch (Fisher.Stopped e) {
                 log("멈춤", 'd');
@@ -301,9 +274,8 @@ final class Hub {
                 log("오류: " + e, 'r');
                 Crash.save(e, "worker");
             } finally {
-                if (mv != null) mv.releaseKeys();
-                if (pc instanceof StickPc) ((StickPc) pc).releaseAll();
-                if (m.startsWith("stick")) Joy.set(null);
+                mv.releaseKeys();
+                Joy.set(null);
                 measuring = false;
                 mode = "";
                 state = lastError != null ? "멈춤 — " + lastError : "대기";     // 멈춘 이유를 떠 있는 창에도
@@ -318,31 +290,11 @@ final class Hub {
         return "";
     }
 
-    static Seller seller(CaptureService cap, Mover mv, Pc pc) {
-        Seller s = new Seller(cap, mv, pc, new MlOcr(), pos, sellPts, fishPts, OUT);
+    static Seller seller(CaptureService cap, Mover mv) {
+        Seller s = new Seller(cap, mv, new MlOcr(), pos, sellRoute, fishRoute, OUT);
         s.sellMax = sellMax;
         s.sellDelay = sellDelay;
-        s.touch = fishInput(null);                 // 마우스 클릭이 씹히면 손가락 탭으로
         return s;
-    }
-
-    /** 키 테스트: W 를 1초 동안 누르고 있음 (진짜 키보드처럼 계속 '누름' 신호) */
-    static void keyTest(Pc pc) {
-        state = "키 테스트 — W 1초";
-        changed();
-        long end = System.nanoTime() + 1_000_000_000L;
-        try {
-            while (System.nanoTime() < end) {
-                CHECK.run();
-                pc.keyDown("w");
-                Pc.nap(33);
-            }
-        } finally {
-            pc.keyUp("w");
-        }
-        String km = ShizukuPc.keyMode();
-        log("키 테스트: W 1초 보냄 — 캐릭터가 앞으로 갔으면 Shizuku 키 입력이 됨", 'g');
-        log(km.startsWith("uhid") ? "키보드: 진짜 키보드 장치(Acrux Keyboard)로 보냄" : "키보드: 키보드 장치를 못 만듦 → 입력 주입으로 보냄 · " + km, km.startsWith("uhid") ? 'd' : 'y');
     }
 
     /** 조이스틱 찾기: 지금 화면에서 왼쪽 아래 둥근 조이스틱을 찾아 저장 · 찾은 자리에 원을 잠깐 그려 줌 */
@@ -372,21 +324,22 @@ final class Hub {
     }
 
     /** 조이스틱 테스트: W → A → S → D 를 0.8초씩 (조이스틱을 위 · 왼쪽 · 아래 · 오른쪽으로) */
-    static void stickTest(StickPc sp) {
+    static void stickTest(TouchIn t) {
         showStick(1500);
-        for (String k : new String[]{"w", "a", "s", "d"}) {
-            state = "조이스틱 테스트 — " + k.toUpperCase();
+        double[][] dirs = {{0, -1}, {-1, 0}, {0, 1}, {1, 0}};
+        String[] keys = {"W", "A", "S", "D"};
+        for (int i = 0; i < 4; i++) {
+            state = "조이스틱 테스트 — " + keys[i];
             changed();
-            sp.keyDown(k);
+            t.stick(dirs[i]);
             long end = System.nanoTime() + 800_000_000L;
             while (System.nanoTime() < end) {
                 CHECK.run();
-                Pc.nap(20);
+                Touch.nap(20);
             }
-            sp.keyUp(k);
-            Pc.nap(400);
+            t.stick(null);
+            Touch.nap(400);
         }
-        sp.releaseAll();
         log("조이스틱 테스트: W · A · S · D 0.8초씩 보냄 — 캐릭터가 앞 · 왼쪽 · 뒤 · 오른쪽으로 갔으면 성공", 'g');
     }
 
@@ -408,51 +361,31 @@ final class Hub {
             mv.goBase();
             log("기준 장소 도착", 'g');
         } else if (m.equals("fish")) {
-            String why = Mover.pathMissing("낚시 장소", fishPts, null);
-            if (why != null || fishPts.isEmpty()) throw new RuntimeException(why != null ? why : "낚시 장소 지점이 없음");
-            mv.goPlace("낚시 장소", fishPts);
+            mv.goPlace("낚시 장소", fishRoute);
         } else if (m.equals("sellgo")) {
-            String why = Mover.pathMissing("물고기 판매 장소", sellPts, null);
-            if (why != null || sellPts.isEmpty()) throw new RuntimeException(why != null ? why : "판매 장소 지점이 없음");
-            mv.goPlace("물고기 판매 장소", sellPts);
-        } else if (m.startsWith("addpt_")) {
-            addPoint(mv, m.endsWith("sell"));
-        } else if (m.startsWith("measure_")) {
-            boolean sell = m.startsWith("measure_sell");
-            int j = Integer.parseInt(m.substring(m.indexOf(':') + 1));
-            List<Mover.Point> pts = sell ? sellPts : fishPts;
-            String why = Mover.pathMissing(sell ? "물고기 판매 장소" : "낚시 장소", pts, j);
-            if (why != null) throw new RuntimeException(why);
-            measure(mv, sell, j, true);
+            mv.goPlace("물고기 판매 장소", sellRoute);
+        } else if (m.startsWith("rec_")) {
+            record(mv, m.endsWith("sell"));
         }
     }
 
-    /** 지점 추가 (PC 와 같음): 기준 장소 → 앞 지점들까지 간 화면에서 다음 지점을 누름 → 우클릭으로 걸어가며 시간 잼 */
-    static void addPoint(Mover mv, boolean sell) {
-        List<Mover.Point> pts = sell ? sellPts : fishPts;
+    /** 길 기록: 기준 장소로 간 뒤 → 플레이어가 조이스틱으로 직접 걸어감 → [도착] → 저장 */
+    static void record(Mover mv, boolean sell) {
         String name = sell ? "물고기 판매 장소" : "낚시 장소";
-        String why = Mover.pathMissing(name, pts, null);
-        if (why != null) throw new RuntimeException(why + " — 먼저 그 지점 시간을 다시 재 주세요");
-        mv.goBase();
-        mv.walk(name, pts, null);
-        state = name + " · " + (pts.size() + 1) + "번 지점 — 갈 곳을 누르세요";
-        changed();
-        double[] at = requestPick(name + " " + (pts.size() + 1) + "번 지점 (Click to Move 로 갈 곳)");
-        if (at == null) throw new Fisher.Stopped();
-        pts.add(new Mover.Point(at, null));
-        save();
-        measure(mv, sell, pts.size() - 1, false);
-    }
-
-    static void measure(Mover mv, boolean sell, int j, boolean fromBase) {
         arrived = false;
-        measuring = true;
-        changed();
         try {
-            mv.measure(sell ? "물고기 판매 장소" : "낚시 장소", sell ? sellPts : fishPts, j, fromBase, () -> arrived);
+            Route r = mv.record(name, () -> {
+                if (!measuring) {
+                    measuring = true;              // 기준 장소에 도착해서 기록을 시작하면 [도착] 버튼을 보여 줌
+                    changed();
+                }
+                return arrived;
+            });
+            if (sell) sellRoute = r;
+            else fishRoute = r;
+            save();
         } finally {
             measuring = false;
-            save();
             changed();
         }
     }
@@ -486,10 +419,6 @@ final class Hub {
     static boolean sellOnce(Seller sl) {
         if (!useSell) {
             log("인벤토리 가득 — 판매가 꺼져 있음", 'y');
-            return false;
-        }
-        if (sl == null) {
-            log("인벤토리 가득 — 판매는 Shizuku 연결이 필요함", 'y');
             return false;
         }
         String m = sl.missing();
@@ -555,31 +484,6 @@ final class Hub {
         }
     }
 
-    static String pts(List<Mover.Point> l) {
-        StringBuilder s = new StringBuilder();
-        for (Mover.Point p : l) {
-            if (s.length() > 0) s.append(';');
-            s.append(arr(p.pos)).append('|').append(p.time == null ? "" : String.valueOf(p.time));
-        }
-        return s.toString();
-    }
-
-    static void pts(String s, List<Mover.Point> into) {
-        into.clear();
-        if (s == null || s.isEmpty()) return;
-        for (String part : s.split(";")) {
-            String[] q = part.split("\\|", -1);
-            double[] at = arr(q[0]);
-            if (at == null || at.length != 2) continue;
-            Double t = null;
-            try {
-                if (q.length > 1 && !q[1].isEmpty()) t = Double.parseDouble(q[1]);
-            } catch (NumberFormatException ignored) {
-            }
-            into.add(new Mover.Point(at, t));
-        }
-    }
-
     static void load() {
         SharedPreferences p = prefs();
         cfg.panelRegion = arr(p.getString("panel", ""));
@@ -599,7 +503,6 @@ final class Hub {
         autoUpdate = p.getBoolean("autoUpdate", true);
         useMove = p.getBoolean("useMove", true);
         useSell = p.getBoolean("useSell", true);
-        relDrag = p.getBoolean("relDrag", false);
         sellMax = p.getInt("sellMax", 100);
         sellDelay = p.getFloat("sellDelay", 0f);
         move.resetWait = p.getFloat("m_reset_wait", (float) move.resetWait);
@@ -609,13 +512,11 @@ final class Hub {
         move.awTime = p.getFloat("m2_aw", (float) move.awTime);
         move.pauseTime = p.getFloat("m2_pause", (float) move.pauseTime);
         move.dTime = p.getFloat("m2_d", (float) move.dTime);
-        move.oTime = p.getFloat("m_o_time", (float) move.oTime);
+        move.tiltSwipes = p.getInt("m3_tilt", move.tiltSwipes);
+        move.zoomPinches = p.getInt("m3_zoom", move.zoomPinches);
         move.margin = p.getFloat("m_margin", (float) move.margin);
-        move.tiltPx = p.getInt("m_tilt_px", move.tiltPx);
-        move.button = p.getString("m_button", move.button);
         stick = arr(p.getString("stick", ""));
         if (stick != null && stick.length != 3) stick = null;
-        useStick = p.getBoolean("useStick", true);
         pos.clear();
         for (String kv : p.getString("pos", "").split(";")) {
             int e = kv.indexOf('=');
@@ -623,8 +524,8 @@ final class Hub {
             double[] v = arr(kv.substring(e + 1));
             if (v != null && v.length == 2) pos.put(kv.substring(0, e), v);
         }
-        pts(p.getString("fishPts", ""), fishPts);
-        pts(p.getString("sellPts", ""), sellPts);
+        fishRoute = Route.load(p.getString("fishRoute", ""));
+        sellRoute = Route.load(p.getString("sellRoute", ""));
     }
 
     static void save() {
@@ -641,16 +542,15 @@ final class Hub {
                 .putFloat("biteMax", (float) cfg.biteMax).putInt("clickMs", cfg.clickMs)
                 .putFloat("leadMs", (float) cfg.leadMs).putFloat("targetPct", (float) cfg.targetPct)
                 .putBoolean("adaptive", cfg.adaptive).putBoolean("tapAbove", cfg.tapAbove)
-                .putBoolean("autoUpdate", autoUpdate).putBoolean("useMove", useMove).putBoolean("useSell", useSell).putBoolean("relDrag", relDrag)
+                .putBoolean("autoUpdate", autoUpdate).putBoolean("useMove", useMove).putBoolean("useSell", useSell)
                 .putInt("sellMax", sellMax).putFloat("sellDelay", (float) sellDelay)
                 .putFloat("m_reset_wait", (float) move.resetWait)
                 .putFloat("m2_wa", (float) move.waTime).putFloat("m2_a", (float) move.aTime).putFloat("m2_aw", (float) move.awTime)
                 .putFloat("m2_pause", (float) move.pauseTime).putFloat("m2_d", (float) move.dTime)
-                .putFloat("m_o_time", (float) move.oTime).putFloat("m_margin", (float) move.margin)
-                .putInt("m_tilt_px", move.tiltPx).putString("m_button", move.button)
+                .putFloat("m_margin", (float) move.margin).putInt("m3_tilt", move.tiltSwipes).putInt("m3_zoom", move.zoomPinches)
                 .putString("pos", ps.toString())
-                .putString("stick", stick == null ? "" : arr(stick)).putBoolean("useStick", useStick)
-                .putString("fishPts", pts(fishPts)).putString("sellPts", pts(sellPts))
+                .putString("stick", stick == null ? "" : arr(stick))
+                .putString("fishRoute", fishRoute.save()).putString("sellRoute", sellRoute.save())
                 .apply();
     }
 

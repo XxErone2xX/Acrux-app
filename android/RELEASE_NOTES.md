@@ -1,3 +1,45 @@
+## Acrux Mobile V0.10.0 업데이트
+- **Shizuku 를 완전히 뺌 — 모든 기능이 화면 터치로 (루팅 · Shizuku · 무선 디버깅 필요 없음)**
+  - 필요한 건 접근성 권한 · 화면 캡처 둘뿐
+  - 로블록스 설정 → 이동 방식을 **조이스틱(클래식)** 으로
+- **재설정 (터치)**
+  - 로블록스 메뉴 버튼 → 캐릭터 재설정 → 재설정 확인 을 차례로 탭
+  - ⚙ → 공통 위치에서 세 버튼 위치를 한 번 지정
+- **기준 장소 (터치)**
+  - 재설정 → 도감 열고 닫기 → 조이스틱으로 W+A 3.5초 → A 3초 → A+W 2초 → 0.5초 쉼 → D 1초
+  - 내려다보기: 화면을 위에서 아래로 끌기 (기본 3번)
+  - 줌 아웃: 두 손가락 오므리기 (기본 4번)
+- **새 이동 방식: 길 기록**
+  - 예전의 '지점 찍기 · 시간 재기 (Click to Move)' 대신, 기준 장소에서 목적지까지 **직접 걸어간 길을 저장해서 그대로 다시 걸음**
+  - ⚙ → 낚시 장소 길 / 판매 장소 길 → **● 길 기록**: 기준 장소로 자동으로 간 뒤 '지금부터 기록' → 조이스틱으로 걸어가서 [도착]
+  - 기록하는 동안 화면에서 조이스틱 손잡이 위치를 매 프레임 읽음
+  - 예전에 저장한 지점은 안 씀 — 길을 새로 기록해 주세요
+- **판매 (터치)**
+  - E 키 대신 판매 장소에서 뜨는 **대화 버튼** 을 탭 — ⚙ → 판매 → 대화 버튼 (E) 위치를 판매 장소에 서서 지정
+  - Sell Fish · Sell All · 확인 Sell 은 탭 → 짧은 탭 → 길게 순서로 다시 시도
+- 앱 홈의 Shizuku 칸 · 키 테스트를 없앰
+
+## Acrux Mobile V0.10.0 Update
+- **Shizuku removed completely — everything works by screen touch (no root · Shizuku · wireless debugging)**
+  - Only accessibility and screen capture are needed
+  - Set Roblox settings → Movement mode to **Thumbstick (classic)**
+- **Reset (touch)**
+  - Taps the Roblox menu button → Reset Character → reset confirm in order
+  - Set the three button positions once in ⚙ → common positions
+- **Base spot (touch)**
+  - Reset → open and close the collection → joystick W+A 3.5 s → A 3 s → A+W 2 s → 0.5 s pause → D 1 s
+  - Look down: drags the screen from top to bottom (3 times by default)
+  - Zoom out: two-finger pinch (4 times by default)
+- **New movement: recorded routes**
+  - Instead of the old "set points · measure time (Click to Move)", it **saves the route you walked yourself from the base spot and walks it again**
+  - ⚙ → Fishing spot route / Sell spot route → **● Record route**: goes to the base spot automatically, then "recording from now" → walk there with the joystick and tap [Arrived]
+  - While recording it reads the joystick knob position from the screen every frame
+  - Old saved points are no longer used — please record the routes again
+- **Selling (touch)**
+  - Instead of the E key it taps the **talk button** shown at the sell spot — set ⚙ → Sell → Talk button (E) while standing at the sell spot
+  - Sell Fish · Sell All · confirm Sell retry as tap → short tap → long press
+- Removed the Shizuku row and key test from the app home
+
 ## Acrux Mobile V0.9.11 업데이트
 - **기준 장소로 걷는 방법 변경**
   - 재설정 → 화면 맞추기 (도감 열고 닫기) 뒤에

@@ -24,7 +24,7 @@ final class Joy {
     static final long PRESS_MS = 60, MOVE_MS = 60, HOLD_MS = 100;
 
     static final Object lock = new Object();
-    static volatile double tx, ty;           // 원하는 방향 (단위 벡터)
+    static volatile double tx, ty;           // 원하는 방향 (길이 0 ~ 1 · 1 = 끝까지)
     static volatile boolean want;            // 누르고 있어야 함
     static volatile double cx, cy, r;        // 조이스틱 (px)
     static Thread loop;
@@ -37,7 +37,7 @@ final class Joy {
         r = radius;
     }
 
-    /** 방향 (null = 뗌) */
+    /** 방향 (길이 1 = 끝까지 · null = 뗌) */
     static void set(double[] d) {
         synchronized (lock) {
             if (d == null) {
@@ -150,7 +150,8 @@ final class Joy {
                 }
                 cur = s;
             }
-            double gx = cx + dx * r * PUSH, gy = cy + dy * r * PUSH;
+            double m = Math.hypot(dx, dy), k = m >= 0.95 ? PUSH / Math.max(m, 1e-9) : 1.0;     // 끝까지면 판 밖으로 조금 더 (최대 속도)
+            double gx = cx + dx * r * k, gy = cy + dy * r * k;
             GestureDescription.StrokeDescription s;
             long ms;
             if (Math.hypot(gx - px, gy - py) >= 2) {

@@ -6,39 +6,36 @@ import java.util.Map;
 
 /**
  * 물고기 판매 — PC 버전 sell.py 의 Seller · autocal 을 그대로 옮김
- *   기준 장소 → 판매 장소 지점들 → 카메라 정렬 → E → 대화 넘기기 → [Sell Fish]
+ *   기준 장소 → 판매 장소 길 → 카메라 정렬 → 대화 버튼 (E) 탭 → 대화 넘기기 → [Sell Fish]
  *   → (첫 칸 → Sell All → 확인 Sell) 을 확인창이 안 뜰 때까지 반복 → X 로 상점 닫기 → 기준 장소 → 낚시 장소 지점들
  * 다 팔았는지: Sell All 을 눌렀는데 확인창(초록 Sell 버튼)이 안 뜸 → 물고기가 없음
- * Sell All · 확인 Sell 은 PC 처럼 마우스를 근처로 옮겼다가(hover) 누름 — 바로 누르면 씹힘
+ * 모바일: 버튼은 전부 손가락 탭 (씹히면 짧게 · 길게 바꿔서 다시)
  */
 public final class Seller {
     public static final String[][] KEYS = {{"dialog_pos", "대화창"}, {"sell_fish_pos", "Sell Fish 버튼"}, {"first_fish_pos", "첫 번째 물고기 칸"},
             {"sell_all_pos", "Sell All 버튼"}, {"confirm_sell_pos", "확인 Sell 버튼"}, {"shop_close_pos", "상점 닫기 X"}};
+    /** 직접 지정하는 위치: 판매 장소에 도착했을 때 화면에 뜨는 대화 버튼 (PC 의 E) */
+    public static final String[][] TALK = {{"talk_btn", "대화 버튼 (E)"}};
     static final double CONFIRM_GREEN = 0.04;
     static final double[] DIALOG_AREA = {0.0, 0.4, 1.0, 1.0};
     static final double SKIP_SETTLE = 0.35;
 
     final Fisher.Screen scr;
     final Mover mv;
-    final Pc pc;
     final Mover.Ocr ocr;
     final Map<String, double[]> pos;          // 판매 위치 (판매 보정)
-    final List<Mover.Point> sellPts, fishPts;
+    final Route sellRoute, fishRoute;
     final Fisher.Out out;
     public int sellMax = 100;
     public double sellDelay = 0;
-    /** 마우스 클릭이 씹힐 때 쓰는 손가락 터치 (안드로이드: 접근성 탭) · 없으면 null */
-    public Fisher.Input touch;
 
-    public Seller(Fisher.Screen scr, Mover mv, Pc pc, Mover.Ocr ocr, Map<String, double[]> pos, List<Mover.Point> sellPts,
-                  List<Mover.Point> fishPts, Fisher.Out out) {
+    public Seller(Fisher.Screen scr, Mover mv, Mover.Ocr ocr, Map<String, double[]> pos, Route sellRoute, Route fishRoute, Fisher.Out out) {
         this.scr = scr;
         this.mv = mv;
-        this.pc = pc;
         this.ocr = ocr;
         this.pos = pos;
-        this.sellPts = sellPts;
-        this.fishPts = fishPts;
+        this.sellRoute = sellRoute;
+        this.fishRoute = fishRoute;
         this.out = out;
     }
 
@@ -50,8 +47,8 @@ public final class Seller {
     public String fishMissing() {
         String m = mv.baseMissing();
         if (m != null) return m;
-        if (fishPts.isEmpty()) return "낚시 장소 지점이 없음 (Acrux 창 → ⚙ → 낚시 장소 지점 추가)";
-        return Mover.pathMissing("낚시 장소", fishPts, null);
+        if (fishRoute == null || fishRoute.isEmpty()) return "낚시 장소 길이 없음 (Acrux 창 → ⚙ → 낚시 장소 길 기록)";
+        return null;
     }
 
     /** 판매를 못 하는 이유 (null = 팔 수 있음) */
@@ -59,15 +56,15 @@ public final class Seller {
         List<String> miss = new ArrayList<>();
         for (String[] k : KEYS) if (!pos.containsKey(k[0])) miss.add(k[1]);
         if (!miss.isEmpty()) return "판매 자동 보정 필요: " + String.join(", ", miss) + " (Acrux 창 → ⚙ → 판매 자동 보정)";
+        for (String[] k : TALK) if (!pos.containsKey(k[0])) return "먼저 지정 필요: " + k[1] + " (Acrux 창 → ⚙ → 판매)";
         String m = mv.baseMissing();
         if (m != null) return m;
-        if (sellPts.isEmpty()) return "물고기 판매 장소 지점이 없음 (Acrux 창 → ⚙ → 판매 장소 지점 추가)";
-        m = Mover.pathMissing("물고기 판매 장소", sellPts, null);
-        return m != null ? m : fishMissing();
+        if (sellRoute == null || sellRoute.isEmpty()) return "물고기 판매 장소 길이 없음 (Acrux 창 → ⚙ → 판매 장소 길 기록)";
+        return fishMissing();
     }
 
     public void goFish() {
-        mv.goPlace("낚시 장소", fishPts);
+        mv.goPlace("낚시 장소", fishRoute);
     }
 
     /** 확인창 Sell 버튼 자리의 밝은 초록 비율 0~1 · 못 보면 -1 */
@@ -126,25 +123,9 @@ public final class Seller {
         return SellText.findText(ocr.read(DIALOG_AREA), keys);
     }
 
-    /** 화면 비율 위치를 손가락으로 탭 (없으면 마우스) · ms: 누르고 있는 시간 */
-    void tap(double[] at) {
-        tap(at, 150);
-    }
-
-    void tap(double[] at, int ms) {
-        if (touch == null) {
-            mv.press(at);
-            return;
-        }
-        touch.tap((int) (at[0] * scr.width()), (int) (at[1] * scr.height()), ms);
-        mv.sleep(ms / 1000.0);
-    }
-
-    /** 로블록스 버튼 누르기: t 번째 시도 — 0 손가락 탭 · 1 마우스 (호버 후 클릭) · 2 손가락 길게
-     *  (모바일 로블록스는 마우스 클릭을 버튼으로 안 받을 때가 있음 · 손가락 탭이 제일 확실) */
+    /** 로블록스 버튼 누르기: t 번째 시도 — 0 탭 (0.15초) · 1 짧은 탭 (0.08초) · 2 길게 (0.3초) */
     void ui(double[] at, int t) {
-        if (touch == null || t == 1) mv.press(at);
-        else tap(at, t == 0 ? 150 : 300);
+        mv.tapUi(at, t == 0 ? 150 : t == 1 ? 80 : 300);
     }
 
     Img full() {
@@ -174,7 +155,7 @@ public final class Seller {
         return SellText.findText(b, "fishingshop") != null || SellText.findText(b, true, "sellall") != null;
     }
 
-    /** 대화창에서 [Sell Fish] 를 눌러 상점 열기 — 최대 3번 (손가락 · 마우스 · 손가락 길게) · 매번 상점이 열렸는지 확인 */
+    /** 대화창에서 [Sell Fish] 를 눌러 상점 열기 — 최대 3번 (탭 · 짧은 탭 · 길게) · 매번 상점이 열렸는지 확인 */
     boolean openShop(double[] sf, double d) {
         for (int t = 0; t < 3; t++) {
             double[] at = findSellFish();
@@ -193,7 +174,7 @@ public final class Seller {
     }
 
     /**
-     * Sell All → 확인창이 뜰 때까지 최대 3번: 마우스(호버 후 클릭) → 마우스(오래 호버) → 손가락 탭
+     * Sell All → 확인창이 뜰 때까지 최대 3번: 탭 → 짧은 탭 → 길게
      * 상점을 연 뒤 처음 누르는 Sell All 이 씹히는 경우가 있음 (한 번 눌리고 나면 그 뒤로는 잘 됨)
      * → 3번 다 안 떠야 '팔 물고기 없음'
      */
@@ -204,16 +185,7 @@ public final class Seller {
             double[] btn = findSellAll();
             if (btn != null) pos.put("sell_all_pos", btn);
             else btn = p("sell_all_pos");
-            if (t == 1 && touch != null) {
-                int[] q = mv.px(btn);                  // 마우스: 오래 호버 후 클릭
-                pc.moveTo(q[0] + 3, q[1] + 3);
-                mv.sleep(0.2);
-                pc.moveTo(q[0], q[1]);
-                mv.sleep(0.2);
-                pc.click(q[0], q[1], "left");
-            } else {
-                ui(btn, t);
-            }
+            ui(btn, t);
             double[] got = waitConfirm(at, before, (t == 0 ? 1.5 : 2.0) + d);
             if (got != null) {
                 if (t > 0) out.log("Sell All 이 " + (t + 1) + "번째에 눌림", 'd');
@@ -231,11 +203,11 @@ public final class Seller {
         out.log("물고기 팔러 감", 'c');
         out.state("판매 · 물고기 판매 장소로 가는 중");
         mv.goBase();
-        mv.walk("물고기 판매 장소", sellPts, null);
+        mv.walk("물고기 판매 장소", sellRoute);
         out.state("판매 · 카메라 정렬 (도감)");
-        mv.alignCamera();                              // E 를 누르기 전에 화면부터 맞춤
+        mv.alignCamera();                              // 대화 버튼을 누르기 전에 화면부터 맞춤
         out.state("판매 · 대화");
-        pc.keyTap("e");
+        mv.tapUi(p("talk_btn"));                       // PC 의 E — 화면에 뜨는 대화 버튼
         mv.sleep(0.2);
         SellText.Box sf = skipDialog(() -> ui(p("dialog_pos"), 0), 12.0, "sellfish");
         mv.sleep(0.15 + d);
@@ -257,7 +229,7 @@ public final class Seller {
             mv.sleep(0.15 + d);
             boolean closed = false;
             for (int t = 0; t < 3 && !closed; t++) {
-                ui(sellAt, t);                          // 손가락 · 마우스 · 손가락 길게
+                ui(sellAt, t);                          // 탭 · 짧은 탭 · 길게
                 mv.sleep(1.2 + d);
                 closed = !confirmOpen(sellAt, before);
             }
@@ -273,7 +245,7 @@ public final class Seller {
         mv.sleep(0.5 + d);
         out.state("판매 · 낚시 장소로 돌아가는 중");
         mv.goBase();
-        mv.walk("낚시 장소", fishPts, null);
+        mv.walk("낚시 장소", fishRoute);
         out.log("낚시 장소 도착 — 낚시 이어감", 'g');
         return sold;
     }
@@ -282,18 +254,18 @@ public final class Seller {
     /** 플레이어가 Captain Flarg 앞에서 E 를 직접 누르면: 대화창 → [Sell Fish] → Fishing Shop → 확인창 위치를 글자로 찾음 */
     public List<String> autocal() {
         List<String> notes = new ArrayList<>();
-        out.state("Captain Flarg 앞에서 E 를 눌러 대화를 여세요");
+        out.state("Captain Flarg 앞에서 대화 버튼을 눌러 대화를 여세요");
         long end = System.nanoTime() + 120_000_000_000L;
         double[] dlg;
         List<SellText.Box> boxes;
         while (true) {
-            if (System.nanoTime() > end) throw new RuntimeException("대화창이 안 보임 — Captain Flarg 앞에서 E 를 눌러 주세요");
+            if (System.nanoTime() > end) throw new RuntimeException("대화창이 안 보임 — Captain Flarg 앞에서 대화 버튼을 눌러 주세요");
             boxes = ocr.read(DIALOG_AREA);
             dlg = SellText.dialogPoint(boxes);
             if (dlg != null || SellText.findText(boxes, "sellfish") != null) break;
             mv.sleep(0.4);
         }
-        out.state("대화창 찾음 — 이제 마우스 · 키보드를 만지지 마세요");
+        out.state("대화창 찾음 — 이제 화면을 만지지 마세요");
         mv.sleep(0.6);
         boxes = ocr.read(DIALOG_AREA);
         double[] d2 = SellText.dialogPoint(boxes);
@@ -333,7 +305,7 @@ public final class Seller {
         ui(p("first_fish_pos"), 0);
         mv.sleep(0.6);
         double[][] conf = null;
-        for (int t = 0; t < 3 && conf == null; t++) {          // 처음 누르는 Sell All 이 씹힐 수 있음 → 손가락 · 마우스 · 손가락 길게
+        for (int t = 0; t < 3 && conf == null; t++) {          // 처음 누르는 Sell All 이 씹힐 수 있음 → 탭 · 짧은 탭 · 길게
             ui(p("sell_all_pos"), t);
             for (int i = 0; i < 3 && conf == null; i++) {
                 mv.sleep(0.6);

@@ -41,8 +41,8 @@ import java.util.List;
 public class MainActivity extends Activity {
     static final int REQ_CAPTURE = 7;
 
-    TextView accState, capState, shzState, calState, logView, runState, posView;
-    TextView accBtn, capBtn, shzBtn, updState, updBtn, updNotes, updBanner, uiBtn, uiBtn2, onDot, onText;
+    TextView accState, capState, calState, logView, runState, posView;
+    TextView accBtn, capBtn, updState, updBtn, updNotes, updBanner, uiBtn, uiBtn2, onDot, onText;
     final Runnable refresh = this::refresh;
     final TextView[][] statCells = new TextView[4][2];
     TextView statRunHead, statAllHead;
@@ -79,7 +79,6 @@ public class MainActivity extends Activity {
         }
         setContentView(build());
         Hub.langListeners.add(relang);
-        ShizukuPc.autoConnect();
         if (Hub.autoUpdate && !Updater.checkedOnce) {        // 앱을 켤 때 한 번: 새 버전이 있으면 받아서 설치 화면까지
             Updater.checkedOnce = true;
             Updater.check(this, true);
@@ -353,14 +352,9 @@ public class MainActivity extends Activity {
         capState = Ui.text(this, "", 13, Ui.MUTED, false);
         capBtn = Ui.button(this, "시작", Ui.ACCENT, v -> toggleCapture());
         ready.addView(row("② 화면 캡처", "화면 색을 보고 낚시 상태를 판단함 · 녹화 · 저장은 하지 않음 · '전체 화면' 공유를 고르기", capState, capBtn), Ui.fill(this, 12));
-        shzState = Ui.text(this, "", 13, Ui.MUTED, false);
-        shzBtn = Ui.button(this, "연결", Ui.ACCENT, v -> ShizukuPc.connect());
-        ready.addView(row("③ Shizuku (키보드 · 마우스)", "이동 · 판매에 PC 와 같은 키(Esc R Enter W A S D E O /)와 마우스(우클릭 Click to Move · Sell All 호버 후 클릭)를 보냄 · 자동 낚시만 쓸 거면 없어도 됨",
-                shzState, shzBtn), Ui.fill(this, 12));
-        TextView shzHelp = Ui.text(this, "Shizuku 설정: ① Play 스토어에서 Shizuku 설치 → ② 개발자 옵션 → 무선 디버깅 켜기 → ③ Shizuku 앱에서 '무선 디버깅으로 시작' (페어링 코드 입력) → ④ 여기서 [연결] → 허용. 폰을 재부팅하면 ③ 부터 다시 해야 함",
+        TextView stickHelp = Ui.text(this, "③ 이동 · 판매: 로블록스 설정 → 이동 방식을 '조이스틱'(클래식)으로 · 루팅 · Shizuku 필요 없음 (전부 화면 터치)",
                 12, Ui.YELLOW, false);
-        shzHelp.setOnClickListener(v -> openUrl("https://shizuku.rikka.app/guide/setup/"));
-        ready.addView(shzHelp, Ui.fill(this, 6));
+        ready.addView(stickHelp, Ui.fill(this, 6));
 
         LinearLayout st = section(pg, "상태");
         runState = Ui.text(this, "", 13, Ui.FG, false);
@@ -381,7 +375,7 @@ public class MainActivity extends Activity {
                 "2. 떠 있는 Acrux 창에서 [보정] — Fish 를 한 번 던져 대기 창 · 미니게임 창 · 결과창 위치를 자동으로 맞춤",
                 "3. [시작] — 자동 낚시 · 멈출 때는 [정지]",
                 "4. Acrux 창은 어디든 잡고 끌어서 낚시 창 · 결과창을 가리지 않는 곳으로 옮기기",
-                "5. 이동 · 판매 (Shizuku 필요 · PC 와 같음): ⚙ → 공통 위치 3개 → 낚시 장소 · 판매 장소 지점 추가 → 판매 자동 보정",
+                "5. 이동 · 판매: ⚙ → 조이스틱 찾기 → 공통 위치 5개 → 낚시 장소 · 판매 장소 길 기록 → 대화 버튼 · 판매 자동 보정",
         };
         for (String s : steps) how.addView(Ui.text(this, s, 13, Ui.MUTED, false), Ui.fill(this, 6));
 
@@ -444,13 +438,10 @@ public class MainActivity extends Activity {
     // ---------------------------------------------------------------- 이동 · 판매
     void buildMove(Page pg) {
         LinearLayout mv = section(pg, "이동 · 판매");
-        mv.addView(Ui.text(this, "PC 버전과 같음: 시작하면 리셋 → 기준 장소 → Click to Move 로 낚시 장소 · 인벤토리가 가득 차면 판매 장소에서 팔고 돌아옴 · 위치 · 지점은 Acrux 창 ⚙ 에서",
+        mv.addView(Ui.text(this, "시작하면 재설정 → 기준 장소 → 기록한 길로 낚시 장소 · 인벤토리가 가득 차면 판매 장소에서 팔고 돌아옴 · 전부 화면 터치 (조이스틱 · 탭) · 위치 · 길은 Acrux 창 ⚙ 에서",
                 12, Ui.MUTED, false), Ui.fill(this, 4));
         mv.addView(sw("시작할 때 낚시 장소로 이동", Hub.useMove, on -> Hub.useMove = on), Ui.fill(this, 8));
         mv.addView(sw("가득 차면 판매하러 가기", Hub.useSell, on -> Hub.useSell = on), Ui.fill(this, 4));
-        mv.addView(sw("Click to Move 우클릭 (끄면 좌클릭)", "right".equals(Hub.move.button), on -> Hub.move.button = on ? "right" : "left"), Ui.fill(this, 4));
-        mv.addView(sw("카메라 돌리기를 상대 이동으로", Hub.relDrag, on -> Hub.relDrag = on), Ui.fill(this, 4));
-        mv.addView(Ui.text(this, "내려다보기가 안 먹히면 켜 보기 (마우스 잠금 상태에서 움직임)", 12, Ui.MUTED, false));
 
         LinearLayout base = section(pg, "기준 장소 (초)");
         Mover.Cfg m = Hub.move;
@@ -460,25 +451,25 @@ public class MainActivity extends Activity {
         base.addView(num("A + W", "기본 2", m.awTime, v -> m.awTime = clamp(v, 0, 30)), Ui.fill(this, 6));
         base.addView(num("쉼", "D 누르기 전에 기다림 · 기본 0.5", m.pauseTime, v -> m.pauseTime = clamp(v, 0, 10)), Ui.fill(this, 6));
         base.addView(num("D", "기본 1", m.dTime, v -> m.dTime = clamp(v, 0, 30)), Ui.fill(this, 6));
-        base.addView(num("내려다보기 (px)", "우클릭 드래그 거리 · 기본 800", m.tiltPx, v -> m.tiltPx = (int) clamp(v, 0, 3000)), Ui.fill(this, 6));
-        base.addView(num("O 줌 아웃", "기본 2.5", m.oTime, v -> m.oTime = clamp(v, 0, 10)), Ui.fill(this, 6));
-        base.addView(num("걷기 여유", "지점마다 잰 시간에 더함 · 기본 0.3", m.margin, v -> m.margin = clamp(v, 0, 5)), Ui.fill(this, 6));
+        base.addView(num("내려다보기 (번)", "화면을 아래로 끄는 횟수 · 기본 3", m.tiltSwipes, v -> m.tiltSwipes = (int) clamp(v, 0, 10)), Ui.fill(this, 6));
+        base.addView(num("줌 아웃 (번)", "두 손가락 오므리는 횟수 · 기본 4", m.zoomPinches, v -> m.zoomPinches = (int) clamp(v, 0, 10)), Ui.fill(this, 6));
+        base.addView(num("도착 뒤 여유", "길을 다 걸은 뒤 기다림 · 기본 0.3", m.margin, v -> m.margin = clamp(v, 0, 5)), Ui.fill(this, 6));
 
         LinearLayout sell = section(pg, "판매");
         sell.addView(num("판매 최대 종류", "한 번에 파는 최대 종류 수 · 기본 100", Hub.sellMax, v -> Hub.sellMax = (int) clamp(v, 1, 500)), Ui.fill(this, 8));
         sell.addView(num("판매 클릭 추가 대기 (초)", "렉이 있으면 늘림 · 기본 0", Hub.sellDelay, v -> Hub.sellDelay = clamp(v, 0, 5)), Ui.fill(this, 8));
 
-        LinearLayout saved = section(pg, "저장된 위치 · 지점");
+        LinearLayout saved = section(pg, "저장된 위치 · 길");
         posView = Ui.text(this, "", 12, Ui.MUTED, false);
         posView.setTypeface(Typeface.MONOSPACE);
         saved.addView(posView, Ui.fill(this, 6));
-        TextView clearPos = Ui.button(this, "위치 · 지점 모두 지우기", Ui.RED, v -> {
+        TextView clearPos = Ui.button(this, "위치 · 길 모두 지우기", Ui.RED, v -> {
             Hub.pos.clear();
-            Hub.fishPts.clear();
-            Hub.sellPts.clear();
+            Hub.fishRoute = new com.acrux.mobile.core.Route();
+            Hub.sellRoute = new com.acrux.mobile.core.Route();
             Hub.save();
             Hub.changed();
-            Hub.log("위치 · 지점 모두 지움", 'd');
+            Hub.log("위치 · 길 모두 지움", 'd');
         });
         LinearLayout.LayoutParams cp = Ui.wrap();
         cp.topMargin = Ui.dp(this, 8);
@@ -734,10 +725,6 @@ public class MainActivity extends Activity {
         Ui.set(capState, cap ? "✓ 캡처 중" : "꺼짐");
         capState.setTextColor(cap ? Ui.GREEN : Ui.MUTED);
         Ui.set(capBtn, cap ? "중지" : "시작");
-        boolean shz = ShizukuPc.ready();
-        Ui.set(shzState, shz ? "✓ 연결됨" : ShizukuPc.status());
-        shzState.setTextColor(shz ? Ui.GREEN : Ui.MUTED);
-        Ui.set(shzBtn, shz ? "다시" : "연결");
 
         com.acrux.mobile.core.Settings c = Hub.cfg;
         Ui.set(calState, "대기 창: " + pos(c.panelRegion) + "  ·  미니게임 창: " + (c.reelRegion == null ? "없음" : c.reelDerived ? "대기 창으로 계산" : "있음")
@@ -751,15 +738,18 @@ public class MainActivity extends Activity {
             for (int i = 0; i < cells.length; i++) statCells[i][k].setText(cells[i]);
         }
         String mode = !Hub.running() ? "" : "cal".equals(Hub.mode) ? "자동 보정 중" : "sellcal".equals(Hub.mode) ? "판매 보정 중"
-                : "sell".equals(Hub.mode) ? "판매 중" : "run".equals(Hub.mode) ? "자동 낚시 중" : Hub.mode.startsWith("addpt") ? "지점 추가 중"
-                : Hub.mode.startsWith("measure") ? "시간 재는 중" : Hub.mode.startsWith("stick") ? "조이스틱" : "이동 테스트 중";
+                : "sell".equals(Hub.mode) ? "판매 중" : "run".equals(Hub.mode) ? "자동 낚시 중"
+                : Hub.mode.startsWith("rec_") ? "길 기록 중" : Hub.mode.startsWith("stick") ? "조이스틱" : "이동 테스트 중";
         runState.setText((mode.isEmpty() ? "" : Ui.tr(mode) + " · ") + Ui.tr(Hub.state) + stats);
 
         StringBuilder ps = new StringBuilder();
+        double[] stk = Hub.stick;
+        ps.append(stk == null ? "· " : "✓ ").append(Ui.tr("조이스틱")).append(stk == null ? "" : "  " + TapService.fmt(stk[0]) + ", " + TapService.fmt(stk[1]) + "  r " + TapService.fmt(stk[2])).append('\n');
         for (String[] k : Mover.BASE_KEYS) line(ps, Ui.tr(k[1]), Hub.pos.get(k[0]));
+        for (String[] k : Seller.TALK) line(ps, Ui.tr(k[1]), Hub.pos.get(k[0]));
         for (String[] k : Seller.KEYS) line(ps, I18n.f("{0} (판매)", Ui.tr(k[1])), Hub.pos.get(k[0]));
-        points(ps, Ui.tr("낚시 장소"), Hub.fishPts);
-        points(ps, Ui.tr("판매 장소"), Hub.sellPts);
+        route(ps, Ui.tr("낚시 장소 길"), Hub.fishRoute);
+        route(ps, Ui.tr("판매 장소 길"), Hub.sellRoute);
         posView.setText(ps.toString().trim());
 
         StringBuilder s = new StringBuilder();
@@ -774,12 +764,9 @@ public class MainActivity extends Activity {
         b.append('\n');
     }
 
-    static void points(StringBuilder b, String name, List<Mover.Point> pts) {
-        b.append(I18n.f("{0} 지점 {1}개", name, pts.size())).append('\n');
-        for (int i = 0; i < pts.size(); i++) {
-            Mover.Point p = pts.get(i);
-            b.append("  ").append(i + 1).append(".  ").append(p.pos[0]).append(", ").append(p.pos[1])
-                    .append("  ").append(p.time == null ? Ui.tr("시간 없음") : I18n.f("{0}초", TapService.fmt(p.time))).append('\n');
-        }
+    static void route(StringBuilder b, String name, com.acrux.mobile.core.Route r) {
+        b.append(r.isEmpty() ? "· " : "✓ ").append(name);
+        if (!r.isEmpty()) b.append("  ").append(I18n.f("{0}초", TapService.fmt(r.seconds()))).append(" · ").append(I18n.f("{0}조각", r.segs.size()));
+        b.append('\n');
     }
 }

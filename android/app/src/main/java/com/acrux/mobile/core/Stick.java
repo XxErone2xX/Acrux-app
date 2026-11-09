@@ -76,6 +76,20 @@ public final class Stick {
         return mn > 0 ? mn : mx < 0 ? -mx : 0;
     }
 
+    /** 안쪽이 바깥보다 밝은 원 테두리만 (손잡이는 하얀 반투명) — 8조각 중 세 번째로 약한 조각의 (안 - 밖) · 아니면 0 */
+    static double brightRing(float[] L, int w, int h, double cx, double cy, double r, double band) {
+        double ro = r * (1 + band), ri = r * (1 - band);
+        if (cx - ro < 0 || cy - ro < 0 || cx + ro >= w - 1 || cy + ro >= h - 1) return -1;
+        double[] sec = new double[SECT];
+        for (int i = 0; i < ANG; i++) {
+            double c = COS[i], s = SIN[i];
+            sec[i * SECT / ANG] += L[(int) (cy + s * ri) * w + (int) (cx + c * ri)] - L[(int) (cy + s * ro) * w + (int) (cx + c * ro)];
+        }
+        // 손가락이 손잡이 일부를 가림 → 가장 약한 2조각은 빼고 그다음으로 약한 조각
+        java.util.Arrays.sort(sec);
+        return Math.max(0, sec[2] / ((double) ANG / SECT));
+    }
+
     /** 조이스틱다운 정도: 바깥 판(r) 테두리 + 가운데 손잡이(약 r/2) 테두리가 둘 다 있어야 함 (네모난 무늬 · 손잡이만 · 다른 동그라미를 거름) */
     static double score(float[] L, int w, int h, double cx, double cy, double r) {
         double outer = ring(L, w, h, cx, cy, r);
@@ -157,6 +171,42 @@ public final class Stick {
             }
         }
         return f.score >= minScore ? f : null;
+    }
+
+    /**
+     * 조이스틱 손잡이가 가운데에서 얼마나 밀렸나 — im: 조이스틱 둘레를 잘라 온 화면 · (cx, cy): 그 안의 판 가운데 · r: 판 반지름 (px)
+     * 반지름 r/2 인 손잡이 테두리를 판 안(가운데에서 1.1r 까지) 에서 찾음 → {dx, dy} (반지름 단위 · 길이 1 = 끝까지) · 못 찾으면 null
+     */
+    public static double[] knob(Img im, double cx, double cy, double r) {
+        if (im == null || im.w < 8 || im.h < 8 || r < 4) return null;
+        float[] L = lum(im, 1);
+        double kr = r * 0.5, lim = r * 1.1, st = Math.max(1, r / 20);
+        double best = 0, bx = 0, by = 0;
+        for (double oy = -lim; oy <= lim; oy += st) {
+            for (double ox = -lim; ox <= lim; ox += st) {
+                if (ox * ox + oy * oy > lim * lim) continue;
+                double s = brightRing(L, im.w, im.h, cx + ox, cy + oy, kr, 0.2);
+                if (s > best) {
+                    best = s;
+                    bx = ox;
+                    by = oy;
+                }
+            }
+        }
+        if (best <= 0) return null;
+        // 근처를 1px 단위로 다듬기
+        double fx = bx, fy = by;
+        for (double oy = by - st; oy <= by + st; oy += 1) {
+            for (double ox = bx - st; ox <= bx + st; ox += 1) {
+                double s = brightRing(L, im.w, im.h, cx + ox, cy + oy, kr, 0.2);
+                if (s > best) {
+                    best = s;
+                    fx = ox;
+                    fy = oy;
+                }
+            }
+        }
+        return new double[]{fx / r, fy / r, best};
     }
 
     /** WASD → 조이스틱 방향 (단위 벡터 · 화면 좌표: 오른쪽 +x, 아래 +y) · 아무것도 안 눌렸으면 null */
