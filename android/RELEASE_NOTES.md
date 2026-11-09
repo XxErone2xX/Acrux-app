@@ -1,3 +1,31 @@
+## Acrux Mobile V0.11.0 업데이트
+- **길 기록을 Acrux 조이스틱으로 (화면 감지 없이 · 오차 없음)**
+  - 길 기록을 시작하면 (기준 장소에 간 뒤) 화면에 초록 **Acrux 조이스틱** · 주황 **점프 버튼** 이 뜸
+  - 그걸로 조작하면 손가락 움직임을 그대로 받아서 → 로블록스 조이스틱 · 점프 버튼에 대신 눌러 주면서 저장
+  - 로블록스 조이스틱 그림을 읽지 않으니 배경 · 겹친 UI · 화질과 상관없이 정확 · 꾹 누르기 · 동시에 누르기도 됨
+  - 조이스틱은 판 안 아무 데나 누른 자리가 가운데 (판 반지름만큼 끌면 끝까지)
+- **다시 걸을 때 화면을 보면서 길을 따라감 (어긋나도 스스로 돌아옴)**
+  - 기록할 때 프레임마다 바닥이 밀린 만큼으로 캐릭터 위치를 재서 '위치 길' 도 같이 저장
+  - 다시 걸을 때 지금 위치 → 길의 조금 앞 점을 향해 조이스틱을 계속 고쳐 밂 · 시간 대신 '길에서 어디까지 왔나' 로 따라감
+  - 렉 · 속도 차이 · 부딪힘에도 덜 어긋남 (시험: 속도 ±20~30% · 반응 늦음 · 방향 8° 틀어짐에서 끝 위치 오차 시간대로 54 ~ 308px → 따라가기 9 ~ 39px)
+  - 점프는 기록 때 누른 자리를 지날 때 누르고 뗀 자리에서 뗌
+  - 바닥이 단색이라 위치를 못 재는 순간은 그 자리에서 기록한 조이스틱 방향 그대로
+- 예전에 기록한 길은 예전처럼 시간대로 다시 걸음 — 따라가기를 쓰려면 길을 다시 기록
+
+## Acrux Mobile V0.11.0 Update
+- **Route recording now uses the Acrux joystick (no screen detection · no error)**
+  - When recording starts (after reaching the base spot), a green **Acrux joystick** and an orange **jump button** appear
+  - Your finger movement on them is taken directly and pressed on the Roblox joystick and jump button for you while recording
+  - The Roblox joystick image is not read, so it is exact regardless of background, overlapping UI or quality · holds and simultaneous presses work
+  - Wherever you press inside the pad becomes the center (drag one radius for full)
+- **Replay follows the route while watching the screen (returns to the route when it drifts)**
+  - While recording, the character position is measured each frame from how far the ground moved, and a "position route" is saved too
+  - On replay the joystick keeps steering toward a point slightly ahead on the route · it follows "how far along the route" instead of timing
+  - Much less drift from lag, speed differences and bumps (test: speed ±20-30% · slow response · 8° direction offset gave end errors of 54-308px with timing → 9-39px with following)
+  - Jumps are pressed where they were pressed while recording and released where they were released
+  - Moments when the position cannot be measured (plain floor) use the joystick direction recorded at that spot
+- Routes recorded before replay by timing as before — record them again to use following
+
 ## Acrux Mobile V0.10.16 업데이트
 - **도감을 열 때 'Loading Assets...' 때문에 [Exit] 가 씹히던 것 고침**
   - 도감 버튼을 누른 뒤 화면 글자를 읽어서: 도감이 열렸는지 ([Exit] · Collections) · 가운데 'Loading Assets' 가 사라졌는지 확인한 뒤에 [Exit]

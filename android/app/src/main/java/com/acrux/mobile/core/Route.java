@@ -33,6 +33,38 @@ public final class Route {
 
     public final List<Seg> segs = new ArrayList<>();
 
+    /**
+     * 길 위치 (화면을 보고 잰 캐릭터 위치 · Odo) — 다시 걸을 때 이 길을 따라가며 어긋난 걸 고침
+     * 한 점: {시각, x, y, 점프 (1 누름 · 2 뗌 · 3 둘 다), 그때 조이스틱 dx, dy}
+     */
+    public final List<double[]> pts = new ArrayList<>();
+    /** 조이스틱 방향 → 실제로 움직인 방향 사이 각도 (라디안 · 기록에서 잼) */
+    public double theta;
+
+    /** 위치 길이 있고 쓸 만한가 (충분히 움직였음) */
+    public boolean hasPath() {
+        if (pts.size() < 5) return false;
+        double len = 0;
+        for (int i = 1; i < pts.size(); i++) len += Math.hypot(pts.get(i)[1] - pts.get(i - 1)[1], pts.get(i)[2] - pts.get(i - 1)[2]);
+        return len >= 40;
+    }
+
+    /** 조이스틱 방향과 실제 움직임 방향 사이 각도 맞추기 (원형 평균) */
+    public void fitTheta() {
+        double sx = 0, sy = 0;
+        int n = 0;
+        for (int i = 1; i < pts.size(); i++) {
+            double[] a = pts.get(i - 1), b = pts.get(i);
+            double vx = b[1] - a[1], vy = b[2] - a[2], dt = b[0] - a[0];
+            if (dt <= 0 || Math.hypot(vx, vy) / dt < 30 || Math.hypot(a[4], a[5]) < 0.6) continue;
+            double d = Math.atan2(vy, vx) - Math.atan2(a[5], a[4]);
+            sx += Math.cos(d);
+            sy += Math.sin(d);
+            n++;
+        }
+        theta = n >= 5 && Math.hypot(sx, sy) / n > 0.6 ? Math.atan2(sy, sx) : 0;
+    }
+
     public boolean isEmpty() {
         return segs.isEmpty();
     }
@@ -67,7 +99,31 @@ public final class Route {
     /** 기록기: add(시각 초, 방향) 를 프레임마다 → done() */
     public static final class Recorder {
         final Route r = new Route();
+        /** 정확한 입력 (Acrux 조이스틱) — 방향을 1도 · 길이 0.05 단위로 · 흔들림 막기 없음 */
+        final boolean exact;
         double lastT = -1;
+
+        public Recorder() {
+            this(false);
+        }
+
+        public Recorder(boolean exact) {
+            this.exact = exact;
+        }
+
+        /** 정확한 입력 맞추기 */
+        static double[] fine(double[] v) {
+            if (v == null) return new double[]{0, 0};
+            double m = Math.min(1, Math.hypot(v[0], v[1]));
+            if (m < 0.15) return new double[]{0, 0};
+            m = m >= 0.95 ? 1 : Math.round(m * 20) / 20.0;
+            double a = Math.toRadians(Math.round(Math.toDegrees(Math.atan2(v[1], v[0]))));
+            return new double[]{r3(Math.cos(a) * m), r3(Math.sin(a) * m)};
+        }
+
+        public Route route() {
+            return r;
+        }
         double[] lastV;
         boolean lastJump, lastUp;
 
@@ -81,9 +137,9 @@ public final class Route {
 
         /** jump: 이 프레임에 점프 버튼이 막 눌림 · up: 막 뗌 */
         public void add(double t, double[] v, boolean jump, boolean up) {
-            double[] q = quant(v);
+            double[] q = exact ? fine(v) : quant(v);
             // 흔들림 막기: 방금 방향과 10도 · 길이 0.25 안쪽이면 방금 방향 그대로 (손가락은 그대로인데 읽은 값만 조금 튀는 것)
-            if (lastV != null && !(q[0] == 0 && q[1] == 0) && !(lastV[0] == 0 && lastV[1] == 0)) {
+            if (!exact && lastV != null && !(q[0] == 0 && q[1] == 0) && !(lastV[0] == 0 && lastV[1] == 0)) {
                 double da = Math.abs(Math.atan2(q[1], q[0]) - Math.atan2(lastV[1], lastV[0]));
                 if (da > Math.PI) da = 2 * Math.PI - da;
                 if (Math.toDegrees(da) <= 10 && Math.abs(Math.hypot(q[0], q[1]) - Math.hypot(lastV[0], lastV[1])) <= 0.25) q = lastV;
@@ -127,6 +183,7 @@ public final class Route {
                 }
             }
             for (Seg g : s) g.sec = Math.round(g.sec * 1000) / 1000.0;
+            if (!r.pts.isEmpty()) r.fitTheta();
             return r;
         }
     }
@@ -147,12 +204,37 @@ public final class Route {
             b.append(String.format(Locale.ROOT, "%s,%s,%s", g.dx, g.dy, g.sec));
             if (g.jump || g.jumpUp) b.append(',').append(g.jump ? "j" : "").append(g.jumpUp ? "u" : "");
         }
+        // 위치 길: "#각도#t:x:y:f:dx:dy,..."
+        if (!pts.isEmpty()) {
+            b.append('#').append(String.format(Locale.ROOT, "%.4f", theta)).append('#');
+            for (int i = 0; i < pts.size(); i++) {
+                double[] p = pts.get(i);
+                if (i > 0) b.append(',');
+                b.append(String.format(Locale.ROOT, "%.2f:%.1f:%.1f:%d:%.2f:%.2f", p[0], p[1], p[2], (int) p[3], p[4], p[5]));
+            }
+        }
         return b.toString();
     }
 
     public static Route load(String s) {
         Route r = new Route();
         if (s == null || s.isEmpty()) return r;
+        String[] parts = s.split("#");
+        s = parts[0];
+        if (parts.length >= 3) {
+            try {
+                r.theta = Double.parseDouble(parts[1]);
+                for (String p : parts[2].split(",")) {
+                    String[] v = p.split(":");
+                    if (v.length < 6) continue;
+                    double[] q = new double[6];
+                    for (int i = 0; i < 6; i++) q[i] = Double.parseDouble(v[i]);
+                    r.pts.add(q);
+                }
+            } catch (NumberFormatException e) {
+                r.pts.clear();
+            }
+        }
         for (String p : s.split(";")) {
             String[] v = p.split(",");
             if (v.length < 3) continue;

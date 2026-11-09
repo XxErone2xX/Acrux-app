@@ -498,7 +498,7 @@ public class TapService extends AccessibilityService {
         String name = sell ? "물고기 판매 장소" : "낚시 장소";
         menu.addView(head(name + " 길"));
         menu.addView(item(r.isEmpty() ? "· 기록 없음" : "✓ 기록됨 · " + fmt(r.seconds()) + "초 · " + r.segs.size() + "조각 · 점프 " + r.jumps() + "번", null));
-        menu.addView(item((r.isEmpty() ? "● 길 기록" : "● 다시 기록") + " (기준 장소로 간 뒤 직접 걸어감 → [도착])", v -> toggle(sell ? "rec_sell" : "rec_fish")));
+        menu.addView(item((r.isEmpty() ? "● 길 기록" : "● 다시 기록") + " (기준 장소로 간 뒤 Acrux 조이스틱으로 걸어감 → [도착])", v -> toggle(sell ? "rec_sell" : "rec_fish")));
     }
 
     TextView head(String s) {

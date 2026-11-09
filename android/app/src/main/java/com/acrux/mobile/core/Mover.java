@@ -277,6 +277,11 @@ public final class Mover {
         out.state(name + " 가는 중 (" + Math.round(r.seconds()) + "초)");
         int[] jp = r.jumps() > 0 ? jumpPos() : null;
         if (r.jumps() > 0 && jp == null) out.log("점프 버튼 위치가 없어서 길의 점프는 건너뜀 (Acrux 창 → ⚙ → 점프 버튼)", 'y');
+        if (r.hasPath()) {
+            follow(name, r, jp);
+            sleep(cfg.margin);
+            return;
+        }
         // V0.10.13 전에 기록한 길은 '뗌' 이 없음 → 점프는 전부 톡 누르기로
         boolean legacy = true;
         for (Route.Seg g : r.segs) if (g.jumpUp) legacy = false;
@@ -301,6 +306,194 @@ public final class Mover {
             if (jp != null) touch.jumpUp();
         }
         sleep(cfg.margin);
+    }
+
+    // ---- 2-1. 화면을 보면서 길 따라가기 (어긋나도 스스로 길로 돌아옴)
+    /** 도착으로 보는 거리 (화면 px) · 앞을 보는 거리 · 길에서 이만큼 벗어나도 진행으로 봄 */
+    static final double FOLLOW_DONE = 14, LOOKAHEAD = 45;
+
+    /**
+     * 기록한 위치 길(Route.pts) 을 따라감 — 프레임마다 화면으로 캐릭터 위치를 재고(Odo) → 길의 '앞쪽 점' 을 향해 조이스틱을 고쳐 밂
+     *  · 렉 · 부딪힘 · 프레임 밀림으로 늦거나 빨라도 시간 대신 '길에서 어디까지 왔나' 로 따라감
+     *  · 점프는 기록 때 그 점프를 누른 자리를 지날 때 누르고 · 뗀 자리에서 뗌
+     *  · 화면으로 위치를 못 재는 순간 (단색 바닥 · 물) 은 그 자리에서 기록한 조이스틱 방향 그대로
+     *  · 너무 오래 걸리면 (기록 시간 × 2 + 8초) 멈추고 이어서 진행
+     */
+    void follow(String name, Route r, int[] jp) {
+        Odo odo = new Odo(scr);
+        odo.step();
+        List<double[]> P = r.pts;
+        int last = P.size() - 1, k = 0, fired = -1;
+        double t0 = now(), limit = (P.get(last)[0] - P.get(0)[0]) * 2 + 8;
+        double c = Math.cos(-r.theta), sn = Math.sin(-r.theta);
+        int lost = 0, frames = 0;
+        boolean jumpHeld = false;
+        out.log(name + " 길 따라가기 (화면 보면서 · " + P.size() + "점)", 'd');
+        try {
+            while (true) {
+                check.run();
+                boolean seen = odo.step();
+                frames++;
+                if (!seen) lost++;
+                double x = odo.x, y = odo.y;
+                // 길에서 어디까지 왔나: 지금 자리 ~ 40점 앞까지 중 가장 가까운 점 (뒤로는 안 감)
+                int bk = k;
+                double bd = Double.MAX_VALUE;
+                for (int j = k; j <= Math.min(last, k + 40); j++) {
+                    double d = Math.hypot(P.get(j)[1] - x, P.get(j)[2] - y);
+                    if (d <= bd + 0.5) {                        // 거의 같으면 더 앞 점 (같은 자리에 선 점들)
+                        bd = d;
+                        bk = j;
+                    }
+                }
+                k = bk;
+                // 지나온 점들의 점프
+                for (int j = fired + 1; j <= k; j++) {
+                    int f = (int) P.get(j)[3];
+                    if (jp == null || f == 0) continue;
+                    if ((f & 1) != 0) {
+                        touch.jumpDown(jp[0], jp[1]);
+                        jumpHeld = true;
+                    }
+                    if ((f & 2) != 0) {
+                        if ((f & 1) != 0) sleep(0.1);
+                        touch.jumpUp();
+                        jumpHeld = false;
+                    }
+                }
+                fired = Math.max(fired, k);
+                if (k >= last && bd <= FOLLOW_DONE) break;
+                if (now() - t0 > limit) {
+                    out.log(name + " 길 따라가기가 너무 오래 걸림 — 여기서 멈춤 (" + k + "/" + last + "점)", 'y');
+                    break;
+                }
+                double[] v;
+                if (seen) {
+                    // 앞을 보는 점: 지금 점에서 길을 따라 LOOKAHEAD 만큼 앞 (마지막 근처면 마지막 점)
+                    int j = k;
+                    double acc = 0;
+                    while (j < last && acc < LOOKAHEAD) {
+                        acc += Math.hypot(P.get(j + 1)[1] - P.get(j)[1], P.get(j + 1)[2] - P.get(j)[2]);
+                        j++;
+                    }
+                    double tx = P.get(j)[1] - x, ty = P.get(j)[2] - y, d = Math.hypot(tx, ty);
+                    if (d < 1) {
+                        v = null;
+                    } else {
+                        double ux = tx / d, uy = ty / d;
+                        // 움직임 방향 → 조이스틱 방향 (기록에서 잰 각도만큼 되돌림)
+                        double jx = ux * c - uy * sn, jy = ux * sn + uy * c;
+                        double rec = Math.hypot(P.get(k)[4], P.get(k)[5]);
+                        double m = k >= last - 1 ? Math.max(0.5, Math.min(1, d / 30)) : Math.max(0.6, Math.min(1, rec < 0.15 ? 1 : rec));
+                        v = new double[]{jx * m, jy * m};
+                    }
+                } else {
+                    double[] p = P.get(Math.min(last, k + 1));
+                    v = Math.hypot(p[4], p[5]) < 0.15 ? null : new double[]{p[4], p[5]};
+                }
+                touch.stick(v);
+                sleep(0.03);
+            }
+        } finally {
+            touch.stick(null);
+            if (jumpHeld || jp != null) touch.jumpUp();
+        }
+        out.log(name + " 길 따라가기 끝 (" + Math.round((now() - t0) * 10) / 10.0 + "초 · 화면 못 읽은 프레임 " + lost + "/" + frames + ")", 'd');
+    }
+
+    // ---- 3-1. Acrux 조이스틱으로 길 기록 (화면 감지 없음 · 손가락 좌표를 그대로)
+    /** 기록용 조이스틱 · 점프 버튼 (안드로이드 쪽 화면) */
+    public interface Pad {
+        /** 지금 조이스틱 방향 (길이 0 ~ 1 · 손가락 뗐으면 null) */
+        double[] stick();
+
+        /** 그 사이 점프 눌림 · 뗌 (+1 · -1) 하나씩 꺼냄 · 없으면 0 */
+        int pollJump();
+
+        void show();
+
+        void hide();
+    }
+
+    /**
+     * 기준 장소로 간 뒤 Acrux 조이스틱 · 점프 버튼을 띄움 → 플레이어가 그걸로 걸어가면 그대로 로블록스에 전하면서 저장
+     *  · 조이스틱 입력: 손가락 좌표 그대로 (오차 없음)
+     *  · 위치 길: 프레임마다 화면으로 캐릭터 위치를 잼 (다시 걸을 때 어긋남을 고치는 데 씀)
+     */
+    public Route recordPad(String name, Pad pad, BooleanSupplier arrived) {
+        if (touch.stickAt() == null) throw new RuntimeException("먼저 조이스틱 찾기 (Acrux 창 → ⚙ → 조이스틱 찾기)");
+        goBase();
+        Odo odo = new Odo(scr);
+        odo.step();
+        Route.Recorder rec = new Route.Recorder(true);
+        List<double[]> pts = rec.route().pts;
+        int[] jp = jumpPos();
+        out.state(name + " 길 기록 중 — Acrux 조이스틱으로 걸어가서 도착하면 [도착]");
+        out.log(name + " 길 기록 시작 — 화면에 뜬 Acrux 조이스틱 · 점프 버튼으로 조작하세요 · 도착하면 [도착]", 'c');
+        double t0 = now(), lastPt = -1;
+        int jumps = 0, frames = 0, seen = 0;
+        boolean down = false;
+        pad.show();
+        try {
+            while (!arrived.getAsBoolean()) {
+                check.run();
+                double t = now() - t0;
+                if (t > RECORD_MAX) throw new RuntimeException((int) RECORD_MAX + "초 안에 [도착]을 안 누름 — 기록 취소");
+                double[] v = pad.stick();
+                boolean jd = false, ju = false;
+                int ev;
+                while ((ev = pad.pollJump()) != 0) {
+                    if (ev > 0) {
+                        jd = true;
+                        jumps++;
+                        down = true;
+                    } else {
+                        ju = true;
+                        down = false;
+                    }
+                }
+                if (jp != null) {
+                    if (jd) touch.jumpDown(jp[0], jp[1]);
+                    if (ju && !(jd && down)) touch.jumpUp();
+                }
+                touch.stick(v);
+                frames++;
+                if (odo.step()) seen++;
+                rec.add(t, v, jd, ju);
+                if (jd || ju || t - lastPt >= 0.08) {
+                    pts.add(new double[]{t, odo.x, odo.y, (jd ? 1 : 0) | (ju ? 2 : 0), v == null ? 0 : v[0], v == null ? 0 : v[1]});
+                    lastPt = t;
+                }
+                Touch.nap(15);
+            }
+        } finally {
+            pad.hide();
+            touch.stick(null);
+            touch.jumpUp();
+        }
+        double te = now() - t0;
+        rec.add(te, null, false, down);
+        pts.add(new double[]{te, odo.x, odo.y, down ? 2 : 0, 0, 0});
+        trimPts(pts);
+        Route r = rec.done();
+        out.log(name + " 길 기록 끝: " + r.segs.size() + "조각 · " + Math.round(r.seconds() * 10) / 10.0 + "초 · 점프 " + jumps + "번 · 위치 " + pts.size() + "점 (화면으로 잰 프레임 "
+                + seen + "/" + frames + " · 각도 " + Math.round(Math.toDegrees(r.theta)) + "°)", r.isEmpty() ? 'y' : 'g');
+        if (r.isEmpty()) throw new RuntimeException("움직임이 없음 — Acrux 조이스틱을 끌어서 걸어 주세요");
+        if (!r.hasPath()) out.log("화면으로 위치를 잘 못 재서 (단색 바닥 · 너무 짧은 길) 다시 걸을 때는 시간대로만 감", 'y');
+        return r;
+    }
+
+    /** 위치 길 앞뒤의 안 움직인 부분 빼기 (점프 표시는 남김) */
+    static void trimPts(List<double[]> p) {
+        while (p.size() > 2 && p.get(0)[3] == 0 && Math.hypot(p.get(1)[1] - p.get(0)[1], p.get(1)[2] - p.get(0)[2]) < 0.5
+                && Math.hypot(p.get(0)[4], p.get(0)[5]) < 0.15) p.remove(0);
+        // 끝에 멈춰 서 있던 점들 (점프 표시 없는 것) 은 하나만 남김
+        while (p.size() > 2) {
+            double[] a = p.get(p.size() - 2), b = p.get(p.size() - 1);
+            if (a[3] != 0 || Math.hypot(b[1] - a[1], b[2] - a[2]) >= 0.5 || Math.hypot(a[4], a[5]) >= 0.15) break;
+            b[0] = a[0];
+            p.remove(p.size() - 2);
+        }
     }
 
     /** 점프 버튼 한가운데 (px) — ⚙ 에서 찍은 자리 근처를 화면에서 다시 맞춤 · 위치가 없으면 null */
