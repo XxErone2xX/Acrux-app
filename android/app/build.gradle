@@ -1,4 +1,3 @@
-// 빌드 다시 돌리기 (2026-11-09)
 plugins {
     id "com.android.application"
 }

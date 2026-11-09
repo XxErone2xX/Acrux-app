@@ -235,7 +235,6 @@ E = [
     ['먼저 조이스틱 찾기 (로블록스 설정 → 이동 방식: 조이스틱 · ⚙ → 조이스틱 찾기)', 'Find the joystick first (Roblox settings → Movement mode: Thumbstick · ⚙ → Find joystick)', '先にジョイスティックを探す (Roblox 設定 → 移動方式: サムスティック · ⚙ → ジョイスティックを探す)'],
     ['이동 · 판매는 조이스틱 찾기 또는 Shizuku 연결이 필요함 — ⚙ → 조이스틱 찾기', 'Moving · selling needs the joystick found or Shizuku — ⚙ → Find joystick', '移動 · 販売にはジョイスティック検出か Shizuku が必要 — ⚙ → ジョイスティックを探す'],
     ["'{0}' 키는 아직 터치로 못 보냄 (Shizuku 필요) — 건너뜀", "Can't send the '{0}' key by touch yet (needs Shizuku) — skipped", "'{0}' キーはまだタッチで送れない (Shizuku 必要) — スキップ"],
-    ['5. 이동 · 판매 (Shizuku 필요 · PC 와 같음): ⚙ → 공통 위치 3개 → 낚시 장소 · 판매 장소 지점 추가 → 판매 자동 보정', '5. Moving · selling (needs Shizuku · same as PC): ⚙ → 3 common positions → add fishing / sell spot points → sell auto calibration', '5. 移動 · 販売 (Shizuku 必要 · PC と同じ): ⚙ → 共通位置 3つ → 釣り場 · 販売場所の地点追加 → 販売自動キャリブ'],
     ['기준 장소로 이동 · 카메라 정렬 (도감)', 'To the base spot · camera align (collection)', '基準地点へ移動 · カメラ合わせ (図鑑)'],
     ['판매 · 카메라 정렬 (도감)', 'Selling · camera align (collection)', '販売 · カメラ合わせ (図鑑)'],
     ['기준 장소로 이동 · 걷기 (W → W+A → A → W → S+D)', 'To the base spot · walking (W → W+A → A → W → S+D)', '基準地点へ移動 · 歩き (W → W+A → A → W → S+D)'],
