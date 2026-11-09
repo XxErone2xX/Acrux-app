@@ -34,6 +34,9 @@ final class Hub {
     static final List<Mover.Point> fishPts = new CopyOnWriteArrayList<>(), sellPts = new CopyOnWriteArrayList<>();
     static boolean autoUpdate = true;
     static boolean useMove = true, useSell = true, relDrag = false;
+    /** 로블록스 클래식 조이스틱 {가운데 x / 화면 너비, 가운데 y / 화면 높이, 반지름 / 화면 높이} (못 찾았으면 null) · W A S D 를 조이스틱 터치로 */
+    static volatile double[] stick;
+    static boolean useStick = true;
     static int sellMax = 100;
     static double sellDelay = 0;
 
@@ -233,10 +236,14 @@ final class Hub {
         CaptureService cap = CaptureService.active;
         if (cap == null) return "앱에서 [화면 캡처 시작]을 먼저 눌러야 함";
         if (m.equals("run") && !cfg.ready()) return "먼저 [보정]을 해야 함 (낚시 자리에서 Fish 버튼이 보일 때)";
-        Pc pc = ShizukuPc.ready() ? new ShizukuPc(relDrag) : null;
-        boolean needKeys = !m.equals("run") && !m.equals("cal");
-        if (needKeys && pc == null) return "이동 · 판매는 Shizuku 연결이 필요함 (키보드 · 마우스 입력) — 앱 → ③ Shizuku";
-        Fisher f = new Fisher(cap, fishInput(pc), OUT, cfg);
+        Pc shz = ShizukuPc.ready() ? new ShizukuPc(relDrag) : null;
+        double[] st = stick;
+        // W A S D 는 조이스틱 터치로 (조이스틱을 찾아 뒀으면) · 나머지 키 · 마우스는 Shizuku
+        Pc pc = useStick && st != null ? new StickPc(shz, st, cap.width(), cap.height()) : shz;
+        if (m.equals("sticktest") && st == null) return "먼저 조이스틱 찾기 (로블록스 설정 → 이동 방식: 조이스틱 · ⚙ → 조이스틱 찾기)";
+        boolean needKeys = !m.equals("run") && !m.equals("cal") && !m.startsWith("stick");
+        if (needKeys && pc == null) return "이동 · 판매는 조이스틱 찾기 또는 Shizuku 연결이 필요함 — ⚙ → 조이스틱 찾기";
+        Fisher f = new Fisher(cap, fishInput(shz), OUT, cfg);
         Mover mv = pc != null ? new Mover(cap, pc, new MlOcr(), pos, move, OUT, CHECK) : null;
         if (mv != null) mv.touch = fishInput(null);         // 재설정 · 도감 버튼은 손가락 탭으로
         Seller sl = mv != null ? seller(cap, mv, pc) : null;
@@ -277,6 +284,8 @@ final class Hub {
                     Pc.nap(20);
                 }
                 if (m.equals("keytest")) keyTest(pc);
+                else if (m.equals("stickfind")) stickFind(cap);
+                else if (m.equals("sticktest")) stickTest(new StickPc(null, st, cap.width(), cap.height()));
                 else work(m, f, mv, sl);
             } catch (Fisher.Stopped e) {
                 log("멈춤", 'd');
@@ -293,6 +302,8 @@ final class Hub {
                 Crash.save(e, "worker");
             } finally {
                 if (mv != null) mv.releaseKeys();
+                if (pc instanceof StickPc) ((StickPc) pc).releaseAll();
+                if (m.startsWith("stick")) Joy.set(null);
                 measuring = false;
                 mode = "";
                 state = lastError != null ? "멈춤 — " + lastError : "대기";     // 멈춘 이유를 떠 있는 창에도
@@ -332,6 +343,51 @@ final class Hub {
         String km = ShizukuPc.keyMode();
         log("키 테스트: W 1초 보냄 — 캐릭터가 앞으로 갔으면 Shizuku 키 입력이 됨", 'g');
         log(km.startsWith("uhid") ? "키보드: 진짜 키보드 장치(Acrux Keyboard)로 보냄" : "키보드: 키보드 장치를 못 만듦 → 입력 주입으로 보냄 · " + km, km.startsWith("uhid") ? 'd' : 'y');
+    }
+
+    /** 조이스틱 찾기: 지금 화면에서 왼쪽 아래 둥근 조이스틱을 찾아 저장 · 찾은 자리에 원을 잠깐 그려 줌 */
+    static void stickFind(CaptureService cap) {
+        state = "조이스틱 찾는 중";
+        changed();
+        int w = cap.width(), h = cap.height();
+        com.acrux.mobile.core.Img im = cap.grab(0, 0, w, h);
+        if (im == null) throw new RuntimeException("화면을 아직 못 받음 — 잠깐 뒤 다시");
+        com.acrux.mobile.core.Stick.Found fd = com.acrux.mobile.core.Stick.find(im, 20);
+        if (fd == null)
+            throw new RuntimeException("조이스틱을 못 찾음 — 로블록스 설정에서 이동 방식을 '조이스틱'(클래식)으로 바꾸고, 조이스틱이 보일 때 다시 (안 되면 ⚙ → 조이스틱 직접 지정)");
+        double sx = (double) w / im.w, sy = (double) h / im.h;
+        stick = new double[]{fd.cx * sx / w, fd.cy * sy / h, fd.r * sy / h};
+        save();
+        log("조이스틱 찾음: 가운데 (" + Math.round(fd.cx * sx) + ", " + Math.round(fd.cy * sy) + ") · 반지름 " + Math.round(fd.r * sy) + "px · 점수 " + Math.round(fd.score), 'g');
+        showStick(3000);
+    }
+
+    /** 저장된 조이스틱 자리에 원을 잠깐 그려 줌 (맞게 찾았는지 눈으로 확인) */
+    static void showStick(long ms) {
+        double[] st = stick;
+        main.post(() -> {
+            TapService t = TapService.instance;
+            if (t != null && st != null) t.showRing(st, ms);
+        });
+    }
+
+    /** 조이스틱 테스트: W → A → S → D 를 0.8초씩 (조이스틱을 위 · 왼쪽 · 아래 · 오른쪽으로) */
+    static void stickTest(StickPc sp) {
+        showStick(1500);
+        for (String k : new String[]{"w", "a", "s", "d"}) {
+            state = "조이스틱 테스트 — " + k.toUpperCase();
+            changed();
+            sp.keyDown(k);
+            long end = System.nanoTime() + 800_000_000L;
+            while (System.nanoTime() < end) {
+                CHECK.run();
+                Pc.nap(20);
+            }
+            sp.keyUp(k);
+            Pc.nap(400);
+        }
+        sp.releaseAll();
+        log("조이스틱 테스트: W · A · S · D 0.8초씩 보냄 — 캐릭터가 앞 · 왼쪽 · 뒤 · 오른쪽으로 갔으면 성공", 'g');
     }
 
     static void work(String m, Fisher f, Mover mv, Seller sl) {
@@ -556,6 +612,9 @@ final class Hub {
         move.margin = p.getFloat("m_margin", (float) move.margin);
         move.tiltPx = p.getInt("m_tilt_px", move.tiltPx);
         move.button = p.getString("m_button", move.button);
+        stick = arr(p.getString("stick", ""));
+        if (stick != null && stick.length != 3) stick = null;
+        useStick = p.getBoolean("useStick", true);
         pos.clear();
         for (String kv : p.getString("pos", "").split(";")) {
             int e = kv.indexOf('=');
@@ -589,6 +648,7 @@ final class Hub {
                 .putFloat("m_o_time", (float) move.oTime).putFloat("m_margin", (float) move.margin)
                 .putInt("m_tilt_px", move.tiltPx).putString("m_button", move.button)
                 .putString("pos", ps.toString())
+                .putString("stick", stick == null ? "" : arr(stick)).putBoolean("useStick", useStick)
                 .putString("fishPts", pts(fishPts)).putString("sellPts", pts(sellPts))
                 .apply();
     }

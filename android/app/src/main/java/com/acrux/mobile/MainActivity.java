@@ -749,7 +749,7 @@ public class MainActivity extends Activity {
         }
         String mode = !Hub.running() ? "" : "cal".equals(Hub.mode) ? "자동 보정 중" : "sellcal".equals(Hub.mode) ? "판매 보정 중"
                 : "sell".equals(Hub.mode) ? "판매 중" : "run".equals(Hub.mode) ? "자동 낚시 중" : Hub.mode.startsWith("addpt") ? "지점 추가 중"
-                : Hub.mode.startsWith("measure") ? "시간 재는 중" : "이동 테스트 중";
+                : Hub.mode.startsWith("measure") ? "시간 재는 중" : Hub.mode.startsWith("stick") ? "조이스틱" : "이동 테스트 중";
         runState.setText((mode.isEmpty() ? "" : Ui.tr(mode) + " · ") + Ui.tr(Hub.state) + stats);
 
         StringBuilder ps = new StringBuilder();

@@ -413,6 +413,14 @@ public class TapService extends AccessibilityService {
         }
         menu = new LinearLayout(this);
         menu.setOrientation(LinearLayout.VERTICAL);
+        menu.addView(head("조이스틱 (W · A · S · D)"));
+        menu.addView(item(Hub.stick != null ? "✓ 조이스틱 저장됨 (눌러서 위치 보기)" : "· 조이스틱 없음 — 로블록스 설정 → 이동 방식: 조이스틱", Hub.stick != null ? v -> {
+            closeMenu();
+            Hub.showStick(2500);
+        } : null));
+        menu.addView(item("조이스틱 찾기 (화면에서 자동으로)", v -> toggle("stickfind")));
+        menu.addView(item("조이스틱 직접 지정 (가운데 → 가장자리)", v -> pickStick()));
+        menu.addView(item("조이스틱 테스트 (W · A · S · D 0.8초씩)", v -> toggle("sticktest")));
         menu.addView(head("Shizuku (키보드 · 마우스)"));
         menu.addView(item(ShizukuPc.ready() ? "✓ 연결됨" : "· " + ShizukuPc.status() + " — 눌러서 연결", v -> {
             closeMenu();
@@ -483,6 +491,61 @@ public class TapService extends AccessibilityService {
             Hub.save();
             Hub.log("'" + label + "' 위치 저장 (" + at[0] + ", " + at[1] + ")", 'g');
         });
+    }
+
+    /** 조이스틱 직접 지정: 가운데를 누르고 → 바깥 판 가장자리를 누름 */
+    void pickStick() {
+        pick("조이스틱 가운데", c -> {
+            if (c == null) return;
+            Hub.main.post(() -> pick("조이스틱 바깥 판 가장자리", e -> {
+                if (e == null) return;
+                int[] s = screen();
+                double r = Math.hypot((e[0] - c[0]) * s[0], (e[1] - c[1]) * s[1]);
+                if (r < 5) {
+                    Hub.log("가운데와 가장자리가 너무 가까움 — 다시", 'y');
+                    return;
+                }
+                Hub.stick = new double[]{c[0], c[1], r / s[1]};
+                Hub.save();
+                Hub.log("조이스틱 저장: 가운데 (" + Math.round(c[0] * s[0]) + ", " + Math.round(c[1] * s[1]) + ") · 반지름 " + Math.round(r) + "px", 'g');
+                showRing(Hub.stick, 2500);
+            }));
+        });
+    }
+
+    /** 조이스틱 자리에 초록 원을 ms 동안 그려 줌 (터치는 그대로 아래로) */
+    void showRing(double[] st, long ms) {
+        int[] s = screen();
+        float cx = (float) (st[0] * s[0]), cy = (float) (st[1] * s[1]), r = (float) (st[2] * s[1]);
+        View v = new View(this) {
+            final android.graphics.Paint pt = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+
+            @Override
+            protected void onDraw(android.graphics.Canvas c) {
+                pt.setStyle(android.graphics.Paint.Style.STROKE);
+                pt.setStrokeWidth(Math.max(3, r / 20f));
+                pt.setColor(0xFF3BA55D);
+                c.drawCircle(cx, cy, r, pt);
+                c.drawLine(cx - r * 0.2f, cy, cx + r * 0.2f, cy, pt);
+                c.drawLine(cx, cy - r * 0.2f, cx, cy + r * 0.2f, pt);
+            }
+        };
+        WindowManager.LayoutParams p = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT);
+        p.gravity = Gravity.TOP | Gravity.START;
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            p.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        }
+        try {
+            wm.addView(v, p);
+            Hub.main.postDelayed(() -> removeView(v), ms);
+        } catch (RuntimeException e) {
+            Hub.log("원을 못 그림: " + e, 'r');
+        }
     }
 
     /** 위치 지정: 로블록스 화면 위에 투명한 막을 띄우고 누른 곳을 넘김 (화면 비율) · 취소하면 null */

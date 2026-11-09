@@ -1,3 +1,23 @@
+## Acrux Mobile V0.9.9 업데이트
+- **W · A · S · D 를 로블록스 조이스틱으로 (Shizuku 없이 터치로)**
+  - 로블록스 설정 → 이동 방식을 **조이스틱**(클래식)으로 바꿔 주세요
+  - ⚙ → **조이스틱 찾기**: 화면 왼쪽 아래의 조이스틱을 찾아서 위치 · 크기를 저장 (찾은 자리에 초록 원이 잠깐 뜸)
+  - 못 찾으면 ⚙ → **조이스틱 직접 지정**: 가운데 → 바깥 판 가장자리를 차례로 누름
+  - ⚙ → **조이스틱 테스트**: W · A · S · D 를 0.8초씩 (앞 · 왼쪽 · 뒤 · 오른쪽)
+  - 누르는 방법: 조이스틱 가운데를 먼저 누른 뒤 그 방향으로 끌어서 계속 누르고 있음 (W+A 는 왼쪽 위 대각선)
+  - 기준 장소로 걷기 (W → W+A → A → S+D) 도 조이스틱으로 함
+  - 아직 터치로 못 하는 것 (Esc · Enter · E · 화면 돌리기 · 줌) 은 Shizuku 가 있으면 Shizuku 로 · 없으면 건너뜀 — 다음 버전에서 터치로 바꿈
+
+## Acrux Mobile V0.9.9 Update
+- **W · A · S · D now push the Roblox joystick (by touch, no Shizuku)**
+  - Set Roblox settings → Movement mode to **Thumbstick** (classic)
+  - ⚙ → **Find joystick**: finds the joystick at the bottom left and saves its position and size (a green circle shows where it was found)
+  - If it is not found, ⚙ → **Set joystick by hand**: tap the center, then the outer edge
+  - ⚙ → **Joystick test**: W · A · S · D for 0.8 s each (forward · left · back · right)
+  - How it presses: touches the joystick center first, then drags toward the direction and keeps holding (W+A is up-left diagonal)
+  - Walking to the base spot (W → W+A → A → S+D) also uses the joystick
+  - Things not done by touch yet (Esc · Enter · E · camera turn · zoom) use Shizuku if connected, otherwise they are skipped — moving to touch in the next version
+
 ## Acrux Mobile V0.9.8 업데이트
 - **리셋 방법 변경 — R 키 대신 재설정 버튼을 눌러서 리셋**
   - 모바일 로블록스는 Esc 메뉴에서 R 키가 안 먹어서 재설정 탭으로 안 넘어갔음
