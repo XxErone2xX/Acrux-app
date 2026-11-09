@@ -220,6 +220,7 @@ E = [
     ['재설정 버튼 (Esc 메뉴)', 'Reset button (Esc menu)', 'リセットボタン (Esc メニュー)'], ['재설정 버튼', 'Reset button', 'リセットボタン'],
     ['ENTER {0}/{1}', 'ENTER {0}/{1}', 'ENTER {0}/{1}'],
     ['1초 뒤 시작', 'Starting in 1 second', '1秒後に開始'],
+    ['후원', 'Support', '支援'], ['Acrux 가 도움이 됐다면 후원으로 응원해 주세요', 'If Acrux helped you, you can support it here', 'Acrux が役に立ったら支援で応援してください'],
     ['조이스틱 (W · A · S · D)', 'Joystick (W · A · S · D)', 'ジョイスティック (W · A · S · D)'],
     ['✓ 조이스틱 저장됨 (눌러서 위치 보기)', '✓ Joystick saved (tap to show)', '✓ ジョイスティック保存済み (タップで表示)'],
     ['· 조이스틱 없음 — 로블록스 설정 → 이동 방식: 조이스틱', '· No joystick — Roblox settings → Movement mode: Thumbstick', '· ジョイスティックなし — Roblox 設定 → 移動方式: サムスティック'],

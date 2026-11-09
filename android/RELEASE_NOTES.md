@@ -1,3 +1,13 @@
+## Acrux Mobile V0.9.10 업데이트
+- **언어 선택 · 후원하기를 설정 탭 → 홈 탭으로 옮김**
+  - 언어: 홈 맨 위
+  - 후원하기: 홈 맨 아래
+
+## Acrux Mobile V0.9.10 Update
+- **Moved language selection and Support from the Settings tab to the Home tab**
+  - Language: top of Home
+  - Support: bottom of Home
+
 ## Acrux Mobile V0.9.9 업데이트
 - **W · A · S · D 를 로블록스 조이스틱으로 (Shizuku 없이 터치로)**
   - 로블록스 설정 → 이동 방식을 **조이스틱**(클래식)으로 바꿔 주세요

@@ -35,7 +35,7 @@ import java.util.List;
  * 앱 화면 — PC 버전처럼 칸(탭)으로 나눔: 홈 · 낚시 · 이동 · 판매 · 기록 · 설정
  *  · 위쪽 칸 이름을 누르거나 화면을 좌우로 밀어서 칸 이동 · 마지막에 본 칸을 기억
  *  · 묶음(카드)이 3개 이상인 칸은 위쪽에 바로 가기 (PC 와 같음 · 짧은 칸은 없음) — 누르면 그 묶음으로 부드럽게 이동
- *  · 글자는 한국어로 쓰면 Ui 가 지금 언어로 번역 (설정 → 언어)
+ *  · 글자는 한국어로 쓰면 Ui 가 지금 언어로 번역 (홈 → 언어)
  * 새 기능 추가: page("열쇠", "칸 이름") 로 칸을 만들고 section(칸, "묶음 이름") 으로 카드를 붙이면 바로 가기 · 이동이 저절로 됨
  */
 public class MainActivity extends Activity {
@@ -325,6 +325,23 @@ public class MainActivity extends Activity {
         }
         pg.body.addView(new View(this), new LinearLayout.LayoutParams(1, Ui.dp(this, 8)));
 
+        LinearLayout lang = section(pg, "언어");
+        lang.addView(Ui.text(this, "앱 언어 · 떠 있는 Acrux 창도 같이 바뀜", 12, Ui.MUTED, false));
+        LinearLayout langs = new LinearLayout(this);
+        langs.setOrientation(LinearLayout.HORIZONTAL);
+        for (int i = 0; i < I18n.CODES.length; i++) {
+            String code = I18n.CODES[i];
+            TextView c = Ui.chip(this, I18n.NAMES[i], v -> {
+                if (!code.equals(I18n.lang())) Hub.setLang(code);
+            });
+            c.setText(I18n.NAMES[i]);                       // 언어 이름은 번역하지 않음
+            Ui.chipOn(this, c, code.equals(I18n.lang()));
+            LinearLayout.LayoutParams lp = Ui.wrap();
+            if (i > 0) lp.leftMargin = Ui.dp(this, 6);
+            langs.addView(c, lp);
+        }
+        lang.addView(langs, Ui.fill(this, 10));
+
         LinearLayout ready = section(pg, "준비");
         accState = Ui.text(this, "", 13, Ui.MUTED, false);
         accBtn = Ui.button(this, "켜기", Ui.ACCENT, v -> openAccessibility());
@@ -367,6 +384,12 @@ public class MainActivity extends Activity {
                 "5. 이동 · 판매 (Shizuku 필요 · PC 와 같음): ⚙ → 공통 위치 3개 → 낚시 장소 · 판매 장소 지점 추가 → 판매 자동 보정",
         };
         for (String s : steps) how.addView(Ui.text(this, s, 13, Ui.MUTED, false), Ui.fill(this, 6));
+
+        LinearLayout don = section(pg, "후원");
+        don.addView(Ui.text(this, "Acrux 가 도움이 됐다면 후원으로 응원해 주세요", 12, Ui.MUTED, false));
+        LinearLayout.LayoutParams dl = Ui.wrap();
+        dl.topMargin = Ui.dp(this, 10);
+        don.addView(Ui.button(this, "후원하기", Ui.YELLOW, v -> openUrl("https://ko-fi.com/RG_Acrux")), dl);
     }
 
     // ---------------------------------------------------------------- 낚시
@@ -505,23 +528,6 @@ public class MainActivity extends Activity {
 
     // ---------------------------------------------------------------- 설정
     void buildSettings(Page pg) {
-        LinearLayout lang = section(pg, "언어");
-        lang.addView(Ui.text(this, "앱 언어 · 떠 있는 Acrux 창도 같이 바뀜", 12, Ui.MUTED, false));
-        LinearLayout langs = new LinearLayout(this);
-        langs.setOrientation(LinearLayout.HORIZONTAL);
-        for (int i = 0; i < I18n.CODES.length; i++) {
-            String code = I18n.CODES[i];
-            TextView c = Ui.chip(this, I18n.NAMES[i], v -> {
-                if (!code.equals(I18n.lang())) Hub.setLang(code);
-            });
-            c.setText(I18n.NAMES[i]);                       // 언어 이름은 번역하지 않음
-            Ui.chipOn(this, c, code.equals(I18n.lang()));
-            LinearLayout.LayoutParams lp = Ui.wrap();
-            if (i > 0) lp.leftMargin = Ui.dp(this, 6);
-            langs.addView(c, lp);
-        }
-        lang.addView(langs, Ui.fill(this, 10));
-
         LinearLayout up = section(pg, "업데이트");
         updState = Ui.text(this, "", 13, Ui.MUTED, false);
         updBtn = Ui.button(this, "확인", Ui.ACCENT, v -> {
@@ -580,9 +586,6 @@ public class MainActivity extends Activity {
         info.addView(Ui.text(this, "켜져 있다는 신호만 보냄 (무작위 번호 · 개인 정보 없음) · 꺼도 사용자 수는 보임", 12, Ui.MUTED, false));
         info.addView(Ui.text(this, "Acrux Mobile V" + version(), 13, Ui.FG, false), Ui.fill(this, 6));
         info.addView(Ui.text(this, "Made by 얼로니", 12, Ui.MUTED, false));
-        LinearLayout.LayoutParams dl = Ui.wrap();
-        dl.topMargin = Ui.dp(this, 10);
-        info.addView(Ui.button(this, "후원하기", Ui.YELLOW, v -> openUrl("https://ko-fi.com/RG_Acrux")), dl);
     }
 
     // ---------------------------------------------------------------- 부품
