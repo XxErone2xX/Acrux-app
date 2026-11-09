@@ -45,11 +45,11 @@ public final class Route {
         return s;
     }
 
-    /** 방향 맞추기: 5도 · 길이 0.25 단위 (0.2 미만은 멈춤 · 0.85 이상은 끝까지) */
+    /** 방향 맞추기: 5도 · 길이 0.25 단위 (0.3 미만은 멈춤 — 안 누를 때도 손잡이가 조금 흔들려 보임 · 0.85 이상은 끝까지) */
     static double[] quant(double[] v) {
         if (v == null) return new double[]{0, 0};
         double m = Math.hypot(v[0], v[1]);
-        if (m < 0.2) return new double[]{0, 0};
+        if (m < 0.3) return new double[]{0, 0};
         m = m >= 0.85 ? 1 : Math.round(m * 4) / 4.0;
         double a = Math.toRadians(Math.round(Math.toDegrees(Math.atan2(v[1], v[0])) / 5.0) * 5.0);
         return new double[]{r3(Math.cos(a) * m), r3(Math.sin(a) * m)};

@@ -236,7 +236,7 @@ public final class Mover {
         double[] st = touch.stickAt();
         if (st == null) throw new RuntimeException("먼저 조이스틱 찾기 (Acrux 창 → ⚙ → 조이스틱 찾기)");
         goBase();
-        int x0 = (int) (st[0] - st[2] * 1.6), y0 = (int) (st[1] - st[2] * 1.6), sz = (int) (st[2] * 3.2);
+        int x0 = (int) (st[0] - st[2] * 2.3), y0 = (int) (st[1] - st[2] * 2.3), sz = (int) (st[2] * 4.6);
         out.state(name + " 길 기록 중 — 조이스틱으로 걸어가서 도착하면 [도착]");
         out.log(name + " 길 기록 시작 — 지금부터 조이스틱 움직임을 저장 · 도착하면 Acrux 창의 [도착]", 'c');
         Route.Recorder rec = new Route.Recorder();
@@ -245,7 +245,7 @@ public final class Mover {
         Stick.JumpWatch jw = new Stick.JumpWatch();
         if (jb != null) {
             int[] p = px(jb);
-            jsz = (int) (st[2] * 2.2);
+            jsz = (int) (st[2] * 2.9);
             jx = p[0] - jsz / 2;
             jy = p[1] - jsz / 2;
         } else {
@@ -262,11 +262,11 @@ public final class Mover {
             double[] v = null;
             if (im != null && im.w > 0) {
                 // 잘린 화면 안에서의 판 가운데 (화면 가장자리에서 잘렸을 수 있음)
-                double[] k = Stick.knob(im, st[0] - Math.max(0, x0), st[1] - Math.max(0, y0), st[2]);
+                double[] k = Stick.track(im, st[0] - Math.max(0, x0), st[1] - Math.max(0, y0), st[2]);
                 frames++;
                 if (k != null) {
                     v = new double[]{k[0], k[1]};
-                    if (Math.hypot(k[0], k[1]) >= 0.2) seen++;
+                    if (Math.hypot(k[0], k[1]) >= 0.3) seen++;
                 }
             }
             // 3프레임 중 2프레임이 같은 쪽이면 그 값 (한 프레임 튀는 건 무시)
@@ -277,7 +277,7 @@ public final class Mover {
             if (jb != null) {
                 Img ji = scr.grab(jx, jy, jsz, jsz);
                 if (ji != null && ji.w > 0) {
-                    jump = jw.step(Stick.glow(ji, jsz / 2.0 - Math.max(0, -jx), jsz / 2.0 - Math.max(0, -jy), st[2]));
+                    jump = jw.step(Stick.jumpLevel(ji, jsz / 2.0 - Math.max(0, -jx), jsz / 2.0 - Math.max(0, -jy), st[2]), t);
                     if (jump) jumps++;
                 }
             }

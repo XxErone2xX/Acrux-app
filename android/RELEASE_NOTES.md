@@ -1,3 +1,25 @@
+## Acrux Mobile V0.10.4 업데이트
+- **조이스틱 · 점프 버튼 읽기를 실제 화면에 맞춰 다시 만듦 (보내 준 플레이 영상 기준)**
+  - 조이스틱 찾기: 얇은 회색 테두리 원 (바깥 판) 을 찾음 — 예전엔 속이 찬 원으로 생각해서 손잡이를 판으로 잘못 찾았음
+    - 영상의 안 누른 화면 전부에서 판 위치 · 크기를 맞게 찾음 (오차 2px 안)
+    - 조이스틱을 안 누르고 있을 때 찾아 주세요
+  - 길 기록: 로블록스 조이스틱은 누른 자리로 판이 따라 움직임 → 매 프레임 판 위치를 먼저 다시 찾고 손잡이를 그 기준으로 잼
+  - 손잡이: 반투명 회색 원을 '색이 옅은 원' 으로 찾음 (풀 · 하늘 같은 배경과 상관없이)
+  - 안 누를 때 손잡이가 조금 흔들려 보이는 건 무시 (반지름의 30% 미만은 멈춤)
+  - 점프 버튼: 평소엔 버튼 안이 바깥보다 어둡고 (약 -70) 누르면 밝아짐 (약 +20) — 영상의 모든 점프를 잡고, 화면이 크게 바뀌어도 잘못 잡지 않음
+  - 점프 버튼을 누르고 있으면 0.45초마다 한 번씩 점프로 기록 (로블록스는 누르고 있으면 계속 뜀)
+
+## Acrux Mobile V0.10.4 Update
+- **Rebuilt joystick and jump button reading to match the real screen (based on the gameplay video you sent)**
+  - Find joystick: looks for the thin gray outline circle (outer ring) — it used to assume a filled circle and mistook the knob for the ring
+    - Finds the ring position and size correctly in every untouched frame of the video (within 2px)
+    - Please run it while not touching the joystick
+  - Route recording: Roblox moves the joystick ring to where you press → every frame it finds the ring again first, then measures the knob from it
+  - Knob: finds the translucent gray circle as a "low-color circle" (works on grass, sky or any background)
+  - Small knob wobble while not touching is ignored (under 30% of the radius = stopped)
+  - Jump button: normally the inside is darker than the outside (about -70) and it lights up when pressed (about +20) — catches every jump in the video with no false jumps even when the scene changes a lot
+  - Holding the jump button records a jump every 0.45 s (Roblox keeps jumping while held)
+
 ## Acrux Mobile V0.10.3 업데이트
 - **줌 아웃할 때 화면이 돌아가서 방향이 틀어지던 문제 수정**
   - 로블록스는 두 손가락 줌을 하는 동안 화면도 같이 돌려 버림 (손가락 방향을 바꿔도 막을 수 없음)
