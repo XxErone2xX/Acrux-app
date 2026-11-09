@@ -1,3 +1,13 @@
+## Acrux Mobile V1.2.1 업데이트
+- 바이옴 로그 테스트가 눌렸는지 · 진행 중인지 안 보이던 것 고침
+  - 누르면 버튼이 "테스트 중… (로블록스로 가세요)" 로 바뀜 · 바이옴 칸 안에 결과 상자 (기록 칸에도 같이)
+  - 로블록스에 가 있는 동안 떠 있는 Acrux 창에 남은 시간 · 끝나면 알림 (누르면 앱으로)
+
+## Acrux Mobile V1.2.1 Update
+- Fixed not being able to tell whether the biome log test was pressed or running
+  - Pressing it changes the button to "Testing… (go to Roblox)" · a results box inside the Biome tab (also in the Log tab)
+  - While you're in Roblox the floating Acrux window shows the time left · a notification when done (tap to open the app)
+
 ## Acrux Mobile V1.2.0 업데이트
 - **바이옴 칸 추가 — 무선 디버깅 연결 (PC · 루팅 · Shizuku 없이)**
   - PC 처럼 로블록스 로그로 바이옴을 읽으려면 로그를 읽을 권한이 필요해서, 안드로이드의 '무선 디버깅' 으로 Acrux 가 이 폰에 직접 연결함 (안드로이드 11 이상 · 와이파이 필요)

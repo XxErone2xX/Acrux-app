@@ -538,8 +538,9 @@ public class MainActivity extends Activity {
 
     // ---------------------------------------------------------------- 기록
     // ---- 바이옴 (무선 디버깅으로 로블록스 로그 읽기 · PC 버전과 같은 방식 · 1단계: 로그에 바이옴 줄이 있는지 테스트)
-    TextView adbState;
+    TextView adbState, testBtn, testOut;
     volatile boolean biomeTesting;
+    final java.util.ArrayDeque<String> testLines = new java.util.ArrayDeque<>();
 
     void buildBiome(Page pg) {
         LinearLayout c = section(pg, "무선 디버깅 연결");
@@ -568,7 +569,15 @@ public class MainActivity extends Activity {
         t.addView(Ui.text(this, "모바일 로블록스가 PC 처럼 바이옴 정보 ([BloxstrapRPC]) 를 로그에 남기는지 확인해요. "
                 + "남기면 PC 버전처럼 정확한 바이옴 감지 · 웹후크 알림을 만들 수 있어요.", 13, Ui.MUTED, false), Ui.fill(this, 6));
         t.addView(Ui.text(this, "무선 디버깅을 연결한 뒤 [테스트 시작] → 로블록스로 Sol's RNG 에 들어가서 90초 동안 두기 (바이옴이 바뀌는 때면 더 좋아요). 결과는 기록 칸에 떠요.", 13, Ui.FG, false), Ui.fill(this, 6));
-        t.addView(Ui.button(this, "테스트 시작 (90초)", Ui.ACCENT, v -> biomeTest()), Ui.fill(this, 10));
+        testBtn = Ui.button(this, biomeTesting ? "테스트 중…" : "테스트 시작 (90초)", Ui.ACCENT, v -> biomeTest());
+        t.addView(testBtn, Ui.fill(this, 10));
+        t.addView(Ui.text(this, "결과 (기록 칸에도 같이 떠요 · 끝나면 알림)", 12, Ui.MUTED, true), Ui.fill(this, 10));
+        testOut = Ui.text(this, "", 12, Ui.FG, false);
+        testOut.setTextIsSelectable(true);
+        testOut.setBackgroundColor(Ui.FIELD);
+        testOut.setPadding(Ui.dp(this, 10), Ui.dp(this, 8), Ui.dp(this, 10), Ui.dp(this, 8));
+        t.addView(testOut, Ui.fill(this, 4));
+        showTestOut();
         refreshAdb();
         if (Adb.supported()) new Thread(() -> {                // 켜져 있으면 조용히 연결해 둠
             Adb.connect(getApplicationContext());
@@ -626,14 +635,41 @@ public class MainActivity extends Activity {
         }, "acrux-adb").start();
     }
 
+    /** 테스트 결과 한 줄 → 기록 칸 + 바이옴 칸 결과 상자 */
+    void say(String msg, char color) {
+        Hub.log(msg, color);
+        synchronized (testLines) {
+            testLines.addLast(Ui.tr(msg));
+            while (testLines.size() > 60) testLines.pollFirst();
+        }
+        runOnUiThread(this::showTestOut);
+    }
+
+    void showTestOut() {
+        if (testOut == null) return;
+        String txt;
+        synchronized (testLines) {
+            txt = testLines.isEmpty() ? Ui.tr("아직 테스트 안 함") : String.join("\n", testLines);
+        }
+        testOut.setText(txt);
+        if (testBtn != null) {
+            Ui.set(testBtn, biomeTesting ? "테스트 중… (로블록스로 가세요)" : "테스트 시작 (90초)");
+            testBtn.setAlpha(biomeTesting ? 0.5f : 1f);
+        }
+    }
+
     /** 1단계 테스트: ① 지금까지 쌓인 로그 ② 로블록스 폴더의 로그 파일 ③ 90초 동안 새로 나오는 로그 — 바이옴 줄이 있는지 */
     void biomeTest() {
         if (biomeTesting) {
-            Hub.log("바이옴 로그 테스트가 이미 진행 중이에요", 'y');
+            say("바이옴 로그 테스트가 이미 진행 중이에요", 'y');
             return;
         }
         biomeTesting = true;
-        Hub.log("바이옴 로그 테스트 시작 — 지금 로블록스로 Sol's RNG 에 들어가 주세요 (90초)", 'c');
+        synchronized (testLines) {
+            testLines.clear();
+        }
+        showTestOut();
+        say("바이옴 로그 테스트 시작 — 지금 로블록스로 Sol's RNG 에 들어가 주세요 (90초)", 'c');
         new Thread(() -> {
             android.content.Context ctx = getApplicationContext();
             int[] hits = {0};
@@ -641,43 +677,61 @@ public class MainActivity extends Activity {
                 String r = Adb.connect(ctx);
                 runOnUiThread(this::refreshAdb);
                 if (!r.equals("ok")) {
-                    Hub.log(r.equals("pair") ? "테스트 못 함 — 무선 디버깅 페어링이 먼저 필요해요" : "테스트 못 함 — 무선 디버깅이 연결 안 됨 (개발자 옵션 → 무선 디버깅 켜기)", 'r');
+                    say(r.equals("pair") ? "테스트 못 함 — 무선 디버깅 페어링이 먼저 필요해요" : "테스트 못 함 — 무선 디버깅이 연결 안 됨 (개발자 옵션 → 무선 디버깅 켜기)", 'r');
                     return;
                 }
                 java.util.function.Consumer<String> show = l -> {
                     hits[0]++;
-                    if (hits[0] <= 40) Hub.log("  " + (l.length() > 220 ? l.substring(0, 220) + "…" : l), 'g');
+                    if (hits[0] <= 40) say("  " + (l.length() > 220 ? l.substring(0, 220) + "…" : l), 'g');
                 };
-                Hub.log("① 쌓인 로그에서 찾는 중", 'c');
+                say("① 쌓인 로그에서 찾는 중", 'c');
                 Adb.shell(ctx, "logcat -d -v brief 2>&1 | grep -i -E 'bloxstrap|biome' | tail -n 15", 20000, show);
                 int h1 = hits[0];
-                Hub.log("① " + h1 + "줄", h1 > 0 ? 'g' : 'y');
-                Hub.log("② 로블록스 폴더의 로그 파일", 'c');
+                say("① " + h1 + "줄", h1 > 0 ? 'g' : 'y');
+                say("② 로블록스 폴더의 로그 파일", 'c');
                 int[] files = {0};
                 Adb.shell(ctx, "ls /sdcard/Android/data/com.roblox.client/files 2>&1 | head -n 20; "
                         + "find /sdcard/Android/data/com.roblox.client -maxdepth 6 -iname '*log*' 2>/dev/null | head -n 15", 20000, l -> {
                     files[0]++;
-                    if (files[0] <= 35) Hub.log("  " + l, 'c');
+                    if (files[0] <= 35) say("  " + l, 'c');
                 });
                 Adb.shell(ctx, "for f in $(grep -rli 'BloxstrapRPC' /sdcard/Android/data/com.roblox.client 2>/dev/null | head -n 3); do echo \"== $f\"; grep -i 'BloxstrapRPC' \"$f\" | tail -n 3; done", 30000, show);
                 int h2 = hits[0] - h1;
-                Hub.log("② " + h2 + "줄", h2 > 0 ? 'g' : 'y');
-                Hub.log("③ 90초 동안 새로 나오는 로그 지켜보는 중 (로블록스를 켜 두세요)", 'c');
+                say("② " + h2 + "줄", h2 > 0 ? 'g' : 'y');
+                say("③ 90초 동안 새로 나오는 로그 지켜보는 중 (로블록스를 켜 두세요)", 'c');
                 int[] seen = {0};
+                long until = System.currentTimeMillis() + 90000;
+                Thread tick = new Thread(() -> {                   // 떠 있는 Acrux 창에 남은 시간
+                    while (System.currentTimeMillis() < until && biomeTesting) {
+                        Hub.state = Ui.tr("바이옴 로그 테스트 중") + " · " + Math.max(0, (until - System.currentTimeMillis()) / 1000) + "s";
+                        Hub.changed();
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException e) {
+                            return;
+                        }
+                    }
+                }, "acrux-biome-tick");
+                tick.setDaemon(true);
+                tick.start();
                 Adb.shell(ctx, "logcat -T 1 -v brief", 90000, l -> {
                     seen[0]++;
                     String low = l.toLowerCase(java.util.Locale.ROOT);
                     if (low.contains("bloxstrap") || low.contains("biome")) show.accept(l);
                 });
                 int h3 = hits[0] - h1 - h2;
-                Hub.log("③ 로그 " + seen[0] + "줄 중 바이옴 " + h3 + "줄", h3 > 0 ? 'g' : 'y');
-                if (hits[0] > 0) Hub.log("결과: 바이옴 줄 발견! → PC 처럼 정확한 바이옴 감지를 만들 수 있어요. 이 기록을 캡처해서 보내 주세요", 'g');
-                else if (seen[0] > 0) Hub.log("결과: 로그는 읽히는데 바이옴 줄이 없음 — Sol's RNG 에 들어가 있었는지 확인하고 한 번 더 · 그래도 없으면 모바일 로블록스가 바이옴 정보를 안 남기는 것", 'y');
-                else Hub.log("결과: 로그를 하나도 못 읽음 — 이 기록을 캡처해서 보내 주세요", 'r');
+                say("③ 로그 " + seen[0] + "줄 중 바이옴 " + h3 + "줄", h3 > 0 ? 'g' : 'y');
+                if (hits[0] > 0) say("결과: 바이옴 줄 발견! → PC 처럼 정확한 바이옴 감지를 만들 수 있어요. 이 기록을 캡처해서 보내 주세요", 'g');
+                else if (seen[0] > 0) say("결과: 로그는 읽히는데 바이옴 줄이 없음 — Sol's RNG 에 들어가 있었는지 확인하고 한 번 더 · 그래도 없으면 모바일 로블록스가 바이옴 정보를 안 남기는 것", 'y');
+                else say("결과: 로그를 하나도 못 읽음 — 이 기록을 캡처해서 보내 주세요", 'r');
             } catch (Throwable th) {
-                Hub.log("바이옴 로그 테스트 오류: " + th, 'r');
+                say("바이옴 로그 테스트 오류: " + th, 'r');
             } finally {
                 biomeTesting = false;
+                Hub.state = "대기";
+                Hub.changed();
+                runOnUiThread(this::showTestOut);
+                Adb.notifyDone(ctx, hits[0] > 0 ? "바이옴 줄 발견! 앱의 바이옴 칸에서 결과를 확인해 주세요" : "끝 — 앱의 바이옴 칸에서 결과를 확인해 주세요");
             }
         }, "acrux-biome-test").start();
     }

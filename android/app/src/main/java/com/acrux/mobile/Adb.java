@@ -253,6 +253,23 @@ final class Adb extends AbsAdbConnectionManager {
         nm.notify(NOTI, n);
     }
 
+    /** 바이옴 로그 테스트가 끝났을 때 (로블록스 화면에 있어도 보이게) */
+    static void notifyDone(Context c, String text) {
+        NotificationManager nm = c.getSystemService(NotificationManager.class);
+        if (nm == null) return;
+        nm.createNotificationChannel(new NotificationChannel(CH, Ui.tr("무선 디버깅 페어링"), NotificationManager.IMPORTANCE_HIGH));
+        Intent open = new Intent(c, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        PendingIntent pi = PendingIntent.getActivity(c, 2, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        Notification n = new Notification.Builder(c, CH)
+                .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
+                .setContentTitle(Ui.tr("바이옴 로그 테스트"))
+                .setContentText(Ui.tr(text))
+                .setContentIntent(pi)
+                .setAutoCancel(true)
+                .build();
+        nm.notify(NOTI + 1, n);
+    }
+
     static void hidePairNotice(Context c) {
         NotificationManager nm = c.getSystemService(NotificationManager.class);
         if (nm != null) nm.cancel(NOTI);
