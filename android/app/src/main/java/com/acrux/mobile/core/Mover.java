@@ -118,13 +118,18 @@ public final class Mover {
         double[] v = Stick.dir(w, a, s, d);
         if (v == null || sec <= 0) return;
         markMoved();
+        // 누른 시간을 정확히 (전에는 뗄 때 0.03 ~ 0.13초씩 들쭉날쭉해서 기준 장소가 매번 조금씩 달랐음) · + HOLD_EXTRA: 전에 평균으로 더 가던 만큼 (예전 길과 같은 자리)
+        List<Route.Ev> evs = new ArrayList<>();
+        evs.add(new Route.Ev('F', 0, v[0], v[1], true, false));
+        evs.add(new Route.Ev('X', (sec + HOLD_EXTRA) * 1000, 0, 0, false, false));
         try {
-            touch.stick(v);
-            sleep(sec);
+            touch.play(evs, null, check);
         } finally {
             touch.stick(null);
         }
     }
+
+    static final double HOLD_EXTRA = 0.08;
 
     /**
      * 최대 줌 아웃: 화면 가운데에서 두 손가락(위아래)을 오므리기 여러 번
@@ -270,6 +275,8 @@ public final class Mover {
         sleep(0.3);
     }
 
+    static volatile boolean oldWarned;
+
     // ---- 2. 기록한 길 따라가기
     public void walk(String name, Route r) {
         if (r == null || (r.isEmpty() && !r.hasPath())) throw new RuntimeException(name + " 길을 먼저 기록해야 함 (Acrux 창 → ⚙ → " + name + " 길 기록)");
@@ -281,6 +288,20 @@ public final class Mover {
             follow(name, r, jp);
             sleep(cfg.margin);
             return;
+        }
+        if (!r.evs.isEmpty()) {                               // 손가락 움직임을 기록한 길 → 같은 시각에 그대로
+            try {
+                touch.play(jp != null ? r.evs : Route.noJump(r.evs), jp, check);
+            } finally {
+                touch.stick(null);
+                if (jp != null) touch.jumpUp();
+            }
+            sleep(cfg.margin);
+            return;
+        }
+        if (!oldWarned) {
+            oldWarned = true;
+            out.log("예전 방식으로 기록한 길 — 다시 기록하면 간 거리가 기록과 똑같아짐 (⚙ → 길)", 'y');
         }
         // V0.10.13 전에 기록한 길은 '뗌' 이 없음 → 점프는 전부 톡 누르기로
         boolean legacy = true;
@@ -438,29 +459,25 @@ public final class Mover {
     public Route recordPad(String name, Pad pad, BooleanSupplier arrived) {
         if (touch.stickAt() == null) throw new RuntimeException("먼저 조이스틱 찾기 (Acrux 창 → ⚙ → 조이스틱 찾기)");
         goBase();
-        Odo odo = new Odo(scr);
-        odo.step();
-        Route.Recorder rec = new Route.Recorder(true);
-        List<double[]> pts = rec.route().pts;
         int[] jp = jumpPos();
         out.state(name + " 길 기록 중 — WASD 패드로 걸어가서 도착하면 [도착]");
         out.log(name + " 길 기록 시작 — W A S D 를 톡 누르면 켜짐 (홀드) · 다시 누르면 꺼짐 · ■ = 멈춤 · 도착하면 [도착]", 'c');
-        double t0 = now(), lastPt = -1;
-        int jumps = 0, frames = 0, seen = 0;
+        double t0 = now();
         boolean down = false;
+        List<Route.Ev> evs;
+        // 손가락이 실제로 로블록스를 누르고 뗀 시각을 그대로 적음 (Pilot) — 다시 걸을 때 같은 시각에 똑같이 누름
+        touch.traceStart();
         pad.show();
         try {
             while (!arrived.getAsBoolean()) {
                 check.run();
-                double t = now() - t0;
-                if (t > RECORD_MAX) throw new RuntimeException((int) RECORD_MAX + "초 안에 [도착]을 안 누름 — 기록 취소");
+                if (now() - t0 > RECORD_MAX) throw new RuntimeException((int) RECORD_MAX + "초 안에 [도착]을 안 누름 — 기록 취소");
                 double[] v = pad.stick();
                 boolean jd = false, ju = false;
                 int ev;
                 while ((ev = pad.pollJump()) != 0) {
                     if (ev > 0) {
                         jd = true;
-                        jumps++;
                         down = true;
                     } else {
                         ju = true;
@@ -472,31 +489,17 @@ public final class Mover {
                     if (ju && !(jd && down)) touch.jumpUp();
                 }
                 touch.stick(v);
-                frames++;
-                if (odo.step()) seen++;
-                // 실제로 로블록스 조이스틱을 누르고 있던 동안만 걸은 걸로 (패드를 누르는 순간 안드로이드가 끊고 다시 누르는 동안은 안 걸음)
-                double[] eff = v != null && touch.stickHeld() ? v : null;
-                rec.add(t, eff, jd, ju);
-                if (jd || ju || t - lastPt >= 0.08) {
-                    pts.add(new double[]{t, odo.x, odo.y, (jd ? 1 : 0) | (ju ? 2 : 0), eff == null ? 0 : eff[0], eff == null ? 0 : eff[1]});
-                    lastPt = t;
-                }
-                Touch.nap(15);
+                Touch.nap(4);
             }
         } finally {
             pad.hide();
             touch.stick(null);
             touch.jumpUp();
+            evs = touch.traceEnd();
         }
-        double te = now() - t0;
-        rec.add(te, null, false, down);
-        pts.add(new double[]{te, odo.x, odo.y, down ? 2 : 0, 0, 0});
-        trimPts(pts);
-        Route r = rec.done();
-        out.log(name + " 길 기록 끝: " + r.segs.size() + "조각 · " + Math.round(r.seconds() * 10) / 10.0 + "초 · 점프 " + jumps + "번 · 위치 " + pts.size() + "점 (화면으로 잰 프레임 "
-                + seen + "/" + frames + " · 각도 " + Math.round(Math.toDegrees(r.theta)) + "°)", r.isEmpty() ? 'y' : 'g');
-        if (r.isEmpty()) throw new RuntimeException("움직임이 없음 — WASD 패드로 걸어 주세요");
-        if (!r.hasPath()) out.log("화면으로 위치를 잘 못 재서 (단색 바닥 · 너무 짧은 길) 다시 걸을 때는 시간대로만 감", 'y');
+        Route r = Route.fromTrace(evs);
+        out.log(name + " 길 기록 끝: " + Math.round(r.seconds() * 10) / 10.0 + "초 · 누름 " + r.presses() + "번 · 점프 " + r.jumps() + "번", r.moves() ? 'g' : 'y');
+        if (!r.moves()) throw new RuntimeException("움직임이 없음 — WASD 패드로 걸어 주세요");
         return r;
     }
 

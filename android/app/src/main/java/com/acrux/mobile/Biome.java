@@ -28,7 +28,9 @@ import java.util.regex.Pattern;
  * 바이옴 매크로 (PC biome.py 와 같은 방식) — 무선 디버깅 (Adb) 으로 로블록스 로그를 읽어서 [BloxstrapRPC] 의 hoverText = 지금 바이옴
  *  · 로그캣 (실시간) + 로블록스 폴더의 최신 .log 파일 둘 다 봄 (기종마다 남는 곳이 다를 수 있어서) · 바뀔 때만 처리
  *  · 디스코드 웹후크: 켜짐 / 꺼짐 · 바이옴 시작 / 끝 · 접속 끊김 (PC 와 같은 임베드 · 아래에 Acrux Mobile 버전)
- *  · 켤 때 이미 나와 있던 바이옴은 알림 없이 지금 바이옴으로만 맞춤
+ *  · 직접 켰을 때 이미 나와 있는 바이옴이 알림 대상이면 바로 Started 를 보냄 (앱이 다시 켜질 때는 알림 없이 맞추기만)
+ *  · 로그캣은 줄마다 시각을 같이 받음 → 연결이 끊겼다 붙어도 마지막으로 본 줄부터 이어서 읽음 (그 사이 바뀐 바이옴을 놓치지 않음)
+ *  · 로그캣이 2분 동안 한 줄도 안 오면 끊긴 걸로 보고 다시 연결
  */
 final class Biome {
     private Biome() {}
@@ -81,6 +83,14 @@ final class Biome {
     static long activeSince;
     static boolean leftSent;
     static Thread loop;
+    /** 로그캣에서 마지막으로 본 줄의 시각 ("MM-DD HH:MM:SS.mmm") · 그 줄을 받은 때 — 다시 연결하면 여기부터 */
+    static volatile String resumeTs;
+    static volatile long lastLineAt;
+    /** 바이옴 줄이 나오는 곳 (0 아직 모름 · 1 로그캣 · 2 로그 파일) — 먼저 나온 한 곳만 믿음 (두 곳이 엇갈리면 지난 바이옴을 다시 알릴 수 있어서) */
+    static volatile int primary;
+    /** 직접 켰음 → 지금 나와 있는 바이옴도 알림 */
+    static volatile boolean announceNow;
+    static final Pattern TS = Pattern.compile("^(\\d\\d-\\d\\d \\d\\d:\\d\\d:\\d\\d\\.\\d{3})");
 
     /** 켜기 / 끄기 (설정 저장 + 감시 시작 / 멈춤 + 켜짐 · 꺼짐 웹후크) */
     static synchronized void set(Context c, boolean on) {
@@ -106,6 +116,9 @@ final class Biome {
         activeSince = System.currentTimeMillis();
         current = null;
         leftSent = false;
+        resumeTs = null;
+        primary = 0;
+        announceNow = announce;
         if (announce) {
             sendAll(toggle(true));
             Hub.log("바이옴 매크로 켜짐", 'c');
@@ -139,57 +152,98 @@ final class Biome {
         }
     }
 
+    static final String FILES = "p=; f=; s=0; while :; do l=$(find /sdcard/Android/data/com.roblox.client -iname '*.log' 2>/dev/null); n=; "
+            + "[ -n \"$l\" ] && n=$(ls -t $l 2>/dev/null | head -n 1); "
+            + "if [ -n \"$n\" ] && [ \"$n\" != \"$f\" ]; then [ -n \"$p\" ] && kill $p 2>/dev/null; f=\"$n\"; "
+            + "if [ $s = 0 ]; then tail -n 0 -f \"$f\" & else tail -n +1 -f \"$f\" & fi; p=$!; s=1; fi; sleep 5; done";
+
     static void run(Context c) {
-        while (alive()) {
-            String r = Adb.connect(c);
-            if (!r.equals("ok")) {
-                watching = false;
-                String why = r.equals("pair") ? "무선 디버깅 페어링 필요" : "무선 디버깅 연결 안 됨 — 다시 시도 중";
-                if (!why.equals(status)) {                   // 처음 한 번만 기록 · 화면 알림 (미니 UI 의 [바이옴] 이 노랑인 이유)
-                    String msg = "바이옴 매크로: " + why;
-                    Hub.log(msg, 'y');
-                    Hub.main.post(() -> android.widget.Toast.makeText(Hub.app, com.acrux.mobile.core.I18n.t(msg), android.widget.Toast.LENGTH_LONG).show());
-                }
-                setStatus(why);
-                if (!sleep(10000)) return;
-                continue;
-            }
-            // 켤 때 이미 나와 있던 바이옴: 알림 없이 맞춤
-            try {
-                String[] last = {null};
-                Adb.shell(c, "logcat -d -v brief 2>/dev/null | grep -a 'BloxstrapRPC' | tail -n 3", 15000, l -> {
-                    String b = parse(l);
-                    if (b != null) last[0] = b;
-                });
-                if (last[0] != null && current == null) {
-                    current = last[0];
-                    Hub.log("지금 바이옴: " + show(current), 'c');
-                }
-            } catch (Throwable ignored) {
-            }
-            watching = true;
-            setStatus("감시 중");
-            // 로블록스 폴더의 최신 로그 파일도 같이 (따로 스레드 · 1분마다 최신 파일로 바꿈)
-            Thread files = new Thread(() -> {
-                while (on() && loop != null && watching) {
+        Thread me = Thread.currentThread();
+        // 로블록스 폴더의 최신 로그 파일도 같이 (따로 스레드 · 새 파일이 생기면 그 파일로 넘어감 — 새 파일은 처음부터 읽음)
+        Thread files = new Thread(() -> {
+            while (on() && loop == me) {
+                if (watching) {
                     try {
-                        Adb.shell(c, "f=$(ls -t $(find /sdcard/Android/data/com.roblox.client -iname '*.log' 2>/dev/null) 2>/dev/null | head -n 1); "
-                                + "[ -n \"$f\" ] && tail -n 0 -f \"$f\"", 60000, Biome::line);
+                        Adb.shell(c, FILES, 30 * 60 * 1000L, l -> line(l, 2));
                     } catch (Throwable ignored) {
                     }
-                    if (!sleep(1000)) return;
                 }
-            }, "acrux-biome-file");
-            files.setDaemon(true);
-            files.start();
-            try {
-                Adb.shell(c, "logcat -T 1 -v brief", 30 * 60 * 1000L, Biome::line);    // 30분마다 다시 연결
-            } catch (Throwable t) {
-                Hub.log("바이옴 로그 읽기 끊김: " + t, 'y');
+                if (!sleep(5000)) return;
             }
-            watching = false;
+        }, "acrux-biome-file");
+        files.setDaemon(true);
+        files.start();
+        try {
+            while (alive()) {
+                String r = Adb.connect(c);
+                if (!r.equals("ok")) {
+                    watching = false;
+                    String why = r.equals("pair") ? "무선 디버깅 페어링 필요" : "무선 디버깅 연결 안 됨 — 다시 시도 중";
+                    if (!why.equals(status)) {                   // 처음 한 번만 기록 · 화면 알림 (미니 UI 의 [바이옴] 이 노랑인 이유)
+                        String msg = "바이옴 매크로: " + why;
+                        Hub.log(msg, 'y');
+                        Hub.main.post(() -> android.widget.Toast.makeText(Hub.app, com.acrux.mobile.core.I18n.t(msg), android.widget.Toast.LENGTH_LONG).show());
+                    }
+                    setStatus(why);
+                    if (!sleep(10000)) return;
+                    continue;
+                }
+                String from = resumeTs;
+                if (from == null || System.currentTimeMillis() - lastLineAt > 5 * 60 * 1000L) {
+                    // 처음 · 오래 끊겼음: 로그에 남은 마지막 바이옴으로 맞추고 지금부터 읽음 (오래 지난 바이옴을 줄줄이 알리지 않게)
+                    String[] last = {null}, ts = {null};
+                    try {
+                        Adb.shell(c, "logcat -d -v time 2>/dev/null | tail -n 1; logcat -d -v brief 2>/dev/null | grep -a -e 'BloxstrapRPC' -e '" + DISCONNECT + "' | tail -n 3", 20000, l -> {
+                            Matcher m = TS.matcher(l);
+                            if (m.find()) {
+                                if (ts[0] == null) ts[0] = m.group(1);
+                                return;
+                            }
+                            if (l.contains(DISCONNECT)) {
+                                last[0] = null;                  // 그 뒤로 나갔음 → 지금 바이옴은 모름
+                            } else {
+                                String b = parse(l);
+                                if (b != null) last[0] = b;
+                            }
+                        });
+                    } catch (Throwable ignored) {
+                    }
+                    from = ts[0];
+                    sync(last[0]);
+                }
+                announceNow = false;
+                watching = true;
+                setStatus("감시 중");
+                try {
+                    // 줄마다 시각 (-v time) · 2분 동안 아무 줄도 없으면 끊긴 것 · 30분마다 다시 연결 (끊긴 자리부터 이어서)
+                    Adb.shell(c, "logcat -v time -T " + (from == null ? "1" : "'" + from + "'"), 30 * 60 * 1000L, 120000, l -> {
+                        Matcher m = TS.matcher(l);
+                        if (m.find()) resumeTs = m.group(1);
+                        lastLineAt = System.currentTimeMillis();
+                        line(l, 1);
+                    });
+                } catch (Throwable t) {
+                    Hub.log("바이옴 로그 읽기 끊김: " + t, 'y');
+                }
+                watching = false;
+                if (!sleep(1000)) return;
+            }
+        } finally {
             files.interrupt();
-            if (!sleep(2000)) return;
+        }
+    }
+
+    /** 로그에 남아 있던 마지막 바이옴으로 맞춤 */
+    static synchronized void sync(String b) {
+        if (b == null || !on() || loop == null) return;
+        if (current == null) {
+            current = b;
+            leftSent = false;
+            Hub.log("지금 바이옴: " + show(b), 'c');
+            Hub.changed();
+            if (announceNow && TARGET.contains(b)) sendAll(biome(b, true));     // 켰을 때 이미 나와 있는 바이옴
+        } else if (!b.equals(current)) {
+            change(b);
         }
     }
 
@@ -202,8 +256,8 @@ final class Biome {
         }
     }
 
-    /** 로그 한 줄 */
-    static synchronized void line(String l) {
+    /** 로그 한 줄 (src: 1 로그캣 · 2 로그 파일) */
+    static synchronized void line(String l, int src) {
         if (!on() || loop == null) return;
         if (l.contains(DISCONNECT)) {
             if (!leftSent) {
@@ -214,7 +268,13 @@ final class Biome {
             return;
         }
         String b = parse(l);
-        if (b == null || b.equals(current)) return;
+        if (b == null) return;
+        if (primary == 0) primary = src;
+        if (src != primary || b.equals(current)) return;
+        change(b);
+    }
+
+    static void change(String b) {
         String prev = current;
         current = b;
         leftSent = false;

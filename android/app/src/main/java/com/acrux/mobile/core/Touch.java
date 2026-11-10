@@ -28,6 +28,18 @@ public interface Touch {
         return true;
     }
 
+    /**
+     * 기록한 손가락 움직임 (Route.Ev) 을 같은 시각에 그대로 다시 함 · 끝날 때까지 기다림
+     * jump = 점프 버튼 (px · 없으면 null) · check = 멈춤 확인 (멈추면 예외 → 손가락을 떼고 나감)
+     */
+    void play(java.util.List<Route.Ev> evs, int[] jump, Runnable check);
+
+    /** 지금부터 손가락이 실제로 한 일을 적음 (길 기록) */
+    void traceStart();
+
+    /** 적기 끝 (누르던 손가락을 다 뗀 뒤) → 적은 것 */
+    java.util.List<Route.Ev> traceEnd();
+
     /** 조이스틱 {가운데 x, 가운데 y, 반지름} (px) · 없으면 null */
     double[] stickAt();
 

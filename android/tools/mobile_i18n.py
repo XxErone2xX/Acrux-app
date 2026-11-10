@@ -219,6 +219,8 @@ E = [
     ['재설정 버튼 (Esc 메뉴)', 'Reset button (Esc menu)', 'リセットボタン (Esc メニュー)'], ['재설정 버튼', 'Reset button', 'リセットボタン'],
     ['ENTER {0}/{1}', 'ENTER {0}/{1}', 'ENTER {0}/{1}'],
     ['1초 뒤 시작', 'Starting in 1 second', '1秒後に開始'],
+    ["예전 방식으로 기록한 길 — 다시 기록하면 간 거리가 기록과 똑같아짐 (⚙ → 길)", "Route recorded the old way — record it again to make the distance match exactly (⚙ → Route)", "以前の方式で記録した道 — 記録し直すと進む距離が記録と同じになる (⚙ → 道)"],
+    ["{0} 길 기록 끝: {1}초 · 누름 {2}번 · 점프 {3}번", "{0} route recorded: {1} s · {2} presses · {3} jumps", "{0} の道の記録完了: {1}秒 · 押し {2}回 · ジャンプ {3}回"],
     ["Sol's RNG 매크로", "Sol's RNG macro", "Sol's RNG マクロ"],
     ["매크로가 화면을 보고 상태를 판단함 · 녹화 · 저장은 하지 않음 · '전체 화면' 공유를 고르기", "The macro reads the screen to know its state · nothing is recorded or saved · choose 'Entire screen' when sharing", "マクロが画面を見て状態を判断 · 録画 · 保存はしない · 共有は「画面全体」を選ぶ"],
     ["2. 떠 있는 Acrux 창 ⚙ → [낚시] → 낚시 자동 보정 — Fish 를 한 번 던져 대기 창 · 미니게임 창 · 결과창 위치를 자동으로 맞춤", "2. Floating Acrux window ⚙ → [Fishing] → fishing auto-calibration — casts Fish once and fits the idle · minigame · results windows automatically", "2. Acrux ウィンドウ ⚙ → [釣り] → 釣りの自動補正 — Fish を一度投げて待機 · ミニゲーム · 結果ウィンドウの位置を自動で合わせる"],

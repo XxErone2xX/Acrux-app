@@ -260,9 +260,9 @@ final class Hub {
                 if (m.equals("stickfind")) stickFind(cap);
                 else if (m.equals("sticktest")) stickTest(touch);
                 else if (m.equals("jumptest")) {
-                    int fb = Joy.jumpFallbacks;
+                    int fb = Joy.pilot.jumpFallbacks;
                     mv.jumpTest();
-                    log("점프 테스트 끝 — 제자리 1번 · 걸으면서 1번 · 꾹 누르는 1.5초 동안 계속 뛰었으면 성공" + (Joy.jumpFallbacks > fb ? " (점프를 따로 다시 누른 적 있음)" : ""), 'g');
+                    log("점프 테스트 끝 — 제자리 1번 · 걸으면서 1번 · 꾹 누르는 1.5초 동안 계속 뛰었으면 성공" + (Joy.pilot.jumpFallbacks > fb ? " (점프를 따로 다시 누른 적 있음)" : ""), 'g');
                 }
                 else work(m, f, mv, sl);
             } catch (Fisher.Stopped e) {

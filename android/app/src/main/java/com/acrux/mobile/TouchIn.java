@@ -43,7 +43,45 @@ final class TouchIn implements Touch {
 
     @Override
     public boolean stickHeld() {
-        return Joy.holding;
+        return Joy.pilot.holding;
+    }
+
+    @Override
+    public void play(java.util.List<com.acrux.mobile.core.Route.Ev> evs, int[] jump, Runnable check) {
+        svc();
+        double[] s = stickAt();
+        if (s != null) Joy.at(s[0], s[1], s[2]);
+        if (jump != null) {
+            jx = jump[0];
+            jy = jump[1];
+            Joy.jx = jx;
+            Joy.jy = jy;
+        }
+        Joy.start();
+        int tid = android.os.Process.myTid(), pr = android.os.Process.getThreadPriority(tid);
+        try {
+            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY);      // 시각을 맞춰야 해서 그동안만 우선
+        } catch (RuntimeException ignored) {
+        }
+        try {
+            Joy.pilot.play(evs, check);
+        } finally {
+            try {
+                android.os.Process.setThreadPriority(pr);
+            } catch (RuntimeException ignored) {
+            }
+        }
+    }
+
+    @Override
+    public void traceStart() {
+        Joy.pilot.traceStart();
+    }
+
+    @Override
+    public java.util.List<com.acrux.mobile.core.Route.Ev> traceEnd() {
+        Joy.settle(500);
+        return Joy.pilot.traceEnd();
     }
 
     @Override

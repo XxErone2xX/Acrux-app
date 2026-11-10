@@ -6,6 +6,8 @@ import android.graphics.Path;
 import android.os.Handler;
 import android.os.HandlerThread;
 
+import com.acrux.mobile.core.Pilot;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Semaphore;
@@ -18,30 +20,21 @@ import java.util.concurrent.TimeUnit;
  *  · 계속 누르는 건 '이어지는 터치' (continueStroke) 를 짧게 (0.06 ~ 0.1초) 계속 이어 붙임 — 두 손가락을 같은 터치로 함께 이어 감
  *  · 새 손가락을 더해야 할 때 (조이스틱을 누르는 중에 점프 시작 등) 는 '이어지는 터치' 에 새 손가락을 섞으면 로블록스가 안 받음
  *    → 지금 누르고 있어야 하는 손가락 전부를 새 터치로 다시 시작 (조이스틱은 가운데부터 다시 끌기 · 끊김은 한 프레임 정도)
+ *  · 언제 누르고 뗄지는 core/Pilot 이 정함 (바로 하기 · 기록한 대로 다시 하기) — 여기는 터치를 보내는 손
  * 주의: 접근성 터치는 한 번에 하나 — 이 밖에서 다른 탭을 보내면 지금 손가락들이 떨어짐 (다음 조각에서 다시 누름)
  */
 final class Joy {
     private Joy() {}
 
     static final double PUSH = 1.35;
-    static final long MOVE_MS = 60, HOLD_MS = 100, START_MS = 90;
 
-    static final Object lock = new Object();
-    static volatile double tx, ty;           // 조이스틱 방향 (길이 0 ~ 1 · 1 = 끝까지)
-    static volatile boolean want;            // 조이스틱을 누르고 있어야 함
-    static volatile boolean wantJump;        // 점프 버튼을 누르고 있어야 함
     static volatile float jx, jy;            // 점프 버튼 (px)
-    /** 점프를 누르라고 한 횟수 · 실제로 누른 횟수 — 눌렀다가 금방 떼라고 해도 (손가락을 다시 누르는 중이라 늦어도) 한 번은 꼭 누름 */
-    static volatile int jumpAsked, jumpDone;
-    /** 한 번 누르면 최소 이만큼은 누르고 있음 (로블록스가 누름을 보게) */
-    static final long JUMP_MIN_MS = 150;
     static volatile double cx, cy, r;        // 조이스틱 (px)
+    /** 사람 손가락이 기록용 패드에 닿은 시각 (nanoTime · 0 = 안 닿음) */
+    static volatile long userDownAt;
     static Thread loop;
-    /** 조이스틱 손가락이 닿아 있음 */
-    static volatile boolean holding;
-    /** 새 터치가 안 먹혀서 점프만 따로 누른 횟수 (점프 테스트 기록용) */
-    static volatile int jumpFallbacks;
     static Handler cb;
+    static final Pilot pilot = new Pilot(new H());
 
     /** 조이스틱 위치 (px) */
     static void at(double x, double y, double radius) {
@@ -52,40 +45,34 @@ final class Joy {
 
     /** 조이스틱 방향 (길이 1 = 끝까지 · null = 뗌) */
     static void set(double[] d) {
-        synchronized (lock) {
-            if (d == null) {
-                want = false;
-            } else {
-                tx = d[0];
-                ty = d[1];
-                want = true;
-            }
-            start();
-            lock.notifyAll();
-        }
+        start();
+        pilot.set(d);
     }
 
     /** 점프 버튼 누르기 (down) · 떼기 (!down) */
     static void jump(float x, float y, boolean down) {
-        synchronized (lock) {
-            jx = x;
-            jy = y;
-            if (down && !wantJump) jumpAsked++;
-            wantJump = down;
-            start();
-            lock.notifyAll();
-        }
+        jx = x;
+        jy = y;
+        start();
+        pilot.jump(down);
     }
 
-    static void start() {
-        if (loop != null && loop.isAlive()) return;
+    /** 누르던 손가락을 다 뗄 때까지 기다림 (최대 ms) */
+    static void settle(long ms) {
+        long end = System.currentTimeMillis() + ms;
+        while (!pilot.idle() && System.currentTimeMillis() < end) nap(5);
+    }
+
+    static synchronized void start() {
         if (cb == null) {
-            HandlerThread ht = new HandlerThread("acrux-joy-cb");
+            HandlerThread ht = new HandlerThread("acrux-joy-cb", android.os.Process.THREAD_PRIORITY_DISPLAY);
             ht.start();
             cb = new Handler(ht.getLooper());
         }
-        loop = new Thread(Joy::run, "acrux-joy");
+        if (loop != null && loop.isAlive()) return;
+        loop = new Thread(pilot::run, "acrux-joy");
         loop.setDaemon(true);
+        loop.setPriority(Thread.MAX_PRIORITY);
         loop.start();
     }
 
@@ -118,6 +105,7 @@ final class Joy {
         try {
             if (!done.tryAcquire(ms + 1500, TimeUnit.MILLISECONDS)) return false;
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             return false;
         }
         return ok[0];
@@ -130,116 +118,129 @@ final class Joy {
         return p;
     }
 
-    static void run() {
-        GestureDescription.StrokeDescription stick = null, jumpF = null;
-        double px = 0, py = 0, qx = 0, qy = 0;   // 조이스틱 손가락 · 점프 손가락 지금 자리
-        boolean wig = false;
-        long jumpUntil = 0;                      // 이 시각까지는 점프 손가락을 떼지 않음
-        while (true) {
-            boolean ws, wj;
-            double dx, dy;
-            float bx, by;
-            synchronized (lock) {
-                if (!want && !wantJump && jumpAsked == jumpDone && stick == null && jumpF == null) {
-                    try {
-                        lock.wait(5000);
-                    } catch (InterruptedException e) {
-                        return;
-                    }
-                    continue;
-                }
-                ws = want;
-                wj = wantJump || jumpAsked != jumpDone || (jumpF != null && System.currentTimeMillis() < jumpUntil);
-                dx = tx;
-                dy = ty;
-                bx = jx;
-                by = jy;
-            }
+    /** 터치를 보내는 손 (Pilot 이 부름 · 한 번에 한 스레드만) */
+    static final class H implements Pilot.Hand {
+        GestureDescription.StrokeDescription stick, jumpF;
+        double px, py, qx, qy;               // 조이스틱 손가락 · 점프 손가락 지금 자리
+        boolean wig;
+
+        @Override
+        public boolean ready(boolean needStick) {
+            return TapService.instance != null && (!needStick || r > 0);
+        }
+
+        /** 방향 → 손가락이 갈 자리 (끝까지면 판 밖으로 조금 더 = 최대 속도) */
+        double[] goal(double[] d, double frac) {
+            double m = Math.hypot(d[0], d[1]), k = m >= 0.95 ? PUSH / Math.max(m, 1e-9) : 1.0;
+            return new double[]{cx + d[0] * r * k * frac, cy + d[1] * r * k * frac};
+        }
+
+        @Override
+        public boolean fresh(double[] dir, double frac, boolean jump, long ms, boolean keep) {
             TapService t = TapService.instance;
-            if (t == null || (ws && r <= 0)) {
-                stick = null;
-                jumpF = null;
-                holding = false;
-                synchronized (lock) {
-                    want = false;
-                    wantJump = false;
-                    jumpDone = jumpAsked;
-                }
-                continue;
-            }
-            double m = Math.hypot(dx, dy), k = m >= 0.95 ? PUSH / Math.max(m, 1e-9) : 1.0;     // 끝까지면 판 밖으로 조금 더 (최대 속도)
-            double gx = cx + dx * r * k, gy = cy + dy * r * k;
+            stick = null;
+            jumpF = null;
+            if (t == null) return false;
+            ms = Math.max(1, ms);
             List<GestureDescription.StrokeDescription> g = new ArrayList<>();
-
-            if ((ws && stick == null) || (wj && jumpF == null)) {
-                // 새 손가락이 필요 → 누르고 있어야 하는 손가락 전부를 새 터치로 다시 시작
-                GestureDescription.StrokeDescription ns = null, nj = null;
-                if (ws) {
-                    t.letThrough((int) cx, (int) cy);
-                    ns = new GestureDescription.StrokeDescription(line(cx, cy, gx, gy), 0, START_MS, true);   // 가운데를 누르고 그 방향으로 끌기
-                    g.add(ns);
-                }
-                if (wj) {
-                    t.letThrough((int) bx, (int) by);
-                    long st = ws ? 30 : 0;                                       // 조이스틱이 먼저 닿은 뒤
-                    nj = new GestureDescription.StrokeDescription(line(bx, by, bx + 1, by), st, START_MS - st, true);
-                    g.add(nj);
-                }
-                int asked = jumpAsked;
-                if (send(g, START_MS)) {
-                    stick = ns;
-                    jumpF = nj;
-                    if (nj != null && jumpDone != asked) {
-                        jumpDone = asked;
-                        jumpUntil = System.currentTimeMillis() + JUMP_MIN_MS - (START_MS - 30);
-                    }
-                    px = gx;
-                    py = gy;
-                    qx = bx + 1;
-                    qy = by;
-                    holding = stick != null;
-                } else {
-                    stick = null;
-                    jumpF = null;
-                    holding = false;
-                    if (wj) jumpFallbacks++;                                     // 끊김 (사람이 화면을 누르는 중 등) → 조이스틱 · 점프를 같이 다시 누름
-                    nap(15);
-                }
-                continue;
-            }
-
-            // 이어 가기: 손가락마다 그대로 · 움직임 · 떼기
-            boolean moving = stick != null && ws && Math.hypot(gx - px, gy - py) >= 2;
-            long ms = moving ? MOVE_MS : HOLD_MS;
-            if (stick == null && jumpF == null) continue;
-            if (!ws && !wj) ms = 30;                                             // 다 뗌
             GestureDescription.StrokeDescription ns = null, nj = null;
+            double gx = cx, gy = cy;
+            float bx = jx, by = jy;
+            if (dir != null) {
+                double[] to = goal(dir, frac);
+                gx = to[0];
+                gy = to[1];
+                t.letThrough((int) cx, (int) cy);
+                ns = new GestureDescription.StrokeDescription(line(cx, cy, gx, gy), 0, ms, keep);      // 가운데를 누르고 그 방향으로 끌기
+                g.add(ns);
+            }
+            if (jump) {
+                t.letThrough((int) bx, (int) by);
+                long st = dir != null ? Math.min(30, ms / 3) : 0;                                       // 조이스틱이 먼저 닿은 뒤
+                nj = new GestureDescription.StrokeDescription(line(bx, by, bx + 1, by), st, Math.max(1, ms - st), keep);
+                g.add(nj);
+            }
+            if (!send(g, ms)) return false;
+            if (keep) {
+                stick = ns;
+                jumpF = nj;
+                px = gx;
+                py = gy;
+                qx = bx + 1;
+                qy = by;
+            }
+            return true;
+        }
+
+        @Override
+        public boolean cont(double[] dir, long ms, boolean liftStick, boolean liftJump) {
+            if (stick == null && jumpF == null) return false;
+            ms = Math.max(1, ms);
+            List<GestureDescription.StrokeDescription> g = new ArrayList<>();
+            GestureDescription.StrokeDescription ns = null, nj = null;
+            double nx = px, ny = py, mx = qx;
             if (stick != null) {
-                if (!ws) {
-                    ns = stick.continueStroke(line(px, py, px + (wig ? -1 : 1), py), 0, ms, false);
-                } else if (moving) {
-                    ns = stick.continueStroke(line(px, py, gx, gy), 0, ms, true);
-                    px = gx;
-                    py = gy;
+                if (dir != null && !liftStick) {
+                    double[] to = goal(dir, 1);
+                    nx = to[0];
+                    ny = to[1];
                 } else {
-                    double nx = px + (wig ? -1 : 1);                             // 그 자리 (1px 흔들기 · 이어지는 터치는 움직임이 있어야 함)
-                    ns = stick.continueStroke(line(px, py, nx, py), 0, ms, true);
-                    px = nx;
+                    nx = px + (wig ? -1 : 1);                                    // 그 자리 (1px 흔들기 · 이어지는 터치는 움직임이 있어야 함)
                 }
+                ns = stick.continueStroke(line(px, py, nx, ny), 0, ms, !liftStick);
                 g.add(ns);
             }
             if (jumpF != null) {
-                double nx = qx + (wig ? -1 : 1);
-                nj = jumpF.continueStroke(line(qx, qy, nx, qy), 0, ms, wj);
-                qx = nx;
+                mx = qx + (wig ? -1 : 1);
+                nj = jumpF.continueStroke(line(qx, qy, mx, qy), 0, ms, !liftJump);
                 g.add(nj);
             }
             wig = !wig;
-            boolean ok = send(g, ms);
-            stick = ok && ns != null && ws ? ns : null;
-            jumpF = ok && nj != null && wj ? nj : null;
-            holding = stick != null;
-            if (!ok) nap(10);              // 끊김 (다른 터치 · 사람이 화면을 누름) → 다음 조각에서 다시 누름
+            if (!send(g, ms)) {
+                stick = null;
+                jumpF = null;
+                return false;
+            }
+            stick = liftStick ? null : ns;
+            jumpF = liftJump ? null : nj;
+            px = nx;
+            py = ny;
+            qx = mx;
+            return true;
+        }
+
+        @Override
+        public void forget() {
+            stick = null;
+            jumpF = null;
+        }
+
+        @Override
+        public long nanos() {
+            return System.nanoTime();
+        }
+
+        @Override
+        public void sleepUntil(long at) {
+            long left;
+            while ((left = at - System.nanoTime()) > 0) {
+                if (left > 3_000_000L) {
+                    try {
+                        Thread.sleep((left - 2_000_000L) / 1_000_000L);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                } else {
+                    Thread.yield();                                              // 마지막 2 ~ 3ms 는 정확히
+                }
+            }
+        }
+
+        @Override
+        public long userDown() {
+            long u = userDownAt;
+            return u != 0 && System.nanoTime() - u < 600_000_000L ? u : 0;
         }
     }
 

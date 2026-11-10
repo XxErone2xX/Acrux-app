@@ -670,7 +670,7 @@ public class TapService extends AccessibilityService {
         com.acrux.mobile.core.Route r = sell ? Hub.sellRoute : Hub.fishRoute;
         String name = sell ? "물고기 판매 장소" : "낚시 장소";
         m.addView(head(name + " 길"));
-        m.addView(item(r.isEmpty() ? "· 기록 없음" : "✓ 기록됨 · " + fmt(r.seconds()) + "초 · " + r.segs.size() + "조각 · 점프 " + r.jumps() + "번", null));
+        m.addView(item(r.isEmpty() ? "· 기록 없음" : "✓ 기록됨 · " + fmt(r.seconds()) + "초 · " + r.parts() + "조각 · 점프 " + r.jumps() + "번", null));
         m.addView(reg(sell ? "act:rec_sell" : "act:rec_fish", item((r.isEmpty() ? "● 길 기록" : "● 다시 기록") + " (기준 장소로 간 뒤 WASD 패드로 걸어감 → [도착])", v -> toggle(sell ? "rec_sell" : "rec_fish"))));
     }
 

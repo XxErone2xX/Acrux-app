@@ -206,11 +206,21 @@ final class Adb extends AbsAdbConnectionManager {
 
     /** shell 명령 → 한 줄씩 (끝날 때까지 · 최대 ms) */
     static void shell(Context c, String cmd, long ms, Consumer<String> line) throws Exception {
+        shell(c, cmd, ms, 0, line);
+    }
+
+    /** idleMs > 0: 그 시간 동안 한 줄도 안 오면 끊긴 걸로 보고 닫음 (계속 흘러나오는 로그용) */
+    static void shell(Context c, String cmd, long ms, long idleMs, Consumer<String> line) throws Exception {
         AdbStream s = get(c).openStream("shell:" + cmd);
         long end = System.currentTimeMillis() + ms;
+        long[] seen = {System.currentTimeMillis()};
         Thread killer = new Thread(() -> {
             try {
-                Thread.sleep(ms);
+                while (true) {
+                    Thread.sleep(idleMs > 0 ? Math.min(5000, idleMs) : Math.max(1, end - System.currentTimeMillis()));
+                    long now = System.currentTimeMillis();
+                    if (now >= end || (idleMs > 0 && now - seen[0] > idleMs)) break;
+                }
                 s.close();
             } catch (Exception ignored) {
             }
@@ -219,7 +229,10 @@ final class Adb extends AbsAdbConnectionManager {
         killer.start();
         try (BufferedReader r = new BufferedReader(new InputStreamReader(s.openInputStream(), StandardCharsets.UTF_8))) {
             String l;
-            while (System.currentTimeMillis() < end && (l = r.readLine()) != null) line.accept(l);
+            while (System.currentTimeMillis() < end && (l = r.readLine()) != null) {
+                seen[0] = System.currentTimeMillis();
+                line.accept(l);
+            }
         } catch (Exception e) {
             if (!s.isClosed()) throw e;
         } finally {

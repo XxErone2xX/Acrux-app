@@ -34,6 +34,85 @@ public final class Route {
     public final List<Seg> segs = new ArrayList<>();
 
     /**
+     * 손가락이 실제로 한 일 (V1.4.1 부터의 기록) — 시각 (ms · 처음 누른 때 = 0) 그대로 다시 함
+     *  · F: 새로 누름 (a = 조이스틱을 가운데에서 dx, dy 로 끌기 · b = 점프 버튼) — 그 전에 누르던 손가락은 다 떨어짐
+     *  · M: 조이스틱 손가락을 dx, dy 로 옮김 · U: 뗌 (a = 조이스틱 · b = 점프) · X: 전부 떨어짐
+     */
+    public static final class Ev {
+        public final char k;
+        public double t, dx, dy;
+        public boolean a, b;
+
+        public Ev(char k, double t, double dx, double dy, boolean a, boolean b) {
+            this.k = k;
+            this.t = t;
+            this.dx = dx;
+            this.dy = dy;
+            this.a = a;
+            this.b = b;
+        }
+    }
+
+    public final List<Ev> evs = new ArrayList<>();
+
+    /** 기록한 손가락 움직임 → 길 (처음 누른 때를 0 으로 · 시각은 뒤로 가지 않게) */
+    public static Route fromTrace(List<Ev> in) {
+        Route r = new Route();
+        int i0 = 0;
+        while (i0 < in.size() && in.get(i0).k != 'F') i0++;
+        if (i0 >= in.size()) return r;
+        double t0 = in.get(i0).t, last = 0;
+        boolean s = false, j = false;
+        for (int i = i0; i < in.size(); i++) {
+            Ev e = in.get(i);
+            double t = Math.max(last, Math.round((e.t - t0) * 10) / 10.0);
+            last = t;
+            r.evs.add(new Ev(e.k, t, r3(e.dx), r3(e.dy), e.a, e.b));
+            if (e.k == 'F') {
+                s = e.a;
+                j = e.b;
+            } else if (e.k == 'X') {
+                s = j = false;
+            } else if (e.k == 'U') {
+                s &= !e.a;
+                j &= !e.b;
+            }
+        }
+        if (s || j) r.evs.add(new Ev('X', last, 0, 0, false, false));       // 끝에 누르고 있던 손가락은 뗌
+        while (!r.evs.isEmpty() && r.evs.get(r.evs.size() - 1).k == 'F') r.evs.remove(r.evs.size() - 1);
+        return r;
+    }
+
+    /** 점프 버튼 위치가 없을 때: 점프를 뺀 손가락 움직임 */
+    public static List<Ev> noJump(List<Ev> in) {
+        List<Ev> o = new ArrayList<>();
+        for (Ev e : in) {
+            if (e.k == 'F') o.add(new Ev('F', e.t, e.dx, e.dy, e.a, false));       // 조이스틱 없는 F 도 남김 (그 전 손가락이 떨어지는 건 같음)
+            else if (e.k == 'U' && !e.a) continue;
+            else o.add(new Ev(e.k, e.t, e.dx, e.dy, e.a, false));
+        }
+        return o;
+    }
+
+    /** 조이스틱을 누른 횟수 */
+    public int presses() {
+        int n = 0;
+        for (Ev e : evs) if (e.k == 'F' && e.a) n++;
+        return n;
+    }
+
+    /** 조각 수 (화면 표시용) */
+    public int parts() {
+        return evs.isEmpty() ? segs.size() : presses();
+    }
+
+    /** 걸은 적이 있나 */
+    public boolean moves() {
+        if (evs.isEmpty()) return !segs.isEmpty();
+        return presses() > 0;
+    }
+
+    /**
      * 길 위치 (화면을 보고 잰 캐릭터 위치 · Odo) — 다시 걸을 때 이 길을 따라가며 어긋난 걸 고침
      * 한 점: {시각, x, y, 점프 (1 누름 · 2 뗌 · 3 둘 다), 그때 조이스틱 dx, dy}
      */
@@ -66,16 +145,27 @@ public final class Route {
     }
 
     public boolean isEmpty() {
-        return segs.isEmpty();
+        return segs.isEmpty() && evs.isEmpty();
     }
 
     public int jumps() {
         int n = 0;
+        boolean held = false;
+        for (Ev e : evs) {
+            if (e.k == 'F') {
+                if (e.b && !held) n++;
+                held = e.b;
+            } else if (e.k == 'X' || (e.k == 'U' && e.b)) {
+                held = false;
+            }
+        }
+        if (!evs.isEmpty()) return n;
         for (Seg g : segs) if (g.jump) n++;
         return n;
     }
 
     public double seconds() {
+        if (!evs.isEmpty()) return evs.get(evs.size() - 1).t / 1000.0;
         double s = 0;
         for (Seg g : segs) s += g.sec;
         return s;
@@ -199,6 +289,17 @@ public final class Route {
     /** "dx,dy,sec;dx,dy,sec,j;…" (j = 점프) */
     public String save() {
         StringBuilder b = new StringBuilder();
+        if (!evs.isEmpty()) {                              // "T:F,ms,dx,dy,조이스틱,점프;M,ms,dx,dy;U,ms,조이스틱,점프;X,ms"
+            b.append("T:");
+            for (int i = 0; i < evs.size(); i++) {
+                Ev e = evs.get(i);
+                if (i > 0) b.append(';');
+                b.append(e.k).append(',').append(String.format(Locale.ROOT, "%.1f", e.t));
+                if (e.k == 'F' || e.k == 'M') b.append(',').append(e.dx).append(',').append(e.dy);
+                if (e.k == 'F' || e.k == 'U') b.append(',').append(e.a ? 1 : 0).append(',').append(e.b ? 1 : 0);
+            }
+            return b.toString();
+        }
         for (Seg g : segs) {
             if (b.length() > 0) b.append(';');
             b.append(String.format(Locale.ROOT, "%s,%s,%s", g.dx, g.dy, g.sec));
@@ -219,6 +320,22 @@ public final class Route {
     public static Route load(String s) {
         Route r = new Route();
         if (s == null || s.isEmpty()) return r;
+        if (s.startsWith("T:")) {
+            try {
+                for (String p : s.substring(2).split(";")) {
+                    String[] v = p.split(",");
+                    char k = v[0].charAt(0);
+                    double t = Double.parseDouble(v[1]);
+                    if (k == 'F') r.evs.add(new Ev(k, t, Double.parseDouble(v[2]), Double.parseDouble(v[3]), v[4].equals("1"), v[5].equals("1")));
+                    else if (k == 'M') r.evs.add(new Ev(k, t, Double.parseDouble(v[2]), Double.parseDouble(v[3]), false, false));
+                    else if (k == 'U') r.evs.add(new Ev(k, t, 0, 0, v[2].equals("1"), v[3].equals("1")));
+                    else if (k == 'X') r.evs.add(new Ev(k, t, 0, 0, false, false));
+                }
+            } catch (RuntimeException e) {
+                r.evs.clear();                             // 깨진 기록 → 없는 걸로 (다시 기록)
+            }
+            return r;
+        }
         String[] parts = s.split("#");
         s = parts[0];
         if (parts.length >= 3) {

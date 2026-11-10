@@ -1095,7 +1095,7 @@ public class MainActivity extends Activity {
 
     static void route(StringBuilder b, String name, com.acrux.mobile.core.Route r) {
         b.append(r.isEmpty() ? "· " : "✓ ").append(name);
-        if (!r.isEmpty()) b.append("  ").append(I18n.f("{0}초", TapService.fmt(r.seconds()))).append(" · ").append(I18n.f("{0}조각", r.segs.size()))
+        if (!r.isEmpty()) b.append("  ").append(I18n.f("{0}초", TapService.fmt(r.seconds()))).append(" · ").append(I18n.f("{0}조각", r.parts()))
                 .append(" · ").append(I18n.f("점프 {0}번", r.jumps()));
         b.append('\n');
     }

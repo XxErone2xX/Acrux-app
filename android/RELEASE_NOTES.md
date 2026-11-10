@@ -1,3 +1,23 @@
+## Acrux Mobile V1.4.1 업데이트
+- 기록한 길을 다시 걸을 때 실제로 간 거리보다 덜 가던 버그 수정
+  - 손가락을 누르고 뗀 시각을 그대로 기록 · 같은 시각에 그대로 재생
+  - 기준 장소로 가는 걸음도 같은 방식으로 정확하게
+  - 길을 다시 기록해야 적용 [ ⚙ → 길 ]
+- 바이옴을 가끔 놓치던 버그 수정
+  - 로그 연결이 끊겼다 붙어도 끊긴 자리부터 이어서 읽음
+  - 로그가 2분 동안 멈추면 자동으로 다시 연결
+  - 바이옴 매크로를 켰을 때 이미 나와 있는 바이옴도 알림
+
+## Acrux Mobile V1.4.1 Update
+- Fixed recorded routes replaying shorter than the distance actually walked
+  - Records the exact press · release times and replays them at the same times
+  - The walk to the base spot uses the same exact timing
+  - Record your routes again to apply [ ⚙ → Route ]
+- Fixed biomes sometimes being missed
+  - After a log reconnect, reading resumes from where it stopped
+  - Reconnects automatically if the log stalls for 2 minutes
+  - Turning the biome macro on now also reports a biome that is already active
+
 ## Acrux Mobile V1.4.0 업데이트
 - Acrux 창에 [바이옴] 버튼 추가 — 바이옴 매크로 켜기 · 끄기
   - 회색 = 꺼짐 · 초록 = 감시 중 · 노랑 = 무선 디버깅 연결 안 됨
