@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">"Acrux Mobile"</string>
+    <string name="main_activity_title">"Acrux Mobile"</string>
+    <string name="accessibility_description">Roblox가 화면에 있을 때 Acrux의 자동 낚시 터치와 시작·중지 버튼을 제공합니다.</string>
+</resources>

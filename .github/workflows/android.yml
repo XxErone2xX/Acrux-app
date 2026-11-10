@@ -1,0 +1,83 @@
+# Acrux Mobile (안드로이드 · 자동 낚시) APK 빌드
+#   android/ 가 바뀐 커밋을 main 에 푸시하면 (또는 Run workflow) → APK 를 만들어 mobile-v<버전> 미리 보기 릴리스로 올림
+#   PC 버전(Acrux.exe)의 업데이트와는 따로: '최신 릴리스'로 표시하지 않음 (실행기가 releases/latest 를 봄) · 태그가 v 로 시작하지 않음
+#   빌드가 실패하면 기록(build.log)을 mobile-build-log 릴리스에 올림 (원인 확인용)
+name: Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["android/**", "src/web/i18n.js", ".github/workflows/android.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Build APK
+        shell: bash
+        run: |
+          set -o pipefail
+          export JAVA_HOME="$JAVA_HOME_17_X64"
+          # 번역 사전: PC 사전(src/web/i18n.js)에서 다시 뽑음 + 모바일 사전
+          python3 android/tools/export_pc_i18n.py
+          python3 android/tools/mobile_i18n.py
+          # 서명 키: 비밀값이 있으면 그걸로 (없으면 레포의 android/app/acrux-release.jks)
+          if [ -n "${{ secrets.ACRUX_KEYSTORE_B64 }}" ]; then
+            echo "${{ secrets.ACRUX_KEYSTORE_B64 }}" | base64 -d > /tmp/acrux.jks
+            export ACRUX_KEYSTORE=/tmp/acrux.jks ACRUX_KEYSTORE_PASS="${{ secrets.ACRUX_KEYSTORE_PASS }}"
+          fi
+          # Gradle 받기: 서버가 잠깐 이상하면 (HTML · 빈 파일) unzip 이 실패했음 → 다시 시도 + 받은 파일 확인
+          for i in 1 2 3 4 5; do
+            curl -fsSL --retry 3 --retry-delay 5 -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.10.2-bin.zip \
+              && unzip -tq /tmp/gradle.zip >/dev/null 2>&1 && break
+            echo "gradle 받기 실패 ($i) — 다시"; sleep 10
+          done
+          unzip -q -o /tmp/gradle.zip -d /tmp
+          cd android
+          /tmp/gradle-8.10.2/bin/gradle --no-daemon --stacktrace assembleDebug lintDebug 2>&1 | tee ../build.log
+
+      - name: Publish APK
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=$(grep -oP 'versionName\s+"\K[^"]+' android/app/build.gradle)
+          tag="mobile-v$v"
+          cp android/app/build/outputs/apk/debug/app-debug.apk Acrux-Mobile.apk
+          sha256sum Acrux-Mobile.apk | cut -d' ' -f1 > Acrux-Mobile.apk.sha256
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" Acrux-Mobile.apk Acrux-Mobile.apk.sha256 --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$tag" --notes-file android/RELEASE_NOTES.md --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$tag" Acrux-Mobile.apk Acrux-Mobile.apk.sha256 --prerelease --latest=false \
+              --target "$GITHUB_SHA" --title "Acrux Mobile V$v" --notes-file android/RELEASE_NOTES.md --repo "$GITHUB_REPOSITORY"
+          fi
+          # 고정 다운로드 링크 (버전이 바뀌어도 그대로): releases/download/mobile-latest/Acrux-Mobile.apk
+          if gh release view mobile-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload mobile-latest Acrux-Mobile.apk Acrux-Mobile.apk.sha256 --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create mobile-latest Acrux-Mobile.apk Acrux-Mobile.apk.sha256 --prerelease --latest=false \
+              --target "$GITHUB_SHA" --title "Acrux Mobile (최신 · 고정 링크)" --notes "x" --repo "$GITHUB_REPOSITORY"
+          fi
+          printf '최신 버전: **Acrux Mobile V%s** · 이 릴리스는 늘 최신 APK 로 바뀜 (고정 다운로드 링크)\n\n' "$v" > /tmp/latest.md
+          cat android/RELEASE_NOTES.md >> /tmp/latest.md
+          gh release edit mobile-latest --title "Acrux Mobile V$v (최신 · 고정 링크)" --notes-file /tmp/latest.md --repo "$GITHUB_REPOSITORY"
+          gh release delete mobile-build-log --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
+
+      - name: Upload build log
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -f build.log ] || echo "no build log" > build.log
+          gh release view mobile-build-log --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create mobile-build-log --prerelease --latest=false --target "$GITHUB_SHA" \
+              --title "Acrux Mobile build log" --notes "빌드 실패 기록 (자동)" --repo "$GITHUB_REPOSITORY"
+          gh release upload mobile-build-log build.log --clobber --repo "$GITHUB_REPOSITORY"

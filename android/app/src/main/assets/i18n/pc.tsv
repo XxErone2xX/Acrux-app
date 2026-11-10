@@ -1,0 +1,1757 @@
+# PC 버전 src/web/i18n.js 에서 자동으로 뽑음 — 고치지 말고 PC 사전을 고칠 것 (android/tools/export_pc_i18n.py)
+중지됨	Stopped	停止中
+감지	Detected	検知
+시작	Start	開始
+중지	Stop	停止
+설정	Settings	設定
+더 보기	More	もっと見る
+접기	Hide	閉じる
+로블록스 클라이언트가 감지되지 않았습니다.	Roblox client not detected.	Robloxクライアントが見つかりません。
+Sol's RNG에 접속하시겠습니까?	Join Sol's RNG?	Sol's RNGに参加しますか？
+닫기	Close	閉じる
+설정 자동 저장	Settings save automatically	設定は自動保存
+Esc: 뒤로	Esc: Back	Esc: 戻る
+뒤로	Back	戻る
+바이옴 매크로 설정	Biome macro settings	バイオームマクロ設定
+바이옴 알림 · 디스코드 웹후크	Biome alerts · Discord webhook	バイオーム通知・Discord Webhook
+디스코드 감지 설정	Discord detection settings	Discord検知設定
+감시할 서버·채널, 필터, 감지 기록	Servers·channels to watch, filter, log	監視するサーバー・チャンネル、フィルター、検知履歴
+오토 팝핑 매크로 설정	Auto popping macro settings	オートポッピングマクロ設定
+게임 접속 후 Play 버튼 자동 클릭	Auto-clicks Play after joining	参加後にPlayボタンを自動クリック
+매크로 복귀 설정	Macro return settings	マクロ復帰設定
+바이옴이 끝나면 내 서버로 복귀	Returns to your server when the biome ends	バイオーム終了後に自分のサーバーへ復帰
+준비 중	Coming soon	準備中
+바이옴	Biome	バイオーム
+스나이프	Snipe	スナイプ
+매크로	Macro	マクロ
+곧 추가됩니다	Coming soon	近日追加
+매크로 기능 설정	Macro feature settings	マクロ機能設定
+팔 물고기 없음	No fish to sell	売る魚なし
+낚시 화면 없음	No fishing screen	釣り画面なし
+판매하러 갔는데 두 번 연속 팔 물고기가 없음 — 낚시 자리 문제로 봄	Went to sell but had no fish twice in a row — treating it as a fishing spot problem	売りに行ったが2回連続で売る魚がない — 釣り場の問題とみなす
+내 서버에서 돌릴 기능 켜기 · 끄기	Turn on/off features that run in your server	自分のサーバーで動かす機能のオン・オフ
+매크로 기준 위치 설정	Macro base position settings	マクロ基準位置設定
+기능마다 버튼 위치 · 영역 지정	Button positions · areas for each feature	機能ごとのボタン位置・範囲を指定
+통계 보기	View stats	統計を見る
+이번 실행 · 올타임 기록	This run · All-time records	今回の実行・オールタイム記録
+레어 바이옴 자동 팝핑	Rare biome auto popping	レアバイオーム自動ポッピング
+내 서버에서	In your server	自分のサーバーで
+상인 자동 구매	Merchant auto buy	商人自動購入
+마리 · 제스터	Mari · Jester	マリ・ジェスター
+포션 자동 제작	Potion auto craft	ポーション自動作成
+Auto Crafted 알림	Auto Crafted notice	Auto Crafted通知
+메모리 매치	Memory Match	メモリーマッチ
+오토 메모리 매치	Auto Memory Match	オートメモリーマッチ
+매크로 버튼과 아래 켜기가 켜져 있으면, 지금 켜진 로블록스(내 서버)의 낚시 자리에서 계속 낚시	While the Macro button and the switch below are on, keeps fishing at the fishing spot in the Roblox that is open now (your server)	マクロボタンと下のスイッチがオンの間、今開いているRoblox（自分のサーバー）の釣り場で釣り続ける
+정지: F7 (매크로 꺼짐)	Stop: F7 (turns Macro off)	停止: F7（マクロがオフになる）
+상태 확인	Check status	状態確認
+세부 설정	Fine-tuning	詳細設定
+매크로 버튼이 켜져 있는 동안 계속 낚시	Keeps fishing while the Macro button is on	マクロボタンがオンの間、釣り続ける
+레어 바이옴이 뜨면 잠깐 멈추고 팝핑 후 이어감	pauses for rare biome popping, then continues	レアバイオームが出たら一時停止してポッピング後に再開
+16:9 로블록스 창 기준 기본 위치를 한 번에 채움	Fills default positions for a 16:9 Roblox window at once	16:9のRobloxウィンドウ基準の既定位置を一度に入力
+안 맞으면 아래에서 직접 지정	set them below if they do not fit	合わなければ下で直接指定
+16:9 적용	Apply 16:9	16:9を適用
+16:9 템플릿 적용	16:9 template applied	16:9テンプレートを適用
+Fish 버튼 위치	Fish button position	Fishボタンの位置
+Fish / Exit 버튼 가운데 (같은 자리)	Center of the Fish / Exit button (same spot)	Fish / Exitボタンの中央（同じ場所）
+결과창 X 위치	Result window X position	結果ウィンドウXの位置
+낚시 결과창 오른쪽 위 X	X at the top right of the fishing result window	釣り結果ウィンドウ右上のX
+결과창 제목 위치	Result title position	結果タイトルの位置
+선택	Optional	任意
+제목 색으로 성공 / 쓰레기 / 실패 구분	tells success / junk / fail apart by title color	タイトルの色で成功 / ゴミ / 失敗を区別
+릴링 바 영역	Reel bar area	リールバーの範囲
+위쪽 바(청록 막대 · 색 구간이 있는 바)만 딱 맞게 드래그	Drag tightly around the upper bar only (the one with the teal bar · colored zone)	上のバー（青緑のバー・色の区間があるバー）だけをぴったりドラッグ
+◇ 표시는 자동으로 찾음	the ◇ marker is found automatically	◇マークは自動で探す
+위쪽 바(파란 막대, Ready! 가 뜨는 바)만 딱 맞게 드래그	Drag tightly around the upper bar only (the blue bar where Ready! shows)	上のバー（青いバー・Ready! が出るバー）だけをぴったりドラッグ
+화면 비율에 맞는 기본 위치를 한 번에 채움	Fills default positions for your screen ratio at once	画面比率に合った初期位置を一度に入力
+자동 = 지금 로블록스 창 크기로 계산	Auto = calculated from the current Roblox window size	自動 = 今のRobloxウィンドウのサイズで計算
+16:9 말고는 추정값이라 안 맞는 건 아래에서 직접 지정	ratios other than 16:9 are estimates, so set any that are off below	16:9以外は推定値なので、合わないものは下で直接指定
+자동 (지금 창)	Auto (current window)	自動（今のウィンドウ）
+목표 위치	Target point	目標位置
+구간 왼쪽 끝에서 구간 폭의 몇 % 지점까지 떨어지면 누를지	Clicks when the marker falls to this % of the zone width from its left end	区間の左端から区間幅の何%まで落ちたら押すか
+0 = 왼쪽 끝, 50 = 가운데	0 = left end, 50 = center	0 = 左端、50 = 中央
+구간 왼쪽으로 자꾸 빠지면 늘리고, 오른쪽으로 넘어가면 줄임 (%)	raise it if it keeps dropping out to the left, lower it if it overshoots to the right (%)	左に抜けやすいなら上げ、右に行き過ぎるなら下げる（%）
+로블록스 창 없음 — 화면 비율을 직접 고르세요	No Roblox window — pick the screen ratio yourself	Robloxウィンドウなし — 画面比率を直接選んでください
+알 수 없는 화면 비율	Unknown screen ratio	不明な画面比率
+업데이트 로그	Update log	アップデートログ
+지금까지 바뀐 점	What has changed so far	これまでの変更点
+지금까지 올라온 업데이트에서 바뀐 점	What changed in each update so far	これまでのアップデートの変更点
+맨 위가 최신	newest at the top	一番上が最新
+낚시 대기 창 영역	Fishing window area (waiting)	釣り待機ウィンドウの範囲
+낚시 미니게임 창 영역	Fishing minigame window area	釣りミニゲームウィンドウの範囲
+로블록스 화면에서 낚시 미니게임 창 영역 드래그	Drag the fishing minigame window area in Roblox	Robloxで釣りミニゲームウィンドウの範囲をドラッグ
+낚시 대기 창 영역을 먼저 지정하세요	Set the fishing window area (waiting) first	先に釣り待機ウィンドウの範囲を指定してください
+로블록스 화면에서 낚시 대기 창 영역 드래그	Drag the fishing window area (waiting) in Roblox	Robloxで釣り待機ウィンドウの範囲をドラッグ
+낚시 대기 창 영역 저장	Fishing window area (waiting) saved	釣り待機ウィンドウの範囲を保存
+낚시 미니게임 창 영역 저장	Fishing minigame window area saved	釣りミニゲームウィンドウの範囲を保存
+내 위치가 구간 왼쪽 변에서 구간 폭의 몇 % 지점 이하로 내려오면 누를지	Clicks when the marker falls to this % of the zone width from its left edge or below	自分の位置が区間の左端から区間幅の何%以下に下がったら押すか
+0 = 딱 왼쪽 변, 50 = 가운데	0 = exactly the left edge, 50 = center	0 = ちょうど左端、50 = 中央
+구간 왼쪽으로 자꾸 빠지면 늘림 (%)	raise it if it keeps dropping out to the left (%)	左に抜けやすいなら上げる（%）
+0 = 지금 위치 그대로	0 = use the current position as is	0 = 今の位置そのまま
+누르는 게 늦어 구간 왼쪽으로 빠지면 조금 늘림 (ms)	raise it a little if clicks come too late and it drops out to the left (ms)	押すのが遅くて左に抜けるなら少し上げる（ms）
+대기 창 · 미니게임 창 · 결과창 영역만 드래그하면 안쪽 위치는 자동으로 계산	Just drag the waiting window, minigame window and result window areas; the positions inside are calculated	待機ウィンドウ・ミニゲームウィンドウ・結果ウィンドウの範囲をドラッグするだけで中の位置を自動計算
+결과창 영역	Result window area	結果ウィンドウの範囲
+세부 위치	Detailed positions	詳細位置
+위 창 영역으로 자동 계산됨	calculated from the window areas above	上のウィンドウ範囲から自動計算
+조금 어긋나면 여기서 하나씩 직접 지정	set them one by one here if slightly off	少しずれていたらここで一つずつ指定
+낚시 창과 결과창 영역만 드래그하면 안쪽 위치는 자동으로 계산	Just drag the fishing window and result window areas; the positions inside are calculated	釣りウィンドウと結果ウィンドウの範囲をドラッグするだけで中の位置を自動計算
+화면 크기나 비율이 달라도 그대로 맞음	works with any screen size or ratio	画面サイズや比率が違ってもそのまま合う
+로블록스 화면에서 낚시 창 영역 드래그	Drag the fishing window area in Roblox	Robloxで釣りウィンドウの範囲をドラッグ
+로블록스 화면에서 결과창 영역 드래그	Drag the result window area in Roblox	Robloxで結果ウィンドウの範囲をドラッグ
+낚시 창 영역 저장	Fishing window area saved	釣りウィンドウの範囲を保存
+결과창 영역 저장	Result window area saved	結果ウィンドウの範囲を保存
+릴링 기록 저장	Save reel log	リール記録を保存
+결과창 기다리는 중	Waiting for the result window	結果ウィンドウを待機中
+화면 복구 중	Recovering the screen	画面を復旧中
+결과창 닫는 중	Closing the result window	結果ウィンドウを閉じています
+낚시 화면을 계속 못 찾음 — 자동 낚시 멈춤 (낚시 자리 · 위치 설정 확인)	Still cannot find the fishing screen — auto fishing stopped (check the fishing spot and position settings)	釣り画面が見つからない — 自動釣りを停止（釣り場と位置設定を確認）
+알림 영역	Notification area	通知の範囲
+오른쪽에 알림 카드가 뜨는 자리를 넉넉히 드래그	Drag generously over where notification cards show on the right	右側に通知カードが出る場所を広めにドラッグ
+Cannot Fish 알림이 뜨면 인벤토리 가득으로 봄	a Cannot Fish notification means the inventory is full	Cannot Fish の通知が出たらインベントリ満杯とみなす
+로블록스 화면에서 알림 영역 드래그	Drag the notification area in Roblox	Robloxで通知の範囲をドラッグ
+알림 영역 저장	Notification area saved	通知の範囲を保存
+인벤토리 가득 알림(Cannot Fish) — 낚시 인벤토리 가득	Inventory full notification (Cannot Fish) — fishing inventory is full	インベントリ満杯の通知（Cannot Fish）— 釣りインベントリが満杯
+위치 지정 창이 안 떠서 다시 띄움	The picker window did not show, opening it again	位置指定ウィンドウが出なかったので再表示
+위치 지정 창이 안 뜸 — 로블록스를 창 모드로 두고 다시 시도하세요	The picker window did not show — put Roblox in windowed mode and try again	位置指定ウィンドウが出ない — Robloxをウィンドウモードにしてもう一度試してください
+자동 보정	Auto calibrate	自動補正
+Fish 버튼이 보일 때 [자동 보정] 을 누르면 한 마리 낚으면서 창 위치를 전부 맞춤	Press [Auto calibrate] while the Fish button shows; it catches one fish and sets every window position	Fishボタンが見えているときに[自動補正]を押すと、1匹釣りながらウィンドウ位置をすべて合わせます
+끝날 때까지 건드리지 말기	don’t touch anything until it’s done	終わるまで触らないでください
+F7 로 취소	F7 cancels	F7でキャンセル
+자동 보정 중… (다시 누르면 취소)	Calibrating… (press again to cancel)	自動補正中…（もう一度押すとキャンセル）
+자동 보정 취소 중	Cancelling auto calibration	自動補正をキャンセル中
+자동 보정 취소됨	Auto calibration cancelled	自動補正をキャンセルしました
+자동 낚시가 멈추지 않음 — 낚시를 끄고 다시 눌러주세요	Auto fishing did not pause — turn fishing off and press again	自動釣りが止まりません — 釣りをオフにしてもう一度押してください
+Fish 를 눌러도 반응 없음 (인벤토리 가득?) — 대기 창만 맞춤	No response to Fish (inventory full?) — only the waiting window was set	Fishを押しても反応なし（インベントリ満杯？）— 待機ウィンドウだけ合わせました
+입질이 안 와서 미니게임 창은 못 잼 — 대기 창만 맞춤	No bite, so the minigame window was not measured — only the waiting window was set	当たりが来ず、ミニゲームウィンドウは測れませんでした — 待機ウィンドウだけ合わせました
+미니게임 창 (대기 창으로 계산)	Minigame window (estimated from the waiting window)	ミニゲームウィンドウ（待機ウィンドウから計算）
+대기 창	Waiting window	待機ウィンドウ
+미니게임 창	Minigame window	ミニゲームウィンドウ
+결과창	Result window	結果ウィンドウ
+낚시 창을 못 찾음 — 낚시 자리에서 Fish 버튼이 보일 때 눌러주세요	Fishing window not found — press it at your fishing spot while the Fish button shows	釣りウィンドウが見つかりません — 釣り場でFishボタンが見えているときに押してください
+기능 켜기 · 끄기	Features on / off	機能のオン・オフ
+쓸 기능을 한 번에	All features at once	使う機能を一度に
+전부 끄기	All off	すべてオフ
+전부 켜기	All on	すべてオン
+켜 둔 기능만 메인 화면의 매크로 버튼을 켰을 때 동작	Only the features turned on here run when the Macro button on the main screen is on	オンにした機能だけが、メイン画面のマクロボタンをオンにしたときに動作
+위치는 매크로 기준 위치 설정에서 지정	Positions are set in Macro base position settings	位置はマクロ基準位置設定で指定
+버튼 6개 · OCR 영역	6 buttons · OCR area	ボタン6個・OCR範囲
+Fish 버튼 · 릴링 바 · 결과창	Fish button · reel bar · result	Fishボタン・リールバー・結果
+이동 기능의 출발점	Start point for movement	移動機能の出発点
+통합 위치 · 기능별 버튼 위치 · 영역 지정	Shared positions · per-feature button positions · areas	統合位置・機能ごとのボタン位置・範囲指定
+기능별 버튼 위치	per-feature button positions	機能ごとのボタン位置
+통합 위치	Shared positions	統合位置
+창 영역	Window areas	ウィンドウ範囲
+창 영역으로 자동 계산됨 · 조금 어긋나면 여기서 하나씩 직접 지정	Calculated from the window areas · if slightly off, set them one by one here	ウィンドウ範囲から自動計算・少しずれていればここで個別に指定
+창 영역으로 자동 계산됨	Calculated from the window areas	ウィンドウ範囲から自動計算
+조금 어긋나면 여기서 하나씩 직접 지정	if slightly off, set them one by one here	少しずれていればここで個別に指定
+이동	Movement	移動
+리셋 → 카메라 정렬 → 줌으로 매번 같은 화면(기준 장소)을 만든 뒤, 화면의 한 점을 눌러 장소로 걸어감 (Click to Move)	Reset → align the camera → zoom to get the same view (base spot) every time, then click a point on screen to walk to a place (Click to Move)	リセット → カメラ整列 → ズームで毎回同じ画面（基準地点）を作り、画面の一点を押して場所へ歩く（Click to Move）
+Collection 버튼	Collection button	Collectionボタン
+Collection 닫기	Collection close	Collectionを閉じる
+Collection 버튼 위치	Collection button position	Collectionボタンの位置
+Collection 닫기 위치	Collection close position	Collectionを閉じる位置
+왼쪽 메뉴의 Collection (책 모양) 버튼	Collection (book) button in the left menu	左メニューのCollection（本の形）ボタン
+Collection 창을 연 상태에서 닫기(X) 버튼	Close (X) button while the Collection window is open	Collectionウィンドウを開いた状態の閉じる（X）ボタン
+기준 장소	Base spot	基準地点
+리셋 → 카메라 정렬 → 줌 · 이미 기준 장소에 있고 카메라도 맞으면 지점의 [바로 …] 버튼을 쓰기	Reset → camera align → zoom · if you are already at the base spot with the camera aligned, use the point's [… now] buttons	リセット → カメラ整列 → ズーム・すでに基準地点にいてカメラも合っていれば地点の［すぐ…］ボタンを使用
+기준 장소로 이동	Go to base spot	基準地点へ移動
+멈춤	Stop	停止
+리셋 후 대기	Wait after reset	リセット後の待機
+리셋하고 다시 생길 때까지 (초)	until you respawn after resetting (s)	リセットして復活するまで（秒）
+줌 당기기	Zoom in	ズームイン
+휠 위로 몇 번 (끝까지 당김)	wheel up count (all the way in)	ホイール上の回数（最後まで）
+줌 밀기	Zoom out	ズームアウト
+그다음 휠 아래로 몇 번 (항상 같은 거리)	then wheel down count (always the same distance)	次にホイール下の回数（常に同じ距離）
+도착 여유	Arrival margin	到着の余裕
+잰 시간에 더 기다릴 시간 (초)	extra wait on top of the measured time (s)	計った時間に加えて待つ時間（秒）
+누를 버튼	Click button	押すボタン
+장소를 누를 마우스 버튼 (Click to Move)	mouse button used to click the place (Click to Move)	場所を押すマウスボタン（Click to Move）
+우클릭	Right click	右クリック
+좌클릭	Left click	左クリック
+시간 재는 중	Measuring time	時間を計測中
+캐릭터가 도착하면 F6 을 누르거나 [도착] 을 누르기	when the character arrives, press F6 or [Arrived]	キャラクターが到着したらF6か［到着］を押す
+도착	Arrived	到着
+장소	Places	場所
+장소 추가	Add place	場所を追加
+장소 이름 (예: Captain Flarg)	Place name (e.g. Captain Flarg)	場所の名前（例: Captain Flarg）
+이 장소로 이동	Go to this place	この場所へ移動
+장소 삭제	Delete place	場所を削除
+한 번 더 누르면 삭제	Press again to delete	もう一度押すと削除
+안 잼	not measured	未計測
+기준 장소에서 지정	Set from base spot	基準地点から指定
+바로 지정	Set now	すぐ指定
+시간 재기	Measure time	時間を計る
+바로 재기	Measure now	すぐ計る
+지점 추가	Add point	地点を追加
+기준 장소로 이동 시작 · 정지: F7	Going to the base spot · stop: F7	基準地点へ移動開始・停止: F7
+장소로 이동 시작 · 정지: F7	Going to the place · stop: F7	場所へ移動開始・停止: F7
+기준 장소로 간 뒤 지점을 누르고 시간 재기 · 도착하면 F6	Goes to the base spot, clicks the point and times it · press F6 on arrival	基準地点へ行って地点を押し時間を計る・到着したらF6
+지점을 누르고 시간 재기 · 도착하면 F6	Clicks the point and times it · press F6 on arrival	地点を押して時間を計る・到着したらF6
+기준 장소로 가는 중… 그다음 걸어갈 곳 클릭	Going to the base spot… then click where to walk	基準地点へ移動中… その後歩く場所をクリック
+로블록스 화면에서 걸어갈 곳 클릭	Click where to walk in Roblox	Roblox画面で歩く場所をクリック
+기준 장소로 이동 · 리셋	Going to base spot · reset	基準地点へ移動・リセット
+기준 장소로 이동 · 카메라 정렬	Going to base spot · camera align	基準地点へ移動・カメラ整列
+기준 장소로 이동 · 줌	Going to base spot · zoom	基準地点へ移動・ズーム
+기준 장소 도착 (리셋 · 카메라 정렬 · 줌 완료)	At the base spot (reset · camera align · zoom done)	基準地点に到着（リセット・カメラ整列・ズーム完了）
+이동 멈춤	Movement stopped	移動停止
+이동이 이미 도는 중	Movement is already running	移動はすでに実行中
+장소를 찾을 수 없음	Place not found	場所が見つかりません
+지점을 찾을 수 없음	Point not found	地点が見つかりません
+지점 위치를 먼저 지정	Set the point position first	先に地点の位置を指定
+기준 장소로 못 감 (멈춤)	Could not reach the base spot (stopped)	基準地点へ行けません（停止）
+통합 위치 → 이동 에서 Collection 버튼 · 닫기 위치를 먼저 지정	Set the Collection button · close positions first in Shared positions → Movement	統合位置 → 移動 でCollectionボタン・閉じる位置を先に指定
+이동 · 기준 장소	Movement · base spot	移動・基準地点
+리셋 → 카메라 정렬 → 줌으로 매번 같은 화면(기준 장소)을 만듦 · 기능마다 갈 장소는 그 기능 칸에서 지정 (Click to Move)	Reset → camera align → zoom to get the same view (base spot) every time · each feature sets its own places in its section (Click to Move)	リセット → カメラ整列 → ズームで毎回同じ画面（基準地点）を作る・機能ごとの行き先はその機能の欄で指定（Click to Move）
+리셋 → 카메라 정렬 → 줌으로 매번 같은 화면(기준 장소)을 만듦	Reset → camera align → zoom to get the same view (base spot) every time	リセット → カメラ整列 → ズームで毎回同じ画面（基準地点）を作る
+기능마다 갈 장소는 그 기능 칸에서 지정 (Click to Move)	each feature sets its own places in its section (Click to Move)	機能ごとの行き先はその機能の欄で指定（Click to Move）
+낚시하다 가야 하는 곳 (판매 등) · 기준 장소(통합 위치 → 이동 · 기준 장소)에서 출발	Places to go while fishing (selling, etc.) · starts from the base spot (Shared positions → Movement · base spot)	釣り中に行く場所（売却など）・基準地点（統合位置 → 移動・基準地点）から出発
+낚시하다 가야 하는 곳 (판매 등)	Places to go while fishing (selling, etc.)	釣り中に行く場所（売却など）
+아직 장소 없음 — [장소 추가] 로 만들기	No places yet — create one with [Add place]	まだ場所なし — ［場所を追加］で作成
+채팅 버튼	Chat button	チャットボタン
+채팅 버튼 위치	Chat button position	チャットボタンの位置
+왼쪽 위의 채팅 버튼	Chat button at the top left	左上のチャットボタン
+도감 버튼	Collection button	図鑑ボタン
+도감 버튼 위치	Collection button position	図鑑ボタンの位置
+왼쪽 메뉴의 도감(Collection · 책 모양) 버튼	Collection (book) button in the left menu	左メニューの図鑑（Collection・本の形）ボタン
+도감 Exit	Collection Exit	図鑑 Exit
+도감 Exit 위치	Collection Exit position	図鑑 Exit の位置
+도감을 연 상태에서 Exit(닫기) 버튼	Exit (close) button while the Collection is open	図鑑を開いた状態の Exit（閉じる）ボタン
+리셋 → / · 채팅 · 도감 열고 닫기 · / · Enter → W → W+A → O 로 매번 같은 자리 · 같은 화면(기준 장소)을 만듦 · 기능마다 갈 장소는 그 기능 칸에서 지정 (Click to Move)	Reset → / · chat · open and close Collection · / · Enter → W → W+A → O to reach the same spot and view (base spot) every time · each feature sets its own places in its section (Click to Move)	リセット → /・チャット・図鑑を開いて閉じる・/・Enter → W → W+A → O で毎回同じ場所・同じ画面（基準地点）を作る・機能ごとの行き先はその機能の欄で指定（Click to Move）
+Esc → R → Enter 로 리셋한 뒤 (초)	after resetting with Esc → R → Enter (s)	Esc → R → Enter でリセットした後（秒）
+W 누르기	Hold W	Wを押す
+W 만 누르는 시간 (초)	time holding only W (s)	Wだけ押す時間（秒）
+W + A 누르기	Hold W + A	W + A を押す
+W 와 A 를 같이 누르는 시간 (초)	time holding W and A together (s)	WとAを同時に押す時間（秒）
+O 누르기	Hold O	Oを押す
+위에서 내려다보기 + 최대 줌 (초)	look straight down + max zoom (s)	真上から見下ろす + 最大ズーム（秒）
+기준 장소로 이동 · 카메라 정렬 (채팅 · 도감)	Going to base spot · camera align (chat · Collection)	基準地点へ移動・カメラ整列（チャット・図鑑）
+기준 장소로 이동 · 걷기 (W → W+A)	Going to base spot · walking (W → W+A)	基準地点へ移動・歩行（W → W+A）
+기준 장소로 이동 · 화면 (O)	Going to base spot · view (O)	基準地点へ移動・画面（O）
+기준 장소 도착	At the base spot	基準地点に到着
+게임 버튼	Game buttons	ゲームボタン
+여러 기능이 같이 누르는 게임 화면 버튼	In-game buttons pressed by several features	複数の機能で押すゲーム画面のボタン
+자동 낚시 안 함	Auto fishing skipped	自動釣りしない
+낚시 장소	Fishing spot	釣り場
+물고기 판매 장소	Fish selling spot	魚の売却場所
+낚시 장소 · 물고기 판매 장소 — 지점마다 누를 곳을 지정하고 시간을 재기 · 기준 장소(통합 위치 → 이동 · 기준 장소)에서 출발	Fishing spot · fish selling spot — set where to click for each point and measure the time · starts from the base spot (Shared positions → Movement · base spot)	釣り場・魚の売却場所 — 地点ごとに押す場所を指定して時間を計る・基準地点（統合位置 → 移動・基準地点）から出発
+매크로 이동 중 · 마우스와 키보드를 건드리지 마세요 (F7: 정지)	Macro is moving · don't touch the mouse or keyboard (F7: stop)	マクロ移動中・マウスとキーボードに触らないでください（F7: 停止）
+화면 내려다보기	Look down	見下ろす
+우클릭을 누른 채 마우스를 아래로 끄는 거리 (px)	distance to drag the mouse down while holding right click (px)	右クリックを押したままマウスを下へ動かす距離（px）
+최대 줌 (초)	max zoom (s)	最大ズーム（秒）
+기준 장소로 이동 · 화면 내려다보기 (우클릭 드래그)	Going to base spot · look down (right-drag)	基準地点へ移動・見下ろす（右ドラッグ）
+기준 장소로 이동 · 최대 줌 (O)	Going to base spot · max zoom (O)	基準地点へ移動・最大ズーム（O）
+기준 장소로 이동 · 내려다보기 + 최대 줌 (우클릭 드래그 + O)	Going to base spot · look down + max zoom (right-drag + O)	基準地点へ移動・見下ろし + 最大ズーム（右ドラッグ + O）
+판매	Selling	売却
+인벤토리가 가득 차면: 물고기 판매 장소 → E → 대화 넘기기 → Sell Fish → (첫 칸 → Sell All → 확인) 을 왼쪽 정보가 빌 때까지 → X → 낚시 장소	When the inventory is full: fish selling spot → E → skip dialog → Sell Fish → (first slot → Sell All → confirm) until the left info is empty → X → fishing spot	インベントリが満杯になったら: 魚の売却場所 → E → 会話を進める → Sell Fish →（最初の枠 → Sell All → 確認）を左の情報が空になるまで → X → 釣り場
+대화창	Dialog box	会話ウィンドウ
+대화창 위치	Dialog box position	会話ウィンドウの位置
+Captain Flarg 와 대화할 때 눌러서 넘길 곳	where to click to skip the Captain Flarg dialog	Captain Flarg との会話で押して進める場所
+Sell Fish 버튼	Sell Fish button	Sell Fish ボタン
+Sell Fish 버튼 위치	Sell Fish button position	Sell Fish ボタンの位置
+대화 선택지 중 파란 [Sell Fish]	the blue [Sell Fish] among the dialog choices	会話の選択肢の青い［Sell Fish］
+첫 번째 물고기 칸	First fish slot	最初の魚の枠
+첫 번째 물고기 칸 위치	First fish slot position	最初の魚の枠の位置
+상점 목록의 맨 앞 칸	the first slot in the shop list	ショップ一覧の先頭の枠
+Sell All 버튼	Sell All button	Sell All ボタン
+Sell All 버튼 위치	Sell All button position	Sell All ボタンの位置
+왼쪽 물고기 정보 아래	below the fish info on the left	左の魚情報の下
+확인 Sell 버튼	Confirm Sell button	確認の Sell ボタン
+확인 Sell 버튼 위치	Confirm Sell button position	確認の Sell ボタンの位置
+확인창의 초록 Sell	the green Sell in the confirm window	確認ウィンドウの緑の Sell
+상점 닫기 X	Shop close X	ショップを閉じる X
+상점 닫기 X 위치	Shop close X position	ショップを閉じる X の位置
+상점 오른쪽 위 X	X at the top right of the shop	ショップ右上の X
+E 누른 뒤 대기	Wait after E	E を押した後の待機
+대화창이 뜰 때까지 (초)	until the dialog shows (s)	会話ウィンドウが出るまで（秒）
+판매 반복 최대	Max sell repeats	売却の最大繰り返し
+클릭이 씹혀 끝없이 도는 것만 막음	only stops endless loops from missed clicks	クリックが効かず無限に回るのを防ぐだけ
+판매 테스트	Sell test	売却テスト
+기준 장소 → 물고기 판매 장소 → 판매 → 낚시 장소 · 정지: F7	base spot → fish selling spot → sell → fishing spot · stop: F7	基準地点 → 魚の売却場所 → 売却 → 釣り場・停止: F7
+판매 테스트 시작 · 정지: F7	Sell test started · stop: F7	売却テスト開始・停止: F7
+물고기 팔러 감	Going to sell fish	魚を売りに行く
+판매 · 물고기 판매 장소로 가는 중	Selling · going to the fish selling spot	売却・魚の売却場所へ移動中
+판매 · 대화	Selling · dialog	売却・会話
+판매 · 낚시 장소로 돌아가는 중	Selling · returning to the fishing spot	売却・釣り場へ戻り中
+낚시 장소 도착 — 낚시 이어감	At the fishing spot — fishing resumes	釣り場に到着 — 釣りを再開
+인벤토리 가득 — 판매하러 감	Inventory full — going to sell	インベントリ満杯 — 売りに行く
+판매 멈춤	Selling stopped	売却停止
+켜면 통합 위치의 인벤토리 위치 · OCR 영역을 씀	When on, uses the inventory positions · OCR area from Shared positions	オンにすると統合位置のインベントリ位置・OCR領域を使用
+이 이상 같아야 사용 · 아니면 다시 검색 후 건너뜀 (%)	Used only if at least this similar · otherwise searches again, then skips (%)	これ以上一致で使用・未満なら再検索後スキップ (%)
+레어 바이옴이 감지되면 아래 포션 목록대로 사용	Uses the potion list below when a rare biome is detected	レアバイオームを検知したら下のポーション一覧どおりに使用
+구간 왼쪽 변에서 몇 % 지점에서 누를지 · 0 = 왼쪽 변, 50 = 가운데 (%)	Where in the zone to click, from its left edge · 0 = left edge, 50 = middle (%)	区間の左端から何%の地点で押すか・0 = 左端、50 = 中央 (%)
+이만큼 미리 누름 · 늦게 눌리면 조금 늘림 (ms)	Clicks this much earlier · raise a little if clicks are late (ms)	この分だけ早く押す・押すのが遅ければ少し増やす (ms)
+반응이 없을 때 다시 누르는 횟수 · 넘으면 인벤토리 가득	Retries when Fish does not respond · beyond this, inventory is full	反応がないとき押し直す回数・超えたらインベントリ満杯
+매크로가 켜져 있는 동안 계속 낚시	Keeps fishing while the macro is on	マクロがオンの間ずっと釣り
+문제 확인용 기록 (데이터 폴더의 fishing_log.csv)	Log for troubleshooting (fishing_log.csv in the data folder)	問題確認用の記録（データフォルダの fishing_log.csv）
+NPC 대화를 넘길 곳 (Click to skip.)	Where to click to skip NPC dialogs (Click to skip.)	NPCの会話を進める場所（Click to skip.）
+오른쪽 알림 카드 자리를 넉넉히 드래그	Drag generously over where notification cards appear on the right	右側の通知カードの場所を広めにドラッグ
+모든 이동의 출발점 (리셋 → 카메라 정렬 → 걷기 → 줌)	Starting point for all movement (reset → camera align → walk → zoom)	すべての移動の出発点（リセット → カメラ合わせ → 歩行 → ズーム）
+Fish 버튼이 보일 때 창 테두리까지 드래그	Drag to the window border while the Fish button shows	Fishボタンが見えるときウィンドウの枠までドラッグ
+미니게임 중에 창 테두리까지 드래그	Drag to the window border during the minigame	ミニゲーム中にウィンドウの枠までドラッグ
+결과창이 떠 있을 때 창 테두리까지 드래그	Drag to the window border while the result shows	結果画面が出ているときウィンドウの枠までドラッグ
+위쪽 바만 딱 맞게 드래그	Drag tightly over the upper bar only	上のバーだけぴったりドラッグ
+물고기를 눌렀을 때 왼쪽 이름 · Sells for 자리	Left name · Sells for area after clicking a fish	魚を押したときの左の名前・Sells for の場所
+창 테두리만 드래그하면 안쪽 위치는 자동 계산	Drag the window borders and the inner positions are calculated	ウィンドウの枠をドラッグすると内側の位置は自動計算
+인벤토리가 가득 차면 물고기를 팔고 돌아옴	Sells fish when the inventory is full, then comes back	インベントリが満杯になったら魚を売って戻る
+매크로를 켜면 낚시 장소로, 가득 차면 판매 장소로 이동	Goes to the fishing spot when the macro starts, and to the selling spot when full	マクロをオンにすると釣り場へ、満杯なら売却場所へ移動
+켜면 스나이프 오토 팝핑도 이 위치를 씀	When on, snipe auto popping uses these positions too	オンにするとスナイプのオートポッピングもこの位置を使用
+누른 뒤 Captain Flarg 앞에서 E · 실제로 팔지는 않음	Press it, then E at Captain Flarg · nothing is sold	押したあと Captain Flarg の前で E・実際には売りません
+위 순서대로 테스트	Tests the steps above	上の手順でテスト
+멀리 갈 때는 지점을 여러 개로	Use several points for far places	遠い場所は地点を複数に
+로블록스 로그로 바이옴을 감지해 알림 전송	Detects biomes from Roblox logs and sends notifications	ロブロックスのログでバイオームを検知して通知
+바이옴이 시작될 때 함께 멘션 · 역할 우클릭 → ID 복사 (개발자 모드)	Mentioned when a biome starts · right-click the role → Copy ID (developer mode)	バイオーム開始時にメンション・ロールを右クリック → IDをコピー（開発者モード）
+오토 팝핑이 끝나면 이 링크로 다시 접속	Rejoins this link when auto popping ends	オートポッピングが終わったらこのリンクに再接続
+최소 ~ 최대 사이에서 매번 다르게 기다린 뒤 접속 (초) · 기본 0 ~ 0	Waits a random time between min and max before joining (s) · default 0 ~ 0	最小〜最大の間で毎回違う時間待ってから接続 (秒)・既定 0 〜 0
+켜짐: 로블록스 바로 실행 · 꺼짐: 브라우저로 열기	On: launch Roblox directly · Off: open in the browser	オン: ロブロックスを直接起動・オフ: ブラウザで開く
+켜 둔 기능만 매크로 버튼을 켰을 때 동작	Only enabled features run when the macro button is on	オンにした機能だけマクロボタンで動作
+내 서버에서 레어 바이옴이 시작되면 포션 사용 · 정지: F7	Uses potions when a rare biome starts in your server · stop: F7	自分のサーバーでレアバイオームが始まったらポーション使用・停止: F7
+매크로가 켜져 있는 동안 계속 낚시 · 정지: F7	Keeps fishing while the macro is on · stop: F7	マクロがオンの間ずっと釣り・停止: F7
+[위치 지정] 후 로블록스 화면에서 클릭 (영역은 드래그)	[Set position], then click on the Roblox screen (drag for areas)	［位置指定］後にロブロックス画面でクリック（領域はドラッグ）
+Fish 버튼이 보일 때 [자동 보정] 을 누르면 위치를 전부 맞춤	Press [Auto calibrate] while the Fish button shows to set every position	Fishボタンが見えるとき［自動補正］を押すと位置をすべて合わせます
+클릭 사이 추가 대기	Extra wait between clicks	クリック間の追加待機
+렉이 있으면 늘림 (초)	Raise it if the game lags (s)	ラグがあれば増やす（秒）
+상점 Buy · Sell 탭을 못 찾음	Shop Buy · Sell tabs not found	ショップの Buy・Sell タブが見つかりません
+Fish 버튼이 보일 때 누르면 위치를 전부 맞춤	Press while the Fish button shows to set every position	Fishボタンが見えるときに押すと位置をすべて合わせます
+중지 · F3	Stop · F3	停止 · F3
+시작 · F3	Start · F3	開始 · F3
+사용자 수 집계에 참여	Join the user count	ユーザー数の集計に参加
+켜져 있다는 신호만 보냄 (무작위 번호 · 개인 정보 없음) · 꺼도 사용자 수는 보임	Only sends a signal that Acrux is open (a random number · no personal info) · the user count still shows when off	起動中の合図だけ送ります（ランダムな番号・個人情報なし）・オフでもユーザー数は表示
+매크로 다시 시작까지 대기	Wait before restarting the macro	マクロ再開までの待機
+내 서버에 들어간 뒤 매크로를 다시 켜기까지 (초) · 기본 7.5	After joining your server, until the macro turns back on (s) · default 7.5	自分のサーバーに入ってからマクロを再開するまで（秒）・既定 7.5
+스나이핑 중 — 매크로 잠시 멈춤 (내 서버로 돌아오면 다시 시작)	Sniping — macro paused (restarts when back in your server)	スナイプ中 — マクロを一時停止（自分のサーバーに戻ると再開）
+내 서버 — 매크로 다시 시작	Your server — macro restarted	自分のサーバー — マクロを再開
+오토 아이템 사용	Auto item use	オートアイテム使用
+Exit 뒤 D 누르기	Press D after Exit	Exit の後に D を押す
+D 뒤 대기	Wait after D	D の後に待つ
+Exit 뒤 D 를 누른 다음 기다리는 시간 (초)	Time to wait after pressing D following Exit (s)	Exit の後に D を押してから待つ時間（秒）
+퀘스트 창 Exit 를 누른 뒤 D 를 누르는 시간 (초)	Time to press D after the quest window Exit (s)	クエストウィンドウの Exit の後に D を押す時間（秒）
+포탈 뒤 D 누르기	Press D after the portal	ポータルの後に D を押す
+1번 퀘스트 보드 → E → 대기 → Exit → D → 2번 스텔라 포탈 → D = 포션 제작 장소	Point 1 quest board → E → wait → Exit → D → point 2 Stella portal → D = potion crafting spot	地点1 クエストボード → E → 待機 → Exit → D → 地点2 ステラのポータル → D = ポーション製作場所
+퀘스트 보드 · E → Exit → D	Quest board · E → Exit → D	クエストボード・E → Exit → D
+1번 퀘스트 보드 → E → 대기 → Exit → 2번 스텔라 포탈 → D = 포션 제작 장소	Point 1 quest board → E → wait → Exit → point 2 Stella portal → D = potion crafting spot	地点1 クエストボード → E → 待機 → Exit → 地点2 ステラのポータル → D = ポーション製作場所
+스텔라 포탈 다음 D 를 누르는 시간 (초) — 끝나는 자리가 포션 제작 장소	Time to press D after the Stella portal (s) — where it ends is the crafting spot	ステラのポータルの後に D を押す時間（秒）— 止まった所が製作場所
+퀘스트 보드 · E → Exit	Quest board · E → Exit	クエストボード・E → Exit
+포션 제작 장소로 · D	To the potion crafting spot · D	ポーション製作場所へ · D
+A 같이 누르기	Also press A	A も一緒に押す
+반대쪽 기준 장소	Reverse starting point	反対側の基準地点
+낚시와 정반대 방향 · 리셋 → 카메라 정렬 → 내려다보기+줌 → S+D → S (끝에 A 같이)	Opposite direction from fishing · reset → camera align → look down + zoom → S+D → S (A at the end)	釣りと正反対の方向・リセット → カメラ調整 → 見下ろし+ズーム → S+D → S（最後に A も）
+1번 지점 = 퀘스트 보드 → (E → 대기 → Exit → D) → 2번 지점부터 Stella 앞까지	Point 1 = quest board → (E → wait → Exit → D) → from point 2 to Stella	地点1 = クエストボード →（E → 待機 → Exit → D）→ 地点2から Stella まで
+반대쪽 기준 장소로 이동	Go to the reverse starting point	反対側の基準地点へ移動
+S + D 누르기	Press S + D	S + D を押す
+S 와 D 를 같이 누르는 시간 (초)	Time to press S and D together (s)	S と D を一緒に押す時間（秒）
+S 누르기	Press S	S を押す
+그 다음 S 를 누르는 시간 (초)	Then press S for (s)	その後 S を押す時間（秒）
+S 를 누르는 마지막 이 시간 동안 A 도 같이 (초)	Also press A for this last part of the S press (s)	S を押す最後のこの時間は A も一緒に（秒）
+퀘스트 보드 E 뒤 대기	Wait after E at the quest board	クエストボードで E の後の待機
+E 를 누르고 Exit 를 누르기까지 (초)	From pressing E until clicking Exit (s)	E を押してから Exit を押すまで（秒）
+D 누르기	Press D	D を押す
+Exit 를 누른 뒤 D 를 누르는 시간 (초)	Time to press D after Exit (s)	Exit の後に D を押す時間（秒）
+퀘스트 보드 Exit 위치	Quest board Exit position	クエストボード Exit の位置
+퀘스트 보드 앞에서 E 로 창을 연 뒤 [바로 지정] → Exit 클릭	Open the window with E at the quest board, then [Set now] → click Exit	クエストボードの前で E でウィンドウを開き [直接指定] → Exit をクリック
+반대쪽 기준 장소로 이동 시작 · 정지: F7	Moving to the reverse starting point · stop: F7	反対側の基準地点へ移動開始・停止: F7
+로블록스 화면에서 퀘스트 창 Exit 클릭	Click the quest window Exit on the Roblox screen	Roblox 画面でクエストウィンドウの Exit をクリック
+퀘스트 보드 Exit 위치 저장	Quest board Exit position saved	クエストボード Exit の位置を保存
+반대쪽 기준 장소 도착	Arrived at the reverse starting point	反対側の基準地点に到着
+퀘스트 보드 · E → Exit → D	Quest board · E → Exit → D	クエストボード・E → Exit → D
+퀘스트 보드 Exit 위치를 먼저 지정 (매크로 설정 → 포션 자동 제작 → 반대쪽 기준 장소)	Set the quest board Exit position first (Macro settings → Potion auto craft → Reverse starting point)	クエストボードのExit位置を先に指定（マクロ設定 → ポーション自動製作 → 反対側の基準地点）
+반대쪽 기준 장소로 이동 · 리셋	To the reverse starting point · reset	反対側の基準地点へ · リセット
+반대쪽 기준 장소로 이동 · 카메라 정렬 (채팅 · 도감)	To the reverse starting point · camera align (chat · collection)	反対側の基準地点へ · カメラ調整（チャット・図鑑）
+반대쪽 기준 장소로 이동 · 내려다보기 + 최대 줌 (우클릭 드래그 + O)	To the reverse starting point · look down + max zoom (right drag + O)	反対側の基準地点へ · 見下ろし + 最大ズーム（右ドラッグ + O）
+반대쪽 기준 장소로 이동 · 걷기 (S+D → S → S+A)	To the reverse starting point · walk (S+D → S → S+A)	反対側の基準地点へ · 歩く（S+D → S → S+A）
+제작 창 · 제작 장소	Crafting window · spot	製作ウィンドウ・製作場所
+검색창 위치	Search box position	検索欄の位置
+제작 창 오른쪽 위 Search	Search at the top right of the crafting window	製作ウィンドウ右上の Search
+제작 창 X 위치	Crafting window X position	製作ウィンドウ X の位置
+Stella's Workshop 오른쪽 위 X	The X at the top right of Stella's Workshop	Stella's Workshop 右上の X
+Open Recipe 버튼 위치	Open Recipe button position	Open Recipe ボタンの位置
+왼쪽 아래 Open Recipe	Open Recipe at the bottom left	左下の Open Recipe
+Add Everything 버튼 위치	Add Everything button position	Add Everything ボタンの位置
+Add Ingredients 창 왼쪽 아래	Bottom left of the Add Ingredients window	Add Ingredients ウィンドウの左下
+Craft 버튼 위치	Craft button position	Craft ボタンの位置
+Add Ingredients 창 오른쪽 아래	Bottom right of the Add Ingredients window	Add Ingredients ウィンドウの右下
+Add Ingredients 창 X 위치	Add Ingredients window X position	Add Ingredients ウィンドウ X の位置
+Add Ingredients 오른쪽 위 X	The X at the top right of Add Ingredients	Add Ingredients 右上の X
+검색 결과 목록	Search result list	検索結果のリスト
+검색창 아래 포션 목록 전체	The whole potion list under the search box	検索欄の下のポーションリスト全体
+제작 창	Crafting window	製作ウィンドウ
+실행할 땐 글자로 먼저 찾고, 못 찾으면 이 위치를 씀	Found by text first when running; these positions are used if not found	実行時はまず文字で探し、見つからなければこの位置を使用
+누른 뒤 Stella 앞에서 F · 재료는 안 넣음	Press, then F in front of Stella · adds no ingredients	押してから Stella の前で F・材料は入れない
+Stella 앞에서 F 를 눌러 주세요	Press F in front of Stella	Stella の前で F を押してください
+포션 제작 자동 보정 완료	Potion craft calibration done	ポーション製作の自動補正完了
+메모리 매치 자동 보정 완료	Memory match calibration done	メモリーマッチの自動補正完了
+메모리 매치 자동 보정 취소됨	Memory match calibration canceled	メモリーマッチの自動補正をキャンセル
+메모리 매치 자동 보정 취소 중	Canceling memory match calibration	メモリーマッチの自動補正をキャンセル中
+누른 뒤 메모리 매치 보드 앞에서 E · Start · 광고는 안 누름	Press, then E in front of the memory match board · never presses Start or ads	押してからメモリーマッチのボードの前で E・Start・広告は押さない
+메모리 매치 보드 앞에서 E 를 눌러 주세요	Press E in front of the memory match board	メモリーマッチのボードの前で E を押してください
+메모리 매치 창 찾음 — 이제 만지지 마세요	Memory match window found — hands off now	メモリーマッチのウィンドウを検出 — もう触らないでください
+메모리 매치 창이 안 보임 — 보드 앞에서 E 를 눌러 주세요	Memory match window not visible — press E in front of the board	メモリーマッチのウィンドウが見えない — ボードの前で E を押してください
+Watch AD 칸이 안 보여서 그 자리는 계산값	Watch AD bar not shown, so its position is estimated	Watch AD 欄が見えないため、その位置は推定値
+지금 바로 할 수 있음	ready now	今すぐ可能
+알림 창 X	Notification X	通知ウィンドウの X
+E 를 누르면 뜨는 Notification 창 오른쪽 위 X	X at the top right of the Notification window that opens with E	E で開く Notification ウィンドウ右上の X
+Start / Available 버튼	Start / Available button	Start / Available ボタン
+창 가운데 초록 버튼 (Start Memory Match · Available after)	Green button in the middle of the window (Start Memory Match · Available after)	ウィンドウ中央の緑ボタン（Start Memory Match・Available after）
+Watch AD 칸	Watch AD bar	Watch AD 欄
+창 아래 Watch AD to lower the cooltime	Watch AD to lower the cooltime bar under the window	ウィンドウ下の Watch AD to lower the cooltime
+카드 판 Close 버튼	Card board Close button	カード盤の Close ボタン
+게임이 끝나면 카드 판 아래 뜨는 Close	Close shown under the card board when the game ends	ゲーム終了時にカード盤の下に出る Close
+알림 창 영역	Notification window area	通知ウィンドウの範囲
+Notification 창부터 Watch AD 칸까지 (이 영역만 읽어서 빠름)	From the Notification window down to the Watch AD bar (only this area is read, so it is faster)	Notification ウィンドウから Watch AD 欄まで（この範囲だけ読むので速い）
+메모리 매치 창	Memory match window	メモリーマッチのウィンドウ
+지정한 위치를 누름 · 비어 있으면 글자로 찾은 자리를 누름	Clicks the saved positions · if empty, clicks where the text was found	指定した位置を押す・空なら文字で見つけた場所を押す
+메모리 매치 창 위치	Memory match window positions	メモリーマッチのウィンドウ位置
+오토 메모리 매치 — 광고를 다 봄 (오늘은 더 볼 수 없음)	Auto memory match — watched all ads (no more today)	オートメモリーマッチ — 広告を全部視聴（今日はもう見られない）
+카드 판 준비 확인 중	Checking that the card board is ready	カード盤の準備を確認中
+카드 판	Card board	カード盤
+카드 판 위치	Card board positions	カード盤の位置
+카드 판이 떠 있을 때 자동 보정하면 카드 자리를 그 위치로 씀 · 안 하면 글자로 찾음	Calibrate while the card board is open and those card positions are used · otherwise it is found by text	カード盤が出ているときに自動補正するとその位置を使う・しなければ文字で探す
+카드 판 자동 보정	Card board auto calibration	カード盤の自動補正
+메모리 매치를 시작해서 카드 판이 떠 있을 때 누르기	Press while a memory match card board is open	メモリーマッチを始めてカード盤が出ているときに押す
+카드 판 자동 보정 완료	Card board calibration done	カード盤の自動補正完了
+오토 메모리 매치가 도는 중 — 멈춘 뒤 눌러주세요	Auto memory match is running — stop it first	オートメモリーマッチが動作中 — 止めてから押してください
+카드 판이 안 보임 — 메모리 매치를 시작해서 카드 판이 떠 있을 때 눌러주세요	Card board not visible — press while a memory match card board is open	カード盤が見えない — メモリーマッチを始めてカード盤が出ているときに押してください
+안 해도 글자로 카드 판을 찾습니다. 선택 항목입니다.	Without it the board is found by its text. Optional.	しなくても文字でカード盤を探します。任意項目です。
+오토 메모리 매치 — Close 버튼이 뜸 · 판 끝	Auto memory match — Close button appeared · round over	オートメモリーマッチ — Close ボタンが出た・終了
+오토 메모리 매치 — 카드를 40번 누름 · 판 끝	Auto memory match — pressed cards 40 times · round over	オートメモリーマッチ — カードを40回押した・終了
+오토 메모리 매치 — 카드가 전부 공개됨 · 판 끝	Auto memory match — all cards revealed · round over	オートメモリーマッチ — カードがすべて公開・終了
+오토 메모리 매치 — 카드가 안 뒤집힘 · 판 끝으로 봄	Auto memory match — cards no longer flip · treating the round as over	オートメモリーマッチ — カードがめくれない・終了とみなす
+Fish 를 직접 눌러 입질까지 재므로 끝날 때까지 손을 떼주세요. 취소는 F7.	It presses Fish itself and waits for a bite, so keep your hands off until it finishes. F7 cancels.	自分で Fish を押して当たりまで計るので、終わるまで手を離してください。キャンセルは F7。
+실제로 팔지는 않습니다.	It doesn't actually sell anything.	実際には売りません。
+이 기능에 필요한 것만 차례대로 안내합니다.	Only what this feature needs is shown, one by one.	この機能に必要なものだけを順番に案内します。
+자동 보정이 있는 것은 자동 보정부터 해보고, 안 되면 수동으로 진행합니다.	Where auto calibration exists, try it first; if it fails, continue manually.	自動補正があるものはまず自動補正を試し、うまくいかなければ手動で進めます。
+상인 상점 위치	Merchant shop positions	商人ショップの位置
+결과창이 다른 자리에 뜨거나 깨짐 — X 를 찾아서 누름	Result window opened elsewhere or broken — found and clicked its X	結果ウィンドウが別の位置に出たか崩れた — X を探して押す
+포션 제작 자동 보정 취소 중	Cancelling potion craft calibration	ポーション製作の自動補正をキャンセル中
+포션 제작 자동 보정 취소됨	Potion craft calibration cancelled	ポーション製作の自動補正をキャンセルしました
+제작 창 찾음 — 이제 만지지 마세요	Crafting window found — hands off now	製作ウィンドウを検出 — もう触らないでください
+Open Recipe 확인 중 (재료는 안 넣음)	Checking Open Recipe (adds no ingredients)	Open Recipe を確認中（材料は入れない）
+창 닫는 중	Closing windows	ウィンドウを閉じています
+제작 창이 안 보임 — Stella 앞에서 F 를 눌러 주세요	No crafting window — press F in front of Stella	製作ウィンドウが見えない — Stella の前で F を押してください
+제작 목록이 비어 있음	The crafting list is empty	製作リストが空
+Open Recipe 버튼을 못 찾음	Could not find the Open Recipe button	Open Recipe ボタンが見つからない
+Add Ingredients 창을 못 찾음	Could not find the Add Ingredients window	Add Ingredients ウィンドウが見つからない
+알림에 Auto Crafted 가 뜨면 Stella 에게 가서 그 포션의 재료를 다시 채움 · 정지: F7	When an Auto Crafted notice appears, goes to Stella and refills that potion's ingredients · stop: F7	Auto Crafted の通知が出たら Stella のところへ行き、そのポーションの材料を補充・停止: F7
+Auto Crafted 가 뜨면 재료를 다시 채움	Refills ingredients on Auto Crafted	Auto Crafted で材料を補充
+매크로가 켜져 있는 동안 알림을 확인	Checks notices while the macro is on	マクロがオンの間、通知を確認
+알림 영역	Notice area	通知の範囲
+매크로 기준 위치 설정 → 통합 위치 → 알림	Macro base position settings → Shared positions → Notice	マクロ基準位置設定 → 統合位置 → 通知
+포션 제작 장소	Potion crafting spot	ポーション製作場所
+매크로 기준 위치 설정 → 포션 자동 제작	Macro base position settings → Potion auto craft	マクロ基準位置設定 → ポーション自動製作
+지정 안 됨	Not set	未指定
+지정 · 시간 재기 필요	Set it and measure the time	指定と時間計測が必要
+F 누른 뒤 대기	Wait after pressing F	F を押した後の待機
+제작 창이 뜰 때까지 (초)	Until the crafting window opens (s)	製作ウィンドウが開くまで（秒）
+제작 테스트	Craft test	製作テスト
+입력한 포션으로 지금 한 번 (예: Fortune Potion I)	Once now with the potion you type (e.g. Fortune Potion I)	入力したポーションで今すぐ1回（例: Fortune Potion I）
+포션 이름	Potion name	ポーション名
+테스트	Test	テスト
+이번 실행 제작 횟수	Crafts this run	今回の製作回数
+매크로를 켜면 메모리 매치 장소로 가서 확인 · 쿨타임이면 남은 시간 뒤에 다시 · 정지: F7	When the macro starts, goes to the memory match spot to check · on cooldown, checks again when it ends · stop: F7	マクロを起動するとメモリーマッチ場所へ行って確認・クールタイム中なら残り時間後に再確認・停止: F7
+메모리 매치 장소	Memory match spot	メモリーマッチ場所
+메모리 매치 장소로 가는 중	Going to the memory match spot	メモリーマッチ場所へ移動中
+매크로를 켤 때마다 한 번 확인	Checks once every time the macro starts	マクロ起動のたびに一度確認
+매크로 기준 위치 설정 → 오토 메모리 매치	Macro base position settings → Auto memory match	マクロ基準位置設定 → オートメモリーマッチ
+E 누른 뒤 대기	Wait after pressing E	E を押した後の待機
+알림 창이 뜰 때까지 (초)	Until the notification window appears (s)	通知ウィンドウが出るまで（秒）
+카드 뒤집힌 뒤 대기	Wait after a card flips	カードがめくれた後の待機
+앞면을 읽기까지 (초)	Before reading the card face (s)	表面を読むまで（秒）
+메모리 매치 보드 앞에서 지금 바로	Right now, in front of the memory match board	メモリーマッチボードの前で今すぐ
+다음 확인	Next check	次の確認
+이번 실행 횟수	Runs this session	今回の実行回数
+매크로를 켜면 바로	Right when the macro starts	マクロ起動時にすぐ
+지금	Now	今
+메모리 매치 중	Playing memory match	メモリーマッチ中
+쿨타임이 끝나면 카드 짝 맞추기	Matches card pairs when the cooldown ends	クールタイムが終わるとカードのペア合わせ
+쿨타임이 끝나면 카드 짝 맞추기 · 광고로 쿨타임 줄이기	Matches card pairs when the cooldown ends · watches ads to cut the cooldown	クールタイムが終わるとカードのペア合わせ・広告でクールタイム短縮
+기준 장소 → 메모리 매치 보드 앞 (E 를 누를 수 있는 곳)	Base spot → in front of the memory match board (where E works)	基準地点 → メモリーマッチボードの前（E を押せる場所）
+메모리 매치 테스트 시작 · 정지: F7	Memory match test started · stop: F7	メモリーマッチのテスト開始・停止: F7
+E (메모리 매치 확인)	E (checking memory match)	E（メモリーマッチ確認）
+Start Memory Match	Start Memory Match	Start Memory Match
+Close	Close	Close
+오토 메모리 매치 정지	Auto memory match stopped	オートメモリーマッチ停止
+오토 메모리 매치 끝	Auto memory match done	オートメモリーマッチ終了
+오토 메모리 매치 — 한 판 끝	Auto memory match — round done	オートメモリーマッチ — 1回終了
+오토 메모리 매치 — 광고 뒤에 메모리 매치 창이 안 뜸 · 10분 뒤 다시	Auto memory match — the window did not show after the ad · retrying in 10 min	オートメモリーマッチ — 広告の後にウィンドウが出ない・10分後に再試行
+오토 메모리 매치 — 광고 보상 받음 · 지금 할 수 있음	Auto memory match — ad reward received · ready now	オートメモリーマッチ — 広告報酬を獲得・今すぐ可能
+오토 메모리 매치 — 광고 보상 없음 (광고가 안 뜸)	Auto memory match — no ad reward (the ad did not show)	オートメモリーマッチ — 広告報酬なし（広告が出ない）
+오토 메모리 매치 — 광고 보상 없음 (쿨타임이 안 줄어듦)	Auto memory match — no ad reward (cooldown did not drop)	オートメモリーマッチ — 広告報酬なし（クールタイムが減らない）
+본 광고 (쿨타임 3시간 ↓)	Ads watched (−3 h cooldown each)	視聴した広告（クールタイム −3時間）
+오토 메모리 매치 — 카드 판이 안 보임	Auto memory match — card board not visible	オートメモリーマッチ — カード盤が見えない
+오토 메모리 매치 — 메모리 매치 창이 안 뜸 (메모리 매치 장소 확인) · 10분 뒤 다시	Auto memory match — the memory match window did not open (check the spot) · retrying in 10 min	オートメモリーマッチ — ウィンドウが開かない（場所を確認）・10分後に再試行
+오토 메모리 매치 안 함 — 매크로 설정 → 오토 메모리 매치 → 이동에서 '메모리 매치 장소' 를 지정해 주세요	No auto memory match — set the 'Memory match spot' in Macro settings → Auto Memory Match → Movement	オートメモリーマッチなし — マクロ設定 → オートメモリーマッチ → 移動で「メモリーマッチ場所」を指定してください
+오토 메모리 매치 안 함 — 매크로 설정 → 오토 메모리 매치 → 이동에서 장소 지정 · 시간 재기	No auto memory match — set the spot and measure its time in Macro settings → Auto Memory Match → Movement	オートメモリーマッチなし — マクロ設定 → オートメモリーマッチ → 移動で場所を指定・時間を計測
+낚시 장소로 다시 가도 낚시 화면이 안 보임 — 자동 낚시 멈춤 (낚시 자리 · 위치 설정 확인)	Fishing screen still not visible after moving again — auto fishing stopped (check the fishing spot · positions)	再移動しても釣り画面が見えない — 自動釣り停止（釣り場・位置設定を確認）
+포션 제작 중	Crafting potion	ポーション製作中
+제작 장소	Crafting spot	製作場所
+포션 제작 장소 (Stella 앞) · F 를 눌렀을 때 제작 창이 열리는 자리	Potion crafting spot (in front of Stella) · where pressing F opens the crafting window	ポーション製作場所（Stella の前）・F で製作ウィンドウが開く場所
+포션 이름을 입력해 주세요	Enter a potion name	ポーション名を入力してください
+매크로 설정 → 포션 자동 제작 → 이동에서 '포션 제작 장소' 를 먼저 지정 · 시간 재기	Set the 'Potion crafting spot' and measure its time first (Macro settings → Potion auto craft → Movement)	先にマクロ設定 → ポーション自動製作 → 移動で「ポーション製作場所」を指定して時間を計測
+포션 자동 제작 정지	Potion auto craft stopped	ポーション自動製作を停止
+포션 제작 장소로 가는 중	Going to the potion crafting spot	ポーション製作場所へ移動中
+F (Stella's Workshop)	F (Stella's Workshop)	F (Stella's Workshop)
+Open Recipe	Open Recipe	Open Recipe
+Add Everything → Craft → Add Everything	Add Everything → Craft → Add Everything	Add Everything → Craft → Add Everything
+포션 자동 제작 — 제작 창(Stella's Workshop)이 안 열림 (포션 제작 장소 확인)	Potion auto craft — the crafting window (Stella's Workshop) did not open (check the crafting spot)	ポーション自動製作 — 製作ウィンドウ（Stella's Workshop）が開かない（製作場所を確認）
+포션 자동 제작 — Open Recipe 버튼을 못 찾음	Potion auto craft — could not find the Open Recipe button	ポーション自動製作 — Open Recipe ボタンが見つからない
+포션 자동 제작 — Add Ingredients 창을 못 찾음	Potion auto craft — could not find the Add Ingredients window	ポーション自動製作 — Add Ingredients ウィンドウが見つからない
+포션 자동 제작 안 함 — 매크로 설정 → 포션 자동 제작 → 이동에서 '포션 제작 장소' 를 지정해 주세요	No potion auto craft — set the 'Potion crafting spot' in Macro settings → Potion auto craft → Movement	ポーション自動製作なし — マクロ設定 → ポーション自動製作 → 移動で「ポーション製作場所」を指定してください
+포션 자동 제작 안 함 — 매크로 설정 → 공통 위치 → 알림 영역을 지정해 주세요	No potion auto craft — set Macro settings → Shared positions → Notice area	ポーション自動製作なし — マクロ設定 → 共通位置 → 通知範囲を指定してください
+그 다음 A 를 누르는 시간 (초)	Then press A for (s)	その後 A を押す時間（秒）
+W 같이 누르기	Also press W	W も一緒に押す
+그 다음 S 와 D 를 같이 누르는 시간 (초)	Then press S and D together for this long (s)	その後 S と D を一緒に押す時間（秒）
+A 를 누르는 마지막 이 시간 동안 W 도 같이 (초)	Also press W for this last part of the A press (s)	A を押す最後のこの時間は W も一緒に（秒）
+A 누르기	Press A	A を押す
+그 다음 A 만 누르는 시간 (초)	Then press only A for (s)	その後 A だけ押す時間（秒）
+W 다시 누르기	Press W again	W をもう一度押す
+그 다음 W 만 누르는 시간 (초)	Then press only W for (s)	その後 W だけ押す時間（秒）
+방금 리셋함 — 리셋 건너뜀	Just reset — skipping the reset	リセットしたばかり — リセットを省略
+판매하러 갔는데 팔 물고기가 없음 — 낚시 자리를 다시 잡고 이어감	Went to sell but had no fish — repositioning at the fishing spot and continuing	売りに行ったが魚がない — 釣り場に戻って続行
+판매하러 갔는데 두 번 연속 팔 물고기가 없음 — 낚시 자리 문제로 보고 자동 낚시 멈춤 (F3 로 다시 켜면 다시 시도)	No fish to sell twice in a row — likely a fishing spot problem, auto fishing stopped (turn it back on with F3 to retry)	2回続けて売る魚がない — 釣り場の問題とみて自動釣りを停止（F3 で再度オンにすると再試行）
+낚시 화면을 계속 못 찾음 — 자동 낚시 멈춤 (F3 로 다시 켜면 다시 시도)	Fishing screen not found repeatedly — auto fishing stopped (turn it back on with F3 to retry)	釣り画面が見つからない — 自動釣りを停止（F3 で再度オンにすると再試行）
+낚시 장소로 다시 가는 중	Going back to the fishing spot	釣り場へ戻り中
+지금 자동 보정	Calibrate now	今すぐ自動補正
+상인이 와 있을 때 누른 뒤 상인 앞에서 E · 사지는 않음	While a merchant is here, press this, then E in front of the merchant · buys nothing	商人がいるときに押してから商人の前で E・購入はしない
+상인 앞에서 E 를 눌러 주세요	Press E in front of the merchant	商人の前で E を押してください
+상인 자동 보정 완료	Merchant calibration done	商人の自動補正完了
+상인 자동 보정 취소 중	Cancelling merchant calibration	商人の自動補正をキャンセル中
+상인 자동 보정 취소됨	Merchant calibration cancelled	商人の自動補正をキャンセルしました
+매크로 기준 위치 설정 → 상인 자동 구매 · 통합 위치	Macro base position settings → Merchant auto buy · Shared positions	マクロ基準位置設定 → 商人自動購入・統合位置
+대화창이 안 보임 — 상인 앞에서 E 를 눌러 주세요	No dialog — press E in front of the merchant	会話が見えません — 商人の前で E を押してください
+선택지 Open 을 못 찾음	Could not find the Open option	選択肢 Open が見つからない
+상점(Set to Max 버튼)을 못 찾음	Could not find the shop (Set to Max button)	ショップ（Set to Max ボタン）が見つからない
+Set to Max 버튼 위치	Set to Max button position	Set to Max ボタンの位置
+수량 칸 오른쪽 Set to Max	Set to Max right of the amount box	数量欄の右の Set to Max
+상점 위치 자동 보정	Shop position auto calibration	ショップ位置の自動補正
+순간이동 후 상점이 열리면 화면 글자로 위치를 맞춤	After teleporting, finds the positions from the on-screen text when the shop opens	テレポート後ショップが開いたら画面の文字で位置を合わせる
+비워 두면 채팅 글자 영역 가운데	If empty, the center of the chat text area	空ならチャット文字の領域の中央
+자동 보정이 켜져 있으면 비워 둬도 됨	Can be left empty when auto calibration is on	自動補正がオンなら空でも可
+상점 위치 자동 보정 완료	Shop positions calibrated	ショップ位置の自動補正完了
+상점 자동 보정 — Set to Max 버튼을 못 찾음	Shop calibration — could not find the Set to Max button	ショップ自動補正 — Set to Max ボタンが見つからない
+상인 자동 구매 — 상점 위치를 못 찾음 (자동 보정 실패 · 직접 지정 필요)	Merchant auto buy — shop positions not found (calibration failed · set them manually)	商人自動購入 — ショップ位置が見つからない（自動補正失敗・手動で指定が必要）
+채팅 글자 영역 지정 필요 (매크로 설정 → 상인 자동 구매 → 채팅)	Set the chat text area (Macro settings → Merchant auto buy → Chat)	チャット文字の領域の指定が必要（マクロ設定 → 商人自動購入 → チャット）
+채팅 확인	Checking chat	チャット確認
+Merchant Teleporter 사용	Using the Merchant Teleporter	Merchant Teleporter を使用
+대화 (E)	Talking (E)	会話 (E)
+리셋	Reset	リセット
+상점 닫기	Closing the shop	ショップを閉じる
+상인 자동 구매 테스트	Merchant auto buy test	商人自動購入テスト
+채팅 확인 테스트	Check chat (test)	チャット確認テスト
+채팅에 상인 도착이 뜨면 Merchant Teleporter 로 가서 고른 아이템을 삼 · 정지: F7	When chat says a merchant arrived, goes there with a Merchant Teleporter and buys the chosen items · stop: F7	チャットに商人の到着が出たら Merchant Teleporter で向かい、選んだアイテムを購入・停止: F7
+살 아이템	Items to buy	購入するアイテム
+마리 · 제스터가 오면 고른 아이템 구매	Buys the chosen items when Mari · Jester arrives	マリ・ジェスターが来たら選んだアイテムを購入
+매크로가 켜져 있는 동안 채팅을 확인	Checks the chat while the macro is on	マクロがオンの間チャットを確認
+위치	Positions	位置
+매크로 기준 위치 설정 → 상인 · 통합 위치	Macro base position settings → Merchant · Shared positions	マクロ基準位置設定 → 商人・統合位置
+채팅 확인 간격	Chat check interval	チャット確認の間隔
+순간이동 후 대기	Wait after teleport	テレポート後の待機
+상점 칸 수	Shop slots	ショップの枠数
+초	s	秒
+칸	slots	枠
+구매 테스트	Buy test	購入テスト
+상인이 와 있을 때 Merchant Teleporter 부터 한 번	Once from the Merchant Teleporter, while a merchant is here	商人がいるときに Merchant Teleporter から1回
+마리	Mari	マリ
+제스터	Jester	ジェスター
+이번 실행 구매 횟수	Purchases this run	今回の購入回数
+개수	Amount	個数
+구매 테스트 시작 · 정지: F7	Buy test started · stop: F7	購入テスト開始・停止: F7
+채팅 확인 중 · 상인이 있으면 구매까지 이어감	Checking chat · buys too if a merchant is here	チャット確認中・商人がいれば購入まで続行
+상인 구매 중	Buying from the merchant	商人から購入中
+상인	Merchant	商人
+채팅 · 상점	Chat · Shop	チャット・ショップ
+채팅	Chat	チャット
+상점	Shop	ショップ
+상인 도착 감지 (채팅 OCR)	Merchant arrival detection (chat OCR)	商人の到着検知（チャットOCR）
+대화창 · 인벤토리는 통합 위치를 씀	The dialog and inventory use Shared positions	会話ウィンドウ・インベントリは統合位置を使用
+채팅창 위치	Chat window position	チャットウィンドウの位置
+채팅 글자 위 (마우스를 올리면 채팅이 보임)	Over the chat text (hovering shows the chat)	チャット文字の上（マウスを乗せるとチャットが表示）
+Open 선택지 위치	Open option position	Open 選択肢の位置
+대화 선택지 Open (글자로 못 찾을 때만)	The Open dialog option (only if the text is not found)	会話の選択肢 Open（文字で見つからないときのみ）
+첫 번째 칸 위치	First slot position	1番目の枠の位置
+상점 맨 왼쪽 아이템 칸	The leftmost item slot in the shop	ショップの一番左のアイテム枠
+두 번째 칸 위치	Second slot position	2番目の枠の位置
+그 옆 칸 (칸 간격 계산)	The slot next to it (for slot spacing)	その隣の枠（枠の間隔の計算）
+수량 입력칸 위치	Amount box position	数量入力欄の位置
+아이템을 누르면 뜨는 수량 칸	The amount box shown after clicking an item	アイテムを押すと出る数量欄
+Purchase 버튼 위치	Purchase button position	Purchase ボタンの位置
+수량 칸 아래 Purchase	Purchase under the amount box	数量欄の下の Purchase
+채팅 글자 영역	Chat text area	チャット文字の領域
+채팅 글자가 보이는 곳 전체	The whole area where chat text shows	チャット文字が見える範囲全体
+아이템 이름 영역	Item name area	アイテム名の領域
+칸을 눌렀을 때 뜨는 아이템 이름	The item name shown after clicking a slot	枠を押したときに出るアイテム名
+상인 자동 구매가 도는 중	Merchant auto buy is running	商人自動購入が実行中
+채팅창 위치 · 채팅 글자 영역 지정 필요 (매크로 기준 위치 설정 → 상인)	Set the chat window position · chat text area (Macro base position settings → Merchant)	チャットウィンドウの位置・チャット文字の領域の指定が必要（マクロ基準位置設定 → 商人）
+상인 자동 구매 정지	Merchant auto buy stopped	商人自動購入を停止
+상인 자동 구매 — 상점 Open 을 못 찾음	Merchant auto buy — could not find the shop Open option	商人自動購入 — ショップの Open が見つからない
+상인 자동 구매 — Merchant Teleporter 를 못 씀	Merchant auto buy — could not use the Merchant Teleporter	商人自動購入 — Merchant Teleporter を使えない
+쿨타임마다 Strange Controller · Biome Randomizer 사용	Uses Strange Controller · Biome Randomizer on cooldown	クールタイムごとに Strange Controller・Biome Randomizer を使用
+쿨타임마다 인벤토리에서 아이템을 1개씩 사용 · 자동 낚시는 잠깐 비켜줌 · 정지: F7	Uses one item from the inventory each cooldown · auto fishing pauses briefly · stop: F7	クールタイムごとにインベントリからアイテムを1個使用・自動釣りは一時的に譲る・停止: F7
+지금 사용 테스트	Use now (test)	今すぐ使用（テスト）
+매크로가 켜져 있는 동안 쿨타임마다 사용	Uses each cooldown while the macro is on	マクロがオンの間、クールタイムごとに使用
+인벤토리 위치 · OCR 영역	Inventory positions · OCR area	インベントリの位置・OCR領域
+매크로 기준 위치 설정 → 통합 위치 에서 지정	Set in Macro base position settings → Shared positions	マクロ基準位置設定 → 統合位置 で指定
+켜면 이 간격(분)마다 1개 사용	When on, uses one every this many minutes	オンにするとこの間隔（分）で1個使用
+다 쓰고 Inventory 닫기	Close Inventory when done	使い終わったら Inventory を閉じる
+Inventory 버튼을 한 번 더 눌러 닫음	Presses the Inventory button again to close it	Inventory ボタンをもう一度押して閉じる
+이번 실행 사용 횟수	Uses this run	今回の使用回数
+Strange Controller · Biome Randomizer	Strange Controller · Biome Randomizer	Strange Controller・Biome Randomizer
+곧 사용	Using soon	まもなく使用
+매크로를 켜면 사용	Used when the macro is on	マクロをオンにすると使用
+아이템 사용 중	Using items	アイテム使用中
+오토 아이템 사용 테스트 시작 · 인벤토리 열기부터 · 정지: F7	Auto item use test started · from opening the inventory · stop: F7	オートアイテム使用テスト開始・インベントリを開くところから・停止: F7
+사용할 아이템이 꺼져 있음	The items to use are turned off	使用するアイテムがオフ
+다른 동작이 도는 중	Another action is running	他の動作が実行中
+아이템 자동 사용	Uses items automatically	アイテムを自動使用
+자동 낚시가 멈추지 않아 판매 테스트를 못 함	Auto fishing did not pause, so the sell test could not run	自動釣りが止まらず売却テストができません
+판매 자동 보정	Sell calibration	販売の自動補正
+보정 중… (다시 누르면 취소)	Calibrating… (press again to cancel)	補正中…（もう一度押すとキャンセル）
+Captain Flarg 앞에서 E 를 눌러 주세요	Press E in front of Captain Flarg	Captain Flarg の前で E を押してください
+판매 자동 보정 완료	Sell calibration done	販売の自動補正完了
+판매 자동 보정 취소 중	Cancelling sell calibration	販売の自動補正をキャンセル中
+판매 자동 보정 취소됨	Sell calibration cancelled	販売の自動補正をキャンセルしました
+이동이 도는 중	Movement is running	移動中
+대화창 찾음 — 이제 만지지 마세요	Dialog found — hands off now	会話を検出 — もう触らないでください
+상점 여는 중	Opening the shop	ショップを開いています
+확인창 확인 중 (팔지는 않음)	Checking the confirm window (nothing is sold)	確認ウィンドウを確認中（売りません）
+상점 닫는 중	Closing the shop	ショップを閉じています
+대화창이 안 보임 — Captain Flarg 앞에서 E 를 눌러 주세요	No dialog seen — press E in front of Captain Flarg	会話が見えません — Captain Flarg の前で E を押してください
+대화창을 못 찾음	Dialog not found	会話が見つかりません
+[Sell Fish] 버튼을 못 찾음	[Sell Fish] button not found	［Sell Fish］ボタンが見つかりません
+상점(Fishing Shop · Sell All)을 못 찾음	Shop (Fishing Shop · Sell All) not found	ショップ（Fishing Shop・Sell All）が見つかりません
+상점 크기를 못 잼	Could not measure the shop size	ショップの大きさを測れません
+대화창은 못 찾음	dialog not found	会話は見つからず
+확인창이 안 떠서(물고기 없음?) 확인 Sell 은 계산한 자리	the confirm window did not open (no fish?), so confirm Sell uses the calculated spot	確認ウィンドウが出ず（魚なし？）確認 Sell は計算した位置
+상점이 안 닫힘 — 상점 닫기 X 를 직접 지정해 주세요	the shop did not close — set the shop close X yourself	ショップが閉じません — ショップを閉じる X を手動で指定してください
+대화창 위치 지정 필요 (매크로 설정 → 공통 위치 → 대화창)	Dialog box position needed (Macro settings → Shared positions → Dialog box)	会話ウィンドウの位置指定が必要（マクロ設定 → 共通位置 → 会話ウィンドウ）
+낚시 장소로 이동	Going to the fishing spot	釣り場へ移動
+낚시 장소 도착	At the fishing spot	釣り場に到着
+낚시 장소로 가는 중	Going to the fishing spot	釣り場へ移動中
+판매 · 카메라 정렬 (채팅 · 도감)	Selling · aligning the camera (chat · collection)	売却・カメラ合わせ（チャット・図鑑）
+여러 기능이 같이 쓰는 위치	Positions shared by several features	複数の機能で共通の位置
+기준 위치 (여러 기능이 같이 씀)	Base positions (shared by several features)	基準位置（複数の機能で共通）
+로블록스를 켜 두고 [위치 지정]	With Roblox open, press [Set position]	Robloxを開いた状態で[位置指定]
+로블록스 창 기준이라 창 크기를 바꾸면 다시 지정	positions follow the Roblox window, so set them again if you resize it	Robloxウィンドウ基準なのでサイズを変えたら指定し直し
+인벤토리	Inventory	インベントリ
+레어 바이옴 자동 팝핑 등 인벤토리를 쓰는 기능	Features that use the inventory, such as rare biome auto popping	レアバイオーム自動ポッピングなどインベントリを使う機能
+알림	Notifications	通知
+게임 알림을 보는 기능 (자동 낚시 인벤토리 가득 등)	Features that watch game notifications (auto fishing inventory full, etc.)	ゲーム通知を見る機能（自動釣りのインベントリ満杯など）
+낚시의 Cannot Fish 등	e.g. Cannot Fish while fishing	釣りの Cannot Fish など
+스나이프 오토 팝핑과 연동	Link with Snipe auto popping	スナイプのオートポッピングと連動
+켜면 스나이프 탭 오토 팝핑도 여기 인벤토리 위치	When on, Snipe tab auto popping also uses these inventory positions	オンにするとスナイプタブのオートポッピングもここのインベントリ位置
+OCR 영역을 씀 (따로 지정 안 해도 됨)	OCR area (no need to set them separately)	OCR範囲を使用（別に指定しなくてOK）
+스나이프 오토 팝핑이 공통 위치를 씀	Snipe auto popping now uses the shared positions	スナイプのオートポッピングが共通位置を使用
+스나이프 오토 팝핑은 따로 지정한 위치를 씀	Snipe auto popping uses its own positions	スナイプのオートポッピングは個別の位置を使用
+매크로 공통 위치와 연동	Link with macro shared positions	マクロ共通位置と連動
+켜면 매크로 탭	When on, uses Macro tab	オンにするとマクロタブ
+통합 위치 의 인벤토리 위치	Shared positions inventory positions	統合位置 のインベントリ位置
+OCR 영역을 씀 (위치는 거기서 바꿈)	OCR area (change them there)	OCR範囲を使用（位置はそちらで変更）
+공통 위치와 같음	Same as shared positions	共通位置と同じ
+매크로 기준 위치 설정 → 통합 위치 에서 지정	set in Macro base position settings → Shared positions	マクロ基準位置設定 → 統合位置 で指定
+통합 위치 에서 지정	set in Shared positions	統合位置 で指定
+스나이프 탭 위치 가져오기	Copy from Snipe tab	スナイプタブの位置を取り込む
+로블록스를 켜 두고 각 항목의 [위치 지정] → 로블록스 화면에서 클릭 (영역은 드래그)	With Roblox open, press [Set position] on each item → click in Roblox (drag for areas)	Robloxを開いたまま各項目の[位置指定] → Roblox画面でクリック（範囲はドラッグ）
+위치는 로블록스 창 기준이라 창 크기를 바꾸면 다시 지정	positions follow the Roblox window, so set them again if you resize it	位置はRobloxウィンドウ基準なので、サイズを変えたら指定し直す
+낚시 자리에서 낚시 창을 띄워 두고 지정	Set these at your fishing spot with the fishing window open	釣り場で釣りウィンドウを出したまま指定
+릴링 바와 결과창은 한 번 낚아서 화면에 떠 있을 때 지정	set the reel bar and result while they are on screen after casting once	リールバーと結果は一度釣って画面に出ているときに指定
+[상태 확인] 으로 제대로 읽는지 확인	use [Check status] to see if they are read correctly	[状態確認]で正しく読めるか確認
+버튼 위치 · OCR 영역	Button positions · OCR area	ボタン位置・OCR範囲
+매크로 기준 위치 설정 → 레어 바이옴 자동 팝핑 에서 지정	Set in Macro base position settings → Rare biome auto popping	マクロ基準位置設定 → レアバイオーム自動ポッピングで指定
+딜레이 · 이름 일치율	Delays · name match	ディレイ・名前一致率
+오토 팝핑과 같음	Same as auto popping	オートポッピングと同じ
+버튼 위치 · 릴링 바 영역	Button positions · reel bar area	ボタン位置・リールバー範囲
+매크로 기준 위치 설정 → 자동 낚시 에서 지정	Set in Macro base position settings → Auto fishing	マクロ基準位置設定 → 自動釣りで指定
+내 서버에서 레어 바이옴이 뜨면 포션 사용	Uses potions when a rare biome starts in your server	自分のサーバーでレアバイオームが来たらポーションを使用
+낚시 장소로 가서 낚시 · 가득 차면 판매	Fishes at the fishing spot · sells when full	釣り場で釣り・満杯なら売却
+16:9 로블록스 창(1920x1080 전체 화면 등) 기준 위치를 한 번에 채움	Fills positions for a 16:9 Roblox window (e.g. 1920x1080 full screen) at once	16:9のRobloxウィンドウ（1920x1080全画面など）基準の位置を一度に入力
+안 맞는 건 아래에서 직접 지정	set any that are off below	合わないものは下で直接指定
+스나이프 탭 오토 팝핑 위치를 가져옴	Copied the auto popping positions from the Snipe tab	スナイプタブのオートポッピング位置を取り込みました
+오토 팝핑 설정에 지정된 위치 없음	No positions set in Auto popping settings	オートポッピング設定に位置がありません
+기능 전부 켜짐	All features on	すべての機能 オン
+기능 전부 꺼짐	All features off	すべての機能 オフ
+로블록스 화면에서 OCR 영역 드래그	Drag the OCR area in Roblox	RobloxでOCR範囲をドラッグ
+로블록스 화면에서 릴링 바 영역 드래그	Drag the reel bar area in Roblox	Robloxでリールバーの範囲をドラッグ
+릴링 바 영역 저장	Reel bar area saved	リールバーの範囲を保存
+이번 실행 기록	This run	今回の記録
+성공 · 쓰레기 · 실패 · 인벤토리 가득	Success · Junk · Fail · Inventory full	成功・ゴミ・失敗・インベントリ満杯
+자동 낚시 켜짐	Auto fishing on	自動釣り オン
+자동 낚시 꺼짐	Auto fishing off	自動釣り オフ
+입질 최대 대기	Max bite wait	当たりの最大待機
+이 시간 동안 입질이 없으면 Exit 후 다시 던짐 (초)	If no bite within this time, presses Exit and casts again (sec)	この時間内に当たりがなければExit後に再キャスト（秒）
+미리 누르기	Click ahead	先押し
+떨어지는 속도를 보고 이만큼 미리 누름	Clicks this much earlier based on the falling speed	落ちる速さを見てこの分だけ先に押す
+구간을 자꾸 넘어가면 늘리고, 못 따라가면 줄임 (ms)	raise it if it keeps overshooting the zone, lower it if it lags (ms)	区間を何度も越えるなら増やし、追いつかないなら減らす（ms）
+클릭 최소 간격	Min click interval	最小クリック間隔
+릴링 중 클릭 사이 최소 간격 (ms)	Minimum time between clicks while reeling (ms)	リール中のクリック間の最小間隔（ms）
+결과창 대기	Result window wait	結果ウィンドウの待機
+릴링이 끝난 뒤 결과창 X 를 누르기까지 (초)	From the end of reeling until clicking the result X (sec)	リール終了から結果のXを押すまで（秒）
+Fish 다시 누르기	Fish retries	Fishの再押し
+Fish 를 눌러도 반응이 없으면 다시 누르는 횟수	How many times to press Fish again when it does not respond	Fishを押しても反応がない時に押し直す回数
+넘으면 인벤토리 가득으로 봄	beyond that, the inventory counts as full	超えるとインベントリ満杯とみなす
+입질 기다리는 중	Waiting for a bite	当たり待ち
+릴링 중	Reeling	リール中
+결과창 닫기	Closing result window	結果ウィンドウを閉じる
+낚시 화면 확인 중	Checking fishing screen	釣り画面を確認中
+낚시 버튼이 안 보임 — 대기	Fishing button not visible — waiting	釣りボタンが見えない — 待機
+인벤토리 가득 — 판매 필요	Inventory full — needs selling	インベントリ満杯 — 売却が必要
+다른 기능에 자리 양보 중	Yielding to another feature	他の機能に譲っている
+낚시 중	Fishing	釣り中
+Fish 클릭	Clicking Fish	Fishをクリック
+자동 낚시 시작	Auto fishing started	自動釣り開始
+자동 낚시 정지	Auto fishing stopped	自動釣り停止
+F7	F7	F7
+매크로 꺼짐	Macro off	マクロ オフ
+지정된 위치 없음	No positions set	位置が未指定
+Fish (파랑)	Fish (blue)	Fish（青）
+Exit (빨강)	Exit (red)	Exit（赤）
+안 보임	Not visible	見えない
+성공	Success	成功
+쓰레기	Junk	ゴミ
+실패	Fail	失敗
+결과 확인 안 함	Result not checked	結果未確認
+릴링 바 영역 저장	Reel bar area saved	リールバーの範囲を保存
+Acrux 설정	Acrux settings	Acrux設定
+OCR 감지 방식	OCR detection	OCR検知方式
+언어	Language	言語
+데이터 폴더	Data folder	データフォルダー
+화면 글자 읽는 엔진	Engine that reads on-screen text	画面の文字を読むエンジン
+일반	General	一般
+OCR 엔진	OCR engine	OCRエンジン
+오토 팝핑 · 레어 바이옴 자동 팝핑에서 아이템 이름 · 개수를 읽을 때 씀	Used to read item names · counts in auto popping · rare biome auto popping	オートポッピング・レアバイオーム自動ポッピングでアイテム名・個数を読む時に使用
+자동 (추천)	Auto (recommended)	自動（おすすめ）
+지금 쓰는 엔진	Engine in use	使用中のエンジン
+RapidOCR 를 골랐어도 설치가 안 돼 있으면 윈도우 OCR 을 씀	Falls back to Windows OCR if RapidOCR is not installed	RapidOCRを選んでも未インストールならWindows OCRを使用
+화면 왼쪽 위 Language 와 같은 설정	Same as Language at the top left	画面左上のLanguageと同じ設定
+설정 · 기록 · 템플릿이 저장되는 곳	Where settings · logs · templates are saved	設定・記録・テンプレートの保存場所
+폴더 열기	Open folder	フォルダーを開く
+버전	Version	バージョン
+확인 중…	Checking…	確認中…
+폴더를 열 수 없음	Cannot open the folder	フォルダーを開けません
+오토 스나이핑	Auto sniping	オートスナイプ
+끄기	Off	オフ
+감시 중	Watching	監視中
+바이옴 확인 중	Checking biome	バイオーム確認中
+플레이어 이름 필요	Player name needed	プレイヤー名が必要
+스나이핑 중이라 대기	Waiting (sniping)	スナイプ中のため待機
+켜진 기능 없음	No features on	オンの機能なし
+포션 사용 중	Using potions	ポーション使用中
+모두 꺼짐	All off	すべてオフ
+아래 버튼으로 켜기	turn on with the buttons below	下のボタンでオン
+매크로 켜짐	Macro on	マクロ オン
+매크로 꺼짐	Macro off	マクロ オフ
+지금 켜져 있는 로블록스(내 서버)에서 레어 바이옴이 시작되면 바로 포션 사용	Uses potions right away when a rare biome starts in the Roblox that is open now (your server)	今開いているRoblox（自分のサーバー）でレアバイオームが始まるとすぐポーションを使用
+스나이핑으로 들어간 서버에선 안 함	Not in servers joined by sniping	スナイプで入ったサーバーでは動かない
+정지: F7	Stop: F7	停止: F7
+켜기	On	オン
+바이옴 감지에 필요	Needed for biome detection	バイオーム検知に必要
+바이옴 매크로 설정 → 기본 설정에서 입력	Enter it in Biome macro settings → Basic settings	バイオームマクロ設定 → 基本設定で入力
+입력 안 됨 — 바이옴 감지 안 됨	Not set — biomes not detected	未入力 — バイオームを検知しない
+버튼 위치 · OCR · 딜레이	Button positions · OCR · Delays	ボタン位置・OCR・ディレイ
+오토 팝핑 매크로 설정(스나이프 탭)에 지정한 것을 같이 씀	Uses the ones set in Auto popping macro settings (Snipe tab)	オートポッピングマクロ設定（スナイプタブ）で指定したものを共用
+지정됨	Set	指定済み
+시작 전 대기	Wait before start	開始前の待機
+바이옴 감지 후 인벤토리를 열기까지 (초)	From biome detection until opening the inventory (sec)	バイオーム検知からインベントリを開くまで（秒）
+기본 1	Default 1	デフォルト 1
+다 쓰고 인벤토리 닫기	Close inventory when done	使い終わったらインベントリを閉じる
+Inventory 버튼을 한 번 더 눌러 닫음	Clicks the Inventory button once more to close it	Inventoryボタンをもう一度押して閉じる
+켜져 있어야 이 바이옴에서 팝핑	Pops in this biome only when on	オンの時のみこのバイオームでポッピング
+포션 목록은 아래	Potion list below	ポーションリストは下
+레어 바이옴 자동 팝핑 켜짐	Rare biome auto popping on	レアバイオーム自動ポッピング オン
+레어 바이옴 자동 팝핑 꺼짐	Rare biome auto popping off	レアバイオーム自動ポッピング オフ
+레어 바이옴 자동 팝핑 테스트 시작	Rare biome auto popping test started	レアバイオーム自動ポッピングのテスト開始
+인벤토리 열기부터	from opening the inventory	インベントリを開くところから
+정지: 위쪽 [정지] 또는 F7	Stop: [Stop] above or F7	停止: 上の[停止]またはF7
+포션 목록이 비어 있음	Potion list is empty	ポーションリストが空です
+레어 바이옴 자동 팝핑 정지	Rare biome auto popping stopped	レアバイオーム自動ポッピング停止
+Inventory 닫기	Closing Inventory	Inventoryを閉じる
+카드 짝 맞추기	Card pair matching	カードのペア合わせ
+자동 낚시	Auto fishing	自動釣り
+던지기 · 릴링 · 판매	Cast · Reel · Sell	キャスト・リール・売却
+기준 위치	Base position	基準位置
+모든 기능의 출발점	Starting point for every feature	全機能の出発点
+이번 실행	This run	今回の実行
+매크로를 켠 뒤부터	Since the macro started	マクロ開始から
+올타임	All-time	オールタイム
+지금까지 전부	Everything so far	これまでの全部
+아직 기록 없음	No records yet	まだ記録なし
+이전 탭	Previous tab	前のタブ
+다음 탭	Next tab	次のタブ
+로그	Log	ログ
+동작 기록	Activity log	動作ログ
+후원하기	Support me	支援する
+크레딧	Credits	クレジット
+만든 사람 · 링크	Creator · Links	制作者・リンク
+바이옴 매크로 켜기/끄기	Turn biome macro on/off	バイオームマクロのオン/オフ
+디스코드 서버 ›	Discord server ›	Discordサーバー ›
+로블록스 프로필 ›	Roblox profile ›	Robloxプロフィール ›
+설정 저장 실패	Failed to save settings	設定の保存に失敗
+감시 대상 없음	No watch targets	監視対象なし
+감지만 (링크 안 엶)	Detect only (links not opened)	検知のみ（リンクは開かない）
+작동 중	Running	作動中
+대기 — 시작 시 작동	Idle — runs after Start	待機 — 開始で作動
+감시 꺼짐	Watching off	監視オフ
+프로그램과 연결 끊김	Lost connection to the program	プログラムとの接続が切れました
+감시 켜짐	Watching	監視オン
+실제 접속	Auto join	自動参加
+감지 기록	Detection log	検知履歴
+최근에 잡힌 링크	Recently caught links	最近検知したリンク
+감시 대상	Watch targets	監視対象
+서버 · 채널 목록	Servers · Channels	サーバー・チャンネル一覧
+필터	Filter	フィルター
+바이옴 설정	Biome settings	バイオーム設定
+기타 설정	Other settings	その他の設定
+디스코드 · 알림	Discord · Alerts	Discord・通知
+지우기	Clear	クリア
+시간	Time	時間
+상태	Status	状態
+서버 #채널	Server #Channel	サーバー #チャンネル
+링크	Link	リンク
+감지된 링크 없음	No links detected	検知したリンクはありません
+등록한 서버 / 채널만 감지	Only registered servers / channels are watched	登録したサーバー / チャンネルのみ検知
+비어 있으면 감지 안 함	Nothing is detected if empty	空の場合は検知しません
+튜토리얼 보기	View tutorial	チュートリアルを見る
+스나이핑 안정성 설정	Snipe stability	スナイプ安定性設定
+사람처럼 접속 · 안티 스나이핑 대비	Human-like joins · anti-snipe ready	人間らしい参加 · アンチスナイプ対策
+접속	Join	参加
+마우스	Mouse	マウス
+딜레이 · 링크 열기 방식	Delay · link open mode	遅延 · リンクの開き方
+사람처럼 접속	Human-like joins	人間らしい参加
+사람처럼 클릭	Human-like clicks	人間らしいクリック
+링크 감지 후 접속 딜레이	Join delay after detecting a link	リンク検知後の参加遅延
+로블록스 바로 실행	Launch Roblox directly	Robloxを直接起動
+같은 서버 다시 안 들어가기	Don't rejoin the same server	同じサーバーに再参加しない
+같은 서버 링크는 이 시간 동안 한 번만 접속 (분) · 0 = 끔 · 기본 10	Joins the same server link only once within this time (min) · 0 = off · default 10	同じサーバーのリンクはこの時間内に1回だけ参加（分）· 0 = オフ · 既定 10
+연속 접속 최소 간격	Minimum time between joins	連続参加の最小間隔
+한 번 접속한 뒤 이 시간 동안은 다른 링크를 타지 않음 (초) · 기본 5	After joining, won't take another link for this long (s) · default 5	一度参加したらこの時間は他のリンクに乗らない（秒）· 既定 5
+마우스 사람처럼 움직이기	Move the mouse like a person	マウスを人のように動かす
+순간이동하지 않고 부드럽게 이동 · 누르는 시간도 매번 조금씩 다르게	Moves smoothly instead of teleporting · press time varies a little each time	瞬間移動せず滑らかに移動 · 押す時間も毎回少しずつ変える
+클릭 위치 랜덤	Random click position	クリック位置ランダム
+지정한 위치에서 이 범위 안으로 살짝 다르게 클릭 (px) · 0 = 끔 · 기본 3	Clicks slightly differently within this range of the set position (px) · 0 = off · default 3	指定位置からこの範囲内で少しずらしてクリック（px）· 0 = オフ · 既定 3
+Play 버튼 · 오토 팝핑 · 복귀 후 동작의 클릭에 모두 적용됩니다.	Applies to all clicks in the Play button, auto popping and after-return actions.	Playボタン · オートポッピング · 復帰後の動作のクリックすべてに適用されます。
+중복	Duplicate	重複
+건너뜀	Skipped	スキップ
+접속 취소 — 작동 중지됨	Join canceled — stopped	参加キャンセル — 停止中
+링크 열기 방식	Link open mode	リンクの開き方
+중복 · 연속 접속 막기	Prevent duplicate & back-to-back joins	重複 · 連続参加の防止
+이 튜토리얼은 건너뛸 수 없습니다.	This tutorial can't be skipped.	このチュートリアルはスキップできません。
+기본 0 ~ 0초 (바로 접속). 둘 다 0 이면 바로 접속합니다. 기다리는 중에 매크로를 중지하면 접속하지 않습니다.	Default 0 ~ 0s (joins right away). If both are 0 it joins right away. If you stop the macro while waiting, it won't join.	既定 0〜0秒（すぐ参加）。両方 0 ならすぐ参加します。待っている間にマクロを停止すると参加しません。
+접속을 기다리는 중에 올라온 다른 링크도 건너뜁니다.	Other links posted while it waits to join are skipped too.	参加待ちの間に投稿された他のリンクもスキップします。
+Play 버튼 · 오토 팝핑 · 복귀 후 동작의 클릭에 모두 적용됩니다. 누를 버튼이 작으면 범위를 줄여주세요.	Applies to all clicks in the Play button, auto popping and after-return actions. If the buttons are small, lower the range.	Playボタン · オートポッピング · 復帰後の動作のクリックすべてに適用されます。押すボタンが小さい場合は範囲を小さくしてください。
+스나이핑 안정성 설정이 끝났습니다.	Snipe stability setup is done.	スナイプ安定性設定が完了しました。
+서버	Server	サーバー
+이 서버의 모든 채널	All channels in this server	このサーバーの全チャンネル
+채널	Channel	チャンネル
+이 채널만 (스레드 제외)	This channel only (no threads)	このチャンネルのみ（スレッド除く）
+서버 ID	Server ID	サーバーID
+채널 ID	Channel ID	チャンネルID
+추가	Add	追加
+선택한 바이옴이 포함된 링크만 감지	Only links mentioning a selected biome	選択したバイオームを含むリンクのみ検知
+선택 없으면 전부 감지	Detects everything if none selected	未選択ならすべて検知
+바이옴 이름 직접 추가	Add a biome name	バイオーム名を追加
+자동 제외	Auto exclude	自動除外
+디스코드 종류	Discord version	Discordの種類
+디버그 포트	Debug port	デバッグポート
+자동 재시작	Auto restart	自動再起動
+디스코드 연결	Discord connection	Discord接続
+끄면 디스코드를 켜거나 재시작하지 않음 (오토 스나이핑 꺼짐)	When off, Discord is never opened or restarted (auto sniping off)	オフにするとDiscordを起動・再起動しません（オートスナイプ無効）
+디스코드 연결 꺼짐	Discord connection off	Discord接続オフ
+디스코드 연결 꺼짐 — 디스코드를 켜거나 건드리지 않음	Discord connection off — Discord is left alone	Discord接続オフ — Discordには触れません
+디스코드 연결이 꺼져 있어서 링크를 감지하지 않음 — 링크 감지 설정 → 디스코드 연결에서 켜주세요	Discord connection is off, so no links are detected — turn it on in Link detection settings → Discord connection	Discord接続がオフのためリンクを検知しません — リンク検知設定 → Discord接続でオンにしてください
+디코가 일반 모드로 켜져 있으면 재시작	Restarts Discord if it was opened normally	Discordが通常モードで起動中なら再起動
+바로 작동	Run on launch	起動時に開始
+프로그램 켤 때 시작 버튼까지 눌린 상태로	Starts with Start already pressed	起動時に開始ボタンが押された状態にする
+소리	Sound	サウンド
+감지되면 알림음	Beep when a link is detected	検知時に通知音
+안정화 접속	Stable join	安定参加
+로블록스 전부 종료 → 0.5초 후 실행	Close all Roblox → launch after 0.5s	Robloxをすべて終了 → 0.5秒後に起動
+끄면 즉시 실행	Launches instantly when off	オフなら即起動
+모든 링크 표시	Show all links	すべてのリンクを表示
+감시 대상 밖 링크도 기록에 '보임'으로	Links outside your targets are logged as 'Seen'	監視対象外のリンクも「表示」として記録
+프로그램 폴더 열기	Open program folder	プログラムフォルダを開く
+삭제	Delete	削除
+알 수 없음	Unknown	不明
+비어 있음	Empty	空
+이름 모름	Name unknown	名前不明
+디스코드 연결 시 가져옴	Fetched when Discord connects	Discord接続時に取得
+복사	Copy	コピー
+ID 복사됨	ID copied	IDをコピーしました
+복사 실패	Copy failed	コピー失敗
+서버 추가됨	Server added	サーバーを追加しました
+채널 추가됨	Channel added	チャンネルを追加しました
+숫자 ID만 입력 가능	Numbers only	数字のIDのみ入力できます
+추가됨	Added	追加しました
+디스코드 연결 후 이름을 가져옴	Name is fetched after Discord connects	Discord接続後に名前を取得
+열림	Opened	オープン
+보임	Seen	表示
+바이옴 불일치	Biome mismatch	バイオーム不一致
+제외됨	Excluded	除外
+꺼짐	Off	オフ
+켜짐	On	オン
+열기	Open	開く
+링크 복사됨	Link copied	リンクをコピーしました
+바이옴 인식 안 됨	No biome detected	バイオーム未検出
+바이옴 매크로	Biome macro	バイオームマクロ
+기본 설정	Basic settings	基本設定
+플레이어 이름 · 브섭 링크	Player name · PS link	プレイヤー名・PSリンク
+디스코드 웹후크	Discord webhook	Discord Webhook
+알림 받을 주소	Where alerts go	通知の送信先
+멘션 설정	Mentions	メンション設定
+바이옴별 역할 · @everyone	Roles per biome · @everyone	バイオーム別ロール・@everyone
+최근 바이옴	Recent biomes	最近のバイオーム
+인식된 바이옴 기록	Detected biome history	検出したバイオームの履歴
+플레이어 이름	Player name	プレイヤー名
+디스플레이 이름이 아닌 실제 닉네임 (@ 뒤 이름)	Your username, not display name (the name after @)	表示名ではなくユーザー名（@の後の名前）
+게임 속 닉네임과 같아야 바이옴 감지	Must match your in-game username	ゲーム内のユーザー名と一致する必要あり
+브섭 링크	PS link	PSリンク
+바이옴 시작 알림에 함께 표시	Shown in biome start alerts	バイオーム開始通知に表示
+바이옴 인식 상태	Biome detection	バイオーム検出状態
+로블록스 로그 파일로 인식	Read from Roblox log files	Robloxのログファイルで検出
+화면 인식(OCR) 불필요	No screen reading (OCR) needed	画面認識（OCR）不要
+바이옴 매크로 토글이 켜져 있을 때만 알림 전송 (시작 버튼과 무관)	Alerts are sent only while the Biome macro toggle is on (separate from Start)	バイオームマクロのトグルがオンの時のみ通知（開始ボタンとは無関係）
+프로그램을 켜면 항상 꺼진 상태로 시작	Always off when the program starts	起動時は常にオフ
+바이옴이 시작될 때 함께 멘션	Mentioned when a biome starts	バイオーム開始時にメンション
+역할 ID 는 디스코드에서 역할 우클릭 → ID 복사하기 (개발자 모드 필요)	Get a role ID by right-clicking the role in Discord → Copy ID (Developer Mode required)	ロールIDはDiscordでロールを右クリック → IDをコピー（開発者モードが必要）
+기록 없음	No history	履歴なし
+테스트 전송	Send test	テスト送信
+선택	Optional	任意
+보내는 알림	Alerts sent	送信される通知
+플레이어 이름을 먼저 입력해주세요	Enter your player name first	先にプレイヤー名を入力してください
+바이옴 매크로 켜짐	Biome macro on	バイオームマクロ オン
+바이옴 매크로 꺼짐	Biome macro off	バイオームマクロ オフ
+역할 ID (선택)	Role ID (optional)	ロールID（任意）
+전송 중…	Sending…	送信中…
+플레이어 이름 입력 필요	Player name required	プレイヤー名の入力が必要
+이름이 없으면 감지 안 함	Nothing is detected without it	名前がないと検出しません
+로블록스 로그 파일 없음	No Roblox log file	Robloxのログファイルなし
+로블록스를 한 번 실행하면 생김	Created after Roblox runs once	Robloxを一度起動すると作成されます
+닉네임 불일치	Username mismatch	ユーザー名の不一致
+게임 속 실제 닉네임과 입력한 이름이 다름	The name differs from your in-game username	入力した名前がゲーム内のユーザー名と違います
+계정 확인 중	Checking account	アカウント確認中
+게임에 들어가면 닉네임 확인	Checked once you join a game	ゲームに入るとユーザー名を確認
+인식 중	Detecting	検出中
+로그 확인 중	Checking logs	ログ確認中
+게임에 들어가면 인식	Detected once you join a game	ゲームに入ると検出
+대기	Idle	待機
+테스트	Test	テスト
+정지	Stop	停止
+접속 전 동작	Before join	参加前の動作
+프로그램 종료 · 키 입력	Close programs · Key press	プログラム終了・キー入力
+게임 접속	Game join	ゲーム参加
+Play 버튼 위치 · 대기	Play button position · Wait	Playボタン位置・待機
+오토 팝핑 설정	Auto popping settings	オートポッピング設定
+버튼 위치 · OCR	Button positions · OCR	ボタン位置・OCR
+팝핑 바이옴 설정	Popping biomes	ポッピング対象バイオーム
+팝핑할 바이옴 켜기 · 끄기	Turn biomes on · off	バイオームのオン・オフ
+오토 팝핑 딜레이 설정	Auto popping delays	オートポッピングの待ち時間
+동작 사이 대기	Wait between actions	動作間の待機
+포션 템플릿	Potion template	ポーションテンプレート
+링크로 게임에 접속하기 직전에 순서대로 실행	Runs in order right before joining from a link	リンクから参加する直前に順番に実行
+끝나면 접속	then joins	終わったら参加
+테스트 실행	Test run	テスト実行
+동작 없음	No actions	動作なし
+필요하면 위 버튼으로 추가 (예: 특정 프로그램 강제 종료, 키 입력)	Add one with the buttons above if needed (e.g. force-close a program, press a key)	必要なら上のボタンで追加（例: 特定プログラムの強制終了、キー入力）
+직접 지정 필요	Must be set manually	手動で指定が必要
+로블록스 창 기준이라 창 크기가 바뀌어도 그대로	Relative to the Roblox window, so resizing is fine	Robloxウィンドウ基準なのでサイズが変わってもそのまま
+위치 지정	Set position	位置を指定
+Play 버튼과 번갈아 클릭	Clicked alternately with Play	Playボタンと交互にクリック
+클릭 간격	Click interval	クリック間隔
+Play ↔ Click to skip 번갈아 누르는 간격 (초)	Gap between alternating Play ↔ Click to skip clicks (s)	Play ↔ Click to skip を交互に押す間隔（秒）
+접속 후 대기	Wait after launch	起動後の待機
+로블록스 창이 뜬 뒤 첫 클릭까지 (초)	From the Roblox window opening to the first click (s)	Robloxウィンドウ表示から最初のクリックまで（秒）
+최대 시도 시간	Max try time	最大試行時間
+이 시간 안에 입장이 안 되면 중지 (초)	Stops if you haven't entered by then (s)	この時間内に入れなければ停止（秒）
+기본 템플릿으로	Reset to default	デフォルトに戻す
+이 템플릿 테스트	Test this template	このテンプレートをテスト
+1초 후 Play / Click to skip 번갈아 클릭 시작	Clicking Play / Click to skip alternately in 1s	1秒後にPlay / Click to skipを交互にクリック開始
+게임 입장이 확인되면 자동 정지	Stops automatically once you're in game	ゲーム参加を確認すると自動停止
+접속 중… (로블록스가 뜨면 사라짐)	Joining… (disappears when Roblox opens)	参加中…（Robloxが開くと消えます）
+내 서버로 접속	Joining your server	自分のサーバーに参加
+오토 팝핑	Auto popping	オートポッピング
+로블록스 창 감지됨	Roblox window found	Robloxウィンドウ検出
+로블록스 창 없음	No Roblox window	Robloxウィンドウなし
+실행 중	Running	実行中
+지정 안 됨	Not set	未設定
+위치 저장	Position saved	位置を保存
+아이템 칸	Item slot	アイテム欄
+검색 결과 첫 칸	First search result	検索結果の最初の欄
+수량 입력칸	Amount box	数量入力欄
+OCR 영역	OCR area	OCR範囲
+검색 결과 아이템 이름·개수 (예: Warp Potion x23)	Item name·count in the search result (e.g. Warp Potion x23)	検索結果のアイテム名・個数（例: Warp Potion x23）
+드래그로 지정	Drag to set	ドラッグで指定
+OCR 테스트	OCR test	OCRテスト
+이름 일치율 기준	Name match threshold	名前一致率の基準
+OCR 이름과 포션 이름이 이 이상 같아야 사용	Used only if the OCR name matches the potion name at least this much	OCRの名前とポーション名がこれ以上一致すれば使用
+미만이면 1회 재검색 후 스킵 (%)	Below it, searches once more then skips (%)	未満なら1回再検索してスキップ（%）
+로블록스 화면에서 드래그	Drag in Roblox	Robloxでドラッグ
+OCR 영역 저장	OCR area saved	OCR範囲を保存
+읽는 중…	Reading…	読み取り中…
+OCR 응답 없음	No OCR response	OCRの応答なし
+로그 확인	check the log	ログを確認
+표시 없음(1개)	not shown (1)	表示なし（1個）
+읽은 글자 없음	No text read	読み取った文字なし
+(읽은 글자 없음)	(no text read)	（読み取った文字なし）
+Play 후 게임 입장 → 시작	After Play, entering game → start	Play後のゲーム参加 → 開始
+아이템 이름 입력 + 엔터 후	After typing name + Enter	アイテム名入力 + Enter後
+아이템 클릭 후	After clicking item	アイテムクリック後
+수량칸 더블클릭 간격	Amount box double-click gap	数量欄ダブルクリック間隔
+수량칸 더블클릭 후	After amount box double-click	数量欄ダブルクリック後
+개수 입력 + 엔터 후	After typing amount + Enter	個数入力 + Enter後
+사용 방식	Mode	使用方法
+목록 위쪽일수록 먼저	Higher in the list goes first	リストの上ほど先に使用
+목록이 비어 있으면 이 바이옴에선 오토 팝핑 안 함	No auto popping in this biome if the list is empty	リストが空ならこのバイオームではオートポッピングしない
+목록 전부 순서대로	Whole list in order	リストを全部順番に
+위에서부터 조건 맞는 하나만	Only the first one that qualifies	上から条件に合う1つだけ
++ 포션 추가	+ Add potion	+ ポーション追加
+최소 보유: OCR 로 읽은 개수가 이보다 적으면 그 포션은 건너뜀	Min owned: skips the potion if the OCR count is lower	最低所持数: OCRで読んだ個数がこれより少なければそのポーションはスキップ
+포션 없음	No potions	ポーションなし
+아래 버튼으로 추가	Add one with the button below	下のボタンで追加
+포션 이름 (예: Warp Potion)	Potion name (e.g. Warp Potion)	ポーション名（例: Warp Potion）
+전부	All	全部
+직접	Custom	指定
+사용 개수	Amount to use	使用個数
+최소 보유	Min owned	最低所持数
+최소	Min	最低
+위로	Up	上へ
+아래로	Down	下へ
+켜져 있어야 이 바이옴에서 오토 팝핑	Auto pops in this biome only when on	オンの時のみこのバイオームでオートポッピング
+기본 템플릿으로 되돌림	Reset to the default template	デフォルトテンプレートに戻しました
+오토 팝핑 테스트 시작	Auto popping test started	オートポッピングテスト開始
+인벤토리 열기부터	from opening the inventory	インベントリを開くところから
+정지: 위쪽 [정지] 또는 F7	Stop: [Stop] at the top or F7	停止: 上の［停止］またはF7
+복귀 테스트	Test return	復帰テスト
+복귀 설정	Return settings	復帰設定
+내 브섭 링크	My PS link	自分のPSリンク
+복귀 후 동작	After return	復帰後の動作
+직접 만드는 매크로	Your own macro	自作マクロ
+바이옴 매크로 설정의 브섭 링크 사용	Use the PS link from Biome macro settings	バイオームマクロ設定のPSリンクを使用
+바이옴 매크로 설정 → 기본 설정에 입력한 링크를 가져옴	Copies the link from Biome macro settings → Basic settings	バイオームマクロ設定 → 基本設定のリンクを取得
+가져오기	Import	取り込む
+내 서버 입장 후 순서대로 실행	Runs in order after entering your server	自分のサーバーに入った後、順番に実行
+포션 사용	using potions	ポーション使用
+이어서 머묾	staying on	引き続き滞在
+팝핑 바이옴 설정에서 꺼져 있음	off in popping biome settings	ポッピングバイオーム設定でオフ
+포션 목록이 비어 있음	the potion list is empty	ポーションリストが空
+매크로가 켜져 있는 동안 Auto Crafted 알림을 확인	Checks for Auto Crafted notifications while the macro is on	マクロがオンの間、Auto Crafted の通知を確認
+제작할 포션	Potion to craft	作るポーション
+입력하면 알림이 뜰 때 이 포션을 채움	If set, this potion is refilled when the notification appears	入力すると、通知が出た時にこのポーションを補充
+비워 두면 알림에서 포션 이름을 읽음 (OCR)	leave empty to read the potion name from the notification (OCR)	空欄なら通知からポーション名を読み取る（OCR）
+입력한 포션	Typed potion	入力したポーション
+알림에서 읽기 (OCR)	Read from notification (OCR)	通知から読み取り（OCR）
+위에 입력한 포션으로 지금 한 번	Once now, with the potion above	上のポーションで今すぐ1回
+포션 제작 장소로 가서 재료를 채움	goes to the potion crafting spot and refills the ingredients	ポーション作成場所へ行って材料を補充
+포션 입력	potion input	ポーション入力
+제작할 포션을 입력해 주세요	Enter the potion to craft	作るポーションを入力してください
+기능 설정	Feature settings	機能設定
+뒤로 가주세요	Go back	戻ってください
+제작할 포션을 입력해주세요	Enter the potion to craft	作るポーションを入力してください
+제작 테스트로 확인해보세요	Try it with the craft test	製作テストで確認してみてください
+분	min	分
+구간 왼쪽 변에서 몇 % 지점에서 누를지	Where in the zone to click, as % from its left edge	区間の左端から何%の地点で押すか
+0 = 왼쪽 변	0 = left edge	0 = 左端
+50 = 가운데 (%)	50 = middle (%)	50 = 中央 (%)
+이만큼 미리 누름	Clicks this much earlier	この分だけ早く押す
+늦게 눌리면 조금 늘림 (ms)	raise a little if clicks are late (ms)	押すのが遅ければ少し増やす (ms)
+반응이 없을 때 다시 누르는 횟수	Retries when Fish does not respond	反応がないとき押し直す回数
+넘으면 인벤토리 가득	beyond this, the inventory is full	超えたらインベントリ満杯
+켜면 이 간격(분)마다 1개 사용 ·	When on, uses one every this many minutes ·	オンにするとこの間隔（分）で1個使用・
+누를 곳 지정 안 됨	click spot not set	押す場所が未指定
+걸린 시간	time taken	所要時間
+커스텀 매크로	Custom macro	カスタムマクロ
+스나이핑이 끝나고 실행할 매크로	Macro to run after sniping ends	スナイプ終了後に実行するマクロ
+스나이핑이 끝나고 매크로 실행	Run macro after sniping ends	スナイプ終了後にマクロを実行
+켜짐: 원래 매크로(자동 낚시 등)가 다시 켜지고 커스텀 매크로는 안 씀	On: your usual macro (auto fishing, etc.) turns back on and the custom macro is not used	オン: 通常のマクロ（自動釣りなど）が再開し、カスタムマクロは使いません
+꺼짐: 원래 매크로 대신 아래 커스텀 매크로를 실행	Off: runs the custom macro below instead of your usual macro	オフ: 通常のマクロの代わりに下のカスタムマクロを実行
+[스나이핑이 끝나고 매크로 실행] 이 켜져 있어서 커스텀 매크로는 꺼져 있음	The custom macro is off because [Run macro after sniping ends] is on	[スナイプ終了後にマクロを実行] がオンなので、カスタムマクロはオフです
+내 서버에 들어간 뒤 매크로(또는 커스텀 매크로)를 켜기까지 (초)	Time after entering your server before the macro (or custom macro) starts (s)	自分のサーバーに入ってからマクロ（またはカスタムマクロ）を開始するまで（秒）
+스나이핑이 끝나면 원래 매크로 실행 · 커스텀 매크로 꺼짐	After sniping: usual macro runs · custom macro off	スナイプ終了後: 通常のマクロを実行・カスタムマクロはオフ
+스나이핑이 끝나면 원래 매크로 실행	After sniping: usual macro runs	スナイプ終了後: 通常のマクロを実行
+커스텀 매크로 꺼짐	custom macro off	カスタムマクロはオフ
+스나이핑이 끝나면 커스텀 매크로 실행	After sniping: custom macro runs	スナイプ終了後: カスタムマクロを実行
+동작 없음 · 위 버튼으로 추가	No actions · add with the buttons above	動作なし・上のボタンで追加
+커스텀 매크로 완료	Custom macro done	カスタムマクロ完了
+커스텀 매크로 정지	Custom macro stopped	カスタムマクロ停止
+복귀 완료	return done	復帰完了
+게임 입장 확인	Joined a game	ゲーム入場を確認
+커스텀 매크로 쪽으로 돌아옴 — 원래 매크로는 멈춘 채로 (매크로를 다시 켜면 시작)	Back for the custom macro — usual macro stays paused (turn the macro on again to start it)	カスタムマクロ側で復帰 — 通常のマクロは停止したまま（マクロを再びオンにすると開始）
+AFK 방지 — 점프 (5분마다 · 20분 튕김 방지)	Anti-AFK — jump (every 5 min · prevents the 20-min kick)	AFK防止 — ジャンプ（5分ごと・20分キック防止）
+Singularity	Singularity	Singularity
+정지: F7	Stop: F7	停止: F7
+위 버튼으로 추가	Add one with the buttons above	上のボタンで追加
+바이옴 매크로 설정에 브섭 링크가 없음	No PS link in Biome macro settings	バイオームマクロ設定にPSリンクがありません
+브섭 링크 가져옴	PS link imported	PSリンクを取り込みました
+로블록스 종료 → 1초 → 내 서버 접속 → Play	Close Roblox → 1s → join your server → Play	Roblox終了 → 1秒 → 自分のサーバーに参加 → Play
+복귀 중	Returning	復帰中
+키 입력	Key press	キー入力
+키 조합	Key combo	キーの組み合わせ
+마우스 클릭	Mouse click	マウスクリック
+글자 입력	Type text	文字入力
+스크롤	Scroll	スクロール
+프로그램 실행	Run program	プログラム実行
+프로그램 강제 종료	Force-close program	プログラム強制終了
+창 맨 앞으로	Bring window to front	ウィンドウを最前面へ
+복제	Duplicate	複製
+로블록스에 보내기	Send to Roblox	Robloxに送る
+키	Key	キー
+횟수	Count	回数
+누르는 시간 (ms)	Hold (ms)	押す時間 (ms)
+간격 (ms)	Gap (ms)	間隔 (ms)
+키 조합 (+ 로 연결)	Key combo (join with +)	キーの組み合わせ（+でつなぐ）
+로블록스 화면에서 클릭	Click in Roblox	Robloxでクリック
+위치 (로블록스 창 기준)	Position (Roblox window)	位置（Robloxウィンドウ基準）
+버튼	Button	ボタン
+왼쪽	Left	左
+오른쪽	Right	右
+시간 (ms)	Time (ms)	時間 (ms)
+글자	Text	文字
+글자 (한 번에 붙여넣기)	Text (pasted at once)	文字（一度に貼り付け）
+입력할 글자	Text to type	入力する文字
+글자 간격 (ms)	Char gap (ms)	文字間隔 (ms)
+입력 후 엔터	Enter after typing	入力後にEnter
+양 (음수 = 아래)	Amount (negative = down)	量（マイナス = 下）
+찾아보기	Browse	参照
+파일 고르는 중…	Choosing file…	ファイルを選択中…
+프로그램 (exe · 바로가기 · bat 등)	Program (exe · shortcut · bat, etc.)	プログラム（exe・ショートカット・batなど）
+실행 옵션 (선택)	Arguments (optional)	起動オプション（任意）
+실행 후 대기 (ms)	Wait after launch (ms)	起動後の待機 (ms)
+종료할 프로그램 (여러 개는 , 로 구분)	Programs to close (separate with ,)	終了するプログラム（複数は , で区切る）
+열린 프로그램	Open programs	起動中のプログラム
+종료 후 대기 (ms)	Wait after close (ms)	終了後の待機 (ms)
+열린 창	Open windows	開いているウィンドウ
+창 제목에 들어간 글자	Text in window title	ウィンドウタイトルに含まれる文字
+프로그램 이름 (선택)	Program name (optional)	プログラム名（任意）
+창 기다리기 (ms)	Wait for window (ms)	ウィンドウ待機 (ms)
+맨 앞으로 가져올 창	Window to bring to front	最前面にするウィンドウ
+로블록스	Roblox	Roblox
+다른 창 (프로그램)	Another window (program)	他のウィンドウ（プログラム）
+열린 프로그램에서 고르기…	Pick from open programs…	起動中のプログラムから選択…
+열린 창에서 고르기…	Pick from open windows…	開いているウィンドウから選択…
+2초 뒤 실행	Runs in 2s	2秒後に実行
+F7 로 정지	stop with F7	F7で停止
+누르는 시간 (초)	Hold (s)	押す時間（秒）
+간격 (초)	Gap (s)	間隔（秒）
+시간 (초)	Time (s)	時間（秒）
+글자 간격 (초)	Char gap (s)	文字間隔（秒）
+실행 후 대기 (초)	Wait after launch (s)	起動後の待機（秒）
+종료 후 대기 (초)	Wait after close (s)	終了後の待機（秒）
+창 기다리기 (초)	Wait for window (s)	ウィンドウ待機（秒）
+드래그해서 순서 바꾸기	Drag to reorder	ドラッグで並べ替え
+입장 후 대기	Wait after entering	参加後の待機
+복귀 후 Play 로 게임 입장이 감지된 뒤 첫 동작까지 (초)	From entering the game via Play after returning to the first action (s)	復帰後Playでゲーム参加を検出してから最初の動作まで（秒）
+위치 템플릿	Position template	位置テンプレート
+Play/Click to skip, 버튼 위치, OCR 영역을 한 번에 채움	Fills Play/Click to skip, button positions and the OCR area at once	Play/Click to skip、ボタン位置、OCR範囲を一括入力
+로블록스 화면 비율에 맞는 것 선택	pick the one matching your Roblox aspect ratio	Robloxの画面比率に合うものを選択
+적용	Apply	適用
+한 번 더 누르면 덮어쓰기	Click again to overwrite	もう一度押すと上書き
+위치 템플릿을 쓸 수 있습니다	You can use a position template	位置テンプレートを使えます
+피드백	Feedback	フィードバック
+디스코드 서버에서 버그 · 건의	Report bugs & ideas on Discord	Discordサーバーでバグ・要望
+버그 · 건의 보내기	Send bugs · ideas	バグ・要望を送る
+버그 · 불편한 점 · 원하는 기능을 자유롭게 적어주세요. 만든 사람에게 바로 전달됩니다.	Write about bugs, problems or features you want. It goes straight to the creator.	バグ・不便な点・欲しい機能を自由に書いてください。制作者に直接届きます。
+내용을 입력해주세요	Please write something	内容を入力してください
+답변 받을 디스코드 이름 (선택)	Your Discord name for a reply (optional)	返信用のDiscord名（任意）
+보내기	Send	送信
+보내는 중…	Sending…	送信中…
+피드백을 보냈습니다. 감사합니다!	Feedback sent. Thank you!	フィードバックを送信しました。ありがとうございます！
+1500자 이하로 입력해주세요	Please keep it under 1500 characters	1500文字以内で入力してください
+전송 실패	Send failed	送信失敗
+로블록스가 갑자기 꺼졌습니다.	Roblox closed unexpectedly.	Robloxが突然終了しました。
+복귀 취소 — 대기	Return cancelled — waiting	復帰キャンセル — 待機
+로블록스가 다시 켜지지 않음 — 매크로 복귀 실행	Roblox didn't come back — running macro return	Robloxが再起動しない — マクロ復帰を実行
+로블록스가 다시 켜지지 않음 — 자동 복구 (매크로 복귀) 실행	Roblox didn't come back — running auto recovery (macro return)	Robloxが再起動しない — 自動復旧（マクロ復帰）を実行
+내 브섭 링크 (복귀 설정)	My PS link (Return settings)	自分のPSリンク（復帰設定）
+Play 버튼 위치 (접속 설정 → 게임 입장)	Play button position (Join settings → Game entry)	Playボタンの位置（参加設定 → ゲーム入場）
+Click to skip 버튼 위치 (접속 설정 → 게임 입장)	Click to skip button position (Join settings → Game entry)	Click to skipボタンの位置（参加設定 → ゲーム入場）
+자동 복구 완료 — 내 서버 입장	Auto recovery done — joined your server	自動復旧完了 — 自分のサーバーに入場
+복귀 취소 — 일부러 끈 것으로 보고 대기	Return cancelled — treated as intentional, waiting	復帰キャンセル — 意図的な終了として待機
+로블록스 꺼짐	Roblox closed	Roblox終了
+완전 삭제	Uninstall	完全削除
+Acrux 데이터 전부 지우기	Delete all Acrux data	Acruxのデータをすべて削除
+Acrux 매크로를 완전히 삭제할까요?	Completely remove Acrux macro?	Acruxマクロを完全に削除しますか？
+설정 · 위치 · 템플릿 · 기록과 내려받은 프로그램 파일이 전부 지워지고, 이 창이 닫힙니다.	All settings, positions, templates, history and downloaded program files will be deleted, and this window will close.	設定・位置・テンプレート・履歴とダウンロードしたプログラムファイルがすべて削除され、このウィンドウが閉じます。
+실행기(Acrux.exe)는 그대로 남습니다. 다시 실행하면 처음부터 새로 설치됩니다.	The launcher (Acrux.exe) stays. Running it again installs everything fresh.	ランチャー（Acrux.exe）は残ります。もう一度起動すると最初から新しくインストールされます。
+취소	Cancel	キャンセル
+삭제 중… 창이 곧 닫힙니다	Deleting… the window will close shortly	削除中… まもなくウィンドウが閉じます
+삭제할 폴더를 찾을 수 없음	Couldn't find the folder to delete	削除するフォルダが見つかりません
+Acrux 완전 삭제 — 창을 닫고 데이터를 지웁니다	Uninstalling Acrux — closing the window and deleting data	Acrux完全削除 — ウィンドウを閉じてデータを削除します
+스킵	Skip	スキップ
+이 단계 건너뛰기	Skip this step	このステップをスキップ
+이전	Back	戻る
+다음	Next	次へ
+확인	OK	OK
+나중에	Later	後で
+모든 튜토리얼 완료	All tutorials done	すべてのチュートリアル完了
+입력해야 다음으로 넘어갈 수 있습니다	Fill this in to continue	入力すると次へ進めます
+설정이 완료되었습니다	Setup complete	設定が完了しました
+필수 항목입니다.	This is required.	必須項目です。
+선택 항목입니다. 필요 없으면 이 단계를 건너뛰어주세요.	Optional. Skip this step if you don't need it.	任意項目です。不要ならこのステップをスキップしてください。
+선택 항목입니다. 기본값 그대로 써도 됩니다.	Optional. The defaults are fine.	任意項目です。初期値のままでも大丈夫です。
+감시 대상 설정	Watch target setup	監視対象の設定
+감시 대상 설정 튜토리얼을 건너뛰었습니다	Skipped the watch target tutorial	監視対象設定のチュートリアルをスキップしました
+감시 대상 탭에서 다시 볼 수 있습니다	You can view it again in the Watch targets tab	監視対象タブでもう一度見られます
+바이옴 매크로 설정 튜토리얼은 다음에 다시 표시됩니다	The biome macro tutorial will show again next time	バイオームマクロ設定のチュートリアルは次回また表示されます
+오토 팝핑 설정 튜토리얼을 건너뛰었습니다	Skipped the auto popping tutorial	オートポッピング設定のチュートリアルをスキップしました
+설정을 끝내기 전까지 매크로는 시작되지 않습니다	The macro won't start until setup is finished	設定を終えるまでマクロは開始されません
+매크로 복귀 설정 튜토리얼을 건너뛰었습니다	Skipped the macro return tutorial	マクロ復帰設定のチュートリアルをスキップしました
+감시 대상 설정이 필요합니다	Watch targets need to be set	監視対象の設定が必要です
+매크로 기능 설정	Macro feature settings	マクロ機能設定
+기능을 켜면 그 기능에 필요한 설정만 골라서 따로 안내합니다.	When you turn a feature on, only the settings it needs are explained.	機能をオンにすると、その機能に必要な設定だけを案内します。
+쓸 기능을 켜주세요	Turn on the features you want	使う機能をオンにしてください
+쓸 기능의 스위치를 켜주세요. 켜는 순간 그 기능에 필요한 설정을 하나씩 안내합니다.	Turn on the switch of a feature you want. As soon as you do, the settings it needs are explained one by one.	使う機能のスイッチをオンにしてください。オンにするとその機能に必要な設定を一つずつ案内します。
+매크로 기능 설정 튜토리얼을 건너뛰었습니다	Skipped the macro feature settings tutorial	マクロ機能設定のチュートリアルをスキップしました
+인벤토리 위치	Inventory positions	インベントリの位置
+알림 영역	Notification area	通知エリア
+대화창 위치	Dialog position	会話ウィンドウの位置
+기준 장소 위치	Base spot positions	基準地点の位置
+낚시 창 위치	Fishing window positions	釣りウィンドウの位置
+낚시 창 자동 보정	Fishing window auto calibration	釣りウィンドウの自動補正
+판매 자동 보정	Sell auto calibration	販売の自動補正
+상인 자동 보정	Merchant auto calibration	商人の自動補正
+제작 창 자동 보정	Craft window auto calibration	製作ウィンドウの自動補正
+메모리 매치 자동 보정	Memory match auto calibration	メモリーマッチの自動補正
+보정하는 동안(Fish 를 직접 눌러 입질까지) 마우스와 키보드를 건드리지 마세요. F7 로 취소할 수 있습니다. 선택 항목입니다.	Don't touch the mouse or keyboard while it calibrates (it presses Fish itself and waits for a bite). F7 cancels. Optional.	補正中（自分で Fish を押して当たりまで待ちます）はマウスとキーボードに触らないでください。F7 でキャンセルできます。任意項目です。
+실제로 팔지는 않습니다. 선택 항목입니다.	It doesn't actually sell anything. Optional.	実際には売りません。任意項目です。
+재료는 넣지 않습니다. 선택 항목입니다.	No ingredients are added. Optional.	材料は入れません。任意項目です。
+선택 항목입니다.	Optional.	任意項目です。
+물고기 판매 위치	Fish selling positions	魚の売却位置
+낚시 · 판매 장소	Fishing · selling spots	釣り・売却場所
+채팅 글자 영역	Chat text area	チャット文字エリア
+퀘스트 보드 Exit	Quest board Exit	クエストボードの Exit
+제작 창 위치	Craft window positions	製作ウィンドウの位置
+Inventory · Items · Search · 아이템 칸 · 수량 · Use 버튼과 OCR 영역이 필요합니다.	Inventory · Items · Search · item slot · amount · Use buttons and the OCR area are needed.	Inventory・Items・Search・アイテム欄・数量・Use ボタンと OCR エリアが必要です。
+채팅 버튼은 게임 버튼 칸에 있습니다. 위치 템플릿으로 한 번에 채울 수도 있습니다.	The chat button is in the Game buttons card. The position template can also fill these at once.	チャットボタンはゲームボタン欄にあります。位置テンプレートで一度に埋めることもできます。
+안 되면 창 영역을 직접 드래그해도 됩니다.	If that fails, you can drag the window areas yourself.	うまくいかなければウィンドウ範囲を直接ドラッグしても構いません。
+이 기능에 필요한 설정입니다. 비어 있는 것만 차례대로 안내합니다.	Settings this feature needs. Only the missing ones are explained, in order.	この機能に必要な設定です。空いているものだけを順番に案内します。
+레어 바이옴이 뜨면 기능 설정의 바이옴별 포션 목록대로 사용합니다.	When a rare biome appears, potions are used following each biome list in feature settings.	レアバイオームが出ると、機能設定のバイオーム別ポーションリストの通りに使用します。
+쿨타임마다 아이템을 1개씩 사용합니다.	Uses one item every cooldown.	クールタイムごとにアイテムを1個ずつ使用します。
+기능 설정에서 살 아이템을 골라주세요.	Choose the items to buy in feature settings.	機能設定で買うアイテムを選んでください。
+기능 설정의 상태 확인으로 위치가 맞는지 볼 수 있습니다.	You can check the positions with Status check in feature settings.	機能設定の状態確認で位置が合っているか確認できます。
+기능 설정의 제작 테스트로 바로 확인할 수 있습니다.	You can try it right away with Craft test in feature settings.	機能設定の製作テストですぐに確認できます。
+보드 앞에서 기능 설정의 테스트로 바로 확인할 수 있습니다.	In front of the board, you can try it right away with Test in feature settings.	ボードの前で機能設定のテストですぐに確認できます。
+설정 안내를 건너뛰었습니다 · 기능 설정에서 다시 볼 수 있습니다	Skipped the setup guide · you can see it again in feature settings	設定案内をスキップしました・機能設定で再表示できます
+설정 안내	Setup guide	設定案内
+(선택)	(optional)	（任意）
+등록한 곳에 올라온 비공개 서버 링크만 감지합니다.	Only private server links posted there are detected.	登録した場所に投稿されたプライベートサーバーリンクのみ検知します。
+디스코드 개발자 모드를 켜주세요	Turn on Discord Developer Mode	Discordの開発者モードをオンにしてください
+ID 복사 메뉴를 보기 위해 필요하며, 한 번만 하면 됩니다.	Needed for the Copy ID menu. You only need to do this once.	「IDをコピー」メニューを表示するために必要で、一度だけで大丈夫です。
+ID를 복사해주세요	Copy the ID	IDをコピーしてください
+스레드에 올라온 링크는 감지하지 않습니다.	Links posted in threads are not detected.	スレッドに投稿されたリンクは検知しません。
+ID를 붙여넣고 추가해주세요	Paste the ID and add it	IDを貼り付けて追加してください
+서버 ID는 왼쪽 서버 칸에 넣어주세요. 이름은 디스코드에서 자동으로 가져옵니다.	Put server IDs in the Server box on the left. Names are fetched from Discord automatically.	サーバーIDは左のサーバー欄に入れてください。名前はDiscordから自動で取得します。
+감시 대상 등록이 끝났습니다.	Watch targets are registered.	監視対象の登録が完了しました。
+필터 탭에서 바이옴을 선택하면 원하는 바이옴만 감지합니다.	Pick biomes in the Filter tab to detect only the ones you want.	フィルタータブでバイオームを選ぶと、そのバイオームだけ検知します。
+바이옴 매크로 설정이 필요합니다	Biome macro setup needed	バイオームマクロの設定が必要です
+플레이어 이름을 입력해주세요	Enter your player name	プレイヤー名を入力してください
+게임 속 닉네임과 같아야 바이옴을 감지합니다. 필수 항목입니다.	It must match your in-game username to detect biomes. This is required.	ゲーム内のユーザー名と一致しないとバイオームを検出できません。必須項目です。
+브섭 링크를 입력해주세요	Enter your PS link	PSリンクを入力してください
+선택 항목입니다. 알림이 필요 없으면 이 단계를 건너뛰어주세요.	Optional. Skip this step if you don't need alerts.	任意項目です。通知が不要ならこのステップをスキップしてください。
+웹후크 주소를 입력해주세요	Enter the webhook URL	Webhook URLを入力してください
+튜토리얼이 끝난 뒤 위쪽 [테스트 전송]으로 확인할 수 있습니다. 선택 항목입니다.	After the tutorial, you can check it with [Send test] at the top. Optional.	チュートリアル後、上の［テスト送信］で確認できます。任意項目です。
+바이옴 매크로 설정이 끝났습니다.	Biome macro setup is done.	バイオームマクロの設定が完了しました。
+프로그램을 켤 때마다 꺼진 상태로 시작합니다.	It starts off every time you open the program.	プログラムを起動するたびにオフの状態で始まります。
+오토 팝핑 설정이 필요합니다	Auto popping setup needed	オートポッピングの設定が必要です
+위치를 지정할 때는 로블록스를 켜두고, 해당 버튼이 보이는 화면에서 진행해주세요.	When setting positions, keep Roblox open on a screen where that button is visible.	位置を指定する時はRobloxを起動し、そのボタンが見える画面で行ってください。
+접속 전 동작을 추가해주세요	Add before-join actions	参加前の動作を追加してください
+위에서부터 순서대로 실행한 뒤 접속합니다. 선택 항목입니다.	Runs from the top in order, then joins. Optional.	上から順番に実行してから参加します。任意項目です。
+Play 버튼과 번갈아 클릭합니다. 필수 항목입니다. Esc 로 취소할 수 있습니다.	It's clicked alternately with Play. This is required. Press Esc to cancel.	Playボタンと交互にクリックします。必須項目です。Escでキャンセルできます。
+클릭 간격과 대기 시간을 확인해주세요	Check the click interval and wait times	クリック間隔と待機時間を確認してください
+OCR 영역을 지정해주세요	Set the OCR area	OCR範囲を指定してください
+선택 항목입니다. 기본은 세 바이옴 모두 켜져 있습니다.	Optional. All three biomes are on by default.	任意項目です。初期状態では3つのバイオームすべてオンです。
+팝핑할 바이옴을 켜고 꺼주세요	Turn biomes on or off	ポッピングするバイオームをオン・オフしてください
+딜레이를 조정해주세요	Adjust the delays	待ち時間を調整してください
+필요한 항목의 시간(초)을 바꿔주세요. 바꾼 값은 바로 저장됩니다.	Change the times (seconds) you need. Changes save right away.	必要な項目の時間（秒）を変更してください。変更はすぐ保存されます。
+선택 항목입니다. 템플릿이 없는 바이옴에서는 오토 팝핑을 하지 않습니다.	Optional. Biomes without a template aren't auto popped.	任意項目です。テンプレートがないバイオームではオートポッピングしません。
+사용할 포션을 확인해주세요	Check the potions to use	使用するポーションを確認してください
+오토 팝핑 설정이 끝났습니다.	Auto popping setup is done.	オートポッピングの設定が完了しました。
+링크로 접속하면 Play 버튼을 누르고, 켜진 레어 바이옴이면 포션을 자동으로 사용합니다.	When joining from a link, it presses Play and uses potions automatically in rare biomes that are on.	リンクから参加するとPlayボタンを押し、オンのレアバイオームならポーションを自動で使用します。
+매크로 복귀 설정이 필요합니다	Macro return setup needed	マクロ復帰の設定が必要です
+내 브섭 링크를 입력해주세요	Enter your PS link	自分のPSリンクを入力してください
+복귀 후 동작을 추가해주세요	Add after-return actions	復帰後の動作を追加してください
+매크로 복귀 설정이 끝났습니다.	Macro return setup is done.	マクロ復帰の設定が完了しました。
+디스코드 연결 중	Connecting to Discord	Discordに接続中
+디스코드 없음	Discord not found	Discordが見つかりません
+디코 재시작 필요	Discord restart needed	Discordの再起動が必要
+디스코드 재시작 중	Restarting Discord	Discordを再起動中
+디스코드 실행 중	Launching Discord	Discordを起動中
+포트 안 열림	Port not open	ポートが開きません
+디스코드 창 찾는 중	Finding Discord window	Discordウィンドウを検索中
+Flux 연결 대기	Waiting for Flux	Flux接続待ち
+모든 채널 감시 중	Watching all channels	全チャンネル監視中
+열린 채널만 감시	Watching the open channel only	開いているチャンネルのみ監視
+hook.js 없음	hook.js missing	hook.jsがありません
+재연결 대기	Waiting to reconnect	再接続待ち
+매크로 복귀 완료 — 내 서버 입장	Macro return done — entered your server	マクロ復帰完了 — 自分のサーバーに参加
+켜진 동작이 없음	No actions turned on	オンの動作がありません
+복귀 설정에 내 브섭 링크가 없음	No PS link in Return settings	復帰設定に自分のPSリンクがありません
+복귀할 브섭 링크 먼저 입력	Enter the PS link to return to first	先に復帰先のPSリンクを入力してください
+이미 복귀 중	Already returning	すでに復帰中
+알 수 없는 항목	Unknown item	不明な項目
+OCR 영역 먼저 지정	Set the OCR area first	先にOCR範囲を指定してください
+OCR 패키지가 설치되지 않음 (run.bat 으로 실행 필요)	OCR package not installed (run with run.bat)	OCRパッケージ未インストール（run.batで起動してください）
+알 수 없는 바이옴	Unknown biome	不明なバイオーム
+포션 목록이 비어 있음	Potion list is empty	ポーションリストが空です
+웹후크 주소 없음	No webhook URL	Webhook URLがありません
+디스코드 웹후크 주소 형식이 아님	Not a Discord webhook URL	Discord WebhookのURL形式ではありません
+취소됨	Cancelled	キャンセルしました
+지정 실패	Failed to set	指定失敗
+시간 초과	Timed out	タイムアウト
+영역이 없음	No area	範囲がありません
+오토 팝핑 설정 필요	Auto popping setup needed	オートポッピング設定が必要
+작동 시작	Started	作動開始
+작동 중지 — 감지만 계속	Stopped — still detecting	作動停止 — 検知のみ継続
+윈도우 OCR	Windows OCR	Windows OCR
+디스코드를 디버그 포트와 함께 재시작하는 중…	Restarting Discord with the debug port…	デバッグポート付きでDiscordを再起動中…
+디스코드 실행 중…	Launching Discord…	Discordを起動中…
+디버그 포트 열기 실패 — 디스코드가 이 옵션을 막았을 가능성 있음	Failed to open the debug port — Discord may be blocking it	デバッグポートを開けません — Discordがこのオプションをブロックしている可能性
+로블록스 클라이언트 강제 종료	Force-closed the Roblox client	Robloxクライアントを強制終了
+피드백 서버 준비 중 · 디스코드 서버로 알려주세요	Feedback server not ready yet · please tell us on the Discord server	フィードバックサーバー準備中 · Discordサーバーでお知らせください
+잠시 뒤에 다시 보내주세요	Please try again in a moment	しばらくしてからもう一度送信してください
+비공개 서버 링크 형식이 아니라서 열지 않음	Not a private server link — not opened	プライベートサーバーのリンク形式ではないため開きません
+로블록스 비공개 서버 링크 형식이 아님	Not a Roblox private server link	Robloxのプライベートサーバーリンク形式ではありません
+디스코드가 예전 방식(웹페이지도 접속 가능)으로 켜져 있음 → 안전한 방식으로 다시 켬	Discord is running in the old mode (reachable from web pages) → restarting it the safe way	Discordが旧方式（Webページからも接続可能）で起動中 → 安全な方式で再起動
+디스코드가 예전 방식(웹페이지도 접속 가능)으로 켜져 있음 — 디스코드를 껐다가 다시 켜주세요 (자동 재시작 꺼짐)	Discord is running in the old mode (reachable from web pages) — please close and reopen Discord (auto restart is off)	Discordが旧方式（Webページからも接続可能）で起動中 — Discordを再起動してください（自動再起動オフ）
+디스코드를 보통 모드로 다시 켜는 중 (디버그 포트 닫기)	Restarting Discord in normal mode (closing the debug port)	Discordを通常モードで再起動中（デバッグポートを閉じる）
+디스코드를 다시 켬	Restarting Discord	Discordを再起動
+연결 안 함	Not connecting	接続しません
+포트 확인 실패	Port check failed	ポート確認失敗
+디버그 포트 안전 확인이 계속 실패해서 디스코드를 다시 켜지 않음 — 디스코드와 Acrux 를 껐다가 다시 켜주세요	Debug port safety check keeps failing, so Discord won't be restarted — please close and reopen Discord and Acrux	デバッグポートの安全確認が失敗し続けるため、Discordを再起動しません — DiscordとAcruxを再起動してください
+디스코드 창 ID 가 이상함	Invalid Discord window ID	DiscordウィンドウIDが不正です
+딥링크 변환 실패 → 브라우저로 열기	Couldn't convert to a deep link → opening in browser	ディープリンクに変換できません → ブラウザで開く
+로블록스 클라이언트 전부 종료	Closed all Roblox clients	Robloxクライアントをすべて終了
+디스코드 메인 창을 찾을 수 없음 (로그인 화면이면 로그인 필요)	Discord main window not found (log in if on the login screen)	Discordのメインウィンドウが見つかりません（ログイン画面ならログインしてください）
+Flux 연결됨 — 모든 채널 감시 중	Flux connected — watching all channels	Flux接続 — 全チャンネル監視中
+Flux 연결 실패 — 화면에 열린 채널만 감시 (DOM)	Flux failed — watching only the open channel (DOM)	Flux接続失敗 — 画面に開いているチャンネルのみ監視（DOM）
+디스코드 연결 끊김	Disconnected from Discord	Discordとの接続が切れました
+디스코드 연결 끊김 (앱 종료/업데이트 재시작)	Disconnected from Discord (app closed / update restart)	Discordとの接続が切れました（アプリ終了/アップデート再起動）
+hook.js 가 같은 폴더에 없음	hook.js isn't in the same folder	hook.jsが同じフォルダにありません
+다시 연결 시도…	Reconnecting…	再接続中…
+다른 서버 접속 (스나이핑) — 이번 접속 동안 바이옴 웹후크 안 보냄	Joined another server (snipe) — no biome webhooks this session	別サーバーに参加（スナイプ）— この接続中はバイオームWebhookを送りません
+로블록스 접속 끊김 감지 (로그)	Roblox disconnect detected (log)	Robloxの切断を検出（ログ）
+오토 팝핑 정지	Auto popping stopped	オートポッピング停止
+Inventory 열기	Opening Inventory	Inventoryを開く
+로블록스 접속 끊김 — 오토 팝핑 종료	Disconnected from Roblox — auto popping finished	Roblox切断 — オートポッピング終了
+로블록스 창이 사라짐 — 오토 팝핑 종료	Roblox window gone — auto popping finished	Robloxウィンドウが消えた — オートポッピング終了
+로블록스 창 기다리는 중	Waiting for the Roblox window	Robloxウィンドウ待機中
+로블록스 창이 안 떠서 Play 클릭 취소	Roblox window never opened — Play clicking cancelled	Robloxウィンドウが開かずPlayクリックを中止
+맨 앞으로 가져옴	brought to front	最前面に表示
+맨 앞으로 못 가져옴	couldn't bring to front	最前面にできず
+앞에 있음	in front	前面
+앞으로 못 가져옴	couldn't bring to front	前面にできず
+입장 확인 중	checking entry	参加確認中
+Play 클릭 정지	Play clicking stopped	Playクリック停止
+매크로 복귀 안 함 — 복귀할 브섭 링크가 없음 (복귀 설정에서 입력)	No macro return — no PS link set (enter it in Return settings)	マクロ復帰なし — 復帰するPSリンクがありません（復帰設定で入力）
+로블록스 종료	Closing Roblox	Robloxを終了
+1초 대기	Waiting 1s	1秒待機
+매크로 복귀 정지	Macro return stopped	マクロ復帰停止
+로블록스 창을 찾을 수 없음	Roblox window not found	Robloxウィンドウが見つかりません
+클릭 위치가 지정되지 않음	Click position not set	クリック位置が未指定
+종료할 프로그램 이름이 없음	No program name to close	終了するプログラム名がありません
+실행할 프로그램이 지정되지 않음	No program set to run	実行するプログラムが未指定
+(비어 있음)	(empty)	（空）
+윈도우 OCR 언어 없음 (윈도우 설정 → 언어에서 한국어/영어 언어팩 설치 필요)	No Windows OCR language (install a Korean/English language pack in Windows Settings → Language)	Windows OCRの言語がありません（Windowsの設定 → 言語で韓国語/英語の言語パックをインストール）
+OCR 시간 초과	OCR timed out	OCRタイムアウト
+OCR 응답 없음 (시간 초과)	No OCR response (timed out)	OCRの応答なし（タイムアウト）
+접속 후 처리	Post-join	参加後の処理
+주입	Injection	注入
+바이옴 감시	Biome watcher	バイオーム監視
+복귀 연결	Return handoff	復帰連携
+Play 클릭	Play click	Playクリック
+매크로 복귀	Macro return	マクロ復帰
+ (안정화)	 (stable)	（安定）
+ (재시도)	 (retry)	（再試行）
+ (실행 중 아님)	 (not running)	（起動していません）
+직접 실행으로는 디버그 포트가 안 열림 → 디스코드 업데이터로 다시 실행	Debug port didn't open with a direct launch → relaunching through Discord's updater	直接起動ではデバッグポートが開かない → Discordのアップデーター経由で再起動
+통신 연결 대기	Waiting for connection	通信接続待ち
+통신을 처음부터 받기 위해 디스코드 화면을 새로고침	Reloading Discord to read its connection from the start	通信を最初から受け取るためDiscordを再読み込み
+통신 연결됨 — 모든 채널 감시 중	Connected to Discord traffic — watching all channels	通信接続 — 全チャンネル監視中
+예비 감지: 연결됨	Backup detection: connected	予備検知: 接続
+예비 감지: 실패 (통신 읽기로 감시 중이라 괜찮음)	Backup detection: failed (fine — traffic reading is active)	予備検知: 失敗（通信読み取りで監視中なので問題なし）
+서버 접속	server join	サーバー参加
+복귀	return	復帰
+접속 실패	join failed	参加失敗
+오토 팝핑 종료	auto popping finished	オートポッピング終了
+게임 접속 전	before game join	ゲーム参加前
+복귀 완료	return done	復帰完了
+복귀 다시 시도	retrying return	復帰を再試行
+아이템 사용	item use	アイテム使用
+상인 구매	merchant buying	商人の購入
+포션 제작	potion crafting	ポーション製作
+팝핑할 바이옴 · 끝나고 할 일	Biomes to pop · after sniping	ポップするバイオーム・終了後の動作
+켜 둔 기능만 매크로를 켰을 때 동작	Only features that are on run when the Macro is on	オンの機能だけマクロ開始時に動作
+매크로 설정	Macro settings	マクロ設定
+팝핑할 바이옴	Biomes to pop	ポップするバイオーム
+켜진 바이옴에서만 포션 사용	Potions are used only in biomes that are on	オンのバイオームでのみポーションを使用
+시작하려면 게임 입장 · 오토 팝핑 위치 설정이 필요합니다	To start, set the game entry and auto popping positions	開始するにはゲーム入場・オートポッピングの位置設定が必要です
+레어 바이옴	Rare biomes	レアバイオーム
+일반 스나이핑 바이옴	Regular snipe biomes	通常スナイプバイオーム
+머묾	stay	滞在
+팝핑 안 함	no popping	ポッピングなし
+바로 복귀	return right away	すぐ復帰
+스나이핑이 끝나고	After sniping	スナイプ終了後
+매크로 실행	Run macro	マクロ実行
+원래 매크로(자동 낚시 등)를 다시 켬	Turns your macro (auto fishing, etc.) back on	元のマクロ（自動釣りなど）を再開
+커스텀 매크로를 실행	Runs the custom macro	カスタムマクロを実行
+오토 팝핑 설정	Auto popping settings	オートポッピング設定
+준비 완료	Ready	準備完了
+설정 필요	setup needed	設定が必要
+꺼짐 · 설정 필요	Off · setup needed	オフ・設定が必要
+낚시	Fishing	釣り
+판매 장소	selling spot	売却場所
+바이옴 알림 · 디스코드 웹후크 · 멘션	Biome alerts · Discord webhook · Mentions	バイオーム通知・Discord Webhook・メンション
+링크 감지 설정	Link detection settings	リンク検知設定
+감지 기록 · 감시 대상 · 필터 · 디스코드 연결 · Prime Snipe	Detection log · Watch targets · Filter · Discord connection · Prime Snipe	検知履歴・監視対象・フィルター・Discord接続・Prime Snipe
+접속 설정	Join settings	参加設定
+접속 딜레이 · 중복 막기 · 게임 입장 (Play)	Join delay · Duplicate block · Game entry (Play)	参加ディレイ・重複防止・ゲーム入場（Play）
+버튼 위치 · OCR · 바이옴별 포션 · 딜레이	Button positions · OCR · Potions per biome · Delays	ボタン位置・OCR・バイオーム別ポーション・ディレイ
+내 서버로 복귀 · 커스텀 매크로	Return to your server · Custom macro	自分のサーバーへ復帰・カスタムマクロ
+공통 위치 · 기능마다 켜기 · 설정 · 위치 · 이동	Shared positions · per feature: on · settings · positions · movement	共通位置・機能ごとにオン・設定・位置・移動
+언어 · OCR 감지 방식 · 데이터 폴더	Language · OCR method · Data folder	言語・OCR検知方式・データフォルダ
+통계	Stats	統計
+공통 위치	Shared positions	共通位置
+바이옴 · 자동 제외	Biomes · Auto exclude	バイオーム・自動除外
+연결 · 감지 알림	Connection · Detection alerts	接続・検知通知
+디스코드	Discord	Discord
+링크를 읽어 올 디스코드 앱	The Discord app to read links from	リンクを読み取るDiscordアプリ
+끄면 디스코드를 켜거나 재시작하지 않음 (오토 스나이핑 꺼짐 · 매크로만 쓸 때)	When off, Discord is not started or restarted (auto sniping off · when you only use the macro)	オフにするとDiscordを起動・再起動しない（オートスナイプはオフ・マクロだけ使うとき）
+작동 · 알림	Startup · Alerts	動作・通知
+프로그램 켤 때 오토 스나이핑 시작 버튼까지 눌린 상태로	Starts with the auto sniping Start button already pressed	起動時にオートスナイプの開始ボタンを押した状態にする
+감시 대상 설정 튜토리얼을 건너뛰었습니다 · 링크 감지 설정 → 감시 대상에서 다시 볼 수 있습니다	Skipped the watch target tutorial · you can view it again in Link detection settings → Watch targets	監視対象設定のチュートリアルをスキップしました・リンク検知設定 → 監視対象でもう一度見られます
+입장 테스트	Join test	入場テスト
+접속 방식	Join method	参加方式
+딜레이 · 바로 실행 · 안정화	Delay · Direct launch · Stable join	ディレイ・直接起動・安定化
+중복 막기	Duplicate block	重複防止
+같은 서버 · 연속 접속	Same server · Back-to-back joins	同じサーバー・連続参加
+게임 입장	Game entry	ゲーム入場
+Play 버튼 · 로딩 대기	Play button · Loading wait	Playボタン・ロード待機
+링크를 감지한 뒤 로블록스를 여는 방법 · 사람이 직접 누른 것처럼 (안티 스나이핑 대비)	How Roblox is opened after a link is detected · as if a person clicked it (against anti-sniping)	リンク検知後にRobloxを開く方法・人が押したように（アンチスナイプ対策）
+같은 링크가 여러 곳에 올라와도 한 번만 · 접속을 기다리는 중에 올라온 다른 링크도 건너뜀	Joins once even if the same link is posted in many places · links posted while waiting to join are skipped too	同じリンクが複数の場所に投稿されても1回だけ・参加待ちの間に投稿された他のリンクもスキップ
+로블록스가 뜨면 Play ↔ Click to skip 을 번갈아 눌러 게임에 들어감 · 내 서버로 복귀할 때도 씀	When Roblox opens, presses Play ↔ Click to skip in turn to enter the game · also used when returning to your server	Robloxが開いたらPlay ↔ Click to skipを交互に押してゲームに入る・自分のサーバーへ復帰するときも使用
+버튼 위치	Button positions	ボタン位置
+직접 지정 필요 · 로블록스 창 기준이라 창 크기가 바뀌어도 그대로	Must be set · based on the Roblox window, so it stays the same when the window size changes	指定が必要・Robloxウィンドウ基準なのでウィンドウサイズが変わってもそのまま
+타이틀 화면의 Play	Play on the title screen	タイトル画面のPlay
+Play 버튼과 번갈아 클릭	Clicked in turn with the Play button	Playボタンと交互にクリック
+간격 · 대기	Interval · Wait	間隔・待機
+접속 설정	Join settings	参加設定
+기본 0 ~ 0초 (바로 접속). 기다리는 중에 매크로를 중지하면 접속하지 않습니다.	Default 0 ~ 0 s (join right away). If you stop the macro while waiting, it does not join.	既定は0 ~ 0秒（すぐ参加）。待機中にマクロを止めると参加しません。
+접속 설정이 끝났습니다.	Join setup is done.	参加設定が完了しました。
+버튼 위치 · OCR	Button positions · OCR	ボタン位置・OCR
+인벤토리 버튼 · 이름 읽기	Inventory buttons · Reading names	インベントリボタン・名前の読み取り
+바이옴별 팝핑	Popping per biome	バイオーム別ポッピング
+켜기 · 포션 목록	On · Potion list	オン・ポーションリスト
+딜레이	Delays	ディレイ
+게임에 들어가면 인벤토리를 열고 포션을 검색해서 사용 · 위치를 지정할 때는 그 버튼이 보이는 화면에서	After entering the game, opens the inventory, searches the potion and uses it · set each position on a screen where that button is visible	ゲームに入るとインベントリを開いてポーションを検索して使用・位置はそのボタンが見える画面で指定
+켜진 바이옴에서만 포션 사용 · 이름을 누르면 포션 목록이 펼쳐짐 · 위쪽 포션부터 사용	Potions are used only in biomes that are on · click a name to open its potion list · potions at the top are used first	オンのバイオームでのみポーションを使用・名前を押すとポーションリストが開く・上のポーションから使用
+켜진 바이옴에서만 포션 사용 · 이름을 누르면 포션 목록이 펼쳐짐	Potions are used only in biomes that are on · click a name to open its potion list	オンのバイオームでのみポーションを使用・名前を押すとポーションリストが開く
+꺼 두면 들어가서 팝핑 없이 바로 복귀	If off, joins and returns right away without popping	オフなら入ってポッピングせずにすぐ復帰
+레어 바이옴 말고 스나이핑하는 바이옴 (Windy · Snowy · Rainy 빼고 전부) · 꺼 두면 팝핑 없이 바이옴이 끝날 때까지 머묾 (기본 꺼짐)	Biomes sniped besides the rare ones (all except Windy · Snowy · Rainy) · if off, stays without popping until the biome ends (off by default)	レアバイオーム以外にスナイプするバイオーム（Windy・Snowy・Rainy以外すべて）・オフならポッピングせずにバイオーム終了まで滞在（既定はオフ）
+동작 사이 대기 시간 (초) · 렉이 있으면 조금씩 늘림 · 매크로 탭 레어 바이옴 자동 팝핑도 같이 씀	Wait between actions (s) · increase a little if it lags · also used by rare biome auto popping in the Macro tab	動作の間の待機時間（秒）・ラグがあれば少しずつ増やす・マクロタブのレアバイオーム自動ポッピングも共用
+켜면 매크로 설정 → 공통 위치의 인벤토리 위치 · OCR 영역을 같이 씀	When on, uses the inventory positions · OCR area from Macro settings → Shared positions	オンにするとマクロ設定 → 共通位置のインベントリ位置・OCR領域を共用
+팝핑 없이 바이옴이 끝날 때까지 머묾	stays without popping until the biome ends	ポッピングせずにバイオーム終了まで滞在
+들어가서 바로 복귀	joins and returns right away	入ってすぐ復帰
+포션 목록이 비어 있음 — 팝핑 안 함	Potion list is empty — no popping	ポーションリストが空 — ポッピングなし
+전부 순서대로	all in order	全部順番に
+조건 맞는 하나만	only the first that fits	条件に合う1つだけ
+오토 팝핑 중	Auto popping	オートポッピング中
+내 서버로 복귀	Return to your server	自分のサーバーへ復帰
+내 브섭 링크 · 대기	PS link · Wait	PSリンク・待機
+바이옴이 끝나거나 오토 팝핑이 끝나면 로블록스를 모두 종료하고 이 링크로 다시 접속	When the biome or auto popping ends, closes all Roblox and joins this link again	バイオームやオートポッピングが終わるとRobloxをすべて終了してこのリンクに再参加
+복귀 설정이 필요합니다	Return setup needed	復帰設定が必要です
+복귀 설정이 끝났습니다.	Return setup is done.	復帰設定が完了しました。
+복귀 설정 튜토리얼을 건너뛰었습니다	Skipped the return tutorial	復帰設定のチュートリアルをスキップしました
+내 서버에서 포션 사용	Uses potions in your server	自分のサーバーでポーション使用
+쿨타임마다 사용	Uses on each cooldown	クールタイムごとに使用
+Auto Crafted · 재료 채우기	Auto Crafted · Refill ingredients	Auto Crafted・材料補充
+오토 팝핑 위치 가져오기	Import auto popping positions	オートポッピングの位置を取り込む
+여러 기능이 같이 쓰는 위치 · [위치 지정] 후 로블록스 화면에서 클릭 (영역은 드래그)	Positions shared by several features · after [Set position], click on the Roblox screen (drag for areas)	複数の機能で共用する位置・［位置指定］の後Roblox画面でクリック（範囲はドラッグ）
+레어 바이옴이 감지되면 아래 바이옴별 포션 목록대로 사용	When a rare biome is detected, uses potions from the per-biome lists below	レアバイオームを検知すると下のバイオーム別ポーションリスト通りに使用
+준비 상태	Readiness	準備状態
+필요한 위치 · 장소가 다 지정됐는지 · 비어 있으면 위쪽 [설정 안내]로 하나씩	Whether all needed positions · places are set · if not, use [Setup guide] above step by step	必要な位置・場所がすべて指定されているか・空なら上の［設定案内］で1つずつ
+공통 위치 → 인벤토리 를 씀	Uses Shared positions → Inventory	共通位置 → インベントリを使用
+오토 팝핑 설정(스나이프 탭)에 지정한 것을 같이 씀	Uses the ones set in Auto popping settings (Snipe tab)	オートポッピング設定（スナイプタブ）の指定を共用
+매크로가 켜져 있는 동안 낚시 장소에서 계속 낚시	Keeps fishing at the fishing spot while the Macro is on	マクロがオンの間、釣り場で釣り続ける
+매크로가 켜져 있는 동안 낚시 장소에서 계속 낚시 · 가득 차면 팔고 돌아옴 · 정지: F7	Keeps fishing at the fishing spot while the Macro is on · sells and comes back when full · Stop: F7	マクロがオンの間、釣り場で釣り続ける・満杯になったら売って戻る・停止: F7
+매크로가 켜져 있는 동안 쿨타임마다 사용	Uses on each cooldown while the Macro is on	マクロがオンの間、クールタイムごとに使用
+사용할 아이템	Items to use	使用するアイテム
+매크로가 켜져 있는 동안 채팅을 확인 · 상인이 오면 고른 아이템 구매	Checks chat while the Macro is on · buys the chosen items when a merchant arrives	マクロがオンの間チャットを確認・商人が来たら選んだアイテムを購入
+대화창 · 인벤토리	Dialog box · Inventory	会話ウィンドウ・インベントリ
+공통 위치 → 대화창 · 인벤토리 를 씀	Uses Shared positions → Dialog box · Inventory	共通位置 → 会話ウィンドウ・インベントリを使用
+살 아이템	Items to buy	購入するアイテム
+고른 아이템 없음	No items picked	アイテム未選択
+매크로를 켤 때마다 한 번 확인 · 쿨타임이면 남은 시간 뒤에 다시	Checks once each time the Macro is turned on · if on cooldown, again after the time left	マクロをオンにするたびに1回確認・クールタイム中なら残り時間後に再確認
+쓰는 기능: 레어 바이옴 자동 팝핑 · 오토 아이템 사용 · 상인 자동 구매 · 블러드 레인 자동 생성 (스나이프 오토 팝핑과 연동 가능)	Used by: Rare biome auto popping · Auto item use · Merchant auto buy · Blood Rain auto summon (can be linked with snipe auto popping)	使用する機能: レアバイオーム自動ポッピング・オートアイテム使用・商人自動購入・ブラッドレイン自動生成（スナイプのオートポッピングと連動可）
+쓰는 기능: 자동 낚시 (인벤토리 가득) · 포션 자동 제작 (Auto Crafted)	Used by: Auto fishing (inventory full) · Potion auto craft (Auto Crafted)	使用する機能: 自動釣り（インベントリ満杯）・ポーション自動製作（Auto Crafted）
+쓰는 기능: 자동 낚시 (판매) · 상인 자동 구매	Used by: Auto fishing (selling) · Merchant auto buy	使用する機能: 自動釣り（売却）・商人自動購入
+모든 이동의 출발점 (리셋 → 카메라 정렬 → 걷기 → 줌) · 쓰는 기능: 자동 낚시 · 포션 자동 제작 · 오토 메모리 매치	Start point of all movement (reset → camera align → walk → zoom) · Used by: Auto fishing · Potion auto craft · Auto Memory Match	すべての移動の出発点（リセット → カメラ整列 → 歩く → ズーム）・使用する機能: 自動釣り・ポーション自動製作・オートメモリーマッチ
+매크로를 켜면 낚시 장소로, 가득 차면 판매 장소로 이동 · 기준 장소(공통 위치 → 이동 · 기준 장소)에서 출발	When the Macro is on, moves to the fishing spot, and to the selling spot when full · starts from the base spot (Shared positions → Movement · base spot)	マクロをオンにすると釣り場へ、満杯なら売却場所へ移動・基準地点（共通位置 → 移動・基準地点）から出発
+켜면 스나이프 탭 오토 팝핑도 이 위치를 씀	When on, snipe tab auto popping uses these positions too	オンにするとスナイプタブのオートポッピングもこの位置を使用
+오토 팝핑 위치를 가져옴	Imported the auto popping positions	オートポッピングの位置を取り込みました
+프로그램 응답 없음 · 잠시 후 다시 해주세요	No response from the program · please try again in a moment	プログラムの応答なし・少ししてからもう一度
+대화창 (공통 위치)	Dialog box (Shared positions)	会話ウィンドウ（共通位置）
+플레이어 이름 (바이옴 매크로 설정)	Player name (Biome macro settings)	プレイヤー名（バイオームマクロ設定）
+설정 안내를 건너뛰었습니다 · 매크로 설정의 그 기능 칸 [설정 안내]에서 다시 볼 수 있습니다	Skipped the setup guide · you can view it again with [Setup guide] in that feature in Macro settings	設定案内をスキップしました・マクロ設定のその機能の［設定案内］でもう一度見られます
+살 아이템을 골라주세요	Choose the items to buy	購入するアイテムを選んでください
+마리 · 제스터가 오면 여기서 켠 아이템만 삽니다. 하나 이상 켜주세요.	When Mari · Jester arrives, only the items turned on here are bought. Turn on at least one.	マリ・ジェスターが来たらここでオンにしたアイテムだけを買います。1つ以上オンにしてください。
+레어 바이옴이 뜨면 바이옴별 팝핑의 포션 목록대로 사용합니다.	When a rare biome appears, potions are used from the popping-per-biome lists.	レアバイオームが出るとバイオーム別ポッピングのポーションリスト通りに使用します。
+살 아이템은 상인 자동 구매 칸의 살 아이템에서 고릅니다.	Pick the items to buy in Items to buy of Merchant auto buy.	購入するアイテムは商人自動購入の購入するアイテムで選びます。
+자동 낚시 칸 위쪽 상태 확인으로 위치가 맞는지 볼 수 있습니다.	Use Check status at the top of Auto fishing to see if the positions are right.	自動釣りの上の状態確認で位置が合っているか確認できます。
+포션 자동 제작 칸의 제작 테스트로 바로 확인할 수 있습니다.	Check it right away with the craft test in Potion auto craft.	ポーション自動製作の製作テストですぐ確認できます。
+보드 앞에서 오토 메모리 매치 칸의 테스트로 바로 확인할 수 있습니다.	In front of the board, check it right away with the test in Auto Memory Match.	ボードの前でオートメモリーマッチのテストですぐ確認できます。
+매크로 기능 켜기	Turning on macro features	マクロ機能のオン
+매크로 튜토리얼을 건너뛰었습니다	Skipped the macro tutorial	マクロのチュートリアルをスキップしました
+▾ 를 눌러주세요	Click ▾	▾を押してください
+쓸 기능의 스위치를 켜주세요. 켜는 순간 그 기능에 필요한 설정을 하나씩 안내합니다.	Turn on the switch of a feature you want. The moment you turn it on, its needed settings are guided one by one.	使う機能のスイッチをオンにしてください。オンにするとその機能に必要な設定を1つずつ案内します。
+Play 버튼 · 인벤토리 버튼 위치와 OCR 영역은 꼭 지정해야 하며, 바이옴별 팝핑 · 딜레이는 선택입니다.	The Play button · inventory button positions and the OCR area are required; popping per biome · delays are optional.	Playボタン・インベントリボタンの位置とOCR領域は必須で、バイオーム別ポッピング・ディレイは任意です。
+뒤로 가주세요	Go back	戻ってください
+공통 위치와 연동되어 있습니다	Linked with shared positions	共通位置と連動しています
+여기서 직접 지정하려면 연동을 꺼주세요. 연동을 그대로 쓰려면 매크로 설정 → 공통 위치 → 인벤토리에서 지정해주세요.	To set them here, turn the link off. To keep the link, set them in Macro settings → Shared positions → Inventory.	ここで指定するには連動をオフにしてください。連動のまま使うならマクロ設定 → 共通位置 → インベントリで指定してください。
+선택 항목입니다. 기본은 레어 바이옴 세 개만 켜져 있습니다.	Optional. By default only the three rare biomes are on.	任意です。既定では3つのレアバイオームだけオンです。
+켜진 바이옴에서만 포션을 사용합니다. 꺼진 레어 바이옴에 들어가면 팝핑 없이 바로 복귀합니다.	Potions are used only in biomes that are on. In a rare biome that is off, it returns right away without popping.	オンのバイオームでのみポーションを使います。オフのレアバイオームに入るとポッピングせずにすぐ復帰します。
+포션 목록을 확인해주세요	Check the potion list	ポーションリストを確認してください
+링크로 접속하면 Play 버튼을 누르고, 켜 둔 바이옴이면 포션을 자동으로 사용합니다.	When joining by link, it presses Play and uses potions automatically in biomes that are on.	リンクで参加するとPlayを押し、オンのバイオームならポーションを自動で使います。
+오토 팝핑 설정 튜토리얼을 건너뛰었습니다 · 설정을 끝내기 전까지 오토 스나이핑은 시작되지 않습니다	Skipped the auto popping tutorial · auto sniping will not start until setup is done	オートポッピング設定のチュートリアルをスキップしました・設定が終わるまでオートスナイプは開始しません
+Acrux 를 켠 뒤부터	Since Acrux was started	Acruxを起動してから
+접속한 링크	Links joined	参加したリンク
+인벤토리 가득	Inventory full	インベントリ満杯
+구매한 아이템	Items bought	購入したアイテム
+재료 채운 횟수	Refills	補充回数
+게임 수	Games	ゲーム数
+본 광고	Ads watched	視聴した広告
+언어 · 데이터 폴더 · 버전	Language · Data folder · Version	言語・データフォルダ・バージョン
+검색창	Search box	検索欄
+설정 저장 실패 · 다시 시도 중	Saving settings failed · retrying	設定の保存に失敗・再試行中
+제작 창 X	Craft window X	製作ウィンドウのX
+Add Ingredients 창 X	Add Ingredients window X	Add IngredientsウィンドウのX
+블러드 레인 자동 생성	Blood Rain auto summon	ブラッドレイン自動生成
+블러드 레인	Blood Rain	ブラッドレイン
+할로윈 이벤트	Halloween event	ハロウィンイベント
+개수 확인 테스트	Count check test	個数確認テスト
+PUMPKIN MOON · GRAVEYARD 가 뜨면 그 바이옴에 한 번 사용	Uses one once when PUMPKIN MOON or GRAVEYARD starts	PUMPKIN MOONかGRAVEYARDが来たらそのバイオームで1回使用
+2개 이상 있을 때만 1개 사용 · 1개 이하면 안 씀	Uses 1 only when you have 2 or more · not used with 1 or fewer	2個以上ある時だけ1個使用・1個以下なら使わない
+블러드 레인 만드는 중	Summoning Blood Rain	ブラッドレイン生成中
+블러드 레인 자동 생성 정지	Blood Rain auto summon stopped	ブラッドレイン自動生成停止
+템플릿	Template	テンプレート
+(내 서버)	(your server)	（自分のサーバー）
+★ 편집	★ Edit	★ 編集
+완료	Done	完了
+봇 버튼으로 링크 받기	Get links via bot buttons	ボットのボタンでリンク取得
+누르기	Pressing	押す
+누를 버튼	Buttons to press	押すボタン
+버튼 이름(또는 이모지)에 들어 있으면 누름 · 한 줄에 하나 · 위에 있을수록 먼저	Pressed if the button name (or emoji) contains it · one per line · higher lines go first	ボタン名（または絵文字）に含まれていれば押す・1行に1つ・上にあるほど優先
+응답 · 링크	Response · Link	応答・リンク
+최근 봇 알림	Recent bot alerts	最近のボット通知
+감시 대상에서 본 버튼 달린 봇 메시지 · [테스트]: 지금 눌러서 링크만 받아 봄 (접속 안 함)	Bot messages with buttons seen in watch targets · [Test]: press now and only get the link (does not join)	監視対象で見たボタン付きボットメッセージ・［テスト］: 今押してリンクだけ受け取る（参加しない）
+아직 본 봇 알림 없음	No bot alerts seen yet	まだボット通知なし
+링크가 없는 봇 알림이면 버튼을 눌러 링크를 받음 · 오토 스나이핑이 켜져 있을 때만	Presses the button on bot alerts without a link to get it · only while auto sniping is on	リンクのないボット通知ならボタンを押してリンクを受け取る・オートスナイプがオンの時だけ
+누르는 방식	Press method	押し方
+누른 것처럼: 디스코드 앱이 '눌렀음' 신호만 보냄 (채널 이동 · 클릭 없음)	As if pressed: the Discord app only sends the 'pressed' signal (no channel switching or clicking)	押したように: Discordアプリが「押した」信号だけ送る（チャンネル移動・クリックなし）
+누른 것처럼 (화면 안 건드림)	As if pressed (screen untouched)	押したように（画面に触れない）
+화면에서 직접 누르기	Press on screen	画面で直接押す
+안 되면 다른 방식으로	Fall back to the other method	だめなら別の方法で
+누른 것처럼이 안 되면 화면에서 · 화면에서 안 되면 누른 것처럼	If 'as if pressed' fails, on screen · if on screen fails, as if pressed	「押したように」がだめなら画面で・画面でだめなら「押したように」
+누른 횟수 · 받은 링크	Presses · Links received	押した回数・受け取ったリンク
+누르기 전 대기 (초)	Wait before pressing (s)	押す前の待機（秒）
+알림을 보고 누르기까지 · 매번 이 사이에서 무작위 · 기본 2 ~ 3.5	From seeing the alert to pressing · random within this range each time · default 2 ~ 3.5	通知を見てから押すまで・毎回この範囲でランダム・既定 2 ~ 3.5
+1분에 최대	Max per minute	1分あたり最大
+봇 도배 · 계정 보호 · 기본 6번	Avoids spamming bots · protects your account · default 6	ボットへの連打防止・アカウント保護・既定 6回
+여러 단계	Multiple steps	複数ステップ
+응답에 버튼이 또 있으면 이어서 누름 · 최대 단계 (기본 3)	If the response has another button, presses it too · max steps (default 3)	応答にまたボタンがあれば続けて押す・最大ステップ（既定 3）
+버튼이 하나뿐이면 누르기	Press if there is only one button	ボタンが1つだけなら押す
+이름이 안 맞아도 누를 수 있는 버튼이 하나뿐이면	Even if the name does not match, when only one button can be pressed	名前が合わなくても押せるボタンが1つだけなら
+선택 메뉴도 고르기	Pick from select menus too	選択メニューも選ぶ
+메뉴 항목 이름이 누를 이름에 맞으면	When a menu option name matches a press name	メニュー項目名が押す名前に合えば
+화면에서 누를 때: 그 메시지로 이동	When pressing on screen: go to the message	画面で押す時: そのメッセージへ移動
+그 채널이 화면에 안 열려 있으면 이동해서 누름	If that channel is not open on screen, goes there and presses	そのチャンネルが画面に開いていなければ移動して押す
+누른 뒤 원래 화면으로	Return to the previous screen after pressing	押した後に元の画面へ
+이동해서 눌렀으면 보던 채널로 돌아감	If it moved to press, goes back to the channel you were viewing	移動して押した場合、見ていたチャンネルに戻る
+누를 이름	Names to press	押す名前
+안 누를 이름	Names not to press	押さない名前
+들어 있으면 그 버튼은 안 누름 (예: report · delete)	Buttons containing these are not pressed (e.g. report · delete)	含まれていればそのボタンは押さない（例: report · delete）
+예: get link · join · reveal · 🔗	e.g. get link · join · reveal · 🔗	例: get link · join · reveal · 🔗
+이 봇만	Only these bots	このボットだけ
+봇 이름 또는 ID · 비우면 감시 대상의 모든 봇	Bot name or ID · empty = all bots in watch targets	ボット名またはID・空なら監視対象のすべてのボット
+응답 기다리는 시간 (초)	Response wait time (s)	応答の待ち時間（秒）
+누른 뒤 봇이 답할 때까지 · 기본 15	After pressing until the bot replies · default 15	押した後ボットが答えるまで・既定 15
+다른 주소도 따라가기	Follow other addresses too	他のアドレスもたどる
+받은 주소가 로블록스가 아니면 따라가서 로블록스 링크를 찾음 (짧은 주소 · 안내 페이지)	If the address received is not Roblox, follows it to find the Roblox link (short links · landing pages)	受け取ったアドレスがRobloxでなければたどってRobloxリンクを探す（短縮URL・案内ページ）
+DM 으로 온 링크도 받기	Accept links sent by DM too	DMで来たリンクも受け取る
+봇이 링크를 DM 으로 보내 주는 경우	When the bot sends the link by DM	ボットがリンクをDMで送る場合
+오토 스나이핑을 시작하면 작동	Works once auto sniping starts	オートスナイプを開始すると動作
+봇 알림 기다리는 중	Waiting for bot alerts	ボット通知を待機中
+버튼 누르는 중	Pressing a button	ボタンを押しています
+화면에서 누르기	Press on screen	画面で押す
+누른 것처럼	As if pressed	押したように
+봇 버튼 대신 누르기	Presses bot buttons for you	ボットのボタンを代わりに押す
+화면에서 직접 누름	Presses on screen	画面で直接押す
+테스트 시작 · 링크만 받아 보고 접속은 안 함	Test started · only gets the link, does not join	テスト開始・リンクだけ受け取り参加はしない
+응답 기다리는 중	Waiting for response	応答待ち
+응답 없음	No response	応答なし
+누를 버튼 없음	No button to press	押すボタンなし
+누르기 대기	About to press	押す待機
+누르기 실패	Press failed	押せなかった
+봇이 거절	Refused by bot	ボットが拒否
+링크 받음	Link received	リンク受信
+봇 제한	Bot not allowed	ボット制限
+주소 확인 중	Checking address	アドレス確認中
+테스트 대기	Test queued	テスト待機
+내 서버 링크	Your server link	自分のサーバーのリンク
+입력 창	Input form	入力フォーム
+링크 없음	No link	リンクなし
+봇 응답 실패	Bot response failed	ボット応答失敗
+나만 보이는 메시지	Message only you can see	自分だけに見えるメッセージ
+원래 메시지 수정	Original message edited	元のメッセージが編集された
+응답 속 주소	Address in the response	応答内のアドレス
+봇 응답	Bot response	ボットの応答
+테스트라 접속 안 함	Test, so not joining	テストなので参加しない
+Prime Snipe 꺼짐	Prime Snipe off	Prime Snipeオフ
+다른 링크로 접속하는 중	Joining another link	別のリンクで参加中
+스나이핑한 서버에서 할 일이 도는 중	Busy in the sniped server	スナイプしたサーバーで作業中
+오토 스나이핑 중지됨	Auto sniping stopped	オートスナイプ停止
+오토 스나이핑을 시작하면 누름	Presses once auto sniping starts	オートスナイプを開始すると押す
+밀린 알림이 많아서	Too many alerts queued	溜まった通知が多いため
+링크 버튼 주소에서 로블록스 링크를 못 찾음	No Roblox link found at the link button address	リンクボタンのアドレスにRobloxリンクが見つからない
+This interaction failed (봇이 꺼져 있거나 늦음)	This interaction failed (the bot is offline or slow)	This interaction failed（ボットがオフか遅い）
+봇이 입력 창(모달)을 띄워서 자동으로 못 함	The bot opened an input form (modal), so it cannot be done automatically	ボットが入力フォーム（モーダル）を開いたため自動ではできない
+화면 클릭	Screen click	画面クリック
+화면 클릭 (대신)	Screen click (simulated)	画面クリック（代わりに）
+이동해서	after moving	移動して
+버튼 ID 없음	no button ID	ボタンIDなし
+누른 것처럼: 디스코드 내부 통신 기능을 못 찾음	As if pressed: could not find the Discord app's internal request function	押したように: Discordアプリ内部の通信機能が見つからない
+누른 것처럼: 세션 정보 없음	As if pressed: no session info	押したように: セッション情報なし
+버튼을 못 찾음	button not found	ボタンが見つからない
+메시지를 못 찾음 (채널 이동 실패)	message not found (could not switch channel)	メッセージが見つからない（チャンネル移動失敗）
+메뉴를 못 찾음	menu not found	メニューが見つからない
+버튼이 꺼져 있음	button is disabled	ボタンが無効
+최근 목록에 없는 메시지	Not in the recent list	最近の一覧にないメッセージ
+다른 메시지를 누르는 중	Already pressing another message	別のメッセージを押しています
+디스코드에 연결되지 않음	Not connected to Discord	Discordに接続されていません
+봇	bot	ボット
+없음	none	なし
+(테스트)	(test)	（テスト）
+[Prime] 반응 없음 — 다른 방식으로 다시 누름	[Prime] No reaction — pressing again another way	[Prime] 反応なし — 別の方法でもう一度押す
+[Prime] 받은 링크가 내 브섭 링크 — 접속 안 함	[Prime] The link received is your private server link — not joining	[Prime] 受け取ったリンクは自分のプライベートサーバー — 参加しない
+켜진 바이옴에서만 포션 사용 · ★ 즐겨찾기만 보임	Potions are used only in biomes that are on · only ★ favorites shown	オンのバイオームでのみポーションを使用・★お気に入りだけ表示
+★ 를 누른 바이옴만 ▾ 에 보임	Only ★ biomes show in ▾	★を付けたバイオームだけ▾に表示
+즐겨찾기 없음	No favorites	お気に入りなし
+블러드 레인 자동 생성 취소 — 자동 낚시가 멈추지 않음	Blood Rain auto summon canceled — auto fishing did not stop	ブラッドレイン自動生成中止 — 自動釣りが止まらない
+스나이핑 기능의 정점	The pinnacle of sniping	スナイプ機能の頂点
+비활성화됨	Disabled	無効
+활성화됨	Enabled	有効
+[ Prime Snipe ] 활성화됨.	[ Prime Snipe ] enabled.	[ Prime Snipe ] 有効化されました。
+[ Prime Snipe ] 비활성화됨.	[ Prime Snipe ] disabled.	[ Prime Snipe ] 無効化されました。
+AI 도우미	AI assistant	AIアシスタント
+아직 확인된 봇 알림이 없음	No bot alerts found yet	まだ確認されたボット通知はありません
+버튼 이름(또는 이모지)에 포함되어 있으면 누름 · 한 줄에 하나씩 · 위에 있을수록 먼저 누름	Pressed if the button name (or emoji) contains it · one per line · higher lines are pressed first	ボタン名（または絵文字）に含まれていれば押す・1行に1つずつ・上にあるほど先に押す
+다이렉트 링크가 없는 메시지 · [테스트]: 지금 바로 눌러 링크만 받아 봄 (접속은 하지 않음)	Messages without a direct link · [Test]: press right now and only get the link (does not join)	ダイレクトリンクのないメッセージ・［テスト］: 今すぐ押してリンクだけ受け取る（参加はしない）
+다이렉트 링크가 없는 봇 알림의 버튼을 눌러 링크를 받음 · 오토 스나이핑이 켜져 있을 때만 작동함	Presses the button on bot alerts without a direct link to get it · works only while auto sniping is on	ダイレクトリンクのないボット通知のボタンを押してリンクを受け取る・オートスナイプがオンの時だけ動作
+누른 것처럼: 디스코드 앱이 '눌렀음' 신호만 보냄 (채널 이동과 클릭이 없음)	As if pressed: the Discord app only sends the 'pressed' signal (no channel switching or clicking)	押したように: Discordアプリが「押した」信号だけ送る（チャンネル移動もクリックもなし）
+누른 것처럼 (화면을 건드리지 않음)	As if pressed (does not touch the screen)	押したように（画面に触れない）
+실패하면 다른 방식으로 시도	Try the other method on failure	失敗したら別の方法で試す
+'누른 것처럼'이 실패하면 화면에서 누르고, 화면에서 실패하면 '누른 것처럼'으로 누름	If 'as if pressed' fails it presses on screen, and if on screen fails it presses 'as if pressed'	「押したように」が失敗したら画面で押し、画面で失敗したら「押したように」で押す
+누른 횟수 · 받은 링크 · AI 사용	Presses · Links received · AI used	押した回数・受け取ったリンク・AI使用
+알림을 확인한 뒤 누르기까지의 시간 · 매번 이 범위에서 무작위로 정함 · 기본 2 ~ 3.5	Time from seeing the alert to pressing · picked at random in this range each time · default 2 ~ 3.5	通知を確認してから押すまでの時間・毎回この範囲でランダムに決める・既定 2 ~ 3.5
+1분에 처리하는 알림 수 · 봇 도배 방지와 계정 보호 · 기본 6개	Alerts handled per minute · avoids spamming bots and protects your account · default 6	1分に処理する通知の数・ボットへの連打防止とアカウント保護・既定 6件
+최대 누르는 횟수	Max presses	最大押下回数
+알림 하나에서 이어서 누를 수 있는 최대 횟수 (먼저 누르는 버튼 · 한번 더 등) · 기본 6	Max presses in a row for one alert (press-first buttons · One more, etc.) · default 6	1つの通知で続けて押せる最大回数（先に押すボタン・もう一回など）・既定 6
+버튼이 하나뿐이면 누름	Press when there is only one button	ボタンが1つだけなら押す
+이름이 맞지 않아도 누를 수 있는 버튼이 하나뿐인 경우	Even if the name does not match, when only one button can be pressed	名前が合わなくても押せるボタンが1つだけの場合
+선택 메뉴도 고름	Pick from select menus too	選択メニューも選ぶ
+메뉴 항목 이름이 누를 이름과 맞는 경우	When a menu option name matches a press name	メニュー項目名が押す名前と合う場合
+화면에서 누를 때 그 메시지로 이동	When pressing on screen, go to the message	画面で押す時はそのメッセージへ移動
+그 채널이 화면에 열려 있지 않으면 이동해서 누름	If that channel is not open on screen, goes there and presses	そのチャンネルが画面に開いていなければ移動して押す
+누른 뒤 원래 화면으로 돌아감	Return to the previous screen after pressing	押した後に元の画面へ戻る
+이동해서 누른 경우 보던 채널로 돌아감	If it moved to press, goes back to the channel you were viewing	移動して押した場合、見ていたチャンネルに戻る
+누르지 않을 이름	Names not to press	押さない名前
+포함되어 있으면 그 버튼은 누르지 않음 (예: report · delete)	Buttons containing these are not pressed (e.g. report · delete)	含まれていればそのボタンは押さない（例: report · delete）
+허용할 봇	Allowed bots	許可するボット
+봇 이름 또는 ID · 비워 두면 감시 대상의 모든 봇	Bot name or ID · leave empty for all bots in watch targets	ボット名またはID・空にすると監視対象のすべてのボット
+응답을 기다리는 시간 (초)	Time to wait for a response (s)	応答を待つ時間（秒）
+누른 뒤 봇이 응답할 때까지 · 기본 15	After pressing until the bot responds · default 15	押した後ボットが応答するまで・既定 15
+다른 주소도 따라감	Follow other addresses too	他のアドレスもたどる
+DM으로 온 링크도 받음	Accept links sent by DM too	DMで来たリンクも受け取る
+봇이 링크를 DM으로 보내는 경우	When the bot sends the link by DM	ボットがリンクをDMで送る場合
+막히면 AI에게 물어봄	Ask AI when stuck	行き詰まったらAIに聞く
+누를 버튼을 정하지 못하거나 같은 응답이 반복될 때 · 알림 하나에 최대 3번	When no button can be chosen or the same response keeps repeating · up to 3 times per alert	押すボタンを決められない時や同じ応答が繰り返される時・1つの通知につき最大3回
+AI 서비스	AI service	AIサービス
+Groq (추천)	Groq (recommended)	Groq（おすすめ）
+직접 입력 (OpenAI 호환)	Custom (OpenAI-compatible)	直接入力（OpenAI互換）
+추천 · 응답이 가장 빠르고 무료 사용량이 넉넉함 (하루 약 1,000번)	Recommended · fastest responses and a generous free quota (about 1,000 a day)	おすすめ・応答が最も速く無料枠も十分（1日約1,000回）
+판단력이 더 좋음 · 무료 사용량은 적음 (하루 수십 번)	Better judgment · small free quota (a few dozen a day)	判断力がより高い・無料枠は少ない（1日数十回）
+여러 회사의 모델을 키 하나로 사용 · 무료 모델이 있음	Use many companies' models with one key · has free models	複数社のモデルを1つのキーで使用・無料モデルあり
+OpenAI 호환 주소를 직접 입력	Enter an OpenAI-compatible address yourself	OpenAI互換アドレスを直接入力
+추천	Recommended	おすすめ
+Groq: 응답이 가장 빨라 스나이핑에 가장 적합함 · 판단이 더 정확해야 하면 Google Gemini	Groq: the fastest responses, best suited for sniping · Google Gemini if you need more accurate judgment	Groq: 応答が最も速くスナイプに最適・より正確な判断が必要ならGoogle Gemini
+주소	Address	アドレス
+https:// 로 시작하는 OpenAI 호환 주소 (…/v1)	OpenAI-compatible address starting with https:// (…/v1)	https:// で始まるOpenAI互換アドレス（…/v1）
+API 키	API key	APIキー
+이 PC의 설정 파일에만 저장되며 로그에 남지 않음	Saved only in this PC's settings file and never written to the log	このPCの設定ファイルにだけ保存され、ログには残らない
+모델	Model	モデル
+자동: 그 키로 쓸 수 있는 모델 중 가장 좋은 것을 고름 (더 좋은 모델이 나오면 자동으로 바뀜)	Auto: picks the best model available to that key (switches automatically when a better model comes out)	自動: そのキーで使えるモデルの中から最も良いものを選ぶ（より良いモデルが出れば自動で切り替え）
+자동	Auto	自動
+연결 테스트	Connection test	接続テスト
+키를 넣은 뒤 눌러서 확인 · 모델 목록도 함께 불러옴	Press after entering the key to check · also loads the model list	キーを入力してから押して確認・モデル一覧も読み込む
+연결됨	Connected	接続済み
+API 키를 먼저 넣어야 함	Enter the API key first	先にAPIキーを入力してください
+AI를 쓰려면 API 키를 넣어야 함	Enter an API key to use AI	AIを使うにはAPIキーの入力が必要
+AI에게는 봇 메시지의 글자와 버튼 이름만 보냄 (디스코드 로그인 정보는 보내지 않음)	Only the bot message text and button names are sent to the AI (never your Discord login)	AIにはボットメッセージの文字とボタン名だけを送る（Discordのログイン情報は送らない）
+API 키가 없음	No API key	APIキーがない
+API 키가 올바르지 않음	The API key is invalid	APIキーが正しくない
+이 키로는 사용할 수 없음	Cannot be used with this key	このキーでは使えない
+주소 또는 모델을 찾을 수 없음	Address or model not found	アドレスまたはモデルが見つからない
+사용량 한도 초과 (잠시 후 다시 시도)	Usage limit exceeded (try again shortly)	使用量の上限超過（しばらくしてから再試行）
+연결 실패	Connection failed	接続失敗
+응답을 읽을 수 없음	Could not read the response	応答を読めない
+쓸 수 있는 모델이 없음	No usable model	使えるモデルがない
+응답 형식이 다름	Unexpected response format	応答の形式が違う
+주소가 https:// 로 시작해야 함	The address must start with https://	アドレスは https:// で始まる必要あり
+확인하지 못함	Could not check	確認できない
+버튼을 누르는 중	Pressing a button	ボタンを押しています
+봇 알림을 기다리는 중	Waiting for bot alerts	ボット通知を待機中
+오토 스나이핑을 시작하면 작동함	Works once auto sniping starts	オートスナイプを開始すると動作
+테스트 시작 · 링크만 받아 보고 접속은 하지 않음	Test started · only gets the link, does not join	テスト開始・リンクだけ受け取り参加はしない
+허용되지 않은 봇	Bot not allowed	許可されていないボット
+바이옴이 일치하지 않음	Biome does not match	バイオームが一致しない
+제외 단어가 포함됨	Contains an excluded word	除外ワードを含む
+누를 버튼이 없음	No button to press	押すボタンがない
+꺼져 있음	Off	オフ
+대기 중	Waiting	待機中
+누르기 대기 중	About to press	押す待機中
+테스트 대기 중	Test queued	テスト待機中
+응답을 기다리는 중	Waiting for response	応答を待っています
+AI에게 묻는 중	Asking AI	AIに質問中
+링크를 찾지 못함	No link found	リンクが見つからない
+누르기에 실패함	Press failed	押せなかった
+응답이 없음	No response	応答がない
+봇 응답에 실패함	Bot response failed	ボットの応答に失敗
+입력 창이 뜸	Input form opened	入力フォームが開いた
+봇이 거절함	Refused by bot	ボットが拒否
+링크를 받음	Link received	リンクを受信
+다른 메시지를 처리하는 중	Already handling another message	別のメッセージを処理中
+스나이핑한 서버에서 작업이 진행 중	Busy in the sniped server	スナイプしたサーバーで作業中
+밀린 알림이 너무 많음	Too many alerts queued	溜まった通知が多すぎる
+Prime Snipe가 비활성화됨	Prime Snipe disabled	Prime Snipeが無効
+규칙에 맞는 버튼이 없음	No button matches the rules	ルールに合うボタンがない
+This interaction failed (봇이 꺼져 있거나 응답이 늦음)	This interaction failed (the bot is offline or slow to respond)	This interaction failed（ボットがオフか応答が遅い）
+봇이 입력 창(모달)을 띄워 자동으로 진행할 수 없음	The bot opened an input form (modal), so it cannot continue automatically	ボットが入力フォーム（モーダル）を開いたため自動で進められない
+테스트이므로 접속하지 않음	Test, so not joining	テストなので参加しない
+원래 메시지가 수정됨	Original message edited	元のメッセージが編集された
+알림 속 숨긴 링크	Link hidden in the alert	通知内に隠されたリンク
+AI가 찾은 링크	Link found by AI	AIが見つけたリンク
+AI가 알려 준 링크가 메시지에 없음	The link the AI gave is not in the message	AIが示したリンクがメッセージにない
+AI가 고른 버튼은 누르지 않는 버튼임	The button the AI picked is one that is not pressed	AIが選んだボタンは押さないボタン
+AI 답이 메시지와 맞지 않음	The AI's answer does not match the message	AIの回答がメッセージと合わない
+AI 연결 실패	AI connection failed	AI接続失敗
+AI 오류	AI error	AIエラー
+기다린 뒤 다시 누름	will press again after waiting	待ってからもう一度押す
+디스코드 내부 통신 기능을 찾지 못함	could not find the Discord app's internal request function	Discordアプリ内部の通信機能が見つからない
+세션 정보가 없음	no session info	セッション情報がない
+메시지를 찾지 못함 (채널 이동 실패)	message not found (could not switch channel)	メッセージが見つからない（チャンネル移動失敗）
+버튼을 찾지 못함	button not found	ボタンが見つからない
+메뉴를 찾지 못함	menu not found	メニューが見つからない
+버튼이 비활성화되어 있음	button is disabled	ボタンが無効
+버튼 ID가 없음	no button ID	ボタンIDがない
+먼저 누르라는 버튼	press-first button	先に押すボタン
+안내된 순서	explained order	案内された順番
+번호 순서	number order	番号順
+진행 버튼	progress button	進行ボタン
+하나뿐인 버튼	only button	唯一のボタン
+AI 판단	AI decision	AIの判断
+[Prime] 받은 링크가 내 브섭 링크임 — 접속하지 않음	[Prime] The link received is your private server link — not joining	[Prime] 受け取ったリンクは自分のプライベートサーバー — 参加しない
+[Prime] 반응이 없음 — 다른 방식으로 다시 누름	[Prime] No reaction — pressing again another way	[Prime] 反応なし — 別の方法でもう一度押す
+[Prime] 봇 응답에 실패함 — 잠시 뒤 다시 누름	[Prime] Bot response failed — pressing again shortly	[Prime] ボットの応答に失敗 — 少ししてからもう一度押す

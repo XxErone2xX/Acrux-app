@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Acrux Mobile</string>
+    <string name="acc_desc">Acrux Mobile 매크로가 로블록스 화면을 대신 터치하는 데 사용합니다. 화면 내용은 읽지 않으며, 터치만 보냅니다.</string>
+</resources>

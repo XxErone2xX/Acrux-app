@@ -1,0 +1,27 @@
+__pycache__/
+*.pyc
+build/
+dist/
+out/
+*.spec
+src/config.json
+src/config_t.json
+src/app.log
+/*.png
+
+# 안드로이드 빌드
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+
+# Tauri build
+/node_modules/
+/src-tauri/target/
+/src-tauri/gen/schemas/
+
+# Apple generated projects
+/src-tauri/gen/apple/
+
+# 모드 소스 (스나이핑 등) 는 저장소에 안 올림 — 모드 파일 (.acrux) 로만 배포 · mods/build.py 로 만듦
+/mods/*/
