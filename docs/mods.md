@@ -11,7 +11,7 @@
 ```
 <id>/
   mod.json      {"id": "<id>", "name": "이름", "version": "1.0.0", "type": "mod" | "plugin",
-                 "author": "…", "description": "…", "acrux": "2.6.0", "entry": "main",
+                 "author": "…", "description": "…", "acrux": "3.0.0", "entry": "main",
                  "ui": {"html": "ui.html", "js": "ui.js", "css": "ui.css"}}   ← ui 는 모드만 · 다 선택
   __init__.py   (빈 파일)
   main.py       def setup(ctx): …

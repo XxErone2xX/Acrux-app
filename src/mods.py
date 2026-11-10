@@ -6,7 +6,7 @@
 
 설치 위치: <데이터 폴더>/mods/<id>/  (config.json 옆 · 업데이트로 앱 폴더를 갈아도 남음)
   mod.json    {"id": "sniping", "name": "스나이핑", "version": "1.0.0", "type": "mod", "author": "…",
-               "description": "…", "entry": "main", "acrux": "2.6.0",
+               "description": "…", "entry": "main", "acrux": "3.0.0",
                "ui": {"html": "ui.html", "js": "ui.js", "css": "ui.css"}}
   main.py     setup(ctx) 함수 — 켤 때 한 번 불림 (ctx = Context: 로그 · 설정 · API 등록 · 이벤트)
   ui.*        (모드만) 화면에 붙는 HTML · JS · CSS — /mods/<id>/<파일> 로 열림
