@@ -207,8 +207,8 @@ public class TapService extends AccessibilityService {
     void swipe(int x0, int y0, int x1, int y1, int ms) {
         letThrough(x0, y0);
         Path p = new Path();
-        p.moveTo(x0, y0);
-        p.lineTo(x1, y1);
+        p.moveTo(Math.max(0, x0), Math.max(0, y0));
+        p.lineTo(Math.max(0, x1), Math.max(0, y1));
         dispatchGesture(new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(p, 0, Math.max(1, ms))).build(), null, null);
     }
 
@@ -238,8 +238,8 @@ public class TapService extends AccessibilityService {
 
     static Path line(float x0, float y0, float x1, float y1) {
         Path p = new Path();
-        p.moveTo(x0, y0);
-        p.lineTo(x1, y1);
+        p.moveTo(Math.max(0, x0), Math.max(0, y0));             // 음수 좌표는 안드로이드가 거절 ('Path bounds must not be negative')
+        p.lineTo(Math.max(0, x1), Math.max(0, y1));
         return p;
     }
 

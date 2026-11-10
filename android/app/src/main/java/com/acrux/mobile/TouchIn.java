@@ -9,6 +9,8 @@ final class TouchIn implements Touch {
     TouchIn(int sw, int sh) {
         this.sw = sw;
         this.sh = sh;
+        Joy.sw = sw;
+        Joy.sh = sh;
         double[] s = stickAt();
         if (s != null) Joy.at(s[0], s[1], s[2]);
     }
