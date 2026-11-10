@@ -11,7 +11,7 @@
   main.py     setup(ctx) 함수 — 켤 때 한 번 불림 (ctx = Context: 로그 · 설정 · API 등록 · 이벤트)
   ui.*        (모드만) 화면에 붙는 HTML · JS · CSS — /mods/<id>/<파일> 로 열림
 
-모드 파일 (.acrux) = 위 폴더를 zip 으로 묶은 것 (mod.json 이 맨 위나 폴더 하나 안에)
+모드 파일 (.acxm) = 위 폴더를 zip 으로 묶은 것 (mod.json 이 맨 위나 폴더 하나 안에)
 모드는 파이썬 코드라 Acrux 와 같은 권한으로 돎 → 믿을 수 있는 곳에서 받은 것만 설치
 켜기 · 끄기 · 설치 · 삭제는 Acrux 를 다시 켜면 적용
 """
@@ -229,7 +229,7 @@ def _read_info(zf):
 
 
 def install(path):
-    """모드 파일 (.acrux · .zip) 설치 → 정보 dict (같은 ID 가 있으면 덮어씀)"""
+    """모드 파일 (.acxm · 예전 .acrux · .zip) 설치 → 정보 dict (같은 ID 가 있으면 덮어씀)"""
     path = Path(path)
     if not path.is_file():
         raise ValueError("파일이 없음")

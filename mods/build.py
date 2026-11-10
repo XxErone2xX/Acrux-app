@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""모드 파일 만들기: mods/<id>/ → out/mods/Acrux-<이름>-V<버전>.acrux (zip · mod.json 이 맨 위)
+"""모드 파일 만들기: mods/<id>/ → out/mods/Acrux-<이름>-V<버전>.acxm (zip · mod.json 이 맨 위)
   python mods/build.py            모든 모드
   python mods/build.py sniping    그 모드만"""
 import json
@@ -16,7 +16,7 @@ def build(mid):
     src = os.path.join(ROOT, mid)
     info = json.load(open(os.path.join(src, "mod.json"), encoding="utf-8"))
     os.makedirs(OUT, exist_ok=True)
-    dest = os.path.join(OUT, f"Acrux-{mid}-V{info.get('version', '0')}.acrux")
+    dest = os.path.join(OUT, f"Acrux-{mid}-V{info.get('version', '0')}.acxm")
     with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         for base, dirs, files in os.walk(src):
             dirs[:] = sorted(d for d in dirs if d not in SKIP)

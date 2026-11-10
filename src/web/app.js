@@ -3377,7 +3377,7 @@ let modsChanged = false;
 function renderModList(mods) {
   const box = $('modList');
   if (!mods.length) {
-    box.innerHTML = '<div class="empty">설치된 모드 없음 · 위쪽 [모드 파일 설치] 로 .acrux 파일을 고르기</div>';
+    box.innerHTML = '<div class="empty">설치된 모드 없음 · 위쪽 [모드 파일 설치] 로 .acxm 파일을 고르기</div>';
   } else {
     box.innerHTML = mods.map(m => `
       <div class="card mod-card" data-mod="${esc(m.id)}">

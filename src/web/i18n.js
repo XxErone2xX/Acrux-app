@@ -2109,7 +2109,7 @@ const I18N = (() => {
     ["복구 · 복귀할 때 이 링크로 접속", "Joins this link when recovering · returning", "復旧・復帰時にこのリンクで参加"],
     ["설명 · 받는 곳", "About · Where to get them", "説明・入手先"],
     ["다시 켜서 적용", "Restart to apply", "再起動して適用"],
-    ["설치된 모드 없음 · 위쪽 [모드 파일 설치] 로 .acrux 파일을 고르기", "No mods installed · choose a .acrux file with [Install mod file] above", "モッドなし・上の［モッドファイルをインストール］で .acrux ファイルを選択"],
+    ["설치된 모드 없음 · 위쪽 [모드 파일 설치] 로 .acxm 파일을 고르기", "No mods installed · choose a .acxm file with [Install mod file] above", "モッドなし・上の［モッドファイルをインストール］で .acxm ファイルを選択"],
     ["Acrux 웹사이트", "Acrux website", "Acruxウェブサイト"],
     ["모드 · 플러그인 받기 · 올리기 · 질문", "Get · upload mods and plugins · ask questions", "モッド・プラグインの入手・投稿・質問"],
     ["복구 · 게임 입장 설정 열기", "Open Recovery · Game entry settings", "復旧・ゲーム参加設定を開く"],

@@ -1518,7 +1518,7 @@ MOD_PICK = {"ko": ("Acrux 모드 파일 고르기", "Acrux 모드"), "en": ("Cho
 
 
 def pick_file_to_file(path, kind="program"):
-    """프로그램 고르기 창 (tkinter) — 고른 경로를 파일로 저장 · kind="mod": 모드 파일 (.acrux · .zip)"""
+    """프로그램 고르기 창 (tkinter) — 고른 경로를 파일로 저장 · kind="mod": 모드 파일 (.acxm · 예전 .acrux · .zip)"""
     import json as _json
     res = {"error": "취소됨"}
     try:
@@ -1530,7 +1530,7 @@ def pick_file_to_file(path, kind="program"):
         g = _GUIDE.get(_LANG, _GUIDE["ko"])
         if kind == "mod":
             t, n = MOD_PICK.get(_LANG, MOD_PICK["ko"])
-            p = filedialog.askopenfilename(title=t, parent=root, filetypes=[(n, "*.acrux *.zip"), (g["all"], "*.*")])
+            p = filedialog.askopenfilename(title=t, parent=root, filetypes=[(n, "*.acxm *.acrux *.zip"), (g["all"], "*.*")])
         else:
             p = filedialog.askopenfilename(title=g["file"], parent=root,
                                            filetypes=[(g["prog"], "*.exe *.lnk *.bat *.cmd *.ahk *.py *.pyw"), (g["all"], "*.*")])

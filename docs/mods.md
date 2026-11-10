@@ -4,7 +4,7 @@
 - **플러그인**: 화면 없이 뒤에서 이벤트에 반응하는 작은 기능
 
 설치 위치: `%LOCALAPPDATA%\AcruxMacro\data\mods\<id>\` (추가 기능 탭 → 모드 · 플러그인 → [모드 파일 설치])
-모드 파일 (`.acrux`) = 아래 폴더를 zip 으로 묶은 것 · `python mods/build.py <id>` 로 만듦
+모드 파일 (`.acxm`) = 아래 폴더를 zip 으로 묶은 것 · `python mods/build.py <id>` 로 만듦
 
 ## 폴더
 
