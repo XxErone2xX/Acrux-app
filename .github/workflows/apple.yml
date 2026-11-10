@@ -33,7 +33,7 @@ jobs:
         run: |
           app=src-tauri/target/universal-apple-darwin/release/bundle/macos/Acrux.app
           test -d "$app"
-          lipo -verify_arch arm64 x86_64 "$app/Contents/MacOS/acrux"
+          lipo "$app/Contents/MacOS/acrux" -verify_arch arm64 x86_64
           codesign --force --deep --sign - "$app"
           open "$app"
           sleep 5
@@ -74,8 +74,12 @@ jobs:
         shell: bash
         run: |
           device=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; print(next(d["udid"] for group in json.load(sys.stdin)["devices"].values() for d in group if d["name"].startswith("iPhone") and d["state"] == "Shutdown"))')
-          app=$(find src-tauri/gen/apple/build -path '*/export/*' -name '*.app' -type d -print -quit)
-          test -n "$app"
+          if [ "$(uname -m)" = arm64 ]; then
+            app=src-tauri/gen/apple/build/arm64-sim/Acrux.app
+          else
+            app=src-tauri/gen/apple/build/x86_64/Acrux.app
+          fi
+          test -d "$app"
           xcrun simctl boot "$device"
           xcrun simctl bootstatus "$device" -b
           codesign --force --deep --sign - "$app"
