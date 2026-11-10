@@ -101,7 +101,7 @@ final class TouchIn implements Touch {
 
     @Override
     public double[] stickAt() {
-        double[] s = Hub.stick;
+        double[] s = Hub.fitStick(Hub.stick, sw, sh);
         return s == null ? null : new double[]{s[0] * sw, s[1] * sh, s[2] * sh};
     }
 }

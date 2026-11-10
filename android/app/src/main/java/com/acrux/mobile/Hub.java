@@ -302,6 +302,27 @@ final class Hub {
         return s;
     }
 
+    // ---------------------------------------------------------------- 저장 위치는 항상 화면 안
+    // (화면 밖 좌표를 누르면 안드로이드가 'Path bounds must not be negative' 로 거절해서 매크로가 멈춤
+    //  · 다른 화면 크기 · 방향에서 저장했거나 조이스틱 가장자리를 화면 밖 쪽으로 찍은 경우)
+    static double in01(double v) {
+        return Double.isNaN(v) ? 0.5 : Math.max(0, Math.min(0.9999, v));
+    }
+
+    /** 위치 [x, y] (화면 비율) → 화면 안으로 */
+    static double[] fitPos(double[] v) {
+        return v == null || v.length < 2 ? v : new double[]{in01(v[0]), in01(v[1])};
+    }
+
+    /** 조이스틱 [가운데 x, y, 반지름(높이 비율)] → 가운데는 화면 안 · 판이 화면 밖으로 나가지 않게 반지름을 줄임 (w, h: 화면 px · 0 = 모름) */
+    static double[] fitStick(double[] st, int w, int h) {
+        if (st == null || st.length < 3) return st;
+        double cx = in01(st[0]), cy = in01(st[1]), r = Math.max(0, st[2]);
+        if (w > 0 && h > 0) r = Math.min(r, Math.min(Math.min(cx * w, (1 - cx) * w), Math.min(cy * h, (1 - cy) * h)) / h);
+        else r = Math.min(r, Math.min(cy, 1 - cy));
+        return new double[]{cx, cy, r};
+    }
+
     /** 조이스틱 찾기: 지금 화면에서 왼쪽 아래 둥근 조이스틱을 찾아 저장 · 찾은 자리에 원을 잠깐 그려 줌 */
     static void stickFind(CaptureService cap) {
         state = "조이스틱 찾는 중";
@@ -313,7 +334,7 @@ final class Hub {
         if (fd == null)
             throw new RuntimeException("조이스틱을 못 찾음 — 로블록스 설정에서 이동 방식을 '조이스틱'(클래식)으로 바꾸고, 조이스틱이 보일 때 다시 (안 되면 ⚙ → 조이스틱 직접 지정)");
         double sx = (double) w / im.w, sy = (double) h / im.h;
-        stick = new double[]{fd.cx * sx / w, fd.cy * sy / h, fd.r * sy / h};
+        stick = fitStick(new double[]{fd.cx * sx / w, fd.cy * sy / h, fd.r * sy / h}, w, h);
         save();
         log("조이스틱 찾음: 가운데 (" + Math.round(fd.cx * sx) + ", " + Math.round(fd.cy * sy) + ") · 반지름 " + Math.round(fd.r * sy) + "px · 점수 " + Math.round(fd.score), 'g');
         showStick(3000);
@@ -531,12 +552,13 @@ final class Hub {
         move.margin = p.getFloat("m_margin", (float) move.margin);
         stick = arr(p.getString("stick", ""));
         if (stick != null && stick.length != 3) stick = null;
+        stick = fitStick(stick, 0, 0);
         pos.clear();
         for (String kv : p.getString("pos", "").split(";")) {
             int e = kv.indexOf('=');
             if (e <= 0) continue;
             double[] v = arr(kv.substring(e + 1));
-            if (v != null && v.length == 2) pos.put(kv.substring(0, e), v);
+            if (v != null && v.length == 2) pos.put(kv.substring(0, e), fitPos(v));
         }
         fishRoute = Route.load(p.getString("fishRoute", ""));
         sellRoute = Route.load(p.getString("sellRoute", ""));

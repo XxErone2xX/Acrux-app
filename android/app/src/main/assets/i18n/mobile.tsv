@@ -606,6 +606,8 @@ Acrux 가 도움이 됐다면 후원으로 응원해 주세요	If Acrux helped y
 조이스틱 찾는 중	Finding the joystick	ジョイスティックを探し中
 조이스틱 테스트 — {0}	Joystick test — {0}	ジョイスティックテスト — {0}
 조이스틱	Joystick	ジョイスティック
+조이스틱 판이 화면 밖으로 나가서 반지름을 화면 안까지로 줄임 ({0} → {1}px)	The joystick pad went off screen, so its radius was reduced to fit the screen ({0} → {1}px)	ジョイスティックの円が画面外に出たため、半径を画面内まで縮めました ({0} → {1}px)
+조이스틱 가운데가 화면 끝에 너무 붙어 있음 — 다시	The joystick center is too close to the screen edge — try again	ジョイスティックの中心が画面の端に近すぎます — もう一度
 조이스틱을 못 찾음 — 로블록스 설정에서 이동 방식을 '조이스틱'(클래식)으로 바꾸고, 조이스틱이 보일 때 다시 (안 되면 ⚙ → 조이스틱 직접 지정)	Joystick not found — set Roblox's movement mode to 'Thumbstick' (classic) and try again while it is visible (or ⚙ → set joystick by hand)	ジョイスティックが見つからない — Roblox の移動方式を「サムスティック」(クラシック) にして、表示中にもう一度 (だめなら ⚙ → 手動指定)
 조이스틱 찾음: 가운데 ({0}, {1}) · 반지름 {2}px · 점수 {3}	Joystick found: center ({0}, {1}) · radius {2}px · score {3}	ジョイスティック発見: 中心 ({0}, {1}) · 半径 {2}px · スコア {3}
 조이스틱 저장: 가운데 ({0}, {1}) · 반지름 {2}px	Joystick saved: center ({0}, {1}) · radius {2}px	ジョイスティック保存: 中心 ({0}, {1}) · 半径 {2}px
