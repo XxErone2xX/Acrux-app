@@ -25,7 +25,9 @@ Mac은 기존 데스크톱 화면을, iOS는 모바일 화면을 사용합니다
 - Apple Silicon Mac의 iOS 시뮬레이터용 빌드에는 `npm run build:ios:simulator`를 사용합니다. Intel Mac에서는 `npm run tauri -- ios build --target x86_64 --ci --no-sign`을 사용합니다.
 - `.github/workflows/apple.yml`의 수동 실행은 macOS 통합 앱, iOS 실기기용 무서명 IPA와 호스트 아키텍처에 맞는 시뮬레이터 앱을 빌드합니다.
 
-현재 Apple 화면 캡처·게임 입력 연결은 이식 전입니다. Linux에서 Apple Silicon·Intel Mac용 Rust 코드 검사를 통과했습니다. iOS 대상 검사는 Apple SDK 탐색 도구인 xcrun 부재로 중단됐습니다. macOS 앱 실행과 iOS 시뮬레이터 실행은 Mac 실행기에서 추가 확인이 필요합니다.
+GitHub의 Mac 실행기에서 Intel·Apple Silicon 통합 앱과 iOS 시뮬레이터 앱을 빌드하고 실제 시작을 확인했습니다. iPhone용 무서명 IPA도 생성했습니다. 검증된 코드 커밋은 `48a590a`이며 [Apple 검사 결과](https://github.com/XxErone2xX/Acrux-app/actions/runs/42742068421)에서 빌드 파일을 받을 수 있습니다.
+
+현재 Apple 화면 캡처·게임 입력 연결은 이식 전입니다. iOS는 공유 모바일 화면으로 기동하며 Android 전용 권한·설정 안내가 남아 있습니다. 무서명 IPA는 실기기 설치에 사용할 서명이 추가로 필요합니다.
 
 ### Android 메모리 측정
 
