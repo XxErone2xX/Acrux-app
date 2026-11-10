@@ -455,28 +455,38 @@ final class Hub {
             log("인벤토리 가득 — 판매 못 함: " + m, 'y');
             return false;
         }
-        try {
-            int sold = sl.run();
-            stat("sells", 1);
-            stat("sold", sold);
-            if (sold > 0) {
-                zeroSells = 0;
+        // 이동이 한 번 빗나가면 (판매 장소에 못 감 → 대화창 · 상점을 못 찾음) 바로 멈추지 않고 처음(리셋)부터 다시 감
+        for (int attempt = 1; ; attempt++) {
+            try {
+                int sold = sl.run();
+                stat("sells", 1);
+                stat("sold", sold);
+                if (sold > 0) {
+                    zeroSells = 0;
+                    return true;
+                }
+                zeroSells++;
+                if (zeroSells >= 2) {
+                    log("판매하러 갔는데 두 번 연속 팔 물고기가 없음 — 낚시 자리 문제로 보고 멈춤", 'y');
+                    return false;
+                }
+                log("판매하러 갔는데 팔 물고기가 없음 — 낚시 자리를 다시 잡고 이어감", 'y');
                 return true;
+            } catch (Fisher.Stopped e) {
+                throw e;
+            } catch (RuntimeException e) {
+                if (attempt >= SELL_TRIES) {
+                    log("판매 실패 " + SELL_TRIES + "번 — 멈춤: " + e.getMessage() + " (판매 장소 길 · 위치 확인)", 'r');
+                    return false;
+                }
+                log("판매 실패 (" + attempt + "/" + SELL_TRIES + "): " + e.getMessage() + " — 처음부터 다시 이동", 'y');
+                state = "판매 장소로 다시 가는 중";
+                changed();
             }
-            zeroSells++;
-            if (zeroSells >= 2) {
-                log("판매하러 갔는데 두 번 연속 팔 물고기가 없음 — 낚시 자리 문제로 보고 멈춤", 'y');
-                return false;
-            }
-            log("판매하러 갔는데 팔 물고기가 없음 — 낚시 자리를 다시 잡고 이어감", 'y');
-            return true;
-        } catch (Fisher.Stopped e) {
-            throw e;
-        } catch (RuntimeException e) {
-            log("판매 실패: " + e.getMessage(), 'r');
-            return false;
         }
     }
+
+    static final int SELL_TRIES = 3;
 
     static void stop() {
         // 길 기록 중에 [멈춤] = [도착] (걸어온 길을 저장) · 저장하는 중에 한 번 더 누르면 그때 멈춤
