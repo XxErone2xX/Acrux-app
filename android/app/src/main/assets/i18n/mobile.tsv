@@ -96,7 +96,7 @@ Shizuku 설정: ① Play 스토어에서 Shizuku 설치 → ② 개발자 옵션
 터치 지연에 맞춰 기다리기	Wait for the touch delay	タッチ遅延に合わせて待つ
 누른 뒤 반응이 보일 때까지 다시 누르지 않는 시간을 이 폰의 터치 속도에 맞춤	Matches the no-repress time after a press to this phone's touch speed	押してから反応が見えるまで押し直さない時間をこのスマホのタッチ速度に合わせる
 릴링 때 미니게임 창 위쪽을 누름	Tap above the minigame window while reeling	リール中はミニゲームの上側を押す
-모바일은 미니게임 창 바로 아래가 Roll 버튼이라 위쪽 빈 화면(캐릭터 쪽)을 누름 · 끄면 PC 처럼 창 아래	On mobile the Roll button is right under the minigame window, so it taps the empty screen above (character side) · off = under the window like PC	モバイルはミニゲームのすぐ下が Roll ボタンなので上の空いた画面 (キャラ側) を押す · オフなら PC のように下
+모바일은 미니게임 창 바로 아래가 Roll 버튼이라 위쪽 빈 화면 (캐릭터 쪽) 을 누름 · 끄면 창 아래를 누름	On mobile the Roll button is right below the minigame window, so it taps the empty area above (character side) · off = taps below the window	モバイルはミニゲームウィンドウのすぐ下が Roll ボタンなので上の空いた画面 (キャラクター側) を押す · オフならウィンドウの下を押す
 PC 버전과 같음: 시작하면 리셋 → 기준 장소 → Click to Move 로 낚시 장소 · 인벤토리가 가득 차면 판매 장소에서 팔고 돌아옴 · 위치 · 지점은 Acrux 창 ⚙ 에서	Same as PC: on start it resets → base spot → Click to Move to the fishing spot · when the inventory is full it sells at the sell spot and comes back · positions and points are in the Acrux window ⚙	PC 版と同じ: 開始するとリセット → 基準地点 → Click to Move で釣り場 · インベントリが満杯なら販売場所で売って戻る · 位置・地点は Acrux ウィンドウの ⚙ で
 시작할 때 낚시 장소로 이동	Move to the fishing spot on start	開始時に釣り場へ移動
 가득 차면 판매하러 가기	Go sell when full	満杯なら売りに行く
@@ -288,6 +288,333 @@ Fish 를 눌러도 반응이 없음 (인벤토리 가득?)	no response to Fish (
 방금 리셋함 — 리셋 건너뜀	Just reset — skipping the reset	リセット直後 — リセットを省略
 기준 장소로 이동 · 리셋	To the base spot · reset	基準地点へ移動 · リセット
 기준 장소로 이동 · 카메라 정렬 (채팅 · 도감)	To the base spot · camera align (chat · collection)	基準地点へ移動 · カメラ合わせ (チャット・図鑑)
+기준 장소로 이동 · 리셋 ({0})	To the base spot · reset ({0})	基準地点へ移動 · リセット ({0})
+리셋 보냄 (Esc → 재설정 버튼 → Enter 3번)	Reset sent (Esc → Reset button → Enter ×3)	リセット送信 (Esc → リセットボタン → Enter 3回)
+재설정 버튼 (Esc 메뉴)	Reset button (Esc menu)	リセットボタン (Esc メニュー)
+재설정 버튼	Reset button	リセットボタン
+ENTER {0}/{1}	ENTER {0}/{1}	ENTER {0}/{1}
+1초 뒤 시작	Starting in 1 second	1秒後に開始
+예전 방식으로 기록한 길 — 다시 기록하면 간 거리가 기록과 똑같아짐 (⚙ → 길)	Route recorded the old way — record it again to make the distance match exactly (⚙ → Route)	以前の方式で記録した道 — 記録し直すと進む距離が記録と同じになる (⚙ → 道)
+{0} 길 기록 끝: {1}초 · 누름 {2}번 · 점프 {3}번	{0} route recorded: {1} s · {2} presses · {3} jumps	{0} の道の記録完了: {1}秒 · 押し {2}回 · ジャンプ {3}回
+Sol's RNG 매크로	Sol's RNG macro	Sol's RNG マクロ
+매크로가 화면을 보고 상태를 판단함 · 녹화 · 저장은 하지 않음 · '전체 화면' 공유를 고르기	The macro reads the screen to know its state · nothing is recorded or saved · choose 'Entire screen' when sharing	マクロが画面を見て状態を判断 · 録画 · 保存はしない · 共有は「画面全体」を選ぶ
+2. 떠 있는 Acrux 창 ⚙ → [낚시] → 낚시 자동 보정 — Fish 를 한 번 던져 대기 창 · 미니게임 창 · 결과창 위치를 자동으로 맞춤	2. Floating Acrux window ⚙ → [Fishing] → fishing auto-calibration — casts Fish once and fits the idle · minigame · results windows automatically	2. Acrux ウィンドウ ⚙ → [釣り] → 釣りの自動補正 — Fish を一度投げて待機 · ミニゲーム · 結果ウィンドウの位置を自動で合わせる
+6. 바이옴 알림: 바이옴 칸 → 무선 디버깅 연결 → 웹후크 입력 → Acrux 창의 [바이옴] 버튼으로 켜고 끄기	6. Biome alerts: Biome tab → wireless debugging connection → enter webhooks → turn on · off with the [Biome] button in the Acrux window	6. バイオーム通知: バイオームタブ → ワイヤレスデバッグ接続 → Webhook を入力 → Acrux ウィンドウの [バイオーム] ボタンでオン · オフ
+→ Acrux 창 ⚙ → 낚시 → 낚시 자동 보정을 해야 함	→ run Acrux window ⚙ → Fishing → fishing auto-calibration	→ Acrux ウィンドウ ⚙ → 釣り → 釣りの自動補正が必要
+먼저 ⚙ → 낚시 → 낚시 자동 보정을 해야 함 (낚시 자리에서 Fish 버튼이 보일 때)	Run ⚙ → Fishing → fishing auto-calibration first (at the fishing spot with the Fish button visible)	先に ⚙ → 釣り → 釣りの自動補正が必要 (釣り場で Fish ボタンが見える時)
+화면 캡처 중 · 매크로 준비됨	Capturing the screen · macro ready	画面キャプチャ中 · マクロ準備完了
+낚시 자동 보정	Fishing auto-calibration	釣りの自動補正
+Acrux 창 ⚙ → [낚시] → 강조된 '낚시 자동 보정' 을 누르고 끝날 때까지 기다려 주세요. Fish 를 한 번 던져 창 위치를 자동으로 맞춥니다.\n\n보정하는 동안에는 이 안내가 잠시 숨겨집니다.	Tap Acrux window ⚙ → [Fishing] → the highlighted 'Fishing auto-calibration' and wait until it finishes. It casts Fish once and fits the window positions automatically.\n\nThis guide is hidden while calibrating.	Acrux ウィンドウ ⚙ → [釣り] → 強調された「釣りの自動補正」を押し、終わるまでお待ちください。Fish を一度投げてウィンドウの位置を自動で合わせます。\n\n補正中はこの案内が一時的に隠れます。
+바이옴 ON	Biome ON	バイオーム ON
+바이옴 OFF	Biome OFF	バイオーム OFF
+바이옴 매크로 켜짐 — 웹후크는 앱의 바이옴 칸에서 입력	Biome macro on — enter webhooks in the app's Biome tab	バイオームマクロ オン — Webhook はアプリのバイオームタブで入力
+✓ 보정됨	✓ Calibrated	✓ 補正済み
+· 보정 필요 — 낚시 자리에서 Fish 버튼이 보일 때	· Calibration needed — at the fishing spot with the Fish button visible	· 補正が必要 — 釣り場で Fish ボタンが見える時
+낚시 자동 보정 (Fish 를 한 번 던져 창 위치를 맞춤)	Fishing auto-calibration (casts Fish once to fit the window positions)	釣りの自動補正 (Fish を一度投げてウィンドウの位置を合わせる)
+낚시 자동 보정 다시 하기 (Fish 를 한 번 던져 창 위치를 맞춤)	Run fishing auto-calibration again (casts Fish once to fit the window positions)	釣りの自動補正をやり直す (Fish を一度投げてウィンドウの位置を合わせる)
+바이옴 매크로: {0}	Biome macro: {0}	バイオームマクロ: {0}
+점프 W	Jump W	ジャンプ W
+바이옴 매크로	Biome macro	バイオームマクロ
+바이옴 매크로 켜기	Turn on biome macro	バイオームマクロをオン
+디스코드 웹후크 (여러 개면 줄바꿈)	Discord webhooks (one per line)	Discord Webhook (複数なら改行)
+비공개 서버 링크	Private server link	プライベートサーバーのリンク
+레어 바이옴 @everyone [ GLITCHED, DREAMSPACE, CYBERSPACE ]	@everyone for rare biomes [ GLITCHED, DREAMSPACE, CYBERSPACE ]	レアバイオームで @everyone [ GLITCHED, DREAMSPACE, CYBERSPACE ]
+웹후크 테스트	Webhook test	Webhook テスト
+웹후크를 먼저 입력해 주세요	Enter a webhook first	先に Webhook を入力してください
+웹후크 테스트를 보냈어요	Sent a webhook test	Webhook テストを送りました
+지금 바이옴: {0} · {1}	Current biome: {0} · {1}	今のバイオーム: {0} · {1}
+감시 중	Watching	監視中
+무선 디버깅 페어링 필요	Wireless debugging pairing needed	ワイヤレスデバッグのペア設定が必要
+무선 디버깅 연결 안 됨 — 다시 시도 중	Wireless debugging not connected — retrying	ワイヤレスデバッグ未接続 — 再試行中
+지금 바이옴: {0}	Current biome: {0}	今のバイオーム: {0}
+바이옴 매크로 켜짐	Biome macro on	バイオームマクロ オン
+바이옴 매크로 꺼짐	Biome macro off	バイオームマクロ オフ
+바이옴 로그 읽기 끊김: {0}	Biome log reading interrupted: {0}	バイオームログの読み取りが途切れた: {0}
+로블록스 접속 끊김	Roblox disconnected	Roblox の接続が切れた
+바이옴: {0} → {1}	Biome: {0} → {1}	バイオーム: {0} → {1}
+디스코드 웹후크 주소가 아니라서 안 보냄 (…{0})	Not a Discord webhook URL, not sent (…{0})	Discord の Webhook URL ではないので送信しない (…{0})
+웹후크 전송 실패 ({0})	Webhook send failed ({0})	Webhook 送信失敗 ({0})
+테스트 중…	Testing…	テスト中…
+테스트 중… (로블록스로 가세요)	Testing… (go to Roblox)	テスト中… (Roblox へ)
+결과 (기록 칸에도 같이 떠요 · 끝나면 알림)	Results (also in the Log tab · notification when done)	結果 (ログタブにも出ます · 終わったら通知)
+아직 테스트 안 함	Not tested yet	まだテストしていません
+바이옴 로그 테스트 중	Biome log test running	バイオームログテスト中
+바이옴 줄 발견! 앱의 바이옴 칸에서 결과를 확인해 주세요	Biome lines found! Check the results in the app's Biome tab	バイオームの行を発見! アプリのバイオームタブで結果を確認してください
+끝 — 앱의 바이옴 칸에서 결과를 확인해 주세요	Done — check the results in the app's Biome tab	完了 — アプリのバイオームタブで結果を確認してください
+바이옴	Biome	バイオーム
+무선 디버깅 연결	Wireless debugging connection	ワイヤレスデバッグ接続
+로블록스 로그로 바이옴을 읽으려면 로그를 읽을 권한이 필요해요. 안드로이드의 무선 디버깅 기능으로 Acrux 가 이 폰에 직접 연결해요 [ 안드로이드 11 이상, 와이파이 필요 ]	Reading the biome from Roblox logs needs permission to read logs. Acrux connects to this phone itself through Android's wireless debugging [ Android 11+, Wi-Fi needed ]	Roblox のログからバイオームを読むにはログを読む権限が必要です。Android のワイヤレスデバッグ機能で Acrux がこのスマホに直接接続します [ Android 11 以上、Wi-Fi 必要 ]
+1. 설정 → 휴대전화 정보 → 소프트웨어 정보 → '빌드 번호' 7번 눌러서 개발자 옵션 켜기	1. Settings → About phone → Software information → tap 'Build number' 7 times to turn on Developer options	1. 設定 → 端末情報 → ソフトウェア情報 →「ビルド番号」を 7 回タップして開発者向けオプションをオン
+2. 아래 [페어링 시작] → 개발자 옵션 → 무선 디버깅 켜기 → '페어링 코드로 기기 페어링'	2. [Start pairing] below → Developer options → turn on Wireless debugging → 'Pair device with pairing code'	2. 下の [ペア設定開始] → 開発者向けオプション → ワイヤレスデバッグをオン →「ペア設定コードによるデバイスのペア設定」
+3. 코드 창을 띄운 채로 화면 위를 내려서 Acrux 알림의 [코드 입력] 에 6자리 코드	3. With the code window open, pull down the notification shade and enter the 6-digit code in the Acrux notification's [Enter code]	3. コードのウィンドウを開いたまま通知を引き下ろし、Acrux の通知の [コード入力] に 6 桁のコード
+4. 한 번 페어링하면 다음부터는 무선 디버깅만 켜져 있으면 [연결] (재부팅 · 와이파이가 바뀌면 다시 켜기)	4. After pairing once, just [Connect] while Wireless debugging is on (turn it on again after a reboot or Wi-Fi change)	4. 一度ペア設定すれば、次からはワイヤレスデバッグがオンなら [接続] (再起動 · Wi-Fi が変わったら再びオン)
+페어링 시작	Start pairing	ペア設定開始
+개발자 옵션	Developer options	開発者向けオプション
+바이옴 로그 테스트	Biome log test	バイオームログテスト
+모바일 로블록스가 바이옴 정보를 로그에 남기는지 확인해요.	Checks whether mobile Roblox writes biome info to its logs.	モバイルの Roblox がバイオーム情報をログに残すか確認します。
+무선 디버깅을 연결한 뒤 [테스트 시작] → 로블록스로 Sol's RNG 에 들어가서 90초 동안 두기 (바이옴이 바뀌는 때면 더 좋아요). 결과는 기록 칸에 떠요.	After connecting wireless debugging, [Start test] → join Sol's RNG in Roblox and leave it for 90 seconds (better when the biome changes). Results appear in the Log tab.	ワイヤレスデバッグに接続したあと [テスト開始] → Roblox で Sol's RNG に入って 90 秒そのまま (バイオームが変わる時ならなお良い)。結果はログタブに出ます。
+테스트 시작 (90초)	Start test (90 s)	テスト開始 (90 秒)
+✗ 안드로이드 11 이상만 돼요	✗ Android 11 or later only	✗ Android 11 以上のみ
+· 연결 안 됨	· Not connected	· 未接続
+개발자 옵션이 아직 꺼져 있어요 — 설정 → 휴대전화 정보 → 소프트웨어 정보 → '빌드 번호' 7번	Developer options are still off — Settings → About phone → Software information → tap 'Build number' 7 times	開発者向けオプションがまだオフです — 設定 → 端末情報 → ソフトウェア情報 →「ビルド番号」を 7 回
+무선 디버깅 페어링은 안드로이드 11 이상만 돼요	Wireless debugging pairing needs Android 11 or later	ワイヤレスデバッグのペア設定は Android 11 以上のみ
+무선 디버깅 → '페어링 코드로 기기 페어링' 창을 띄운 채로 여기 [코드 입력] 에 6자리 코드를 넣으세요	Keep Wireless debugging → 'Pair device with pairing code' open and enter the 6-digit code here in [Enter code]	ワイヤレスデバッグ →「ペア設定コードによるデバイスのペア設定」を開いたまま、ここの [コード入力] に 6 桁のコードを入れてください
+페어링: 무선 디버깅 → '페어링 코드로 기기 페어링' → 알림 칸의 Acrux [코드 입력] 에 6자리 코드	Pairing: Wireless debugging → 'Pair device with pairing code' → enter the 6-digit code in the Acrux notification's [Enter code]	ペア設定: ワイヤレスデバッグ →「ペア設定コードによるデバイスのペア設定」→ 通知の Acrux [コード入力] に 6 桁のコード
+무선 디버깅 연결됨	Wireless debugging connected	ワイヤレスデバッグ接続済み
+페어링이 먼저 필요해요 — [페어링 시작]	Pairing is needed first — [Start pairing]	先にペア設定が必要です — [ペア設定開始]
+안드로이드 11 이상만 돼요	Android 11 or later only	Android 11 以上のみ
+연결 안 됨 — 개발자 옵션 → 무선 디버깅이 켜져 있는지 · 와이파이에 연결돼 있는지 확인	Not connected — check that Developer options → Wireless debugging is on and Wi-Fi is connected	未接続 — 開発者向けオプション → ワイヤレスデバッグがオンか · Wi-Fi に接続しているか確認
+바이옴 로그 테스트가 이미 진행 중이에요	The biome log test is already running	バイオームログテストはすでに実行中です
+바이옴 로그 테스트 시작 — 지금 로블록스로 Sol's RNG 에 들어가 주세요 (90초)	Biome log test started — join Sol's RNG in Roblox now (90 s)	バイオームログテスト開始 — 今 Roblox で Sol's RNG に入ってください (90 秒)
+테스트 못 함 — 무선 디버깅 페어링이 먼저 필요해요	Can't test — wireless debugging pairing is needed first	テストできない — 先にワイヤレスデバッグのペア設定が必要です
+테스트 못 함 — 무선 디버깅이 연결 안 됨 (개발자 옵션 → 무선 디버깅 켜기)	Can't test — wireless debugging is not connected (Developer options → turn on Wireless debugging)	テストできない — ワイヤレスデバッグ未接続 (開発者向けオプション → ワイヤレスデバッグをオン)
+① 쌓인 로그에서 찾는 중	① Searching existing logs	① たまったログを検索中
+① {0}줄	① {0} lines	① {0} 行
+② 로블록스 폴더의 로그 파일	② Log files in the Roblox folder	② Roblox フォルダのログファイル
+② {0}줄	② {0} lines	② {0} 行
+③ 90초 동안 새로 나오는 로그 지켜보는 중 (로블록스를 켜 두세요)	③ Watching new logs for 90 s (keep Roblox open)	③ 90 秒間新しいログを監視中 (Roblox を開いたままに)
+③ 로그 {0}줄 중 바이옴 {1}줄	③ {1} biome lines out of {0} log lines	③ ログ {0} 行のうちバイオーム {1} 行
+결과: 바이옴 줄 발견 — 위의 바이옴 매크로를 쓸 수 있어요	Result: biome lines found — you can use the biome macro above	結果: バイオームの行を発見 — 上のバイオームマクロが使えます
+결과: 로그는 읽히는데 바이옴 줄이 없음 — Sol's RNG 에 들어가 있었는지 확인하고 한 번 더 · 그래도 없으면 모바일 로블록스가 바이옴 정보를 안 남기는 것	Result: logs are readable but no biome lines — check you were in Sol's RNG and try again · if still none, mobile Roblox doesn't write biome info	結果: ログは読めるがバイオームの行がない — Sol's RNG に入っていたか確認してもう一度 · それでもなければモバイルの Roblox はバイオーム情報を残していない
+결과: 로그를 하나도 못 읽음 — 이 기록을 캡처해서 보내 주세요	Result: no logs could be read — please screenshot this log and send it	結果: ログを一つも読めなかった — このログをスクショして送ってください
+바이옴 로그 테스트 오류: {0}	Biome log test error: {0}	バイオームログテストのエラー: {0}
+ADB 연결 실패: {0}	ADB connection failed: {0}	ADB 接続失敗: {0}
+ADB 페어링 실패: {0}	ADB pairing failed: {0}	ADB ペア設定失敗: {0}
+무선 디버깅 페어링	Wireless debugging pairing	ワイヤレスデバッグのペア設定
+6자리 페어링 코드	6-digit pairing code	6 桁のペア設定コード
+코드 입력	Enter code	コード入力
+Acrux — 무선 디버깅 페어링	Acrux — wireless debugging pairing	Acrux — ワイヤレスデバッグのペア設定
+페어링 중…	Pairing…	ペア設定中…
+무선 디버깅 연결됨 — 이제 바이옴 로그 테스트를 할 수 있어요	Wireless debugging connected — you can run the biome log test now	ワイヤレスデバッグ接続済み — バイオームログテストができます
+페어링은 됐는데 연결을 못 함 — 무선 디버깅이 켜져 있는지 확인하고 앱에서 [연결]	Paired but couldn't connect — check Wireless debugging is on, then [Connect] in the app	ペア設定はできたが接続できない — ワイヤレスデバッグがオンか確認してアプリで [接続]
+페어링 창을 못 찾음 — 무선 디버깅 → '페어링 코드로 기기 페어링' 창을 띄운 채로 다시 입력	Couldn't find the pairing window — keep Wireless debugging → 'Pair device with pairing code' open and enter again	ペア設定ウィンドウが見つからない — ワイヤレスデバッグ →「ペア設定コードによるデバイスのペア設定」を開いたまま再入力
+페어링 실패 — 코드가 맞는지 확인하고 창을 다시 띄워서 새 코드로 입력	Pairing failed — check the code, reopen the window and enter the new code	ペア設定失敗 — コードを確認し、ウィンドウを開き直して新しいコードで入力
+시작 준비	Getting started	準備
+이 매크로는 Sol's RNG 전용 매크로이며, 다양한 모바일 기능을 지원합니다.\n\n시작하기 전에, 매크로가 작동할 때 필요한 필수 권한 두 개를 켜야 합니다.	This macro is made only for Sol's RNG and supports a range of mobile features.\n\nBefore you start, you need to turn on the two permissions the macro requires.	このマクロは Sol's RNG 専用で、さまざまなモバイル機能に対応しています。\n\n始める前に、マクロの動作に必要な権限を 2 つオンにする必要があります。
+접근성 권한 켜기	Turn on accessibility permission	ユーザー補助の権限をオン
+매크로가 로블록스 화면을 터치하는 데 필요한 권한입니다.\n\n설정 → 접근성 → 설치된 앱 → Acrux Mobile → 켜기\n\n'제한된 설정' 으로 켜지지 않는다면, 설정 → 앱 → Acrux Mobile → 오른쪽 위 ⋮ → '제한된 설정 허용' 후 다시 켜 주세요.	This permission lets the macro tap the Roblox screen.\n\nSettings → Accessibility → Installed apps → Acrux Mobile → On\n\nIf it won't turn on because of 'Restricted setting', go to Settings → Apps → Acrux Mobile → ⋮ at the top right → 'Allow restricted settings', then turn it on again.	マクロが Roblox の画面をタッチするために必要な権限です。\n\n設定 → ユーザー補助 → インストール済みアプリ → Acrux Mobile → オン\n\n「制限付き設定」でオンにできない場合は、設定 → アプリ → Acrux Mobile → 右上の ⋮ →「制限付き設定を許可」のあと、もう一度オンにしてください。
+화면 캡처 시작	Start screen capture	画面キャプチャを開始
+매크로가 화면을 보고 낚시 상태와 버튼을 찾는 데 필요합니다. 화면은 녹화되거나 저장되지 않습니다.\n\n공유 창이 뜨면 '전체 화면' 을 선택해 주세요.	The macro needs this to see the fishing state and buttons on screen. Nothing is recorded or saved.\n\nWhen the share window appears, choose 'Entire screen'.	マクロが画面を見て釣りの状態とボタンを探すために必要です。画面が録画 · 保存されることはありません。\n\n共有ウィンドウが出たら「画面全体」を選んでください。
+로블록스 준비	Get Roblox ready	Roblox の準備
+· 로블록스 (Sol's RNG) 를 가로 전체 화면으로 실행합니다.\n· 로블록스 설정 → 이동 방식을 '조이스틱' (클래식) 으로 바꿉니다.\n\n로블록스 위에는 작은 Acrux 창이 표시되며, 끌어서 옮길 수 있습니다. 이 안내도 그 옆에 이어서 표시됩니다.	· Run Roblox (Sol's RNG) in landscape full screen.\n· Change Roblox settings → Movement mode to 'Joystick' (classic).\n\nA small Acrux window appears over Roblox and can be dragged anywhere. This guide continues next to it.	· Roblox (Sol's RNG) を横向きの全画面で起動します。\n· Roblox 設定 → 移動方法を「ジョイスティック」 (クラシック) に変更します。\n\nRoblox の上に小さな Acrux ウィンドウが表示され、ドラッグで移動できます。この案内もその横に続けて表示されます。
+준비 완료	Setup complete	準備完了
+이제 로블록스를 열어 주세요. 다음 안내 (낚시 보정) 가 이어서 표시됩니다.	Now open Roblox. The next guide (fishing calibration) will follow.	Roblox を開いてください。次の案内 (釣りの補正) が続けて表示されます。
+낚시 보정	Fishing calibration	釣りの補正
+낚시 창 · 미니게임 창 · 결과창의 위치를 이 기기 화면에 맞춥니다. 처음 한 번만 하면 됩니다.	Fits the fishing, minigame and results windows to this device's screen. You only need to do this once.	釣りウィンドウ · ミニゲーム · 結果ウィンドウの位置をこの端末の画面に合わせます。最初の一回だけで済みます。
+낚시 자리로 이동	Go to a fishing spot	釣り場へ移動
+로블록스에서 낚시 자리로 이동해 Fish 버튼이 보이게 해 주세요.\n\nAcrux 창이 낚시 창을 가린다면 위쪽 구석으로 옮겨 주세요.	In Roblox, move to a fishing spot so the Fish button is visible.\n\nIf the Acrux window covers the fishing window, move it to a top corner.	Roblox で釣り場へ移動し、Fish ボタンが見えるようにしてください。\n\nAcrux ウィンドウが釣りウィンドウを隠す場合は、上の隅へ移動してください。
+[보정] 누르기	Tap [Calibrate]	[補正] を押す
+Acrux 창에서 강조된 [보정] 을 누르고 끝날 때까지 기다려 주세요. Fish 를 한 번 던져 창 위치를 자동으로 맞춥니다.\n\n보정하는 동안에는 이 안내가 잠시 숨겨집니다.	Tap the highlighted [Calibrate] in the Acrux window and wait until it finishes. It casts Fish once and fits the window positions automatically.\n\nThis guide is hidden while calibrating.	Acrux ウィンドウで強調された [補正] を押し、終わるまでお待ちください。Fish を一度投げてウィンドウの位置を自動で合わせます。\n\n補正中はこの案内が一時的に隠れます。
+낚시 보정 완료	Fishing calibration complete	釣りの補正完了
+Acrux 창의 [시작] 을 누르면 자동 낚시가 시작되며, [정지] 로 멈출 수 있습니다.\n\n가득 찼을 때 판매까지 하려면 앱의 낚시 칸 → 이동 · 판매에서 켜 주세요.	Tap [Start] in the Acrux window to start auto fishing, and [Stop] to stop.\n\nTo also sell when full, turn it on in the app's Fishing tab → Move · Sell.	Acrux ウィンドウの [開始] で自動釣りが始まり、[停止] で止められます。\n\nいっぱいの時の販売まで行うには、アプリの 釣り タブ → 移動 · 販売 でオンにしてください。
+이동 설정	Movement setup	移動の設定
+스폰 위치가 무작위이기 때문에, 리셋 후 '기준 장소' 에서 기록한 길을 따라 이동합니다.\n\n조이스틱 → 기준 장소 위치 → 낚시 장소 길 순서로 설정합니다.	Spawn points are random, so after a reset the macro walks a recorded route from the 'base spot'.\n\nSet up in this order: joystick → base spot positions → fishing spot route.	スポーン位置がランダムなため、リセット後に「基準地点」から記録した道に沿って移動します。\n\nジョイスティック → 基準地点の位置 → 釣り場の道 の順で設定します。
+조이스틱 찾기	Find the joystick	ジョイスティック検出
+Acrux 창 ⚙ → [조이스틱] → 강조된 '조이스틱 찾기' 를 눌러 주세요.\n\n로블록스 이동 방식이 '조이스틱' 이어야 합니다. 자동으로 찾지 못하면 '조이스틱 직접 지정' 을 사용할 수 있습니다.	Acrux window ⚙ → [Joystick] → tap the highlighted 'Find joystick'.\n\nRoblox movement mode must be 'Joystick'. If it can't be found automatically, you can use 'Set joystick by hand'.	Acrux ウィンドウ ⚙ → [ジョイスティック] → 強調された「ジョイスティック検出」を押してください。\n\nRoblox の移動方法が「ジョイスティック」である必要があります。自動で見つからない場合は「ジョイスティックを手動で指定」を使えます。
+점프 버튼 위치	Jump button position	ジャンプボタンの位置
+길 기록에서 점프를 쓰려면 설정해 주세요. 위치를 정할 때는 십자 포인터가 표시되며, 화면을 끌면 그만큼 움직이고 [확인] 으로 저장됩니다.\n\n점프를 쓰지 않는다면 건너뛰어도 됩니다.	Set this to use jumps in routes. A crosshair pointer appears when setting a position; drag the screen to move it and save with [OK].\n\nYou can skip this if you don't use jumps.	道の記録でジャンプを使う場合は設定してください。位置を決める時は十字ポインターが表示され、画面をドラッグした分だけ動き、[確認] で保存されます。\n\nジャンプを使わない場合はスキップできます。
+'{0}' 위치	'{0}' position	「{0}」の位置
+⚙ → [기준 장소] → 강조된 항목을 누르고, 십자 포인터를 해당 버튼 위에 맞춘 뒤 [확인] 을 눌러 주세요.\n\n메뉴 · 재설정 화면을 직접 열어 둔 상태에서 맞추면 더 정확합니다.	⚙ → [Base spot] → tap the highlighted item, line the crosshair up on that button, then tap [OK].\n\nIt's more accurate with the menu · reset screen opened yourself.	⚙ → [基準地点] → 強調された項目を押し、十字ポインターをそのボタンに合わせてから [確認] を押してください。\n\nメニュー · リセット画面を自分で開いた状態で合わせるとより正確です。
+낚시 장소 길 기록	Record the fishing spot route	釣り場の道を記録
+⚙ → [길] → 낚시 장소 '길 기록' 을 눌러 주세요.\n\n기준 장소로 이동한 뒤 WASD 패드가 표시됩니다.\n· W A S D 탭 = 켜기 · 다시 탭 = 끄기 · 모서리 = 대각선 · ■ = 멈춤\n· 점프 탭 = 한 번 · [홀드] = 계속 누름\n\n도착하면 Acrux 창의 [도착] 을 눌러 주세요.	Tap ⚙ → [Routes] → fishing spot 'Record route'.\n\nAfter moving to the base spot, the WASD pad appears.\n· Tap W A S D = on · tap again = off · corners = diagonals · ■ = stop\n· Tap jump = once · [Hold] = keep holding\n\nWhen you arrive, tap [Arrived] in the Acrux window.	⚙ → [道] → 釣り場の「道を記録」を押してください。\n\n基準地点へ移動したあと WASD パッドが表示されます。\n· W A S D タップ = オン · もう一度 = オフ · 角 = 斜め · ■ = 停止\n· ジャンプをタップ = 一回 · [ホールド] = 押し続ける\n\n到着したら Acrux ウィンドウの [到着] を押してください。
+이동 설정 완료	Movement setup complete	移動の設定完了
+[시작] 을 누르면 기준 장소 → 낚시 장소로 이동한 뒤 낚시를 시작합니다.\n\n⚙ → [길] → '기준 장소 → 낚시 장소' 로 미리 확인할 수 있습니다.	[Start] moves from the base spot to the fishing spot and then starts fishing.\n\nYou can check it beforehand with ⚙ → [Routes] → 'Base spot → fishing spot'.	[開始] を押すと基準地点 → 釣り場へ移動してから釣りを始めます。\n\n⚙ → [道] →「基準地点 → 釣り場」で事前に確認できます。
+판매 설정	Selling setup	販売の設定
+인벤토리가 가득 차면 판매 장소로 이동해 물고기를 판매한 뒤 돌아옵니다.\n\n판매 장소 길 → 대화 버튼 → 판매 자동 보정 순서로 설정합니다. [ 이동 설정이 먼저 필요합니다 ]	When the inventory is full, the macro goes to the sell spot, sells the fish and comes back.\n\nSet up in this order: sell spot route → talk button → sell auto-calibration. [ Movement setup is needed first ]	インベントリがいっぱいになると販売場所へ移動して魚を売り、戻ってきます。\n\n販売場所の道 → 会話ボタン → 販売の自動補正 の順で設定します。[ 先に移動の設定が必要です ]
+판매 장소 길 기록	Record the sell spot route	販売場所の道を記録
+⚙ → [길] → 물고기 판매 장소 '길 기록' 을 누른 뒤, 기준 장소에서 Captain Flarg 앞까지 WASD 패드로 이동하고 [도착] 을 눌러 주세요.	Tap ⚙ → [Routes] → fish sell spot 'Record route', walk with the WASD pad from the base spot to Captain Flarg, then tap [Arrived].	⚙ → [道] → 魚の販売場所の「道を記録」を押し、基準地点から Captain Flarg の前まで WASD パッドで移動して [到着] を押してください。
+대화 버튼 위치	Talk button position	会話ボタンの位置
+판매 장소에 선 상태로 ⚙ → [판매] → 강조된 '대화 버튼' 을 누르고, 포인터를 화면의 대화 버튼에 맞춘 뒤 [확인] 을 눌러 주세요.	Standing at the sell spot, tap ⚙ → [Sell] → the highlighted 'Talk button', line the pointer up on the on-screen talk button, then tap [OK].	販売場所に立ったまま ⚙ → [販売] → 強調された「会話ボタン」を押し、ポインターを画面の会話ボタンに合わせてから [確認] を押してください。
+판매 자동 보정	Sell auto-calibration	販売の自動補正
+⚙ → [판매] → '판매 자동 보정' 을 누른 뒤, Captain Flarg 앞에서 대화 버튼을 직접 눌러 주세요. 대화창 · 상점 · 확인창의 위치를 자동으로 찾습니다.\n\n확인창 위치까지 찾으려면 물고기를 가진 상태에서 진행해 주세요.	Tap ⚙ → [Sell] → 'Sell auto-calibration', then tap the talk button yourself in front of Captain Flarg. The dialog, shop and confirm window positions are found automatically.\n\nTo find the confirm window too, do this while you have fish.	⚙ → [販売] →「販売の自動補正」を押してから、Captain Flarg の前で会話ボタンを自分で押してください。会話ウィンドウ · ショップ · 確認ウィンドウの位置を自動で探します。\n\n確認ウィンドウの位置まで探すには、魚を持った状態で行ってください。
+판매 테스트	Selling test	販売テスト
+⚙ → [판매] → '판매 한 번 해 보기' 로 판매가 끝까지 되는지 확인할 수 있습니다. 건너뛰어도 됩니다.	You can check that selling works end to end with ⚙ → [Sell] → 'Try selling once'. You may skip this.	⚙ → [販売] →「販売を一度試す」で販売が最後までできるか確認できます。スキップしても構いません。
+판매 설정 완료	Selling setup complete	販売の設定完了
+[시작] 을 누르면 낚시 중 인벤토리가 가득 찼을 때 판매하고 돌아옵니다.	With [Start], the macro sells when the inventory fills up while fishing and then comes back.	[開始] を押すと、釣りの途中でインベントリがいっぱいになった時に販売して戻ってきます。
+남은 튜토리얼 {0}개	{0} tutorials left	残りのチュートリアル {0} 個
+나중에	Later	あとで
+이 단계 건너뛰기	Skip this step	このステップをスキップ
+✓ 완료	✓ Done	✓ 完了
+· 이 단계를 완료해야 다음으로 넘어갈 수 있습니다.	· Complete this step to continue.	· このステップを完了すると次へ進めます。
+로블록스 화면의 Acrux 창에서 진행해 주세요.	Please do this in the Acrux window on the Roblox screen.	Roblox 画面の Acrux ウィンドウで行ってください。
+→ Acrux 창의 ⚙ 를 눌러 주세요.	→ Tap ⚙ in the Acrux window.	→ Acrux ウィンドウの ⚙ を押してください。
+→ 위쪽 [{0}] 을 눌러 주세요.	→ Tap [{0}] at the top.	→ 上の [{0}] を押してください。
+설정 안내 — 기능별로 하나씩 따라 하기 (PC 튜토리얼과 같음)	Setup guides — follow each feature step by step (same as the PC tutorial)	設定案内 — 機能ごとに一つずつ進める (PC のチュートリアルと同じ)
+안내 창을 띄우지 못함: {0}	Could not show the guide window: {0}	案内ウィンドウを表示できない: {0}
+튜토리얼	Tutorial	チュートリアル
+스킵	Skip	スキップ
+권한	Permissions	権限
+완료	Done	完了
+Acrux Mobile 에 오신 걸 환영합니다.	Welcome to Acrux Mobile.	Acrux Mobile へようこそ。
+① 접근성 권한 켜기	① Turn on the accessibility permission	① ユーザー補助の権限をオン
+② 화면 캡처 시작	② Start screen capture	② 画面キャプチャを開始
+③ 로블록스 준비	③ Get Roblox ready	③ Roblox の準備
+④ 낚시 보정 → 시작	④ Fishing calibration → start	④ 釣りの補正 → 開始
+⑤ 이동 준비 (조이스틱 · 기준 장소)	⑤ Movement setup (joystick · base spot)	⑤ 移動の準備 (ジョイスティック · 基準地点)
+⑥ 길 기록	⑥ Record routes	⑥ 道の記録
+⑦ 판매 준비	⑦ Selling setup	⑦ 販売の準備
+다 됐어요!	All set!	準備完了!
+Sol's RNG 자동 낚시 매크로예요.\n\n· 낚시: 던지기 · 입질 기다리기 · 미니게임 · 결과창 닫기를 자동으로\n· 인벤토리가 가득 차면 판매 장소로 가서 팔고 낚시 장소로 돌아옴\n· 루팅 · Shizuku 필요 없음 (전부 화면 터치)\n\n몇 단계만 따라 하면 바로 쓸 수 있어요.	It's an auto-fishing macro for Sol's RNG.\n\n· Fishing: casting, waiting for bites, the minigame and closing results are automatic\n· When the inventory is full it goes to the sell spot, sells, and returns to the fishing spot\n· No root or Shizuku needed (all screen touches)\n\nFollow a few steps and you're ready.	Sol's RNG の自動釣りマクロです。\n\n· 釣り: キャスト · 当たり待ち · ミニゲーム · 結果を閉じるまで自動\n· インベントリがいっぱいになると販売場所で売って釣り場に戻る\n· ルート化 · Shizuku 不要 (すべて画面タッチ)\n\nいくつかの手順だけですぐ使えます。
+Acrux 가 로블록스 화면을 대신 터치하려면 필요해요.\n\n설정 → 접근성 → 설치된 앱 → Acrux Mobile → 켜기\n\n안드로이드 13 이상에서 '제한된 설정' 이라며 안 켜지면: 설정 → 앱 → Acrux Mobile → 오른쪽 위 ⋮ → '제한된 설정 허용' 후 다시 켜기	Needed so Acrux can tap the Roblox screen for you.\n\nSettings → Accessibility → Installed apps → Acrux Mobile → On\n\nOn Android 13+, if it says 'Restricted setting' and won't turn on: Settings → Apps → Acrux Mobile → ⋮ at the top right → 'Allow restricted settings', then turn it on again	Acrux が Roblox の画面を代わりにタッチするために必要です。\n\n設定 → ユーザー補助 → インストール済みアプリ → Acrux Mobile → オン\n\nAndroid 13 以上で「制限付き設定」と出てオンにできない場合: 設定 → アプリ → Acrux Mobile → 右上の ⋮ → 「制限付き設定を許可」してからもう一度オン
+화면 색 · 글자를 보고 낚시 상태 · 버튼을 찾아요. 녹화 · 저장은 하지 않아요.\n\n공유 창이 뜨면 '전체 화면' 을 골라 주세요.	It reads screen colors and text to find the fishing state and buttons. Nothing is recorded or saved.\n\nWhen the share window appears, choose 'Entire screen'.	画面の色 · 文字を見て釣りの状態 · ボタンを探します。録画 · 保存はしません。\n\n共有ウィンドウが出たら「画面全体」を選んでください。
+· 로블록스 (Sol's RNG) 를 가로 전체 화면으로\n· 로블록스 설정 → 이동 방식 → '조이스틱' (클래식)\n· 낚시 자리로 가서 Fish 버튼이 보이게\n\n로블록스 위에 떠 있는 작은 Acrux 창이 생겨요. 아무 데나 잡고 끌어서 낚시 창 · 결과창을 가리지 않는 곳으로 옮기세요.	· Run Roblox (Sol's RNG) in landscape full screen\n· Roblox settings → Movement mode → 'Joystick' (classic)\n· Go to a fishing spot so the Fish button is visible\n\nA small Acrux window floats over Roblox. Grab it anywhere and drag it where it won't cover the fishing window or results.	· Roblox (Sol's RNG) を横向き全画面で\n· Roblox 設定 → 移動方法 → 「ジョイスティック」 (クラシック)\n· 釣り場へ行って Fish ボタンが見えるように\n\nRoblox の上に小さな Acrux ウィンドウが出ます。どこでもつかんでドラッグし、釣りウィンドウ · 結果を隠さない場所へ。
+Acrux 창의 [보정] 을 누르고 Fish 를 한 번 던지면 대기 창 · 미니게임 창 · 결과창 위치를 자동으로 맞춰요.\n\n그다음 [시작] 이면 자동 낚시 · 멈출 때는 [정지].\n\n여기까지만 해도 낚시는 돼요. 아래는 가득 찼을 때 자동 판매까지 하고 싶을 때예요.	Tap [Calibrate] in the Acrux window and cast Fish once — the waiting window, minigame window and results window are set automatically.\n\nThen [Start] for auto fishing · [Stop] to stop.\n\nThat's enough for fishing. The rest is for auto selling when the inventory is full.	Acrux ウィンドウの [補正] を押して Fish を一度投げると、待機ウィンドウ · ミニゲーム · 結果ウィンドウの位置を自動で合わせます。\n\nそのあと [開始] で自動釣り · 止めるときは [停止]。\n\nここまでで釣りはできます。以下はいっぱいになった時の自動販売まで使いたい場合です。
+Acrux 창 ⚙ 를 누르면 위쪽에 분류가 있어요.\n\n· [조이스틱] → 조이스틱 찾기 · 점프 버튼 위치\n· [기준 장소] → 메뉴 · 재설정 · 도감 등 공통 위치\n\n위치를 정할 때는 십자 포인터가 떠요. 화면 아무 데나 대고 끌면 포인터가 끈 만큼 움직여요 (손가락을 따라가지 않음). 맞췄으면 [확인].	Tap ⚙ in the Acrux window to see categories at the top.\n\n· [Joystick] → find joystick · jump button position\n· [Base spot] → common positions like menu · reset · collection\n\nWhen setting a position a crosshair pointer appears. Drag anywhere on the screen and the pointer moves by that amount (it doesn't follow your finger). When it's right, [OK].	Acrux ウィンドウの ⚙ を押すと上に分類があります。\n\n· [ジョイスティック] → ジョイスティック検出 · ジャンプボタンの位置\n· [基準地点] → メニュー · リセット · 図鑑などの共通位置\n\n位置を決める時は十字ポインターが出ます。画面のどこかをドラッグするとその分だけポインターが動きます (指にはついてきません)。合ったら [確認]。
+⚙ → [길] → 낚시 장소 · 판매 장소 길 기록.\n\n기준 장소로 간 뒤 WASD 패드가 떠요.\n· W A S D 톡 = 켜기 (홀드) · 다시 톡 = 끄기\n· 키 사이 빈 모서리 = 대각선 · 가운데 ■ = 멈춤\n· 점프 톡 = 한 번 뜀 · 오른쪽 아래 [홀드] = 계속 누르고 있기\n\n도착하면 Acrux 창의 [도착].	⚙ → [Routes] → record the fishing spot · sell spot routes.\n\nAfter going to the base spot, a WASD pad appears.\n· Tap W A S D = on (hold) · tap again = off\n· Empty corners between keys = diagonals · center ■ = stop\n· Tap jump = jump once · bottom-right [Hold] = keep holding\n\nWhen you arrive, [Arrived] in the Acrux window.	⚙ → [道] → 釣り場 · 販売場所の道を記録。\n\n基準地点へ行ったあと WASD パッドが出ます。\n· W A S D タップ = オン (ホールド) · もう一度 = オフ\n· キーの間の空いた角 = 斜め · 中央 ■ = 停止\n· ジャンプをタップ = 一回 · 右下の [ホールド] = 押し続ける\n\n着いたら Acrux ウィンドウの [到着]。
+⚙ → [판매]\n· 대화 버튼 위치 (판매 장소에 서서)\n· 판매 자동 보정: Captain Flarg 앞에서 시작 → 대화 버튼은 직접 누르기\n· 판매 한 번 해 보기 로 확인\n\n이동 · 판매는 이동 · 판매 칸에서 켜고 끌 수 있어요.	⚙ → [Sell]\n· Talk button position (standing at the sell spot)\n· Sell auto-calibration: start in front of Captain Flarg → tap the talk button yourself\n· Check with try selling once\n\nMovement and selling can be turned on and off in the Move · Sell tab.	⚙ → [販売]\n· 会話ボタンの位置 (販売場所に立って)\n· 販売の自動補正: Captain Flarg の前で開始 → 会話ボタンは自分で押す\n· 販売を一度試す で確認\n\n移動 · 販売は 移動 · 販売 タブでオン/オフできます。
+[시작] 을 누르면 낚시 → 가득 차면 판매 → 낚시 장소로 돌아와서 이어 가요.\n\n안 되는 게 있으면 기록 칸을 보거나 디스코드로 알려 주세요.\n튜토리얼은 홈 → 사용법 → 튜토리얼 다시 보기 로 언제든 다시 볼 수 있어요.	Press [Start] to fish → sell when full → come back to the fishing spot and continue.\n\nIf something doesn't work, check the Log tab or tell us on Discord.\nYou can see the tutorial again anytime from Home → How to use → Show tutorial again.	[開始] を押すと釣り → いっぱいになったら販売 → 釣り場に戻って続けます。\n\nうまくいかない時はログタブを見るか Discord で教えてください。\nチュートリアルは ホーム → 使い方 → チュートリアルをもう一度見る からいつでも見られます。
+건너뛰기	Skip	スキップ
+이전	Back	戻る
+다음	Next	次へ
+시작하기	Get started	はじめる
+접근성 설정 열기	Open accessibility settings	ユーザー補助の設定を開く
+· 아직 꺼짐	· Still off	· まだオフ
+튜토리얼 {0} / {1}	Tutorial {0} / {1}	チュートリアル {0} / {1}
+튜토리얼 다시 보기	Show tutorial again	チュートリアルをもう一度見る
+자동 낚시 · 이동 · 판매	Auto fishing · movement · selling	自動釣り · 移動 · 販売
+5. 이동 · 판매: ⚙ → [조이스틱] 조이스틱 찾기 → [기준 장소] 공통 위치 → [길] 낚시 장소 · 판매 장소 길 기록 → [판매] 대화 버튼 · 판매 자동 보정	5. Movement · selling: ⚙ → [Joystick] find joystick → [Base spot] common positions → [Routes] record fishing spot · sell spot routes → [Sell] talk button · sell auto-calibration	5. 移動 · 販売: ⚙ → [ジョイスティック] ジョイスティック検出 → [基準地点] 共通位置 → [道] 釣り場 · 販売場所の道を記録 → [販売] 会話ボタン · 販売の自動補正
+기준 장소	Base spot	基準地点
+길	Routes	道
+대화	Talk	会話
+상점	Shop	ショップ
+테스트	Test	テスト
+'{0}' — 화면을 끌어서 포인터를 옮기세요	'{0}' — drag on the screen to move the pointer	「{0}」 — 画面をドラッグしてポインターを動かす
+{0} 직접 지정 (상점을 연 채로)	Set {0} by hand (with the shop open)	{0} を手動で指定 (ショップを開いたまま)
+물고기 이름을 못 읽어서 첫 번째 물고기 칸은 저장된 자리 그대로	Could not read fish names, so the first fish slot keeps the saved spot	魚の名前を読めなかったので最初の魚の枠は保存済みの位置のまま
+첫 번째 물고기 칸을 못 찾음 (물고기가 있을 때 다시 하거나 ⚙ → 첫 번째 물고기 칸 직접 지정)	Could not find the first fish slot (try again with fish, or ⚙ → set the first fish slot by hand)	最初の魚の枠が見つからない (魚がある時にやり直すか ⚙ → 最初の魚の枠を手動で指定)
+X 를 못 읽어서 상점 닫기는 저장된 자리 그대로	Could not read the X, so shop close keeps the saved spot	X を読めなかったのでショップを閉じる位置は保存済みのまま
+상점 닫기 X 를 못 찾음 — ⚙ → 상점 닫기 X 직접 지정	Could not find the shop close X — ⚙ → set the shop close X by hand	ショップを閉じる X が見つからない — ⚙ → ショップを閉じる X を手動で指定
+확인창이 안 떠서(물고기 없음?) 확인 Sell 은 저장된 자리 그대로	The confirm window did not appear (no fish?), so confirm Sell keeps the saved spot	確認ウィンドウが出なかったので (魚なし?) 確認 Sell は保存済みの位置のまま
+확인창이 안 떠서(물고기 없음?) 확인 Sell 을 못 찾음 — 물고기가 있을 때 다시 보정해 주세요	The confirm window did not appear (no fish?), so confirm Sell was not found — calibrate again when you have fish	確認ウィンドウが出なかったので (魚なし?) 確認 Sell が見つからない — 魚がある時にもう一度補正してください
+첫 번째 물고기 칸 직접 지정 (상점을 연 채로)	Set the first fish slot by hand (with the shop open)	最初の魚の枠を手動で指定 (ショップを開いたまま)
+상점 닫기 X 직접 지정 (상점을 연 채로)	Set the shop close X by hand (with the shop open)	ショップを閉じる X を手動で指定 (ショップを開いたまま)
+{0} 길 저장됨 ({1}초 · 점프 {2}번)	{0} route saved ({1} s · {2} jumps)	{0} の道を保存 ({1}秒 · ジャンプ {2}回)
+도착 — 길 저장	Arrived — saving route	到着 — 道を保存
+● 길 기록 (기준 장소로 간 뒤 WASD 패드로 걸어감 → [도착])	● Record route (goes to the base spot, then you walk with the WASD pad → [Arrived])	● 道を記録 (基準地点へ行った後に WASD パッドで歩く → [到着])
+● 다시 기록 (기준 장소로 간 뒤 WASD 패드로 걸어감 → [도착])	● Record again (goes to the base spot, then you walk with the WASD pad → [Arrived])	● 記録し直す (基準地点へ行った後に WASD パッドで歩く → [到着])
+{0} 길 기록 중 — WASD 패드로 걸어가서 도착하면 [도착]	Recording the {0} route — walk there with the WASD pad, then [Arrived]	{0} の道を記録中 — WASD パッドで歩いて着いたら [到着]
+{0} 길 기록 시작 — W A S D 를 톡 누르면 켜짐 (홀드) · 다시 누르면 꺼짐 · ■ = 멈춤 · 도착하면 [도착]	Recording the {0} route — tap W A S D to turn on (hold) · tap again to turn off · ■ = stop · [Arrived] when there	{0} の道の記録開始 — W A S D をタップでオン (ホールド) · もう一度でオフ · ■ = 停止 · 着いたら [到着]
+움직임이 없음 — WASD 패드로 걸어 주세요	No movement — walk with the WASD pad	動きがない — WASD パッドで歩いてください
+{0} 길 기록 끝: {1}초 · 점프 {2}번 · 위치 {3}점 (화면으로 위치를 잰 프레임 {4}/{5} · 조이스틱 읽은 프레임 {6})	{0} route recorded: {1} s · {2} jumps · {3} position points (frames with position measured {4}/{5} · joystick read in {6} frames)	{0} の道の記録完了: {1}秒 · ジャンプ {2}回 · 位置 {3}点 (画面で位置を測れたフレーム {4}/{5} · ジョイスティックを読めたフレーム {6})
+움직임을 못 읽음 — 조이스틱 찾기를 다시 하고 다시 기록해 주세요	Could not read any movement — find the joystick again and record again	動きを読めなかった — ジョイスティック検出をやり直して記録し直してください
+화면으로 위치를 잘 못 재서 (단색 바닥 · 너무 짧은 길) 다시 걸을 때는 시간대로만 감	Position could not be measured well from the screen (plain floor · very short route), so replay will go by timing only	画面で位置をうまく測れなかったので (単色の床 · 短すぎる道) 再生は時間どおりのみ
+{0} 길 기록 중 — Acrux 조이스틱으로 걸어가서 도착하면 [도착]	Recording the {0} route — walk there with the Acrux joystick, then [Arrived]	{0} の道を記録中 — Acrux ジョイスティックで歩いて着いたら [到着]
+{0} 길 기록 시작 — 화면에 뜬 Acrux 조이스틱 · 점프 버튼으로 조작하세요 · 도착하면 [도착]	Recording the {0} route — control with the Acrux joystick and jump button on screen · tap [Arrived] when there	{0} の道の記録開始 — 画面の Acrux ジョイスティック · ジャンプボタンで操作 · 着いたら [到着]
+{0} 길 기록 끝: {1}조각 · {2}초 · 점프 {3}번 · 위치 {4}점 (화면으로 잰 프레임 {5}/{6} · 각도 {7}°)	{0} route recorded: {1} parts · {2} s · {3} jumps · {4} position points (frames measured {5}/{6} · angle {7}°)	{0} の道の記録完了: {1}区間 · {2}秒 · ジャンプ {3}回 · 位置 {4}点 (画面で測れたフレーム {5}/{6} · 角度 {7}°)
+움직임이 없음 — Acrux 조이스틱을 끌어서 걸어 주세요	No movement — drag the Acrux joystick to walk	動きがない — Acrux ジョイスティックをドラッグして歩いてください
+{0} 길 따라가기 (화면 보면서 · {1}점)	Following the {0} route (watching the screen · {1} points)	{0} の道をたどる (画面を見ながら · {1}点)
+{0} 길 따라가기가 너무 오래 걸림 — 여기서 멈춤 ({1}/{2}점)	Following the {0} route took too long — stopping here ({1}/{2} points)	{0} の道たどりに時間がかかりすぎ — ここで止める ({1}/{2}点)
+{0} 길 따라가기 끝 ({1}초 · 화면 못 읽은 프레임 {2}/{3})	Finished following the {0} route ({1} s · unreadable frames {2}/{3})	{0} の道たどり完了 ({1}秒 · 読めなかったフレーム {2}/{3})
+● 길 기록 (기준 장소로 간 뒤 Acrux 조이스틱으로 걸어감 → [도착])	● Record route (goes to the base spot, then you walk with the Acrux joystick → [Arrived])	● 道を記録 (基準地点へ行った後に Acrux ジョイスティックで歩く → [到着])
+● 다시 기록 (기준 장소로 간 뒤 Acrux 조이스틱으로 걸어감 → [도착])	● Record again (goes to the base spot, then you walk with the Acrux joystick → [Arrived])	● 記録し直す (基準地点へ行った後に Acrux ジョイスティックで歩く → [到着])
+이동	Move	移動
+점프	Jump	ジャンプ
+홀드	Hold	ホールド
+기록용 조이스틱을 못 띄움: {0}	Could not show the recording joystick: {0}	記録用ジョイスティックを表示できない: {0}
+기준 장소로 이동 · 도감 Loading Assets 기다리는 중	To the base spot · waiting for collection Loading Assets	基準地点へ移動 · 図鑑の Loading Assets 待ち
+도감 [Exit] 가 씹힘 — 다시 누름 ({0}/5)	Collection [Exit] was missed — pressing again ({0}/5)	図鑑の [Exit] が効かなかった — もう一度押す ({0}/5)
+도감이 안 닫힘 — 그대로 진행	Collection did not close — continuing anyway	図鑑が閉じない — そのまま続行
+도감 닫힘	Collection closed	図鑑を閉じた
+낚시 창 자리가 바뀜 → 위치를 다시 맞춤 (Fish 버튼 {0}, {1})	Fishing window moved → positions re-fitted (Fish button {0}, {1})	釣りウィンドウの位置が変わった → 位置を合わせ直し (Fish ボタン {0}, {1})
+점프 테스트 끝 — 제자리 1번 · 걸으면서 1번 · 꾹 누르는 1.5초 동안 계속 뛰었으면 성공	Jump test done — success if it jumped once in place, once while walking, and kept jumping during the 1.5 s hold	ジャンプテスト完了 — その場で1回 · 歩きながら1回 · 長押し1.5秒の間跳び続ければ成功
+점프 테스트 끝 — 제자리 1번 · 걸으면서 1번 · 꾹 누르는 1.5초 동안 계속 뛰었으면 성공 (점프를 따로 다시 누른 적 있음)	Jump test done — success if it jumped once in place, once while walking, and kept jumping during the 1.5 s hold (a jump was re-pressed on its own)	ジャンプテスト完了 — その場で1回 · 歩きながら1回 · 長押し1.5秒の間跳び続ければ成功 (ジャンプを別に押し直した)
+점프 테스트 — 걸으면서 꾹 누르기 (1.5초)	Jump test — hold while walking (1.5 s)	ジャンプテスト — 歩きながら長押し (1.5秒)
+점프 테스트 (제자리 → 걸으면서)	Jump test (in place → while walking)	ジャンプテスト (その場 → 歩きながら)
+점프 버튼 위치가 없어서 길의 점프는 건너뜀 (Acrux 창 → ⚙ → 점프 버튼)	No jump button position, so route jumps are skipped (Acrux window → ⚙ → Jump button)	ジャンプボタンの位置がないので道のジャンプは省略 (Acrux ウィンドウ → ⚙ → ジャンプボタン)
+먼저 지정 필요: 점프 버튼 (Acrux 창 → ⚙)	Set this first: Jump button (Acrux window → ⚙)	先に指定が必要: ジャンプボタン (Acrux ウィンドウ → ⚙)
+점프 테스트: 점프 버튼 ({0}, {1}) — 초록 점이 버튼 위에 뜨는지 보세요	Jump test: jump button ({0}, {1}) — check that the green dot appears on the button	ジャンプテスト: ジャンプボタン ({0}, {1}) — 緑の点がボタンの上に出るか見てください
+점프 테스트 — 제자리	Jump test — in place	ジャンプテスト — その場
+점프 테스트 — 걸으면서	Jump test — while walking	ジャンプテスト — 歩きながら
+점프 테스트 끝 — 두 번 뛰었으면 성공	Jump test done — success if it jumped twice	ジャンプテスト完了 — 2回跳べば成功
+점프 테스트 끝 — 두 번 뛰었으면 성공 (걸으면서 점프는 따로 다시 눌렀음)	Jump test done — success if it jumped twice (the walking jump was pressed again on its own)	ジャンプテスト完了 — 2回跳べば成功 (歩きながらのジャンプは別に押し直した)
+점프 버튼: 가운데 ({0}, {1}) · 반지름 {2}px · 평소 밝기 차이 {3}	Jump button: center ({0}, {1}) · radius {2}px · idle contrast {3}	ジャンプボタン: 中心 ({0}, {1}) · 半径 {2}px · 通常の明るさの差 {3}
+점프 버튼이 잘 안 보임 — ⚙ → 점프 버튼 위치를 버튼 한가운데로 다시 지정해 주세요 (점프를 못 읽을 수 있음)	Jump button is hard to see — set ⚙ → Jump button again at the center of the button (jumps may be missed)	ジャンプボタンが見えにくい — ⚙ → ジャンプボタンをボタンの中心に指定し直してください (ジャンプを読めないことがある)
+사용자 수 집계: 켜져 있다는 신호만 보냄 (무작위 번호 · 개인 정보 없음)	User count: only sends an "app is on" signal (random number · no personal info)	ユーザー数集計: 起動中という信号だけ送る (ランダム番号 · 個人情報なし)
+기준 장소로 이동 · 줌 아웃	To the base spot · zoom out	基準地点へ移動 · ズームアウト
+기준 장소로 이동 · 내려다보기	To the base spot · look down	基準地点へ移動 · 見下ろし
+점프 버튼 (오른쪽 아래)	Jump button (bottom right)	ジャンプボタン (右下)
+{0} — 길 기록에서 점프	{0} — jumps in routes	{0} — 道の記録でジャンプ
+점프 버튼 위치가 없어서 점프는 기록 안 함 (Acrux 창 → ⚙ → 점프 버튼)	No jump button position, so jumps are not recorded (Acrux window → ⚙ → Jump button)	ジャンプボタンの位置がないのでジャンプは記録しない (Acrux ウィンドウ → ⚙ → ジャンプボタン)
+{0} 길 기록 끝: {1}조각 · {2}초 · 점프 {3}번 (프레임 {4} · 움직임 {5})	{0} route recorded: {1} parts · {2} s · {3} jumps (frames {4} · moving {5})	{0} の道の記録完了: {1}区間 · {2}秒 · ジャンプ {3}回 (フレーム {4} · 動き {5})
+✓ 기록됨 · {0}초 · {1}조각 · 점프 {2}번	✓ Recorded · {0} s · {1} parts · {2} jumps	✓ 記録済み · {0}秒 · {1}区間 · ジャンプ {2}回
+점프 {0}번	{0} jumps	ジャンプ {0}回
+기준 장소로 이동 · 줌 아웃 + 내려다보기	To the base spot · zoom out + look down	基準地点へ移動 · ズームアウト + 見下ろし
+로블록스 메뉴 버튼 (왼쪽 위)	Roblox menu button (top left)	Roblox メニューボタン (左上)
+캐릭터 재설정 버튼 (메뉴 안)	Reset Character button (in the menu)	キャラクターリセットボタン (メニュー内)
+재설정 확인 버튼	Reset confirm button	リセット確認ボタン
+대화 버튼 (E)	Talk button (E)	会話ボタン (E)
+{0} (판매 장소에 서서)	{0} (stand at the sell spot)	{0} (販売場所に立って)
+판매 자동 보정 (NPC 앞에서 시작 → 대화 버튼은 직접)	Sell auto calibration (start at the NPC → tap the talk button yourself)	販売自動キャリブ (NPC の前で開始 → 会話ボタンは自分で)
+먼저 지정 필요: {0} (Acrux 창 → ⚙)	Set these first: {0} (Acrux window → ⚙)	先に指定が必要: {0} (Acrux ウィンドウ → ⚙)
+먼저 지정 필요: {0} (Acrux 창 → ⚙ → 판매)	Set this first: {0} (Acrux window → ⚙ → Sell)	先に指定が必要: {0} (Acrux ウィンドウ → ⚙ → 販売)
+기준 장소로 이동 · 재설정 (메뉴)	To the base spot · reset (menu)	基準地点へ移動 · リセット (メニュー)
+기준 장소로 이동 · 재설정 (캐릭터 재설정)	To the base spot · reset (Reset Character)	基準地点へ移動 · リセット (キャラクターリセット)
+기준 장소로 이동 · 재설정 (확인)	To the base spot · reset (confirm)	基準地点へ移動 · リセット (確認)
+재설정 누름 (메뉴 → 캐릭터 재설정 → 확인)	Reset pressed (menu → Reset Character → confirm)	リセット押下 (メニュー → キャラクターリセット → 確認)
+기준 장소로 이동 · 내려다보기 + 줌 아웃	To the base spot · look down + zoom out	基準地点へ移動 · 見下ろし + ズームアウト
+{0} 길을 먼저 기록해야 함 (Acrux 창 → ⚙ → {1} 길 기록)	Record the {0} route first (Acrux window → ⚙ → record {1} route)	先に {0} の道を記録 (Acrux ウィンドウ → ⚙ → {1} の道を記録)
+{0} 가는 중 ({1}초)	Going to {0} ({1} s)	{0} へ移動中 ({1}秒)
+{0} 길 기록 중 — 조이스틱으로 걸어가서 도착하면 [도착]	Recording the {0} route — walk there with the joystick, then [Arrived]	{0} の道を記録中 — ジョイスティックで歩いて着いたら [到着]
+{0} 길 기록 시작 — 지금부터 조이스틱 움직임을 저장 · 도착하면 Acrux 창의 [도착]	Recording the {0} route — joystick moves are saved from now · tap [Arrived] in the Acrux window when there	{0} の道の記録開始 — 今からジョイスティックの動きを保存 · 着いたら Acrux ウィンドウの [到着]
+{0} 길 기록 끝: {1}조각 · {2}초 (프레임 {3} · 움직임 {4})	{0} route recorded: {1} parts · {2} s (frames {3} · moving {4})	{0} の道の記録完了: {1}区間 · {2}秒 (フレーム {3} · 動き {4})
+조이스틱 움직임을 못 읽음 — 조이스틱 찾기를 다시 하거나, 조이스틱을 끝까지 밀어서 걸어 주세요	Could not read joystick moves — find the joystick again, or push the joystick all the way while walking	ジョイスティックの動きを読めない — ジョイスティックを探し直すか、端まで倒して歩いてください
+{0}초 안에 [도착]을 안 누름 — 기록 취소	[Arrived] not pressed within {0} s — recording canceled	{0}秒以内に [到着] が押されなかった — 記録キャンセル
+먼저 조이스틱 찾기 (Acrux 창 → ⚙ → 조이스틱 찾기)	Find the joystick first (Acrux window → ⚙ → Find joystick)	先にジョイスティックを探す (Acrux ウィンドウ → ⚙ → ジョイスティックを探す)
+낚시 장소 길이 없음 (Acrux 창 → ⚙ → 낚시 장소 길 기록)	No fishing spot route (Acrux window → ⚙ → record fishing spot route)	釣り場の道がない (Acrux ウィンドウ → ⚙ → 釣り場の道を記録)
+물고기 판매 장소 길이 없음 (Acrux 창 → ⚙ → 판매 장소 길 기록)	No fish sell spot route (Acrux window → ⚙ → record sell spot route)	販売場所の道がない (Acrux ウィンドウ → ⚙ → 販売場所の道を記録)
+Captain Flarg 앞에서 대화 버튼을 눌러 대화를 여세요	Tap the talk button in front of Captain Flarg to open the dialog	Captain Flarg の前で会話ボタンを押して会話を開いてください
+대화창이 안 보임 — Captain Flarg 앞에서 대화 버튼을 눌러 주세요	No dialog — tap the talk button in front of Captain Flarg	会話ウィンドウが見えない — Captain Flarg の前で会話ボタンを押してください
+대화창 찾음 — 이제 화면을 만지지 마세요	Dialog found — do not touch the screen now	会話ウィンドウ発見 — 画面に触れないでください
+{0} 길	{0} route	{0} の道
+· 기록 없음	· Not recorded	· 記録なし
+✓ 기록됨 · {0}초 · {1}조각	✓ Recorded · {0} s · {1} parts	✓ 記録済み · {0}秒 · {1}区間
+● 길 기록 (기준 장소로 간 뒤 직접 걸어감 → [도착])	● Record route (goes to the base spot, then you walk → [Arrived])	● 道を記録 (基準地点へ行った後に自分で歩く → [到着])
+● 다시 기록 (기준 장소로 간 뒤 직접 걸어감 → [도착])	● Record again (goes to the base spot, then you walk → [Arrived])	● 記録し直す (基準地点へ行った後に自分で歩く → [到着])
+③ 이동 · 판매: 로블록스 설정 → 이동 방식을 '조이스틱' (클래식) 으로	③ Movement · selling: Roblox settings → Movement mode → 'Joystick' (classic)	③ 移動 · 販売: Roblox 設定 → 移動方法を「ジョイスティック」 (クラシック) に
+5. 이동 · 판매: ⚙ → 조이스틱 찾기 → 공통 위치 5개 → 낚시 장소 · 판매 장소 길 기록 → 대화 버튼 · 판매 자동 보정	5. Moving · selling: ⚙ → find joystick → 5 common positions → record fishing / sell spot routes → talk button · sell auto calibration	5. 移動 · 販売: ⚙ → ジョイスティックを探す → 共通位置 5つ → 釣り場 · 販売場所の道を記録 → 会話ボタン · 販売自動キャリブ
+시작하면 재설정 → 기준 장소 → 기록한 길로 낚시 장소 · 인벤토리가 가득 차면 판매 장소에서 팔고 돌아옴 · 전부 화면 터치 (조이스틱 · 탭) · 위치 · 길은 Acrux 창 ⚙ 에서	On start: reset → base spot → recorded route to the fishing spot · when the inventory is full it sells at the sell spot and comes back · all screen touch (joystick · taps) · positions and routes in the Acrux window ⚙	開始するとリセット → 基準地点 → 記録した道で釣り場 · インベントリが満杯なら販売場所で売って戻る · 全部画面タッチ (ジョイスティック · タップ) · 位置と道は Acrux ウィンドウ ⚙ で
+내려다보기 (번)	Look down (times)	見下ろし (回)
+화면을 아래로 끄는 횟수 · 기본 3	swipes down · default 3	下にドラッグする回数 · 既定 3
+줌 아웃 (번)	Zoom out (times)	ズームアウト (回)
+두 손가락 오므리는 횟수 · 기본 4	pinches · default 4	ピンチの回数 · 既定 4
+도착 뒤 여유	Wait after arriving	到着後の余裕
+길을 다 걸은 뒤 기다림 · 기본 0.3	wait after walking the route · default 0.3	道を歩き終えた後に待つ · 既定 0.3
+저장된 위치 · 길	Saved positions · routes	保存した位置 · 道
+위치 · 길 모두 지우기	Clear all positions · routes	位置 · 道をすべて消す
+위치 · 길 모두 지움	Cleared all positions · routes	位置 · 道をすべて消去
+길 기록 중	Recording route	道を記録中
+낚시 장소 길	Fishing spot route	釣り場の道
+판매 장소 길	Sell spot route	販売場所の道
+{0}조각	{0} parts	{0}区間
+접근성 권한(Acrux Mobile)이 꺼짐	Accessibility (Acrux Mobile) is off	アクセシビリティ (Acrux Mobile) がオフ
+기준 장소로 이동 · 걷기 (W+A → A → A+W → 쉼 → D)	To the base spot · walking (W+A → A → A+W → pause → D)	基準地点へ移動 · 歩き (W+A → A → A+W → 待機 → D)
+기본 3.5	default 3.5	既定 3.5
+기본 3	default 3	既定 3
+기본 2	default 2	既定 2
+쉼	Pause	待機
+D 누르기 전에 기다림 · 기본 0.5	wait before pressing D · default 0.5	D を押す前に待つ · 既定 0.5
+후원	Support	支援
+Acrux 가 도움이 됐다면 후원으로 응원해 주세요	If Acrux helped you, you can support it here	Acrux が役に立ったら支援で応援してください
+조이스틱 (W · A · S · D)	Joystick (W · A · S · D)	ジョイスティック (W · A · S · D)
+✓ 조이스틱 저장됨 (눌러서 위치 보기)	✓ Joystick saved (tap to show)	✓ ジョイスティック保存済み (タップで表示)
+· 조이스틱 없음 — 로블록스 설정 → 이동 방식: 조이스틱	· No joystick — Roblox settings → Movement mode: Thumbstick	· ジョイスティックなし — Roblox 設定 → 移動方式: サムスティック
+조이스틱 찾기 (화면에서 자동으로)	Find joystick (automatic)	ジョイスティックを探す (自動)
+조이스틱 직접 지정 (가운데 → 가장자리)	Set joystick by hand (center → edge)	ジョイスティックを手動指定 (中心 → 端)
+조이스틱 테스트 (W · A · S · D 0.8초씩)	Joystick test (W · A · S · D 0.8 s each)	ジョイスティックテスト (W · A · S · D 各0.8秒)
+조이스틱 가운데	Joystick center	ジョイスティックの中心
+조이스틱 바깥 판 가장자리	Joystick outer edge	ジョイスティックの外側の端
+조이스틱 찾는 중	Finding the joystick	ジョイスティックを探し中
+조이스틱 테스트 — {0}	Joystick test — {0}	ジョイスティックテスト — {0}
+조이스틱	Joystick	ジョイスティック
+조이스틱을 못 찾음 — 로블록스 설정에서 이동 방식을 '조이스틱'(클래식)으로 바꾸고, 조이스틱이 보일 때 다시 (안 되면 ⚙ → 조이스틱 직접 지정)	Joystick not found — set Roblox's movement mode to 'Thumbstick' (classic) and try again while it is visible (or ⚙ → set joystick by hand)	ジョイスティックが見つからない — Roblox の移動方式を「サムスティック」(クラシック) にして、表示中にもう一度 (だめなら ⚙ → 手動指定)
+조이스틱 찾음: 가운데 ({0}, {1}) · 반지름 {2}px · 점수 {3}	Joystick found: center ({0}, {1}) · radius {2}px · score {3}	ジョイスティック発見: 中心 ({0}, {1}) · 半径 {2}px · スコア {3}
+조이스틱 저장: 가운데 ({0}, {1}) · 반지름 {2}px	Joystick saved: center ({0}, {1}) · radius {2}px	ジョイスティック保存: 中心 ({0}, {1}) · 半径 {2}px
+조이스틱 테스트: W · A · S · D 0.8초씩 보냄 — 캐릭터가 앞 · 왼쪽 · 뒤 · 오른쪽으로 갔으면 성공	Joystick test: sent W · A · S · D for 0.8 s each — success if the character went forward · left · back · right	ジョイスティックテスト: W · A · S · D を各0.8秒 — キャラが前 · 左 · 後 · 右に動けば成功
+먼저 조이스틱 찾기 (로블록스 설정 → 이동 방식: 조이스틱 · ⚙ → 조이스틱 찾기)	Find the joystick first (Roblox settings → Movement mode: Thumbstick · ⚙ → Find joystick)	先にジョイスティックを探す (Roblox 設定 → 移動方式: サムスティック · ⚙ → ジョイスティックを探す)
+이동 · 판매는 조이스틱 찾기 또는 Shizuku 연결이 필요함 — ⚙ → 조이스틱 찾기	Moving · selling needs the joystick found or Shizuku — ⚙ → Find joystick	移動 · 販売にはジョイスティック検出か Shizuku が必要 — ⚙ → ジョイスティックを探す
+'{0}' 키는 아직 터치로 못 보냄 (Shizuku 필요) — 건너뜀	Can't send the '{0}' key by touch yet (needs Shizuku) — skipped	'{0}' キーはまだタッチで送れない (Shizuku 必要) — スキップ
+기준 장소로 이동 · 카메라 정렬 (도감)	To the base spot · camera align (collection)	基準地点へ移動 · カメラ合わせ (図鑑)
+판매 · 카메라 정렬 (도감)	Selling · camera align (collection)	販売 · カメラ合わせ (図鑑)
 기준 장소로 이동 · 걷기 (W → W+A → A → W → S+D)	To the base spot · walking (W → W+A → A → W → S+D)	基準地点へ移動 · 歩き (W → W+A → A → W → S+D)
 기준 장소로 이동 · 내려다보기 + 최대 줌 (우클릭 드래그 + O)	To the base spot · look down + max zoom (right-drag + O)	基準地点へ移動 · 見下ろし + 最大ズーム (右ドラッグ + O)
 {0} 가는 중 ({1}/{2})	Going to {0} ({1}/{2})	{0} へ移動中 ({1}/{2})

@@ -14,3 +14,11 @@ android/.gradle/
 android/build/
 android/app/build/
 android/local.properties
+
+# Tauri build
+/node_modules/
+/src-tauri/target/
+/src-tauri/gen/schemas/
+
+# Apple generated projects
+/src-tauri/gen/apple/

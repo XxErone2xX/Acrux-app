@@ -6,6 +6,7 @@ history.replaceState(null, '', location.pathname);
 
 // timeout: 이 시간(ms) 안에 응답이 없으면 실패로 봄 (상태 받기 등) — 위치 지정처럼 사용자를 기다리는 요청은 안 씀
 async function api(name, payload = {}, timeout = 0) {
+  if (window.acruxDesktopApi) return window.acruxDesktopApi(name, payload);
   const ctl = timeout ? new AbortController() : null;
   const t = ctl && setTimeout(() => ctl.abort(), timeout);
   try {
@@ -1597,7 +1598,7 @@ const mfish = () => (config.mfish ||= {});
 const saveMfish = () => queueSave({ mfish: JSON.parse(JSON.stringify(mfish())) });
 const MFISH_POS = [['fish_btn', 'Fish 버튼', 'Fish / Exit 버튼 가운데 (같은 자리)'], ['close_pos', '결과창 X', '낚시 결과창 오른쪽 위 X'],
   ['title_pos', '결과창 제목', '선택 · 제목 색으로 성공 / 쓰레기 / 실패 구분']];
-const MFISH_REQ = ['fish_btn', 'bar_region', 'close_pos'];
+const MFISH_REQ = ['fish_btn', 'bar_region', ...(window.acruxDesktopApi ? [] : ['close_pos'])];
 const MFISH_TUNE = [['bite_max', '입질 최대 대기', '이 시간 동안 입질이 없으면 Exit 후 다시 던짐 (초)', 60, 5, 1],
   ['target_pct', '목표 위치', '구간 왼쪽 변에서 몇 % 지점에서 누를지 · 0 = 왼쪽 변, 50 = 가운데 (%)', 0, 0, 5],
   ['lead_ms', '미리 누르기', '이만큼 미리 누름 · 늦게 눌리면 조금 늘림 (ms)', 0, 0, 10],
@@ -3273,7 +3274,7 @@ $('bioTest').addEventListener('click', async () => {
   await wait(400);                                   // 방금 입력한 주소가 저장될 시간
   try {
     const r = await api('webhook_test');
-    toast(r.error || (r.ok === r.total ? `전송 완료 (${r.ok}/${r.total})` : `일부 실패 (${r.ok}/${r.total}) · ${r.errors[0] || ''}`));
+    toast(r.error || (r.queued ? '테스트 전송 대기열에 추가됨' : r.ok === r.total ? `전송 완료 (${r.ok}/${r.total})` : `일부 실패 (${r.ok}/${r.total}) · ${r.errors[0] || ''}`));
   } finally { btn.disabled = false; btn.textContent = '테스트 전송'; }
 });
 
@@ -3996,6 +3997,8 @@ const Tutorial = (() => {
     onSection() { if (!el.hidden) check(); },
   };
 })();
+
+window.addEventListener('acrux-desktop-error', e => toast(e.detail));
 
 // ---------------------------------------------------------------- 시작
 (async function init() {
