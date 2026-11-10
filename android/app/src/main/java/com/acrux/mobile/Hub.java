@@ -305,6 +305,11 @@ final class Hub {
     // ---------------------------------------------------------------- 저장 위치는 항상 화면 안
     // (화면 밖 좌표를 누르면 안드로이드가 'Path bounds must not be negative' 로 거절해서 매크로가 멈춤
     //  · 다른 화면 크기 · 방향에서 저장했거나 조이스틱 가장자리를 화면 밖 쪽으로 찍은 경우)
+    /** 저장한 숫자 읽기 — float 로 저장해서 0.3 이 0.30000001192… 로 돌아옴 (설정 칸에 그대로 보였음) → 소수 넷째 자리로 맞춤 */
+    static double num(android.content.SharedPreferences p, String key, double def) {
+        return Math.round(p.getFloat(key, (float) def) * 10000.0) / 10000.0;
+    }
+
     static double in01(double v) {
         return Double.isNaN(v) ? 0.5 : Math.max(0, Math.min(0.9999, v));
     }
@@ -539,27 +544,27 @@ final class Hub {
         cfg.closePos = arr(p.getString("close", ""));
         cfg.titlePos = arr(p.getString("title", ""));
         cfg.reelDerived = p.getBoolean("derived", true);
-        cfg.biteMax = p.getFloat("biteMax", (float) cfg.biteMax);
+        cfg.biteMax = num(p, "biteMax", cfg.biteMax);
         cfg.clickMs = p.getInt("clickMs", cfg.clickMs);
-        cfg.leadMs = p.getFloat("leadMs", (float) cfg.leadMs);
-        cfg.targetPct = p.getFloat("targetPct", (float) cfg.targetPct);
+        cfg.leadMs = num(p, "leadMs", cfg.leadMs);
+        cfg.targetPct = num(p, "targetPct", cfg.targetPct);
         cfg.adaptive = p.getBoolean("adaptive", cfg.adaptive);
         cfg.tapAbove = p.getBoolean("tapAbove", true);
         autoUpdate = p.getBoolean("autoUpdate", true);
         useMove = p.getBoolean("useMove", true);
         useSell = p.getBoolean("useSell", true);
         sellMax = p.getInt("sellMax", 100);
-        sellDelay = p.getFloat("sellDelay", 0f);
-        move.resetWait = p.getFloat("m_reset_wait", (float) move.resetWait);
+        sellDelay = num(p, "sellDelay", 0);
+        move.resetWait = num(p, "m_reset_wait", move.resetWait);
         // V0.9.11 기준 장소 걷기가 바뀜 (W+A → A → A+W → 쉼 → D) — 예전 값(m_w_time …)은 안 씀
-        move.waTime = p.getFloat("m2_wa", (float) move.waTime);
-        move.aTime = p.getFloat("m2_a", (float) move.aTime);
-        move.awTime = p.getFloat("m2_aw", (float) move.awTime);
-        move.pauseTime = p.getFloat("m2_pause", (float) move.pauseTime);
-        move.dTime = p.getFloat("m2_d", (float) move.dTime);
+        move.waTime = num(p, "m2_wa", move.waTime);
+        move.aTime = num(p, "m2_a", move.aTime);
+        move.awTime = num(p, "m2_aw", move.awTime);
+        move.pauseTime = num(p, "m2_pause", move.pauseTime);
+        move.dTime = num(p, "m2_d", move.dTime);
         move.tiltSwipes = p.getInt("m3_tilt", move.tiltSwipes);
         move.zoomPinches = p.getInt("m3_zoom", move.zoomPinches);
-        move.margin = p.getFloat("m_margin", (float) move.margin);
+        move.margin = num(p, "m_margin", move.margin);
         stick = arr(p.getString("stick", ""));
         if (stick != null && stick.length != 3) stick = null;
         stick = fitStick(stick, 0, 0);

@@ -1,3 +1,21 @@
+## Acrux Mobile V1.4.7 업데이트
+- 숫자 설정이 실제로 적용되지 않던 문제 수정 [ 기준 장소 시간 · 판매 · 낚시 숫자 칸 전부 ]
+  - 숫자를 고치는 즉시 적용 · 저장 [ 전에는 다른 칸을 눌러야 적용돼서, 숫자만 고치고 로블록스로 가면 예전 값으로 돌았음 ]
+  - 0.3 이 0.30000001192… 로 보이던 문제 수정
+- 이동 중 터치가 끊겨도 길이 어긋나지 않도록 수정
+  - 전에는 걷는 중에 화면을 건드리면 그 걸음의 남은 시간을 통째로 건너뜀 [ 큰 오차의 원인 ]
+  - 이제 바로 다시 누르고, 못 걸은 시간만큼 뒤의 길을 늦춰서 간 거리가 기록과 같음 [ 기록에 안내가 남음 ]
+- Acrux 창이 조이스틱 위에 있을 때 누름이 0.04초씩 늦게 시작하던 문제 수정
+
+## Acrux Mobile V1.4.7 Update
+- Fixed number settings not actually being applied [ base location times · selling · fishing number fields ]
+  - Numbers are now applied and saved as you type [ before, you had to tap another field; changing a number and going straight to Roblox ran with the old value ]
+  - Fixed 0.3 showing as 0.30000001192…
+- Movement no longer goes off course when a touch is interrupted
+  - Before, touching the screen while walking skipped the rest of that step [ a cause of large errors ]
+  - Now it presses again right away and delays the rest of the route by the lost time, so the distance matches the recording [ noted in the log ]
+- Fixed presses starting 0.04 s late when the Acrux window is over the joystick
+
 ## Acrux Mobile V1.4.6 업데이트
 - 이동에 한 번 실패하면 매크로가 멈추던 문제 수정
   - 판매: 판매 장소에 못 가서 대화창 · 상점을 못 찾으면 처음(리셋)부터 다시 이동 [ 3번까지 ]

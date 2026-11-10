@@ -248,6 +248,8 @@ Fish 터치 ({0}번째)	Tapping Fish (try {0})	Fish をタップ ({0} 回目)
 낚시 장소로 다시 가다가 오류: {0}	Error while moving to the fishing spot again: {0}	釣り場へ再移動中にエラー: {0}
 판매 실패 ({0}/{1}): {2} — 처음부터 다시 이동	Selling failed ({0}/{1}): {2} — moving again from the start	販売失敗 ({0}/{1}): {2} — 最初から再移動
 판매 실패 {0}번 — 멈춤: {1} (판매 장소 길 · 위치 확인)	Selling failed {0} times — stopped: {1} (check the sell route and positions)	販売に {0} 回失敗 — 停止: {1} (販売場所のルート・位置を確認)
+이동 중 조이스틱 터치가 {0}번 끊김 (화면을 건드림) — 다시 눌러서 이어 감 · 그만큼 늦게 도착 (+{1}초)	The joystick touch was interrupted {0} time(s) while moving (the screen was touched) — pressed again and continued · arrives that much later (+{1} s)	移動中にジョイスティックのタッチが {0} 回切れました (画面に触れた) — 押し直して続行 · その分遅れて到着 (+{1} 秒)
+화면이 계속 눌려 있어서 이동을 못 함 — 이동 중에는 화면을 건드리지 마세요	Cannot move because the screen is being held — do not touch the screen while moving	画面が押され続けているため移動できません — 移動中は画面に触れないでください
 판매 장소로 다시 가는 중	Moving to the sell spot again	販売場所へ再移動中
 낚시 장소로 다시 가는 중	Going back to the fishing spot	釣り場へ戻り中
 결과창 X 를 결과창 모양으로 찾아서 누름	Found the result window X by the window shape and tapped it	結果ウィンドウの形から X を見つけて押した

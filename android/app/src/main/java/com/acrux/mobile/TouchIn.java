@@ -65,13 +65,28 @@ final class TouchIn implements Touch {
             android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY);      // 시각을 맞춰야 해서 그동안만 우선
         } catch (RuntimeException ignored) {
         }
+        // Acrux 창이 조이스틱 · 점프 버튼 위에 있으면: 걷기 전에 한 번만 창을 통과하게 해 두고 끝까지 유지
+        //  (전에는 누를 때마다 창 설정을 바꾸느라 그 누름이 0.04초 넘게 늦게 시작 → 누른 시간이 기록과 달라짐)
+        TapService t = TapService.instance;
+        if (t != null) {
+            t.passKeep = true;
+            t.letThrough((int) Joy.cx, (int) Joy.cy);
+            if (jump != null) t.letThrough(jump[0], jump[1]);
+        }
         try {
             Joy.pilot.play(evs, check);
         } finally {
+            if (t != null) {
+                t.passKeep = false;
+                t.passUntil = android.os.SystemClock.uptimeMillis() + 300;
+            }
             try {
                 android.os.Process.setThreadPriority(pr);
             } catch (RuntimeException ignored) {
             }
+            int cuts = Joy.pilot.cuts;
+            if (cuts > 0) Hub.log("이동 중 조이스틱 터치가 " + cuts + "번 끊김 (화면을 건드림) — 다시 눌러서 이어 감 · 그만큼 늦게 도착 (+"
+                    + Math.round(Joy.pilot.lostMs / 100.0) / 10.0 + "초)", 'y');
         }
     }
 

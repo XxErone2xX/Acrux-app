@@ -298,9 +298,12 @@ public class TapService extends AccessibilityService {
         if (on) passing = false;
     }
 
+    /** 이동하는 동안 계속 통과 (조이스틱을 새로 누를 때마다 창 설정을 바꾸느라 0.04초씩 늦어지지 않게) */
+    volatile boolean passKeep;
+
     void restoreLater() {
         Hub.main.postDelayed(() -> {
-            if (SystemClock.uptimeMillis() >= passUntil) setTouchable(true);
+            if (!passKeep && SystemClock.uptimeMillis() >= passUntil) setTouchable(true);
             else restoreLater();
         }, 200);
     }
