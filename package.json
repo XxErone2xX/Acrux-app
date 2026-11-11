@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc --noEmit && node frontend/build.mjs",
     "tauri": "tauri",
+    "build:linux": "tauri build --no-bundle",
     "build:macos": "tauri build --target universal-apple-darwin --bundles app --no-sign",
     "test:desktop": "node frontend/desktop.test.cjs"
   },

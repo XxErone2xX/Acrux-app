@@ -2,11 +2,18 @@
 mod android;
 mod biome;
 mod fishing;
+#[cfg(target_os = "linux")]
+mod linux;
 mod navigation;
 mod online;
 mod vision;
 #[cfg(target_os = "windows")]
 mod windows;
+
+#[cfg(target_os = "linux")]
+use linux as desktop;
+#[cfg(target_os = "windows")]
+use windows as desktop;
 
 use fishing::{Calibration, CalibrationPositions, Fishing, Phase, Stats, Tuning};
 use navigation::{Job, Motion, Navigation, Options, Place, Task, Tick};
@@ -75,7 +82,7 @@ struct DuaStatus {
 impl Default for DuaStatus {
     fn default() -> Self {
         Self {
-            supported: cfg!(target_os = "windows"),
+            supported: cfg!(any(target_os = "windows", target_os = "linux")),
             running: false,
             route: None,
             reason: "DUA 대기 중",
@@ -208,7 +215,7 @@ impl Runtime {
             calibration: self.fishing.calibration,
             tuning,
             totals: self.totals,
-            navigation: if cfg!(target_os = "windows") {
+            navigation: if cfg!(any(target_os = "windows", target_os = "linux")) {
                 Navigation::default()
             } else {
                 self.navigation.clone()
@@ -554,7 +561,7 @@ impl Runtime {
             self.stop("중지됨");
             return Ok(());
         }
-        #[cfg(target_os = "windows")]
+        #[cfg(any(target_os = "windows", target_os = "linux"))]
         if action == Action::Start {
             return self
                 .start_desktop(&["mfish".into()], now())
@@ -630,9 +637,9 @@ impl Runtime {
 }
 
 fn game_available() -> bool {
-    #[cfg(target_os = "windows")]
-    return windows::game_available();
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
+    return desktop::game_available();
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
     false
 }
 
@@ -660,12 +667,18 @@ fn control(action: Action) -> Result<Status, String> {
 
 #[tauri::command]
 fn desktop_start(features: Vec<String>, generation: i32) -> Result<Status, String> {
-    if !cfg!(target_os = "windows") {
-        return Err("데스크톱 DUA의 게임 캡처 · 입력은 현재 Windows에서 지원합니다.".into());
+    if !cfg!(any(target_os = "windows", target_os = "linux")) {
+        return Err(
+            "데스크톱 DUA의 게임 캡처 · 입력은 Windows와 Linux(X11)에서 지원합니다.".into(),
+        );
     }
     let mut state = runtime();
     if state.generation != generation {
         return Err("이전 실행 요청이 취소됐습니다. 다시 시작하세요.".into());
+    }
+    #[cfg(target_os = "linux")]
+    if !desktop::game_available() {
+        return Err("Sober를 X11/XWayland로 실행한 뒤 다시 시작하세요.".into());
     }
     state.start_desktop(&features, now())?;
     Ok(state.status())
@@ -711,8 +724,8 @@ fn save_navigation(options: Options) -> Result<(), String> {
 
 #[tauri::command]
 fn desktop_navigation(setup: navigation::DesktopSetup) -> Result<(), String> {
-    if !cfg!(target_os = "windows") {
-        return Err("Windows에서만 게임 입력을 사용할 수 있습니다.".into());
+    if !cfg!(any(target_os = "windows", target_os = "linux")) {
+        return Err("Windows와 Linux(X11)에서 게임 입력을 사용할 수 있습니다.".into());
     }
     let mut state = runtime();
     if state.active() {
@@ -724,8 +737,8 @@ fn desktop_navigation(setup: navigation::DesktopSetup) -> Result<(), String> {
 
 #[tauri::command]
 fn desktop_task(task: Task) -> Result<(), String> {
-    if !cfg!(target_os = "windows") {
-        return Err("Windows에서만 게임 입력을 사용할 수 있습니다.".into());
+    if !cfg!(any(target_os = "windows", target_os = "linux")) {
+        return Err("Windows와 Linux(X11)에서 게임 입력을 사용할 수 있습니다.".into());
     }
     runtime().task(task).map_err(str::to_owned)
 }
@@ -737,8 +750,8 @@ fn desktop_waypoint(
     measure: bool,
     from_base: bool,
 ) -> Result<(), String> {
-    if !cfg!(target_os = "windows") {
-        return Err("Windows에서만 게임 입력을 사용할 수 있습니다.".into());
+    if !cfg!(any(target_os = "windows", target_os = "linux")) {
+        return Err("Windows와 Linux(X11)에서 게임 입력을 사용할 수 있습니다.".into());
     }
     let mut state = runtime();
     if state.active() {
@@ -764,18 +777,18 @@ fn desktop_arrive() -> Result<(), String> {
 
 #[tauri::command]
 async fn desktop_pick() -> Result<vision::Point, String> {
-    #[cfg(target_os = "windows")]
-    return tauri::async_runtime::spawn_blocking(windows::pick)
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
+    return tauri::async_runtime::spawn_blocking(desktop::pick)
         .await
         .map_err(|e| e.to_string())?;
-    #[cfg(not(target_os = "windows"))]
-    Err("Windows에서만 화면 위치를 지정할 수 있습니다.".into())
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    Err("Windows와 Linux(X11)에서 화면 위치를 지정할 수 있습니다.".into())
 }
 
 #[tauri::command]
 fn desktop_cancel_pick() {
-    #[cfg(target_os = "windows")]
-    windows::cancel_pick();
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
+    desktop::cancel_pick();
 }
 
 #[tauri::command]
@@ -891,7 +904,7 @@ fn biome_transport(_app: tauri::AppHandle) -> Result<serde_json::Value, String> 
 
 #[tauri::command]
 fn online_status() -> serde_json::Value {
-    #[cfg(any(target_os = "windows", target_os = "android"))]
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "android"))]
     online::start();
     serde_json::json!({"online": online::count(), "share": online::settings().share})
 }
@@ -929,8 +942,8 @@ pub fn run() {
             }
             #[cfg(target_os = "windows")]
             biome::watch_windows();
-            #[cfg(target_os = "windows")]
-            windows::start()?;
+            #[cfg(any(target_os = "windows", target_os = "linux"))]
+            desktop::start()?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -965,7 +978,7 @@ pub fn run() {
 mod tests {
     use super::*;
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
     #[test]
     fn desktop_start_rejects_a_request_from_before_stop() {
         let generation = {

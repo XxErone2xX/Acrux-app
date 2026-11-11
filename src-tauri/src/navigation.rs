@@ -452,7 +452,7 @@ impl Navigation {
         let desktop = self
             .desktop
             .as_ref()
-            .ok_or("Windows 이동 설정이 없습니다.")?;
+            .ok_or("데스크톱 이동 설정이 없습니다.")?;
         let route = desktop.waypoints(place);
         let waypoint = route.get(index).ok_or("이동 지점을 찾을 수 없습니다.")?;
         let mut job = Job::new(if measure { Task::Measure } else { Task::Base }, now, false);

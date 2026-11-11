@@ -19,6 +19,53 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  linux:
+    if: github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install Linux build and X11 test libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb xauth
+      - name: Check desktop and native X11 adapter
+        run: |
+          npm ci
+          npm run build
+          npm run test:desktop
+          python3 -m unittest discover -s tests -v
+          cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
+          xvfb-run -a env ACRUX_X11_TEST=1 cargo test --locked --manifest-path src-tauri/Cargo.toml --lib linux::tests::native_x11_capture_and_input -- --ignored --test-threads=1
+      - name: Build Linux app
+        run: npm run build:linux -- --ci
+      - name: Check Linux application startup
+        run: |
+          export XDG_CONFIG_HOME="$RUNNER_TEMP/acrux-linux-profile"
+          mkdir -p "$XDG_CONFIG_HOME/com.acrux.next"
+          echo '{"online":{"share":false}}' > "$XDG_CONFIG_HOME/com.acrux.next/profile.json"
+          GDK_BACKEND=x11 xvfb-run -a python3 - <<'PY'
+          import subprocess, time
+          app = subprocess.Popen(['src-tauri/target/release/acrux'])
+          try:
+              time.sleep(5)
+              assert app.poll() is None, f'Acrux exited during startup ({app.returncode})'
+          finally:
+              if app.poll() is None:
+                  app.terminate()
+                  app.wait(timeout=10)
+          PY
+          cp src-tauri/target/release/acrux Acrux-Dev-Linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dev-linux
+          path: Acrux-Dev-Linux
+          if-no-files-found: error
+
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 60

@@ -10,10 +10,10 @@
 
 - `dev`는 크로스플랫폼 개발용 브랜치입니다. 기존 `Crossplatform-test`를 이름 변경했습니다.
 - `main`은 정식 PC Python 앱과 모바일 Java 앱의 패치·배포 기준입니다. 정식 앱의 수정은 `dev`에 이식하고 아래에 이식 기록을 남깁니다.
-- DUA(Device Use Agent)를 매크로의 주 실행 경로로 개발합니다. 우선 Windows 데스크톱에서 Headless와 Screenshot 루트를 연결했으며, Phone 적용은 후속 작업입니다.
+- DUA(Device Use Agent)를 매크로의 주 실행 경로로 개발합니다. Windows와 Linux(X11/XWayland Sober)에서 Headless와 Screenshot 루트를 연결했습니다. Phone 적용은 후속 작업입니다.
 - 테스트는 크로스플랫폼 빌드·회귀 검사와 실제 기기에서의 시작·설정·보정·매크로 실행 확인을 함께 사용합니다. 기기·OS·앱 버전·결과를 기록하고, 기기에 접근할 수 없는 항목은 미검증으로 기록합니다.
-- Windows·Android·macOS가 빌드·검사 대상입니다. iOS는 빌드·실행 검사에서 제외합니다.
-- `dev`의 Android·Windows·macOS 빌드 결과는 GitHub Actions 실행의 첨부 파일로 받습니다.
+- Linux·Windows·Android·macOS가 빌드·검사 대상입니다. iOS는 빌드·실행 검사에서 제외합니다.
+- `dev`의 Android·Windows·Linux·macOS 빌드 결과는 GitHub Actions 실행의 첨부 파일로 받습니다.
 
 ## 받기
 
@@ -28,6 +28,7 @@ Android와 Windows는 기존 앱별 화면을 따릅니다. Android의 TypeScrip
 
 - `npm ci` 후 `npm run build`로 화면을 빌드합니다.
 - Windows에서는 `npm run tauri -- dev`로 실행하거나 `npm run tauri -- build`로 패키징합니다.
+- Linux에서는 `npm ci` 후 `npm run build:linux -- --ci`로 빌드합니다. 실행 파일은 `src-tauri/target/release/acrux`이며 Sober 연결 조건은 아래를 참고하세요.
 - Android에서는 JDK 17, Android SDK 36, NDK와 Rust의 `aarch64-linux-android` 타깃을 준비한 뒤 `npm run tauri -- android build --apk --target aarch64 --debug`를 실행합니다. 테스트 패키지 `com.acrux.next`는 기존 앱과 별도로 설치됩니다.
 
 미리보기에는 낚시와 이동·판매, 바이옴 감시·디스코드 알림 흐름이 들어 있습니다. Android에서는 조작 창에서 조이스틱과 버튼 위치를 직접 지정하고 방향 패드의 실제 누름·이동·뗌 시각으로 길을 기록합니다. 이전 미리보기의 0.5초 단위 기록도 읽을 수 있으며 새 타이밍을 적용하려면 길을 다시 기록해야 합니다. Windows에서는 기존 이동 메뉴에서 지점 위치와 도착 시간을 저장합니다. 두 앱 모두 수동으로 지정한 판매 위치를 사용합니다.
@@ -40,7 +41,7 @@ Android의 바이옴 기능은 앱 내부 무선 디버깅 페어링과 로그 �
 
 기존 메인 화면의 매크로 시작 버튼이 TypeScript 연결부의 `desktop_start`를 통해 Rust DUA를 시작합니다. DUA는 기존 낚시·이동·판매 엔진을 사용하면서 작업 상태에 따라 다음 실행 경로를 고릅니다. 판단은 코드에 정의한 규칙으로 수행하며 AI 모델·추론 API를 추가하지 않았습니다. 이번 구현은 `dev`에 적용하며 정식 `main`의 Python·Java 앱은 변경하지 않습니다.
 
-- **Headless**는 내부 작업 상태와 구조화된 이동·키 입력·대기를 처리합니다. 이 경로에서는 게임 화면 캡처를 획득하거나 읽지 않습니다. 현재 Windows 입력은 Roblox 창이 앞에 있을 때 수행합니다.
+- **Headless**는 내부 작업 상태와 구조화된 이동·키 입력·대기를 처리합니다. 이 경로에서는 게임 화면 캡처를 획득하거나 읽지 않습니다. 데스크톱 입력은 대상 게임 창이 앞에 있을 때 수행합니다.
 - **Screenshot**은 자동 보정, 낚시의 던지기·입질·릴링·결과, 판매 화면의 확인 단계에서 캡처를 요청합니다. 구조화된 이동·대기 단계로 넘어가면 Headless로 돌아갑니다. 판매도 이동·대기 전체를 계속 캡처하지 않고 화면 확인 단계에서만 캡처를 사용합니다.
 
 보정값이 없으면 낚시를 시작하기 전에 자동 보정하고 이어서 낚시합니다. 낚시 장소 이동을 설정했으면 해당 이동을 마친 뒤 보정합니다. 현재 실행할 수 있는 기능은 자동 낚시와 이에 연결된 이동·판매입니다. 다른 기능이 함께 켜져 있거나 실행할 기능이 없으면 시작 요청을 오류로 반환합니다. 설정 화면의 기존 세부 기능들은 이식 상태에 따라 별도로 구현해야 합니다.
@@ -49,9 +50,35 @@ Android의 바이옴 기능은 앱 내부 무선 디버깅 페어링과 로그 �
 
 메인 정지 버튼과 F3·F7로 실행을 중지합니다. 중지하거나 작업을 전환하면 실행 세대를 바꾸어 이전 작업에서 계산한 입력이 뒤늦게 실행되지 않게 합니다. 캡처·입력 직전에는 대상 창과 크기를 다시 확인하며 이동 중 창 크기가 바뀌면 해당 경로를 중지합니다.
 
-게임 캡처·입력 연결은 현재 Windows에 있습니다. Linux·macOS에서는 앱 빌드·시작 검사가 가능하며 게임 DUA용 캡처·입력 연결은 구현 전입니다. Android는 기존 캡처 프레임을 Rust 엔진에 전달하는 방식을 유지하고 DUA 적용은 후속 작업으로 남깁니다. iOS는 빌드·실행 검사에서 제외합니다.
+게임 캡처·입력 연결은 Windows와 Linux의 X11/XWayland Sober에 있습니다. macOS 게임 DUA용 캡처·입력 연결은 구현 전입니다. Android는 기존 캡처 프레임을 Rust 엔진에 전달하는 방식을 유지하고 DUA 적용은 후속 작업으로 남깁니다. iOS는 빌드·실행 검사에서 제외합니다.
 
-이번 DUA 변경에서 `npm run build`, `npm run test:desktop` 11개, Rust 코어 검사 27개 (Windows는 시작 요청 세대 검사까지 28개), Python 회귀 검사 5개와 Windows 타깃 코드 검사를 통과했습니다. 검사는 두 루트의 전환, 캡처 없는 이동·대기, 판매 확인의 캡처 요구와 판매 후 낚시 복귀, 보정 후 낚시 재개, 중지·창 크기 변경·이전 입력 취소와 화면 연결부의 시작·오류 처리를 포함합니다. Linux 앱을 별도 임시 설정으로 빌드하고 5초 시작·설정 초기화를 확인했습니다. 브라우저에서는 시험용 상태 응답으로 두 경로 패널의 표시를 확인했습니다. 실제 Roblox에서 낚시·이동·판매 동작은 미검증입니다. 아래 Apple 실행 기록은 DUA 도입 전 커밋의 결과입니다.
+Windows DUA 도입 때 `npm run build`, `npm run test:desktop` 11개, Rust 코어 검사 27개 (Windows는 시작 요청 세대 검사까지 28개), Python 회귀 검사 5개와 Windows 타깃 코드 검사를 통과했습니다. 검사는 두 루트의 전환, 캡처 없는 이동·대기, 판매 확인의 캡처 요구와 판매 후 낚시 복귀, 보정 후 낚시 재개, 중지·창 크기 변경·이전 입력 취소와 화면 연결부의 시작·오류 처리를 포함합니다. Linux 앱을 별도 임시 설정으로 빌드하고 5초 시작·설정 초기화를 확인했습니다. 브라우저에서는 시험용 상태 응답으로 두 경로 패널의 표시를 확인했습니다. 실제 Roblox에서 낚시·이동·판매 동작은 미검증입니다. 아래 Apple 실행 기록은 DUA 도입 전 커밋의 결과입니다.
+
+### Linux · Sober 실행
+
+첫 Linux 어댑터는 Rust의 X11 프로토콜 연결과 XTEST로 Sober의 X11/XWayland 창을 캡처·조작합니다. Rust/Tauri의 Linux 빌드 의존성과 XTEST 확장을 지원하는 X11 서버가 필요합니다. 이번 연결에도 AI 모델·추론 API는 사용하지 않습니다. 네이티브 Wayland로 실행된 Sober는 이 어댑터의 지원 범위에서 제외합니다.
+
+```sh
+npm ci
+npm run build:linux -- --ci
+./src-tauri/target/release/acrux
+```
+
+현재 실행 중인 Sober는 사용자가 먼저 직접 종료해야 합니다. 다음 명령은 새로 시작하는 Sober에만 X11을 적용하며 지속적인 Flatpak override 설정을 저장하지 않습니다. 앱을 강제로 종료하는 명령도 실행하지 않습니다.
+
+```sh
+flatpak run --socket=x11 --nosocket=wayland --env=SDL_VIDEO_DRIVER=x11 org.vinegarhq.Sober
+```
+
+`--socket`·`--nosocket`은 실행 시 창 서버 연결을 지정하는 [Flatpak run 옵션](https://docs.flatpak.org/en/latest/flatpak-command-reference.html#flatpak-run)입니다. `SDL_VIDEO_DRIVER=x11`은 [SDL3의 비디오 드라이버 선택 변수](https://wiki.libsdl.org/SDL3/SDL_HINT_VIDEO_DRIVER)이며 SDL2의 `SDL_VIDEODRIVER`와 이름이 다릅니다.
+
+Headless 루트는 캡처 없이 이동·키 입력·대기를 처리합니다. Screenshot 루트가 관찰을 요청할 때 Sober 클라이언트 영역을 캡처해 공유 Rust 엔진에 전달합니다. 입력 전에 전면 창·창 크기·실행 세대를 확인하고, F3·F7이나 메인 정지 버튼으로 취소합니다.
+
+Linux 최적화 빌드와 격리된 X11에서 앱의 5초 시작·설정 초기화를 확인했습니다. Rust 기본 검사 31개, 별도로 실행한 실제 X11 캡처·입력 검사 1개, 화면 연결부 11개와 Python 회귀 5개를 통과했습니다. 실제 X11 검사에는 캡처에서 보정·Fish 클릭, 상대 이동, 정지·전면 변경·크기 변경 시 키 해제, F7과 이전 입력 거절, 창 종료 후 캡처 오류가 포함됩니다. Windows 타깃 코드 검사도 통과했습니다.
+
+격리 검사는 `xvfb-run -a env ACRUX_X11_TEST=1 cargo test --locked --manifest-path src-tauri/Cargo.toml --lib linux::tests::native_x11_capture_and_input -- --ignored --test-threads=1`로 실행합니다. 실제 사용자 화면에서 잘못 실행하지 않도록 전용 `DISPLAY=:90` 이상과 명시적인 시험 환경 변수가 필요합니다. Linux 빌드·검사·시작 확인을 `dev`의 Alpha 작업에 추가했습니다.
+
+현재 Codex 실행 환경에서는 실행 중인 Sober의 X11 연결에 접근하지 못해 실제 게임 검사를 수행하지 못했습니다. Sober에서 보정·낚시·이동·판매가 동작하는지는 미검증입니다. Linux Sober의 바이옴 로그 감시는 아직 연결하지 않았습니다. 위 Windows DUA 검사와 과거 Linux 앱 시작 기록은 새 Linux 게임 연결의 검증 결과와 구분합니다.
 
 ### Apple 빌드 확인
 
