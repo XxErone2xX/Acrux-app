@@ -15,7 +15,7 @@ public final class ReelControl {
      * EDGE_K_MAX = 미리 누르는 폭 자동 조절 범위 · RECLICK = 눌렀는데도 구간 밖에서 계속 떨어지면 이 시간 뒤 다시 누름 (초)
      * LEAD_MAX = 떨어지는 중엔 터치가 반영되기까지 걸린 시간만큼 미리 봄 — 그 최대 (초)
      */
-    public static final double EDGE_MARGIN = 0.06, EDGE_ZONE = 0.35, EDGE_K_MAX = 1.6, RECLICK = 0.06, LEAD_MAX = 0.15;
+    public static final double EDGE_MARGIN = 0.04, EDGE_ZONE = 0.35, EDGE_K_MAX = 1.6, RECLICK = 0.06, LEAD_MAX = 0.1;
 
     final Settings cfg;
     final List<double[]> hist = new ArrayList<>();    // (시각, 위치) 최근 5개

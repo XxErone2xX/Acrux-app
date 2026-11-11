@@ -27,6 +27,13 @@ Sol's RNG 용 Acrux macro — PC (윈도우) · 모바일 (안드로이드)
 
 Both links always point to the latest version.
 
+## 라이선스 · License
+
+Acrux (PC · 모바일 · 모드) 는 **GNU GPL v2 (GPL-2.0-only)** 로 배포됩니다 — 전문: [LICENSE](LICENSE)
+Acrux (PC · mobile · mods) is released under the **GNU GPL v2 (GPL-2.0-only)** — full text: [LICENSE](LICENSE)
+
+Copyright (C) 2026 얼로니 · Acrux contributors
+
 ---
 
 배포 · 빌드 방법 (개발용): [RELEASE.md](RELEASE.md) · 실험(알파) 버전: [docs/next.md](docs/next.md)

@@ -1,3 +1,13 @@
+## Acrux Mobile V1.4.18 업데이트
+- 릴링 미리 누르기 값 조정 [ PC V3.0.4 와 같음 ]
+  - 구간 끝에서 미리 누르는 여유: 바 폭의 6% → 4% [ 물고기 · 기기에 맞춰 0 ~ 1.6배로 자동 조절되는 건 그대로 ]
+  - 떨어지는 중에 앞을 내다보는 시간: 최대 0.15초 → 0.1초
+
+## Acrux Mobile V1.4.18 Update
+- Adjusted the reeling early-tap values [ same as PC V3.0.4 ]
+  - Early-tap margin at the zone edge: 6% → 4% of the bar width [ still auto-scaled 0 ~ 1.6x per fish · device ]
+  - Look-ahead while falling: up to 0.15 s → 0.1 s
+
 ## Acrux Mobile V1.4.17 업데이트
 - 판매 템플릿 4개 (2400x1080 · 2560x1600 · 3120x1440 두 개) 로 판매 버튼 찾기를 다시 맞춤
 - 잔디 위에서 [Sell Fish] 를 못 찾던 문제 수정

@@ -143,10 +143,10 @@ class ReelTests(unittest.TestCase):
     CFG = dict(fishing.DEFAULTS)
 
     def test_clicks_before_leaving_zone(self):
-        # 구간 (100~180) 안쪽 6% (바 폭 400 → 24px) 에 들어오면 누름 · 가운데보다 오른쪽은 안 누름
-        self.assertTrue(fishing.reel_decision(120, (100, 180), 0, self.CFG, 400))
-        self.assertFalse(fishing.reel_decision(130, (100, 180), 0, self.CFG, 400))
-        self.assertFalse(fishing.reel_decision(150, (100, 180), -500, self.CFG, 400, lead=0.15))
+        # 구간 (100~180) 안쪽 4% (바 폭 400 → 16px) 에 들어오면 누름 · 가운데보다 오른쪽은 안 누름
+        self.assertTrue(fishing.reel_decision(114, (100, 180), 0, self.CFG, 400))
+        self.assertFalse(fishing.reel_decision(120, (100, 180), 0, self.CFG, 400))
+        self.assertFalse(fishing.reel_decision(150, (100, 180), -500, self.CFG, 400, lead=0.1))
 
     def test_reclicks_while_still_falling_below_zone(self):
         ctl = fishing.ReelControl(self.CFG)
