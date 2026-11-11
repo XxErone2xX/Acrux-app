@@ -1,3 +1,15 @@
+## Acrux Mobile V1.4.11 업데이트
+- 던지는 동작이 느린 폰에서 낚시가 계속 취소되던 문제 수정
+  - Fish 를 누른 뒤 반응을 1.5초 → 3초까지 기다림 [ 전에는 다시 누른 게 Exit 가 돼서 취소됨 ]
+  - 낚시 자동 보정이 "Fish 를 눌러도 반응이 없음" 으로 끝나던 문제 · 자동 낚시가 인벤토리가 가득 찼다고 잘못 멈추던 문제
+- 낚시 자동 보정: 다시 누르기 전에 이미 던져졌는지 확인
+
+## Acrux Mobile V1.4.11 Update
+- Fixed fishing getting cancelled over and over on phones with a slow cast
+  - Waits up to 3 s (was 1.5 s) for the cast after tapping Fish [ the retry used to hit Exit and cancel it ]
+  - Fixes fishing auto-calibration ending with "no response to Fish" and auto fishing stopping with a false "inventory full"
+- Fishing auto-calibration checks whether the line is already cast before tapping again
+
 ## Acrux Mobile V1.4.10 업데이트
 - 앱 아이콘 변경
 

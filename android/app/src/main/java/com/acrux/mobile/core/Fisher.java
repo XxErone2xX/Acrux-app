@@ -5,7 +5,7 @@ import java.util.Map;
 
 /**
  * 자동 낚시 (제자리 낚시) — PC 버전 fishing.Fisher 의 상태 기계를 모바일용으로 옮김
- *   · 대기(파란 Fish) → Fish 터치 · 1.5초 안에 안 바뀌면 다시 · castRetry 번 넘으면 인벤토리 가득 → 정지
+ *   · 대기(파란 Fish) → Fish 터치 · CAST_WAIT 초 안에 안 바뀌면 다시 · castRetry 번 넘으면 인벤토리 가득 → 정지
  *   · 입질 대기(빨간 Exit) → 기다림 · biteMax 초 넘으면 Exit
  *   · 릴링(릴링 바가 보임) → 릴링 → Fish 가 다시 보일 때까지 결과창 X 를 0.1초마다 (그 사이 제목 색으로 결과 기록)
  *   · 알 수 없음 3초 이상 → X 한 번
@@ -56,6 +56,8 @@ public final class Fisher {
     /** 인벤토리 가득: 판매하고 돌아왔으면 true (낚시 이어감) · 못 하면 false (멈춤) */
     public java.util.function.BooleanSupplier onFull;
     public static final double RELOC_AFTER = 30;
+    /** Fish 를 누른 뒤 던지기 (Exit 로 바뀜) 를 기다리는 시간 — 느린 폰 · 렉에선 1.5초 넘게 걸림 (짧으면 다시 누른 게 Exit 가 돼서 취소됨) */
+    public static final double CAST_WAIT = 3.0;
 
     public Fisher(Screen scr, Input in, Out out, Settings cfg) {
         this.scr = scr;
@@ -297,7 +299,7 @@ public final class Fisher {
                 }
                 out.state("입질 기다리는 중");
             } else if ("idle".equals(st)) {
-                if (castAt == null || t - castAt > 1.5) {
+                if (castAt == null || t - castAt > CAST_WAIT) {
                     if (castAt != null) {
                         tries++;
                         if (tries >= cfg.castRetry) {
@@ -691,8 +693,21 @@ public final class Fisher {
             out.state("자동 보정: Fish 터치");
             boolean cast = false;
             for (int i = 0; i < 3 && !cast; i++) {
+                if (i > 0) {
+                    // 다시 누르기 전에 지금 버튼 확인 — 이미 던져졌으면 (Exit) 누르지 않음 (누르면 Exit 가 돼서 낚시가 취소됨)
+                    String bs = Vision.buttonState(grabBox(cfg.fishBtn));
+                    if (!"fish".equals(bs) && !"exit".equals(bs)) {
+                        sleep(1.0);                                  // 던지는 중 · 화면이 바뀌는 중 → 조금 더 보고
+                        bs = Vision.buttonState(grabBox(cfg.fishBtn));
+                    }
+                    if ("exit".equals(bs) || biting()) {
+                        cast = true;
+                        break;
+                    }
+                    if (!"fish".equals(bs)) continue;                // 아직 모름 → 누르지 않고 다음 확인
+                }
                 tapRatio(cfg.fishBtn);
-                double end = now() + 1.5;
+                double end = now() + CAST_WAIT;
                 while (now() < end) {
                     check();
                     if ("exit".equals(Vision.buttonState(grabBox(cfg.fishBtn))) || biting()) {
