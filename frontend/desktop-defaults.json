@@ -13,24 +13,12 @@
     "max_time": 300
   },
   "pop": {
-    "inventory_pos": null,
-    "items_pos": null,
-    "search_pos": null,
-    "item_pos": null,
-    "amount_pos": null,
-    "use_pos": null,
-    "ocr_region": null,
     "match_threshold": 70,
-    "delays": {},
-    "templates": {},
-    "biomes_on": {},
-    "favs": null
+    "delays": {}
   },
   "ret": {
     "ps_link": "",
-    "start_wait": 7.5,
-    "after_macro": true,
-    "steps": []
+    "start_wait": 7.5
   },
   "biome": {
     "enabled": false,

@@ -9,13 +9,13 @@ on:
   push:
     branches: [main, Crossplatform-test]
     paths: ["src-tauri/**", "frontend/**", "package.json", "package-lock.json", "tsconfig.json",
-            "android/app/src/main/assets/i18n/**", "src/web/**", ".github/workflows/alpha.yml"]
+            "android/app/src/main/assets/i18n/**", "src/web/**", "tests/**", ".github/workflows/alpha.yml"]
 
 permissions:
   contents: write
 
 concurrency:
-  group: alpha
+  group: alpha-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -91,6 +91,8 @@ jobs:
           {
             npm ci
             npm run build
+            npm run test:desktop
+            python -m unittest discover -s tests -v
             cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
             npm run tauri -- build --no-bundle --ci
           } 2>&1 | tee windows-build.log

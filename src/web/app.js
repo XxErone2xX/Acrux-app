@@ -79,7 +79,7 @@ function addDeco(el) {
 }
 
 // ---------------------------------------------------------------- 메뉴
-// step: 순서대로 번호 (모드가 쓰는 것 · 예: 스나이핑 모드 ① 링크 감지 → ② 접속 → ③ 오토 팝핑 → ④ 복귀)
+// step: 모드 메뉴의 순서 번호
 // 모드는 Mods.addMenu · Mods.addTab 으로 칸 · 탭을 더함 (아래 '모드 · 플러그인')
 // grad: 아이콘 칸 그라데이션 / decos: ㄱ 장식 네 모서리 색 [왼위, 오위, 왼아래, 오아래] / cls: 버튼에 붙일 이름
 const MENU = [
@@ -456,7 +456,7 @@ function selectSection(page, sec) {
   // 앞에서 빠지던 칸이 남아 있으면 정리 (빠르게 여러 번 누른 경우)
   page.querySelectorAll('.content .sec.leaving').forEach(unleave);
   if (move) {
-    // 나가는 칸은 지금 있던 그 자리 그대로 겹쳐 둠 (칸 위에 다른 줄이 있는 화면도 · 예: 디스코드 감지 설정의 감시 대상 줄)
+    // 나가는 칸은 지금 있던 그 자리 그대로 겹쳐 둠 (칸 위에 다른 줄이 있는 화면도)
     const box = { top: old.offsetTop, left: old.offsetLeft, width: old.offsetWidth, height: old.offsetHeight };
     old.classList.add('leaving');
     for (const k in box) old.style[k] = box[k] + 'px';
@@ -538,7 +538,7 @@ function renderSummary() {
 }
 
 let pending = {}, saveTimer = null;
-const LOCAL_KEYS = ['play', 'biome', 'pop', 'ret', 'snipe', 'mpop', 'mfish', 'mitem', 'mmerch', 'mcraft', 'mmatch', 'mblood', 'base', 'move'];
+const LOCAL_KEYS = ['play', 'biome', 'pop', 'ret', 'mpop', 'mfish', 'mitem', 'mmerch', 'mcraft', 'mmatch', 'mblood', 'base', 'move'];
 function queueSave(patch) {
   Object.assign(pending, patch);
   // 팝핑·바이옴·매크로 탭 설정은 화면 쪽 객체가 원본 (폼이 그 객체를 직접 고치므로 복사본으로 바꾸면 이후 수정이 사라짐)
@@ -604,7 +604,7 @@ function addLog(x) {
 $('clearLog').addEventListener('click', () => { $('log').innerHTML = ''; });
 
 // ---------------------------------------------------------------- 시작 / 중지 (메인 화면 기능별 버튼)
-// 바이옴 매크로 = 바이옴 매크로 설정의 켜기 · 매크로 = 매크로 탭 기능 전체 · 모드가 타일을 더 붙일 수 있음 (예: 오토 스나이핑)
+// 바이옴 매크로 = 바이옴 매크로 설정의 켜기 · 매크로 = 매크로 탭 기능 전체 · 모드가 타일을 더 붙일 수 있음
 const tile = k => document.querySelector(`.main-tile[data-main="${k}"]`);
 function setTile(k, on, btnText) {
   const t = tile(k);
@@ -643,9 +643,8 @@ function syncMainTiles() {
   setText($('mtBiome'), bOn ? `작동 중 · ${cur ? bioName(cur) : '바이옴 확인 중'}`
     : (bio().player ? '꺼짐' : '꺼짐 · 플레이어 이름 필요'));
   const mOn = !!config.macro_on, n = macroFeatures();
-  const sniping = !!(lastBio && lastBio.muted);
   setTile('macro', mOn, mOn ? '중지 · F3' : '시작 · F3');
-  if (tile('macro').classList.contains('wait') !== (mOn && sniping)) tile('macro').classList.toggle('wait', mOn && sniping);
+  tile('macro').classList.remove('wait');
   const mText = !mOn ? (n ? `꺼짐 · 기능 ${n}개 켜짐` : '꺼짐')
     : lastMpop && lastMpop.running ? (lastMpop.msg || '포션 사용 중')
     : lastMblood && lastMblood.running ? (lastMblood.msg || '블러드 레인 만드는 중')
@@ -654,11 +653,10 @@ function syncMainTiles() {
     : lastMcraft && lastMcraft.running ? (lastMcraft.msg || '포션 제작 중')
     : lastMmatch && lastMmatch.running ? (lastMmatch.msg || '메모리 매치 중')
     : lastMfish && lastMfish.running ? (lastMfish.msg || '낚시 중')
-    : sniping ? '스나이핑 중이라 대기'
     : n ? `작동 중 · 기능 ${n}개` : '켜진 기능 없음';
   setText($('mtMacro'), mText);
   // 매크로 설정 화면 위쪽: 매크로 버튼 상태
-  setData($('macroDot'), 's', mOn ? (sniping ? 'waiting' : 'flux') : '');
+  setData($('macroDot'), 's', mOn ? 'flux' : '');
   setText($('macroState'), mOn ? `매크로 켜짐 · ${mText}` : (n ? `매크로 꺼짐 · 기능 ${n}개 켜짐` : '매크로 꺼짐'));
   const on = [bOn && '바이옴 매크로', mOn && '매크로', ...Mods.emit('active')].filter(Boolean);
   setText($('modeText'), on.length ? `작동 중: ${on.join(' · ')}` : '모두 꺼짐 — 아래 버튼으로 켜기');
@@ -681,7 +679,7 @@ async function poll() {
     setStatus(r.status);
     r.logs.forEach(addLog);
     updateCrash(r.crash);
-    updatePlay(r.play, r.roblox, r.pop);
+    updatePlay(r.play, r.roblox);
     updateRet(r.ret);
     updateBiome(r.biome);
     updateMpop(r.mpop);
@@ -807,35 +805,26 @@ $('rbxJoin').addEventListener('click', async () => {
   toast('내 서버로 접속');
 });
 
-// 복구 · 게임 입장 위쪽: 게임 입장(Play 클릭) 상태 (모드 화면에도 [data-play-dot]) · 오토 팝핑 설정 위쪽 (모드): 오토 팝핑 상태
-function updatePlay(st, roblox, pst) {
+// 복구 · 게임 입장 위쪽의 Play 클릭 상태
+function updatePlay(st, roblox) {
   updateRbxNotice(roblox);
-  playBusy = !!(st && st.running) || !!(pst && pst.running);
+  playBusy = !!(st && st.running);
   setText($('robloxState'), roblox ? '로블록스 창 감지됨' : '로블록스 창 없음');
   if ($('robloxState').classList.contains('ok') !== !!roblox) $('robloxState').classList.toggle('ok', !!roblox);
   const running = !!(st && st.running);
   document.querySelectorAll('[data-play-dot]').forEach(d => setData(d, 's', running ? 'flux' : ''));
   document.querySelectorAll('[data-play-state]').forEach(t => setText(t, running ? (st.msg || '실행 중') : '대기'));
   $('playTest').disabled = running;
-  const popping = !!(pst && pst.running);
-  setData($('popDot'), 's', popping ? 'flux' : '');
-  setText($('popState'), popping ? (pst.msg || '오토 팝핑 중') : '대기');
-  document.querySelectorAll('[data-bio-test^="pop:"]').forEach(b => { b.disabled = popping; });
 }
 
 // ---------------------------------------------------------------- 오토 팝핑 (레어 바이옴 포션)
 const POP_POS = [['inventory_pos', 'Inventory 버튼'], ['items_pos', 'Items 버튼'], ['search_pos', 'Search 버튼'],
                  ['item_pos', '아이템 칸', '검색 결과 첫 칸'], ['amount_pos', '수량 입력칸'], ['use_pos', 'Use 버튼']];
-const POP_DELAYS = [['after_join', 'Play 후 게임 입장 → 시작', 7.5], ['inventory', 'Inventory 클릭 후', 0.5],
+const POP_DELAYS = [['inventory', 'Inventory 클릭 후', 0.5],
   ['items', 'Items 클릭 후', 0.5], ['search', 'Search 클릭 후', 0.5], ['typing', '아이템 이름 입력 + 엔터 후', 0.5],
   ['item_click', '아이템 클릭 후', 0.35], ['dbl_gap', '수량칸 더블클릭 간격', 0.1], ['after_dbl', '수량칸 더블클릭 후', 0.5],
   ['after_enter', '개수 입력 + 엔터 후', 0.35]];
 const POP_BIOMES = ['CYBERSPACE', 'GLITCHED', 'DREAMSPACE'];
-// 일반 스나이핑 바이옴 (레어 바이옴 말고 Windy · Snowy · Rainy 빼고 전부): 들어가서 바이옴이 끝날 때까지 머묾 · 팝핑은 골라서 (기본 꺼짐)
-// 엔진(biome.STAY_BIOMES)과 같은 순서
-const STAY_BIOMES = ['RADIANTFOREST', 'SINGULARITY', 'LOSTFOREST', 'BLOODRAIN', 'PUMPKINMOON', 'GRAVEYARD',
-                     'NULL', 'CORRUPTION', 'HEAVEN', 'STARFALL', 'HELL', 'SANDSTORM'];
-const SNIPE_BIOMES = [...POP_BIOMES, ...STAY_BIOMES];
 // 바이옴 키 → 보여줄 이름 (여러 낱말 바이옴은 키에 띄어쓰기가 없음)
 const BIOME_NAME = { LOSTFOREST: 'LOST FOREST', RADIANTFOREST: 'RADIANT FOREST', PUMPKINMOON: 'PUMPKIN MOON', BLOODRAIN: 'BLOOD RAIN' };
 const bioName = k => BIOME_NAME[k] || k;
@@ -874,11 +863,11 @@ const tplRowHTML = () => `
 function applyPosTemplate(name) {
   const t = POS_TEMPLATES[name];
   if (!t) return;
-  const p = play(), q = pop();
+  const p = play(), q = base();
   p.pos = [...t.pos]; p.skip_pos = [...t.skip_pos];
   for (const [k] of POP_POS) q[k] = [...t[k]];
   q.ocr_region = [...t.ocr_region];
-  showPlayPos(); renderPopSet(); savePlay(); savePop();
+  showPlayPos(); renderMpos('base'); savePlay(); queueSave({ base: structuredClone(base()) });
   toast(`${name} 템플릿 적용`);
   Tutorial.refresh();
 }
@@ -889,7 +878,7 @@ document.addEventListener('click', e => {
   const name = b.parentElement.querySelector('[data-pos-tpl]').value;
   const t = POS_TEMPLATES[name];
   const same = (a, c) => JSON.stringify(a || null) === JSON.stringify(c);
-  const custom = [['pos', play()], ['skip_pos', play()], ...POP_POS.map(([k]) => [k, pop()]), ['ocr_region', pop()]]
+  const custom = [['pos', play()], ['skip_pos', play()], ...POP_POS.map(([k]) => [k, base()]), ['ocr_region', base()]]
     .some(([k, o]) => o[k] && !same(o[k], t[k]));
   if (custom && !(b._armed > Date.now())) {
     b._armed = Date.now() + 3000;
@@ -904,68 +893,16 @@ document.addEventListener('click', e => {
   applyPosTemplate(name);
 });
 
-// 스나이프 오토 팝핑이 실제로 쓰는 위치 (공통 위치와 연동이면 공통 위치)
-const popPos = () => {
-  const p = pop(), b = base(), o = { ...p };
-  const [first, other] = p.use_base ? [b, p] : [p, b];
-  for (const k of POP_POS_KEYS) o[k] = first[k] || other[k];   // 고른 쪽에 비어 있으면 다른 쪽 값 (서버와 같게)
-  return o;
-};
-// 오토 스나이핑을 시작하는 데 필요한데 비어 있는 것 (서버 pop_missing 과 같게: Play · Click to skip + 인벤토리 버튼 6개 + OCR 영역)
-const playMissing = () => !config.play?.pos || !config.play?.skip_pos;
-const popPosMissing = () => !popPos().ocr_region || POP_POS.some(([k]) => !popPos()[k]);
-const popMissing = () => playMissing() || popPosMissing();
-function renderPopSet() {
-  if (!$('popSetForm')) return;                   // 오토 팝핑 화면은 스나이핑 모드에 있음
-  const box = $('popSetForm');
-  const p = pop(), linked = !!p.use_base, e = popPos();
-  const pick = (attr, k, label) => linked ? '' : `<button class="btn mini ghost" type="button" ${attr}${k ? `="${k}"` : ''}>${label}</button>`;
-  box.innerHTML = `
-    <label class="row"><span>매크로 공통 위치와 연동<small>켜면 매크로 설정 → 공통 위치의 인벤토리 위치 · OCR 영역을 같이 씀</small></span>
-      <span class="switch"><input type="checkbox" id="popLink" ${linked ? 'checked' : ''}><i></i></span></label>` +
-    (linked ? '' : tplRowHTML()) + POP_POS.map(([k, name, sub]) => `
-    <div class="row"><span>${name} 위치<small>${sub ? sub + ' · ' : ''}${linked ? '공통 위치와 같음' : '직접 지정 필요'}</small></span>
-      <span class="pos"><code class="${e[k] ? '' : 'unset'}" data-code="${k}">${fmtPos(e[k])}</code>
-      ${pick('data-pick', k, '위치 지정')}</span></div>`).join('') + `
-    <div class="row"><span>OCR 영역<small>검색 결과 아이템 이름·개수 (예: Warp Potion x23)${linked ? ' · 공통 위치와 같음' : ''}</small></span>
-      <span class="pos"><code class="${e.ocr_region ? '' : 'unset'}" id="popRegion">${fmtReg(e.ocr_region)}</code>
-      ${pick('id="popRegionPick"', '', '드래그로 지정')}
-      <button class="btn mini ghost" type="button" id="popOcrTest">OCR 테스트</button></span></div>
-    <label class="row"><span>이름 일치율 기준<small>이 이상 같아야 사용 · 아니면 다시 검색 후 건너뜀 (%)</small></span>
-      <input type="number" min="1" max="100" step="5" id="popThreshold" value="${p.match_threshold ?? 70}"></label>`;
-  $('popLink').addEventListener('change', ev => setPopLink(ev.target.checked));
-  box.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', async () => {
-    const k = b.dataset.pick, name = POP_POS.find(x => x[0] === k)[1];
-    const r = await pickWith(b, `로블록스 화면에서 ${name} 클릭`, () => api('pop_pos', { key: k }));
-    if (r) { pop()[k] = r.pos; renderPopSet(); savePop(); toast(`${name} 위치 저장`); Tutorial.refresh(); }
-  }));
-  $('popRegionPick')?.addEventListener('click', async e => {
-    const r = await pickWith(e.currentTarget, '로블록스 화면에서 드래그', () => api('pop_region'));
-    if (r) { pop().ocr_region = r.region; renderPopSet(); savePop(); toast('OCR 영역 저장'); Tutorial.refresh(); }
-  });
-  $('popOcrTest').addEventListener('click', async e => {
-    const b = e.currentTarget;
-    b.disabled = true; b.textContent = '읽는 중…';
-    try {
-      const r = await Promise.race([api('pop_ocr_test', {}), wait(25000).then(() => ({ error: 'OCR 응답 없음 · 로그 확인' }))]);
-      if (r.error) toast(r.error);
-      else toast((r.text ? `이름: ${r.name || '-'} · 개수: ${r.count ?? '표시 없음(1개)'}` : '읽은 글자 없음') + ` · ${r.engine}`);
-    } catch (err) { toast('OCR 오류: ' + err.message); }
-    finally { b.disabled = false; b.textContent = 'OCR 테스트'; }
-  });
-  $('popThreshold').addEventListener('input', e => {
-    const n = parseFloat(e.target.value);
-    if (n >= 1 && n <= 100) { pop().match_threshold = n; savePop(); }
-  });
-}
-
-function renderPopDelays() {
-  if (!$('popDelayForm')) return;
+function renderItemSettings(box) {
   const d = (pop().delays ||= {});
-  const box = $('popDelayForm');
-  box.innerHTML = POP_DELAYS.map(([k, name, def]) => `
+  box.innerHTML = `<label class="row"><span>이름 일치율 기준<small>아이템 사용 시 이름이 이 이상 같아야 사용 (%)</small></span>
+    <input type="number" min="1" max="100" step="5" data-item-threshold value="${pop().match_threshold ?? 70}"></label>` + POP_DELAYS.map(([k, name, def]) => `
     <label class="row"><span>${name}<small>기본 ${def}초</small></span>
       <input type="number" min="0" step="0.05" data-delay="${k}" value="${d[k] ?? def}"></label>`).join('');
+  box.querySelector('[data-item-threshold]').addEventListener('input', e => {
+    const value = Number(e.target.value);
+    if (Number.isFinite(value) && value >= 1 && value <= 100) { pop().match_threshold = value; savePop(); }
+  });
   box.querySelectorAll('[data-delay]').forEach(i => i.addEventListener('input', () => {
     const n = parseFloat(i.value);
     if (Number.isFinite(n) && n >= 0) { d[i.dataset.delay] = n; savePop(); }
@@ -973,12 +910,12 @@ function renderPopDelays() {
 }
 
 // src: 설정 묶음 (오토 팝핑 pop / 매크로 탭 mpop) · save: 저장 · attr: 템플릿 칸 표시
-function renderTemplate(b, src = pop, save = savePop, attr = 'data-tpl') {
-  const tpls = (src().templates ||= {});
+function renderTemplate(b, save = saveMpop) {
+  const tpls = (mpop().templates ||= {});
   const t = (tpls[b] ||= { mode: 'all', items: [] });
-  const box = document.querySelector(`.tpl[${attr}="${b}"]`);
+  const box = document.querySelector(`.tpl[data-mtpl="${b}"]`);
   if (!box) return;
-  const again = () => renderTemplate(b, src, save, attr);
+  const again = () => renderTemplate(b, save);
   box.innerHTML = `
     <label class="row"><span>사용 방식<small>목록 위쪽일수록 먼저 · 목록이 비어 있으면 이 바이옴에선 오토 팝핑 안 함</small></span>
       <select data-mode><option value="all">목록 전부 순서대로</option><option value="one">위에서부터 조건 맞는 하나만</option></select></label>
@@ -1028,77 +965,57 @@ function renderTemplate(b, src = pop, save = savePop, attr = 'data-tpl') {
   });
 }
 
-// ---------------------------------------------------------------- 바이옴별 팝핑 칸 (켜기 + 포션 목록 · 이름을 누르면 펼침)
-// 오토 팝핑(pop · 스나이프 탭)과 레어 바이옴 자동 팝핑(mpop · 매크로 탭)이 같이 씀
-const BIO_LABEL = { CYBERSPACE: 'Cyberspace', GLITCHED: 'Glitched', DREAMSPACE: 'Dreamspace',
-                    RADIANTFOREST: 'Radiant Forest', SINGULARITY: 'Singularity', LOSTFOREST: 'Lost Forest',
-                    BLOODRAIN: 'Blood Rain', PUMPKINMOON: 'Pumpkin Moon', GRAVEYARD: 'Graveyard', NULL: 'Null',
-                    CORRUPTION: 'Corruption', HEAVEN: 'Heaven', STARFALL: 'Starfall', HELL: 'Hell', SANDSTORM: 'Sandstorm' };
-// 일반 스나이핑 바이옴은 기본 꺼짐 (꺼져 있으면 들어가서 팝핑 없이 바이옴이 끝날 때까지 머묾) · 레어 바이옴은 기본 켜짐
-const popOn = b => { const on = pop().biomes_on || {}; return STAY_BIOMES.includes(b) ? on[b] === true : on[b] !== false; };
+// ---------------------------------------------------------------- 내 서버의 레어 바이옴별 포션 목록
+const BIO_LABEL = { CYBERSPACE: 'Cyberspace', GLITCHED: 'Glitched', DREAMSPACE: 'Dreamspace' };
 const mpopOn = b => (mpop().biomes_on || {})[b] !== false;
-const BIO_KIND = {
-  pop: { src: () => pop(), save: () => savePop(), attr: 'data-tpl', on: 'data-pop-on', isOn: popOn, def: 'pop_default', test: 'pop_test',
-         testMsg: '오토 팝핑 테스트 시작 · 인벤토리 열기부터 · 정지: 위쪽 [정지] 또는 F7' },
-  mpop: { src: () => mpop(), save: () => saveMpop(), attr: 'data-mtpl', on: 'data-mpop-on', isOn: mpopOn, def: 'mpop_default', test: 'mpop_test',
-          testMsg: '레어 바이옴 자동 팝핑 테스트 시작 · 인벤토리 열기부터 · 정지: 위쪽 [정지] 또는 F7' },
-};
-const bioOpen = new Set();          // 펼쳐 둔 칸 ('pop:GLITCHED')
-function bioCardHTML(kind, b) {
-  const K = BIO_KIND[kind], id = `${kind}:${b}`, open = bioOpen.has(id);
+const bioOpen = new Set();          // 펼쳐 둔 칸
+function bioCardHTML(b) {
+  const id = `mpop:${b}`, open = bioOpen.has(id);
   return `
     <div class="bio-card${open ? ' open' : ''}${RARE.includes(b) ? ' rare' : ''}" data-bio-card="${id}">
       <div class="bio-top">
         <button class="bio-open" type="button" data-bio-toggle="${id}" aria-expanded="${open}"><span class="caret">${icon('chev')}</span>
           <b>${BIO_LABEL[b]}</b><span class="bio-sum" data-bio-sum="${id}"></span></button>
-        <label class="switch"><input type="checkbox" ${K.on}="${b}" ${K.isOn(b) ? 'checked' : ''}><i></i></label>
+        <label class="switch"><input type="checkbox" data-mpop-on="${b}" ${mpopOn(b) ? 'checked' : ''}><i></i></label>
       </div>
       <div class="bio-body"><div class="bio-in">
-        <div class="form tpl" ${K.attr}="${b}"></div>
+        <div class="form tpl" data-mtpl="${b}"></div>
         <div class="bio-acts"><button class="btn ghost mini" type="button" data-bio-default="${id}">기본 템플릿으로</button>
           <button class="btn mini" type="button" data-bio-test="${id}">이 템플릿 테스트</button></div>
       </div></div>
     </div>`;
 }
 // 접힌 칸에 보이는 요약: 켜짐/꺼짐 · 포션 개수 · 사용 방식
-function syncBioSum(kind, b) {
-  const K = BIO_KIND[kind], el = document.querySelector(`[data-bio-sum="${kind}:${b}"]`);
+function syncBioSum(b) {
+  const el = document.querySelector(`[data-bio-sum="mpop:${b}"]`);
   if (!el) return;
-  const t = (K.src().templates || {})[b] || {}, n = (t.items || []).filter(it => (it.name || '').trim()).length;
-  const stay = kind === 'pop' && STAY_BIOMES.includes(b);
+  const t = (mpop().templates || {})[b] || {}, n = (t.items || []).filter(it => (it.name || '').trim()).length;
   let text, warn = false;
-  if (!K.isOn(b)) text = stay ? '꺼짐 · 팝핑 없이 바이옴이 끝날 때까지 머묾' : kind === 'pop' ? '꺼짐 · 들어가서 바로 복귀' : '꺼짐';
+  if (!mpopOn(b)) text = '꺼짐';
   else if (!n) { text = '포션 목록이 비어 있음 — 팝핑 안 함'; warn = true; }
   else text = `포션 ${n}개 · ${t.mode === 'one' ? '조건 맞는 하나만' : '전부 순서대로'}`;
   el.textContent = text;
   el.classList.toggle('warn', warn);
-  el.closest('.bio-card')?.classList.toggle('off', !K.isOn(b));
+  el.closest('.bio-card')?.classList.toggle('off', !mpopOn(b));
 }
-function renderBioList(kind) {
-  const K = BIO_KIND[kind];
-  const lists = kind === 'pop' ? [['popBioRare', POP_BIOMES], ['popBioStay', STAY_BIOMES]] : [['mpopBio', POP_BIOMES]];
-  for (const [id, bs] of lists) {
-    if (!$(id)) continue;                        // 스나이핑 모드가 없으면 오토 팝핑 바이옴 칸도 없음
-    $(id).innerHTML = bs.map(b => bioCardHTML(kind, b)).join('');
-    bs.forEach(b => {
-      renderTemplate(b, K.src, () => { K.save(); syncBioSum(kind, b); }, K.attr);
-      syncBioSum(kind, b);
-    });
-  }
+function renderBioList() {
+  $('mpopBio').innerHTML = POP_BIOMES.map(bioCardHTML).join('');
+  POP_BIOMES.forEach(b => {
+    renderTemplate(b, () => { saveMpop(); syncBioSum(b); });
+    syncBioSum(b);
+  });
 }
 // 켜기 스위치: 같은 바이옴 스위치(바이옴별 칸 · 메인 화면 ▾)는 전부 같은 설정
-function setBioOn(kind, b, v) {
-  const K = BIO_KIND[kind];
-  (K.src().biomes_on ||= {})[b] = !!v;
-  K.save();
-  document.querySelectorAll(`[${K.on}="${b}"]`).forEach(i => { i.checked = !!v; });
-  syncBioSum(kind, b);
+function setBioOn(b, v) {
+  (mpop().biomes_on ||= {})[b] = !!v;
+  saveMpop();
+  document.querySelectorAll(`[data-mpop-on="${b}"]`).forEach(i => { i.checked = !!v; });
+  syncBioSum(b);
   Quick.sync();
 }
 document.addEventListener('change', e => {
   const t = e.target;
-  if (t.dataset.popOn) setBioOn('pop', t.dataset.popOn, t.checked);
-  else if (t.dataset.mpopOn) setBioOn('mpop', t.dataset.mpopOn, t.checked);
+  if (t.dataset.mpopOn) setBioOn(t.dataset.mpopOn, t.checked);
 });
 document.addEventListener('click', async e => {
   const tg = e.target.closest('[data-bio-toggle]');
@@ -1113,33 +1030,26 @@ document.addEventListener('click', async e => {
   }
   const df = e.target.closest('[data-bio-default]'), ts = e.target.closest('[data-bio-test]');
   if (df) {
-    const [kind, b] = df.dataset.bioDefault.split(':'), K = BIO_KIND[kind];
-    const r = await api(K.def, { biome: b });
+    const b = df.dataset.bioDefault.split(':')[1];
+    const r = await api('mpop_default', { biome: b });
     if (r.error) return toast(r.error);
-    (K.src().templates ||= {})[b] = r.template;
-    renderTemplate(b, K.src, () => { K.save(); syncBioSum(kind, b); }, K.attr);
-    syncBioSum(kind, b); Tutorial.refresh();
+    (mpop().templates ||= {})[b] = r.template;
+    renderTemplate(b, () => { saveMpop(); syncBioSum(b); });
+    syncBioSum(b); Tutorial.refresh();
     toast('기본 템플릿으로 되돌림');
   } else if (ts) {
-    const [kind, b] = ts.dataset.bioTest.split(':'), K = BIO_KIND[kind];
+    const b = ts.dataset.bioTest.split(':')[1];
     await flushSave();                                // 방금 고친 포션 목록으로 테스트
-    const r = await api(K.test, { biome: b });
-    toast(r.error || K.testMsg);
+    const r = await api('mpop_test', { biome: b });
+    toast(r.error || '레어 바이옴 자동 팝핑 테스트 시작 · 인벤토리 열기부터 · 정지: 위쪽 [정지] 또는 F7');
   }
 });
-
-function fillPop() {
-  renderPopSet();
-  renderBioList('pop');
-  renderPopDelays();
-}
 
 // ---------------------------------------------------------------- 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버)
 // 포션 목록 · 켜진 바이옴은 따로(mpop), 버튼 위치 · OCR 영역은 공통 위치(base), 딜레이 · 일치율은 오토 팝핑(pop) 설정을 같이 씀
 const mpop = () => (config.mpop ||= {});
 const base = () => (config.base ||= {});         // 공통 위치 (인벤토리 위치 · OCR 영역 · 알림 영역 …)
 const saveMpop = () => queueSave({ mpop: JSON.parse(JSON.stringify(mpop())) });
-const POP_POS_KEYS = ['inventory_pos', 'items_pos', 'search_pos', 'item_pos', 'amount_pos', 'use_pos', 'ocr_region'];
 // 기능 칸 맨 위: 켜기 · 준비 상태 (필요한 위치 · 장소가 다 지정됐는지)
 const onRow = (k, sub) => `
     <label class="row on-row"><span>켜기<small>${sub}</small></span>
@@ -1156,7 +1066,7 @@ function renderMpop() {
     <label class="row"><span>다 쓰고 인벤토리 닫기<small>Inventory 버튼을 한 번 더 눌러 닫음</small></span>
       <span class="switch"><input type="checkbox" id="mpopClose" ${m.close_inventory !== false ? 'checked' : ''}><i></i></span></label>
     <div class="row"><span>버튼 위치 · OCR 영역<small>공통 위치 → 인벤토리 를 씀</small></span><span>공통 위치와 같음</span></div>
-    <div class="row"><span>딜레이 · 이름 일치율<small>오토 팝핑 설정(스나이프 탭)에 지정한 것을 같이 씀</small></span><span>오토 팝핑과 같음</span></div>`;
+    <div class="row"><span>딜레이 · 이름 일치율<small>공통 위치 → 인벤토리에서 설정</small></span><span>공통 설정과 같음</span></div>`;
   $('mpopDelay').addEventListener('input', e => {
     const n = parseFloat(e.target.value);
     if (n >= 0 && n <= 60) { m.start_delay = n; saveMpop(); }
@@ -1166,7 +1076,7 @@ function renderMpop() {
 }
 function fillMpop() {
   renderMpop();
-  renderBioList('mpop');
+  renderBioList();
 }
 function updateMpop(st) {
   const running = !!(st && st.running);
@@ -1274,7 +1184,7 @@ function renderMblood() {
     <label class="row"><span>다 쓰고 인벤토리 닫기<small>Inventory 버튼을 한 번 더 눌러 닫음</small></span>
       <span class="switch"><input type="checkbox" id="mbloodClose" ${m.close_inventory !== false ? 'checked' : ''}><i></i></span></label>
     <div class="row"><span>버튼 위치 · OCR 영역<small>공통 위치 → 인벤토리 를 씀</small></span><span>공통 위치와 같음</span></div>
-    <div class="row"><span>딜레이 · 이름 일치율<small>오토 팝핑 설정(스나이프 탭)에 지정한 것을 같이 씀</small></span><span>오토 팝핑과 같음</span></div>`;
+    <div class="row"><span>딜레이 · 이름 일치율<small>공통 위치 → 인벤토리에서 설정</small></span><span>공통 설정과 같음</span></div>`;
   $('mbloodDelay').addEventListener('input', e => {
     const n = parseFloat(e.target.value);
     if (n >= 0 && n <= 60) { m.start_delay = n; saveMblood(); }
@@ -1500,7 +1410,7 @@ document.addEventListener('change', e => {
 // feat: 설정 묶음 (base = 여러 기능이 같이 쓰는 공통 위치 / mfish = 자동 낚시만 …) · points: [키, 이름, 설명] · region: [키, 이름, 설명]
 // 저장은 서버(api)에서 · windows: 창 영역(드래그) → 안쪽 위치를 서버가 계산
 const MPOS = {
-  base: { box: 'mposBase', link: true,
+  base: { box: 'mposBase',
           points: [...POP_POS.map(([k, n, sub]) => [k, n, sub || '']),
                    ['chat_pos', '채팅 버튼', '왼쪽 위의 채팅 버튼'],
                    ['collection_pos', '도감 버튼', '왼쪽 메뉴의 도감(Collection · 책 모양) 버튼'],
@@ -1509,8 +1419,8 @@ const MPOS = {
           regions: [['ocr_region', 'OCR 영역', '검색 결과 아이템 이름·개수 (예: Warp Potion x23)'],
                     ['notice_region', '알림 영역', '오른쪽 알림 카드 자리를 넉넉히 드래그']],
           // 칸: [id, 이름, 설명, 들어갈 항목, 맨 위에 연동 줄을 넣을지, 따로 그리는 부분(MPOS_CUSTOM)]
-          tabs: [['inv', '인벤토리', '쓰는 기능: 레어 바이옴 자동 팝핑 · 오토 아이템 사용 · 상인 자동 구매 · 블러드 레인 자동 생성 (스나이프 오토 팝핑과 연동 가능)',
-                  [...POP_POS.map(([k]) => k), 'ocr_region'], true],
+          tabs: [['inv', '인벤토리', '쓰는 기능: 레어 바이옴 자동 팝핑 · 오토 아이템 사용 · 상인 자동 구매 · 블러드 레인 자동 생성',
+                  [...POP_POS.map(([k]) => k), 'ocr_region'], false, 'itemuse'],
                  ['notice', '알림', '쓰는 기능: 자동 낚시 (인벤토리 가득) · 포션 자동 제작 (Auto Crafted)', ['notice_region']],
                  ['ui', '대화창', '쓰는 기능: 자동 낚시 (판매) · 상인 자동 구매', ['dialog_pos']],
                  ['move', '이동 · 기준 장소', '모든 이동의 출발점 (리셋 → 카메라 정렬 → 걷기 → 줌) · 쓰는 기능: 자동 낚시 · 포션 자동 제작 · 오토 메모리 매치',
@@ -1576,9 +1486,6 @@ function renderMpos(feat) {
   const items = {};
   d.points.forEach(([k, name, sub]) => { items[k] = row(k, `${name} 위치`, sub, c[k], fmtPos, '위치 지정', 'data-mpos-pick'); });
   regions.forEach(([k, name, sub]) => { items[k] = row(k, name, sub, c[k], fmtReg, '드래그로 지정', 'data-mpos-region'); });
-  const link = d.link ? `
-    <label class="row"><span>스나이프 오토 팝핑과 연동<small>켜면 스나이프 탭 오토 팝핑도 이 위치를 씀</small></span>
-      <span class="switch"><input type="checkbox" data-mpos-link ${pop().use_base ? 'checked' : ''}><i></i></span></label>` : '';
   // 묶음마다 따로 칸(카드)으로 나눠서 보여 줌 · 제목 옆에 지정한 개수 / 전체 개수
   box.innerHTML = d.tabs.map(([id, name, sub, keys, top, custom, pre]) => {
     const n = keys.filter(k => c[k]).length;
@@ -1586,10 +1493,9 @@ function renderMpos(feat) {
     <div class="grp mpos-group" data-mpos-group="${id}">
       <div class="grp-head"><b>${name}</b>${keys.length ? `<em class="${n === keys.length ? 'done' : ''}">${n}/${keys.length}</em>` : ''}</div>
       <p class="grp-desc">${sub}</p>
-      <div class="card form mpos-card">${pre ? `<div data-mpos-custom="${pre}"></div>` : ''}${top ? link : ''}${keys.map(k => items[k] || '').join('')}${custom ? `<div data-mpos-custom="${custom}"></div>` : ''}</div></div>`;
+      <div class="card form mpos-card">${pre ? `<div data-mpos-custom="${pre}"></div>` : ''}${keys.map(k => items[k] || '').join('')}${custom ? `<div data-mpos-custom="${custom}"></div>` : ''}</div></div>`;
   }).join('');
   box.querySelectorAll('[data-mpos-custom]').forEach(renderMoveCustom);
-  box.querySelector('[data-mpos-link]')?.addEventListener('change', e => setPopLink(e.target.checked));
   box.querySelectorAll('[data-mpos-pick]').forEach(b => b.addEventListener('click', async () => {
     const k = b.dataset.mposPick, name = d.points.find(x => x[0] === k)[1];
     const r = await pickWith(b, `로블록스 화면에서 ${name} 클릭`, () => api('mpos_point', { feat, key: k }));
@@ -1641,7 +1547,8 @@ const moveCall = async (name, args, msg) => { const r = await api(name, args); t
 // data-mpos-custom: 'movebase' (공통 위치 → 기준 장소) / 'places:기능' (그 기능이 가는 장소)
 function renderMoveCustom(el) {
   const [kind, feat] = el.dataset.mposCustom.split(':');
-  if (kind === 'movebase') MPOS_CUSTOM.movebase(el);
+  if (kind === 'itemuse') renderItemSettings(el);
+  else if (kind === 'movebase') MPOS_CUSTOM.movebase(el);
   else if (kind === 'sell') MPOS_CUSTOM.sell(el);
   else if (kind === 'fishauto' || kind === 'sellauto' || kind === 'merchauto' || kind === 'craftauto' || kind === 'matchauto' || kind === 'boardauto' || kind === 'movebaserev') MPOS_CUSTOM[kind](el);
   else MPOS_CUSTOM.places(el, feat);
@@ -1917,25 +1824,10 @@ function updateMove(st) {
 // 위치는 서버가 이미 저장함 → 화면만 다시 그림 (준비 상태 · ▾ · 왼쪽 목록 표시도)
 function mposChanged(feat) {
   renderMpos(feat);
-  if (feat === 'base') renderPopSet();           // 연동이면 오토 팝핑 위치 칸도 같은 위치
   syncAllReady();
   Jump.refresh();
   setTimeout(() => Tutorial.refresh(), 0);
 }
-// 스나이프 탭 오토 팝핑 ↔ 공통 위치 연동 (양쪽 화면에서 같은 스위치)
-function setPopLink(on) {
-  pop().use_base = !!on; savePop();
-  // 누른 스위치가 움직이는 걸 먼저 보여 주고 (바로 다시 그리면 스위치가 새로 생겨서 애니메이션이 안 보임) 끝나면 다시 그림
-  document.querySelectorAll('#popLink, [data-mpos-link]').forEach(i => { i.checked = !!on; });
-  clearTimeout(setPopLink.timer);
-  setPopLink.timer = setTimeout(() => { renderMpos('base'); renderPopSet(); syncAllReady(); Tutorial.refresh(); }, 230);
-  toast(on ? '스나이프 오토 팝핑이 공통 위치를 씀' : '스나이프 오토 팝핑은 따로 지정한 위치를 씀');
-}
-$('mposPopCopy').addEventListener('click', async () => {
-  const r = await api('mpos_copy_pop');
-  if (r.error) return toast(r.error);
-  Object.assign(base(), r.base); mposChanged('base'); toast('오토 팝핑 위치를 가져옴');
-});
 $('mposPopOcr').addEventListener('click', async e => {
   const b = e.currentTarget;
   b.disabled = true;
@@ -2049,7 +1941,7 @@ function syncFeatItems() {
 }
 
 // ---------------------------------------------------------------- 메인 화면 ▾ — 세부 기능을 그 자리에서 바로 켜고 끔
-// 매크로: 기능 7개 (+ 전부 켜기 · 끄기) · 모드 타일의 ▾ 는 Quick.add 로 (예: 오토 스나이핑 — 팝핑할 바이옴 · 끝나고 할 일)
+// 매크로: 기능 7개 (+ 전부 켜기 · 끄기) · 모드 타일의 ▾ 는 Quick.add 로
 const Quick = (() => {
   let open = null;
   const providers = {};     // 모드: {render(panel), sync(panel), click(e) → true 면 처리함 (다시 그림), reset() (열 때), wide}
@@ -2385,283 +2277,6 @@ function updateRet(st) {
   $('retTest').disabled = run;
 }
 
-// ---------------------------------------------------------------- 직접 만드는 매크로 (동작 목록 편집기)
-// 매크로 복귀 → 커스텀 매크로 (스나이핑이 끝나고 내 서버에 들어가면 실행)
-const STEP_DEFS = {
-  key:    { label: '키 입력',           make: () => ({ key: 'e', count: 1, hold: 40, gap: 100 }) },
-  combo:  { label: '키 조합',           make: () => ({ keys: 'ctrl+l', count: 1, hold: 40, gap: 100 }) },
-  click:  { label: '마우스 클릭',       make: () => ({ x: null, y: null, button: 'left', count: 1, gap: 150 }) },
-  wait:   { label: '대기',              make: () => ({ ms: 1000 }) },
-  text:   { label: '글자 입력',         make: () => ({ text: '', enter: false, gap: 20 }) },
-  scroll: { label: '스크롤',            make: () => ({ amount: -3, gap: 100 }) },
-  run:    { label: '프로그램 실행',     make: () => ({ path: '', args: '', wait_ms: 1000 }) },
-  kill:   { label: '프로그램 강제 종료', make: () => ({ exe: '', gap: 300 }) },
-  focus:  { label: '창 맨 앞으로',      make: () => ({ target: 'roblox', title: '', exe: '', wait_ms: 3000 }) },
-};
-let KEY_LIST = [];
-
-function field(label, input, wide) {
-  const w = document.createElement('label');
-  w.className = 'f' + (wide ? ' wide' : '');
-  w.innerHTML = '<span></span>';
-  w.firstChild.textContent = label;
-  w.appendChild(input);
-  return w;
-}
-function btn(label, fn) {
-  const b = document.createElement('button');
-  b.className = 'btn mini ghost'; b.type = 'button'; b.textContent = label;
-  b.addEventListener('click', () => fn(b));
-  return b;
-}
-
-// 시간 값: 화면에선 초 (0.1초), 저장은 ms (100) — 키 입력 등은 컴퓨터에 그대로 보냄 (로블록스 전용 아님)
-function makeStepEditor({ list, save, addBar, listEl, emptyEl, types }) {
-  const num = (obj, key, min = 0) => {
-    const i = document.createElement('input');
-    i.type = 'number'; i.min = min; i.value = obj[key] ?? '';
-    i.addEventListener('input', () => { const n = parseInt(i.value, 10); if (Number.isFinite(n)) { obj[key] = n; save(); } });
-    return i;
-  };
-  const sec = (obj, key) => {
-    const i = document.createElement('input');
-    i.type = 'number'; i.min = 0; i.step = 0.05;
-    i.value = obj[key] == null ? '' : +(obj[key] / 1000).toFixed(3);
-    i.addEventListener('input', () => { const n = parseFloat(i.value); if (Number.isFinite(n) && n >= 0) { obj[key] = Math.round(n * 1000); save(); } });
-    return i;
-  };
-  const text = (obj, key, ph = '') => {
-    const i = document.createElement('input');
-    i.value = obj[key] ?? ''; i.placeholder = ph; i.spellcheck = false;
-    i.addEventListener('input', () => { obj[key] = i.value; save(); });
-    return i;
-  };
-  const select = (obj, key, options, onChange) => {
-    const s = document.createElement('select');
-    for (const [v, t] of options) { const o = document.createElement('option'); o.value = v; o.textContent = t; s.appendChild(o); }
-    s.value = obj[key];
-    s.addEventListener('change', () => { obj[key] = s.value; save(); onChange && onChange(); });
-    return s;
-  };
-  const check = (obj, key, label) => {
-    const w = document.createElement('label');
-    w.className = 'f chk';
-    w.innerHTML = `<input type="checkbox" ${obj[key] ? 'checked' : ''}><span></span>`;
-    w.lastChild.textContent = label;
-    w.firstChild.addEventListener('change', e => { obj[key] = e.target.checked; save(); });
-    return w;
-  };
-
-  addBar.dataset.tctx = 'step';
-  function renderAdd() {
-    addBar.innerHTML = '';
-    for (const type of types) {
-      const d = STEP_DEFS[type];
-      addBar.appendChild(btn('+ ' + d.label, () => {
-        const s = { type, enabled: true, ...d.make() };
-        list().push(s);
-        save(); render();
-        listEl.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }));
-    }
-  }
-
-  function render() {
-    const L = list();
-    listEl.innerHTML = '';
-    emptyEl.style.display = L.length ? 'none' : '';
-    L.forEach((s, i) => {
-      const card = document.createElement('div');
-      card.className = 'step' + (s.enabled === false ? ' off' : '');
-      card.dataset.i = i;
-      const head = document.createElement('div');
-      head.className = 'step-head';
-      head.dataset.tctx = 'step';
-      head.innerHTML = `<span class="grip" title="드래그해서 순서 바꾸기"><i></i><i></i></span><span class="num">${i + 1}</span><b>${STEP_DEFS[s.type]?.label || s.type}</b>
-        <label class="switch small"><input type="checkbox" ${s.enabled === false ? '' : 'checked'}><i></i></label>
-        <span class="grow"></span>
-        <button class="ib" data-a="up" title="위로">↑</button><button class="ib" data-a="down" title="아래로">↓</button>
-        <button class="ib" data-a="dup" title="복제">⧉</button><button class="ib del" data-a="del" title="삭제">${icon('x')}</button>`;
-      head.querySelector('.grip').addEventListener('pointerdown', e => dragStep(e, card, i));
-      head.querySelector('input').addEventListener('change', e => { s.enabled = e.target.checked; card.classList.toggle('off', !s.enabled); save(); });
-      head.querySelectorAll('.ib').forEach(b => b.addEventListener('click', () => {
-        const a = b.dataset.a;
-        if (a === 'up' && i > 0) [L[i - 1], L[i]] = [L[i], L[i - 1]];
-        else if (a === 'down' && i < L.length - 1) [L[i + 1], L[i]] = [L[i], L[i + 1]];
-        else if (a === 'dup') L.splice(i + 1, 0, JSON.parse(JSON.stringify(s)));
-        else if (a === 'del') L.splice(i, 1);
-        else return;
-        save(); render();
-      }));
-      const body = document.createElement('div');
-      body.className = 'step-body';
-      const add = (...els) => els.forEach(e => body.appendChild(e));
-      switch (s.type) {
-        case 'key':
-          add(field('키', select(s, 'key', KEY_LIST.map(k => [k, k.toUpperCase()]))),
-              field('횟수', num(s, 'count', 1)), field('누르는 시간 (초)', sec(s, 'hold')),
-              field('간격 (초)', sec(s, 'gap')));
-          break;
-        case 'combo': {
-          const inp = text(s, 'keys', '예: ctrl+l / ctrl+shift+esc / alt+f4');
-          inp.addEventListener('change', async () => {
-            const r = await api('combo_check', { keys: inp.value });
-            inp.classList.toggle('bad', !!r.error);
-            toast(r.error ? r.error : '키 조합: ' + r.keys.map(k => k.toUpperCase()).join(' + '));
-          });
-          add(field('키 조합 (+ 로 연결)', inp, true), field('횟수', num(s, 'count', 1)),
-              field('누르는 시간 (초)', sec(s, 'hold')), field('간격 (초)', sec(s, 'gap')));
-          break;
-        }
-        case 'click': {
-          const box = document.createElement('div');
-          box.className = 'pos';
-          const val = document.createElement('code');
-          const show = () => { val.textContent = s.x == null ? '지정 안 됨' : `${pct(s.x)}, ${pct(s.y)}`; val.classList.toggle('unset', s.x == null); };
-          show();
-          box.append(val, btn('위치 지정', async b => {
-            const r = await pickWith(b, '로블록스 화면에서 클릭', () => api('pick_point_overlay'));
-            if (r) { s.x = r.x; s.y = r.y; show(); save(); toast('위치 저장'); }
-          }));
-          add(field('위치 (로블록스 창 기준)', box), field('버튼', select(s, 'button', [['left', '왼쪽'], ['right', '오른쪽']])),
-              field('횟수', num(s, 'count', 1)), field('간격 (초)', sec(s, 'gap')));
-          break;
-        }
-        case 'wait':
-          add(field('시간 (초)', sec(s, 'ms')));
-          break;
-        case 'text':
-          add(field('글자', text(s, 'text', '입력할 글자'), true), field('글자 간격 (초)', sec(s, 'gap')),
-              check(s, 'enter', '입력 후 엔터'));
-          break;
-        case 'scroll':
-          add(field('양 (음수 = 아래)', num(s, 'amount', -100)), field('간격 (초)', sec(s, 'gap')));
-          break;
-        case 'run': {
-          const path = text(s, 'path', '예: C:\\Program Files\\...\\program.exe');
-          path.style.flex = '1';
-          const box = document.createElement('div');
-          box.className = 'pos';
-          box.append(path, btn('찾아보기', async b => {
-            const r = await pickWith(b, '파일 고르는 중…', () => api('pick_file'));
-            if (r) { s.path = r.path; path.value = r.path; save(); }
-          }));
-          add(field('프로그램 (exe · 바로가기 · bat 등)', box, true), field('실행 옵션 (선택)', text(s, 'args', '예: --minimized')),
-              field('실행 후 대기 (초)', sec(s, 'wait_ms')));
-          break;
-        }
-        case 'kill': {
-          const exe = text(s, 'exe', '예: Discord.exe, Spotify.exe');
-          const pickSel = windowPicker(w => { s.exe = w.exe; exe.value = w.exe; save(); toast('프로그램 선택: ' + w.exe); }, true);
-          add(field('종료할 프로그램 (여러 개는 , 로 구분)', exe, true), field('열린 프로그램', pickSel), field('종료 후 대기 (초)', sec(s, 'gap')));
-          break;
-        }
-        case 'focus': {
-          const other = document.createElement('div');
-          other.className = 'step-body'; other.style.padding = '0'; other.style.flexBasis = '100%';
-          const title = text(s, 'title', '예: Discord / Chrome');
-          const exe = text(s, 'exe', '예: Discord.exe');
-          const pickSel = windowPicker(w => {
-            s.title = w.title; s.exe = w.exe; title.value = w.title; exe.value = w.exe; save();
-            toast('창 선택: ' + (w.exe || w.title));
-          });
-          other.append(field('열린 창', pickSel, true), field('창 제목에 들어간 글자', title, true),
-                       field('프로그램 이름 (선택)', exe), field('창 기다리기 (초)', sec(s, 'wait_ms')));
-          const sync = () => { other.style.display = s.target === 'roblox' ? 'none' : ''; };
-          add(field('맨 앞으로 가져올 창', select(s, 'target', [['roblox', '로블록스'], ['window', '다른 창 (프로그램)']], sync)), other);
-          sync();
-          break;
-        }
-      }
-      card.append(head, body);
-      listEl.appendChild(card);
-    });
-  }
-
-  // 왼쪽 II 를 잡고 끌어서 순서 바꾸기 (다른 카드는 비켜 주고, 놓으면 그 자리로)
-  function dragStep(e, card, from) {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    const cards = [...listEl.children];
-    const rects = cards.map(c => c.getBoundingClientRect());
-    const step = rects.length > 1 ? rects[1].top - rects[0].top : rects[0].height;
-    const shift = rects[from].height + (rects.length > 1 ? rects[1].top - rects[0].bottom : 8);
-    const sc = listEl.closest('.sec');
-    const y0 = e.clientY, s0 = sc ? sc.scrollTop : 0;
-    let to = from, lastY = y0, timer = null;
-    card.classList.add('dragging');
-    listEl.classList.add('sorting');
-    const update = () => {
-      const dy = lastY - y0 + (sc ? sc.scrollTop - s0 : 0);
-      card.style.transform = `translateY(${u(dy)}px)`;
-      const mid = rects[from].top + rects[from].height / 2 + dy;
-      to = from;
-      rects.forEach((r, k) => {
-        const m = r.top + r.height / 2;
-        if (k < from && mid < m) to = Math.min(to, k);
-        if (k > from && mid > m) to = Math.max(to, k);
-      });
-      cards.forEach((c, k) => {
-        if (k === from) return;
-        const sft = from < to && k > from && k <= to ? -shift : to < from && k >= to && k < from ? shift : 0;
-        c.style.transform = sft ? `translateY(${u(sft)}px)` : '';
-      });
-    };
-    // 목록 위·아래 끝 근처로 끌면 자동으로 스크롤
-    const edge = () => {
-      if (!sc) return;
-      const r = sc.getBoundingClientRect(), m = 48 * Z;
-      const v = lastY < r.top + m ? -10 : lastY > r.bottom - m ? 10 : 0;
-      if (v) { sc.scrollTop += v; update(); }
-    };
-    const move = ev => { lastY = ev.clientY; update(); };
-    const up = () => {
-      removeEventListener('pointermove', move);
-      removeEventListener('pointerup', up);
-      removeEventListener('pointercancel', up);
-      clearInterval(timer);
-      listEl.classList.remove('sorting');
-      const L = list();
-      if (to !== from) {
-        L.splice(to, 0, L.splice(from, 1)[0]);
-        save();
-      }
-      render();
-    };
-    addEventListener('pointermove', move);
-    addEventListener('pointerup', up);
-    addEventListener('pointercancel', up);
-    timer = setInterval(edge, 30);
-  }
-
-  let last = null;
-  function setRunning(st) {
-    const running = st && st.running;
-    const key = running ? st.step : -1;
-    if (key === last) return;
-    last = key;
-    listEl.querySelectorAll('.step').forEach(c => c.classList.toggle('now', running && +c.dataset.i === st.step));
-  }
-  return { renderAdd, render, setRunning };
-}
-
-// 열린 창 / 프로그램 고르기 (byExe: 프로그램 이름 기준으로 중복 제거)
-function windowPicker(onPick, byExe = false) {
-  const sel = document.createElement('select');
-  const blank = byExe ? '열린 프로그램에서 고르기…' : '열린 창에서 고르기…';
-  sel.innerHTML = `<option value="">${blank}</option>`;
-  sel.addEventListener('focus', async () => {
-    const r = await api('list_windows');
-    let ws = r.windows || [];
-    if (byExe) ws = ws.filter((w, n) => w.exe && ws.findIndex(x => x.exe === w.exe) === n);
-    sel._list = ws;
-    sel.innerHTML = `<option value="">${blank}</option>` + ws.map((w, n) =>
-      `<option value="${n}">${byExe ? esc(w.exe) + ' — ' + esc(w.title) : esc(w.title) + (w.exe ? ' — ' + esc(w.exe) : '')}</option>`).join('');
-  });
-  sel.addEventListener('change', () => { const w = (sel._list || [])[+sel.value]; if (w) onPick(w); sel.value = ''; });
-  return sel;
-}
-
 // ---------------------------------------------------------------- 바이옴 매크로
 const bio = () => (config.biome ||= { enabled: false, player: '', ps_link: '', webhooks: ['', ''], everyone: {}, roles: {} });
 // 덜 희귀한 것 → 희귀한 것 (멘션 설정에는 거꾸로: 희귀한 것부터)
@@ -2781,7 +2396,7 @@ function updateBiome(st) {
 
 // ---------------------------------------------------------------- 튜토리얼
 // 안내 단계는 [다음]으로, 조작 단계는 사용자가 강조된 곳을 직접 눌러야 넘어감
-// 순서 (자동으로 이어질 때): 바이옴 매크로 → ① 링크 감지 → ② 접속 → 게임 입장 · ③ 오토 팝핑 → ④ 복귀 → 매크로
+// 바이옴 · 기능별 설정 안내
 const Tutorial = (() => {
   const el = $('tut'), card = $('tutCard'), spot = $('tutSpot');
   let i = -1, focusEl = null, moved = false, chain = false, skipCount = 0;
@@ -3113,7 +2728,7 @@ const Tutorial = (() => {
     $('tutBody').innerHTML = (s.gif ? `<div class="tut-gif"><img src="tut/${s.gif}.gif" alt=""></div>` : '') + s.body;
     $('tutBody').querySelector('.tut-gif img')?.addEventListener('load', () => place(false), { once: true });
     $('tutPrev').style.visibility = i > 0 && !last ? '' : 'hidden';
-    // 전체 스킵: 감시 대상 튜토리얼은 항상 / 바이옴 튜토리얼은 첫 안내에서만 [나중에]
+    // 전체 건너뛰기와 첫 안내의 [나중에] 처리
     const skipAll = !last && (tut.skipAll || s.later);
     $('tutSkip').style.display = skipAll ? '' : 'none';
     skipCount = 0;
@@ -3237,7 +2852,7 @@ const Tutorial = (() => {
     }
   }, true);
   $('bioTutorialBtn').addEventListener('click', () => start('biome'));
-  // 게임 입장 위치 안내는 스나이핑 모드의 오토 팝핑 튜토리얼에 있음 (모드가 없으면 버튼을 숨김 · init)
+  // 게임 입장 안내가 등록되어 있을 때 버튼을 표시
   $('playTutorialBtn').addEventListener('click', () => start('popping', false, { play: true }));
   document.querySelectorAll('[data-feat-tut]').forEach(b => b.addEventListener('click', () => {
     end(); Tutorial.featureOn(b.dataset.featTut, true);
@@ -3305,7 +2920,7 @@ const Tutorial = (() => {
 window.addEventListener('acrux-desktop-error', e => toast(e.detail));
 
 // ---------------------------------------------------------------- 모드 · 플러그인
-// 모드 = 설정 탭 · 화면이 있는 큰 기능 (예: 스나이핑) · 플러그인 = 화면 없이 뒤에서 도는 작은 기능
+// 모드 = 설정 탭 · 화면이 있는 큰 기능 · 플러그인 = 화면 없이 뒤에서 도는 작은 기능
 // 모드 화면: mod.json 의 ui.html (화면 · data-mod-into="선택자" 가 붙은 건 그 안으로) · ui.css · ui.js — 켤 때 init 에서 붙임
 // 모드 JS 는 이 파일의 함수 · 값을 그대로 씀 (api · config · queueSave · toast · $ · MENU · TABS …) + 아래 Mods
 const Mods = (() => {
@@ -3362,7 +2977,7 @@ const Mods = (() => {
         }
         if (m.ui.js && !(await loadScript(m.ui.js))) console.warn('mod js', m.id);
       } catch (e) { console.warn('mod ui', m.id, e); }
-    }    // 메인 타일을 탭 순서대로 (예: 바이옴 → 스나이핑 → 매크로) — 원래 있던 것처럼
+    }    // 메인 타일을 탭 순서대로 (탭 순서) — 원래 있던 것처럼
     const box = $('mains'), at = el => {
       const i = TABS.indexOf(el.querySelector('[data-tab-go]')?.dataset.tabGo);
       return i < 0 ? TABS.length : i;
@@ -3448,7 +3063,6 @@ setTimeout(() => document.body.classList.remove('booting'), 4000);   // 켜다�
   setTab(config.menu_tab || 'macro', false);
   document.body.classList.remove('booting');
   fillPlay();
-  fillPop();
   fillRet();
   fillBiome();
   fillMpop();

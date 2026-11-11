@@ -26,7 +26,8 @@ function load(): Config {
       config[key] = { ...structuredClone(value), ...(config[key] as Bag ?? {}) };
     }
   }
-  if (!["biome", "macro", "acrux"].includes(String(config.menu_tab))) config.menu_tab = "macro";
+  removeRetiredSettings(config);
+  if (!["biome", "macro", "extra", "acrux"].includes(String(config.menu_tab))) config.menu_tab = "macro";
   for (const [key, name, feat, count] of [
     ["fish_spot", "낚시 장소", "mfish", 1], ["sell_spot", "물고기 판매 장소", "mfish", 1],
     ["craft_spot", "포션 제작 장소", "mcraft", 2], ["match_spot", "메모리 매치 장소", "mmatch", 1],
@@ -35,12 +36,40 @@ function load(): Config {
       config.move.places.push({ key, name, feat, points: Array.from({ length: count }, () => ({ pos: null, time: null })) });
     }
   }
+  try { localStorage.setItem(key, JSON.stringify(config)); } catch (error) { console.warn("설정 정리 저장 실패", error); }
   return config;
+}
+
+function removeRetiredSettings(config: Config) {
+  // Discard retired feature settings while preserving inventory coordinates used by other macros.
+  const previousItems = config.pop as Bag;
+  for (const key of ["inventory_pos", "items_pos", "search_pos", "item_pos", "amount_pos", "use_pos", "ocr_region"]) {
+    if (!config.base[key] && previousItems[key]) config.base[key] = previousItems[key];
+  }
+  const { after_join: _retiredJoinDelay, ...delays } = previousItems.delays as Bag ?? {};
+  config.pop = { match_threshold: previousItems.match_threshold ?? 70, delays };
+  const recovery = config.ret as Bag;
+  config.ret = { ps_link: recovery.ps_link ?? "", start_wait: recovery.start_wait ?? 7.5 };
+  for (const key of [
+    "auto_restart_discord", "autostart", "beep", "channel_ids", "channels", "discord", "discord_connect",
+    "enabled", "guild_ids", "ignore_words", "keywords", "max_age_sec", "names", "open_link", "prime",
+    "show_all_links", "snipe", "sniping", "stable_join", "ai", "print_all_links", "run_on_link",
+    "cooldown_sec", "kill_multiscope", "popping", "debug_port",
+  ]) delete config[key];
+  for (const key of ["mods", "mod_settings"]) {
+    if (config[key] && typeof config[key] === "object") {
+      const { sniping: _retiredMod, ...settings } = config[key] as Bag;
+      config[key] = settings;
+    }
+  }
 }
 
 const config = load();
 const saved = () => ({ config: structuredClone(config) });
-const persist = () => localStorage.setItem(key, JSON.stringify({ ...config, macro_on: false }));
+const persist = () => {
+  removeRetiredSettings(config);
+  localStorage.setItem(key, JSON.stringify({ ...config, macro_on: false }));
+};
 const modsError = "PC 3.0의 Python 모드는 아직 Tauri에 이식되지 않았습니다.";
 const stopped = ["stopped", "중지됨"];
 const tuningKeys = {
@@ -216,7 +245,7 @@ async function request(name: string, payload: Bag) {
       const online = await invoke<{ share: boolean }>("online_status");
       config.online_share = online.share;
       applyStatus(s);
-      return { ...saved(), version: s.version, status: stopped, armed: false, mods: [], mods_error: modsError };
+      return { ...saved(), version: s.version, status: stopped, mods: [], mods_error: modsError };
     }
     case "poll": {
       const s = await status();
@@ -240,9 +269,9 @@ async function request(name: string, payload: Bag) {
       const logs = s.message === last ? [] : [{ seq: ++seq, time: Date.now() / 1000, msg: s.message, color: "d" }];
       last = s.message;
       return {
-        biome: { current: biome.current, history: biome.history, owner: biome.owner, log: biome.watching, muted: false },
+        biome: { current: biome.current, history: biome.history, owner: biome.owner, log: biome.watching },
         online: online.online, online_on: true,
-        seq, logs, events: [], status: stopped, count: 0, armed: false,
+        seq, logs, status: stopped,
         roblox: s.gameAvailable, macro_on: config.macro_on, move,
         mfish: { running: s.phase !== "idle", msg: s.message, stats: s.stats },
       };

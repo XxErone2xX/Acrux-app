@@ -12,7 +12,7 @@ import threading
 import time
 
 APP_ID = "Acrux.Macro"
-TITLE_KEY = "Acrux snipe"          # 창 제목 (index.html 의 <title>) 에 들어 있는 글자
+TITLE_KEY = "Acrux macro"          # 창 제목 (index.html 의 <title>) 에 들어 있는 글자
 
 
 def _api():

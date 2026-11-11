@@ -31,10 +31,6 @@ TARGET_BIOMES = {"WINDY", "SNOWY", "RAINY", "SANDSTORM", "HELL", "STARFALL", "HE
 # 웹후크 썸네일 이미지가 있는 바이옴 (없는 바이옴은 썸네일 없이 보냄)
 THUMB_BIOMES = {"WINDY", "SNOWY", "RAINY", "SANDSTORM", "HELL", "STARFALL", "HEAVEN",
                 "CORRUPTION", "NULL", "GLITCHED", "DREAMSPACE", "CYBERSPACE", "SINGULARITY"}
-# 스나이핑 바이옴 — 레어 바이옴(팝핑 후 복귀) 말고 들어가서 바이옴이 끝날 때까지 머무는 바이옴 (Windy · Snowy · Rainy 빼고 전부)
-# popping · core · 스나이핑 모드가 같이 씀 · 화면(app.js STAY_BIOMES)도 같은 순서
-STAY_BIOMES = ("RADIANTFOREST", "SINGULARITY", "LOSTFOREST", "BLOODRAIN", "PUMPKINMOON", "GRAVEYARD",
-               "NULL", "CORRUPTION", "HEAVEN", "STARFALL", "HELL", "SANDSTORM")
 # 여러 낱말 바이옴의 보여줄 이름 (키는 띄어쓰기 없이)
 _SHOW = {"LOSTFOREST": "LOST FOREST", "RADIANTFOREST": "RADIANT FOREST", "PUMPKINMOON": "PUMPKIN MOON", "BLOODRAIN": "BLOOD RAIN"}
 
@@ -77,27 +73,6 @@ def norm_biome(name):
 def show_name(b):
     """키 → 보여줄 이름 ('LOSTFOREST' → 'LOST FOREST')"""
     return _SHOW.get(b, b or "")
-
-
-# 디스코드 메시지에 적힌 바이옴 (스나이핑할 때 어떤 바이옴 서버인지 미리 알기) — 앞에 있을수록 먼저
-# (키, 붙여 쓴 글자 안에서 찾을 말, 낱말 단위로만 찾을 말) — hell · null · heaven 은 hello · nullify · heavenly 에 들어 있어서 낱말로만
-_HINTS = (("CYBERSPACE", ("cyberspace", "cyber"), ()), ("DREAMSPACE", ("dreamspace", "dream"), ()),
-          ("GLITCHED", ("glitched", "glitch"), ()), ("RADIANTFOREST", ("radiantforest", "radiant"), ()),
-          ("SINGULARITY", ("singularity", "singular"), ()), ("LOSTFOREST", ("lostforest",), ()),
-          ("BLOODRAIN", ("bloodrain",), ()), ("PUMPKINMOON", ("pumpkinmoon",), ()), ("GRAVEYARD", ("graveyard",), ()),
-          ("NULL", (), ("null",)), ("CORRUPTION", ("corruption",), ()), ("HEAVEN", (), ("heaven",)),
-          ("STARFALL", ("starfall",), ()), ("HELL", (), ("hell",)), ("SANDSTORM", ("sandstorm",), ()))
-
-
-def biome_hint(text):
-    """메시지 글자 → 스나이핑 대상 바이옴 키 또는 None (띄어쓰기 · 기호는 무시: 'The Lost Forest' · 'lost-forest')"""
-    t = re.sub(r"(?:https?|roblox)://\S+", " ", str(text or ""))          # 링크 속 글자(서버 코드)는 빼고
-    spaced = " " + re.sub(r"[^0-9a-z]+", " ", unicodedata.normalize("NFKD", t).lower()) + " "
-    squash = spaced.replace(" ", "")
-    for key, inside, whole in _HINTS:
-        if any(w in squash for w in inside) or any(f" {w} " in spaced for w in whole):
-            return key
-    return None
 
 
 def read_new(path, pos):
@@ -325,7 +300,7 @@ class BiomeWatcher:
 
     def __init__(self, get_cfg, is_active, log_dir=None, on_change=None):
         self.get_cfg = get_cfg          # () -> biome 설정 dict
-        self.on_change = on_change      # (이전, 새 바이옴, 스나이핑 접속인지) — 바이옴이 바뀔 때마다 (웹후크와 무관)
+        self.on_change = on_change      # (이전, 새 바이옴) — 바이옴이 바뀔 때마다 (웹후크와 무관)
         self.is_active = is_active      # () -> 웹후크를 보낼 상태인지 (바이옴 매크로 토글 켜짐)
         self.log_dir = log_dir
         self.current = None             # 지금 바이옴 (예: 'GLITCHED')
@@ -342,30 +317,6 @@ class BiomeWatcher:
         self.history = []               # [(time, biome)]
         self.pending = None             # 계정 확인 전에 읽은 바이옴 (확인되면 적용)
         self.last_player = None
-        # 스나이핑(다른 사람 서버) 접속: 그 접속의 로그 파일 동안은 바이옴 웹후크를 안 보냄
-        self.mute_pending, self.mute_base, self.muted_file = False, None, None
-        self.mute_at = 0.0
-
-    def mute_next_session(self):
-        """링크로 다른 서버에 접속할 때 호출 — 다음에 새로 생기는 로그 파일(= 그 접속) 동안 웹후크 끔"""
-        self.mute_base = latest_log(self.log_dir)
-        self.mute_at = time.time()
-        self.mute_pending = True
-
-    def own_next_session(self):
-        """내 서버로 들어갈 때 호출 (매크로 복귀 · 내 브섭 바로 접속) — 다음 접속은 내 서버라 웹후크를 다시 보냄
-        스나이핑 접속이 로블록스를 못 띄웠으면 '다음 접속은 조용히' 가 남아서 내 서버가 조용해지던 문제를 막음
-        (스나이핑 접속의 로그가 이미 생겼는데 아직 못 읽었으면 그 로그만 조용히)"""
-        if not self.mute_pending:
-            return
-        p = _scan_latest(Path(self.log_dir or LOG_DIR))      # 캐시 말고 지금 폴더 그대로
-        if p and p != self.mute_base:
-            self.muted_file = p
-        self.mute_pending = False
-
-    def muted(self):
-        return bool(self.file) and self.file == self.muted_file
-
     def start(self):
         if self.thread and self.thread.is_alive():
             return
@@ -373,7 +324,7 @@ class BiomeWatcher:
         self.thread.start()
 
     def state(self):
-        return {"current": self.current, "log": bool(self.file), "owner": self.file_owner, "muted": self.muted(),
+        return {"current": self.current, "log": bool(self.file), "owner": self.file_owner,
                 "history": self.history[-50:]}
 
     # 설정값
@@ -410,22 +361,14 @@ class BiomeWatcher:
             return
 
         path = latest_log(self.log_dir)
-        if self.mute_pending and time.time() - self.mute_at > 900:
-            self.mute_pending = False            # 15분 동안 스나이핑 접속이 안 생김 → 접속 못 한 것 (다음 접속을 조용히 하지 않음)
         if path is None:
             self.file = None
             return
         new_file = path != self.file
         if new_file:
-            if self.file and self.file == self.muted_file:
-                self.current = None              # 스나이핑 접속에서 본 바이옴은 내 서버로 이어서 알리지 않음
             self.file, self.pos, self.file_owner, self.pending = path, 0, None, None
             self.fresh = True                    # 이 파일을 처음 읽는 중 (기존 기록은 알림 안 보냄)
             self.left_sent = False
-            if self.mute_pending and path != self.mute_base:
-                self.mute_pending, self.muted_file = False, path
-                self.current = None
-                _log("다른 서버 접속 (스나이핑) — 이번 접속 동안 바이옴 웹후크 안 보냄", "y")
 
         try:
             text, self.pos = read_new(path, self.pos)     # 끝까지 써진 줄만 (반쯤 써진 줄은 다음에)
@@ -467,7 +410,7 @@ class BiomeWatcher:
         if any(DISCONNECT_MARK in ln for ln in lines) and not self.left_sent:
             self.left_sent = True
             _log("로블록스 접속 끊김 감지 (로그)", "y")
-            if active and hooks and not self.muted():
+            if active and hooks:
                 send_all(hooks, exit_payload(player))
 
         fresh, self.fresh = getattr(self, "fresh", False), False
@@ -482,14 +425,14 @@ class BiomeWatcher:
         _log(f"바이옴: {show_name(prev) or '-'} → {show_name(found)}", "g" if found in RARE_BIOMES else "c")
         if self.on_change:
             try:
-                self.on_change(prev, found, self.muted())
+                self.on_change(prev, found)
             except Exception as e:
                 _log(f"바이옴 변경 처리 오류: {e}", "r")
 
         # 앱을 켜거나 이름을 바꾼 직후 읽은 기존 기록이면 알림 없이 현재 바이옴만 맞춤
         if fresh and prev is None:
             return
-        if not (active and hooks) or self.muted():
+        if not (active and hooks):
             return
         uptime = fmt_uptime(time.time() - (self.active_since or time.time()))
         ps = (cfg.get("ps_link") or "").strip()

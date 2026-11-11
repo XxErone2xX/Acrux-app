@@ -23,5 +23,5 @@ android/local.properties
 # Apple generated projects
 /src-tauri/gen/apple/
 
-# 모드 소스 (스나이핑 등) 는 저장소에 안 올림 — 모드 파일 (.acrux) 로만 배포 · mods/build.py 로 만듦
+# 모드 소스는 저장소에 안 올림 — 모드 파일 (.acrux) 로만 배포 · mods/build.py 로 만듦
 /mods/*/

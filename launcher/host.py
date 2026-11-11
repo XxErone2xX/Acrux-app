@@ -23,12 +23,10 @@ if os.environ.get("ACRUX_HOST_ANALYZE") == "1":
     import gc, zlib, importlib, importlib.util  # noqa
     import tkinter, tkinter.filedialog, tkinter.messagebox, tkinter.ttk  # noqa
     import winreg, winsound  # noqa
-    import websocket  # noqa
     import mss, mss.tools  # noqa
     import numpy  # noqa
     import cv2  # noqa
     import rapidocr_onnxruntime  # noqa
-    import zstandard  # noqa  (디스코드 통신 압축 풀기)
     import winrt.windows.foundation, winrt.windows.foundation.collections, winrt.windows.globalization  # noqa
     import winrt.windows.graphics.imaging, winrt.windows.media.ocr, winrt.windows.storage.streams  # noqa
 

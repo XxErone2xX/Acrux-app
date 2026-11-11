@@ -113,7 +113,7 @@ class PlayClicker:
                 if not stop.is_set():
                     self.log("로블록스 창이 안 떠서 Play 클릭 취소", "r")
                 return
-            # 스나이핑으로 클라이언트가 새로 뜬 경우: 바로 맨 앞으로 끌어옴
+            # 게임 입장으로 클라이언트가 새로 뜬 경우: 바로 맨 앞으로 끌어옴
             macro.focus(hwnd, wait=0.1)
             fg = "맨 앞으로 가져옴" if macro.is_foreground(hwnd) else "맨 앞으로 못 가져옴"
             self.log(f"로블록스 창 감지 ({fg}) — {wait0:g}초 뒤 Play / Click to skip 클릭", "d")
@@ -177,7 +177,7 @@ class PlayClicker:
             self._set(msg="대기")
             if not watch.hit_file and not stop.is_set() and self.on_fail and reason != "테스트" and gen == self.gen:
                 def fail():
-                    if gen == self.gen:             # 그 사이 새 접속(스나이핑)이 시작됐으면 무시
+                    if gen == self.gen:             # 그 사이 새 접속이 시작됐으면 무시
                         self.on_fail(reason)
                 threading.Thread(target=fail, daemon=True).start()
 
@@ -185,13 +185,12 @@ class PlayClicker:
 class Returner:
     """매크로 복귀: 모든 로블록스 클라이언트 종료 → 1초 → 내 브섭 링크로 접속 → Play 클릭"""
 
-    def __init__(self, get_cfg, log, play, kill, launch, before_launch=None):
+    def __init__(self, get_cfg, log, play, kill, launch):
         self.get_cfg = get_cfg          # () -> ret 설정 dict
         self.log = log
         self.play = play                # PlayClicker
         self.kill = kill                # () -> 로블록스 전부 종료
         self.launch = launch            # (링크) -> 실행
-        self.before_launch = before_launch   # () — 내 서버 링크를 열기 직전 (바이옴 웹후크 다시 켜기)
         self.stop_ev = threading.Event()
         self.thread = None
         self.lock = threading.Lock()
@@ -233,8 +232,6 @@ class Returner:
                 self.log("매크로 복귀 정지", "d")
                 return
             self._set(msg="내 서버로 접속")
-            if self.before_launch:
-                self.before_launch()
             self.launch(link)
             self.play.start("복귀")
         except Exception as e:

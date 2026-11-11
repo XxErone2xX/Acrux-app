@@ -25,6 +25,8 @@ jobs:
       - name: Check Rust core
         run: |
           npm run build
+          npm run test:desktop
+          python3 -m unittest discover -s tests -v
           cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
       - name: Build universal application
         run: npm run build:macos -- --ci
