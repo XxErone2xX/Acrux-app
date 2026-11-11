@@ -1,9 +1,11 @@
-## Acrux macro V3.0.2 업데이트
-- 자동 낚시와 자동 보정의 던지기 대기를 모바일과 같은 3초로 조정
-- 보정의 첫 입력부터 Exit·입질 상태를 확인해 진행 중인 낚시를 취소하지 않도록 수정
-- 재입력·인벤토리 가득 참 판정 직전에 낚시 상태를 다시 확인
+## Acrux macro V3.0.3 업데이트
+- 릴링 성공률 개선
+  - 구간을 벗어나기 조금 전에 미리 누름 [ 전에는 구간 왼쪽 끝까지 떨어진 뒤에 눌러서 매번 구간 밖으로 나갔다 들어왔음 ]
+  - 눌렀는데도 구간 밖에서 계속 떨어지면 바로 다시 누름 [ 전에는 0.2초씩 기다려서 세게 당기는 물고기를 놓쳤음 ]
+  - 미리 누르는 폭은 물고기 · PC 에 맞춰 자동 조절 [ 오른쪽으로 넘어가면 줄이고, 왼쪽으로 빠지면 늘림 ]
 
-## Acrux macro V3.0.2 Update
-- Matched the mobile app's 3-second cast wait in auto fishing and calibration
-- Check for an existing cast or bite before the first calibration click to avoid cancelling ongoing fishing
-- Recheck the fishing state before retrying Fish or reporting a full inventory
+## Acrux macro V3.0.3 Update
+- Better reeling success rate
+  - Clicks slightly before the marker leaves the fish zone [ it used to click only after falling to the zone's left edge, so it left the zone every time ]
+  - Clicks again right away if the marker keeps falling outside the zone [ it used to wait 0.2 s and lost hard-pulling fish ]
+  - The early-click margin adjusts itself to the fish and the PC [ smaller after overshooting right, larger after dropping out left ]

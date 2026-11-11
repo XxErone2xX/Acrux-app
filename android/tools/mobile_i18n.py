@@ -589,6 +589,10 @@ E = [
     ["다음은 이동 · 판매 설정입니다. 자동 낚시는 낚시 장소로 이동하고, 가득 차면 팔고 돌아오기 때문에 이 설정까지 마쳐야 시작됩니다.\n\nAcrux 창의 [시작] 을 누르면 남은 설정 안내가 이어서 표시됩니다.",
      "Next is the movement · selling setup. Auto fishing walks to the fishing spot and goes to sell when your inventory is full, so it only starts once this is set up too.\n\nTap [Start] in the Acrux window and the remaining setup guide will follow.",
      "次は移動・販売の設定です。自動釣りは釣り場へ移動し、いっぱいになったら売って戻るため、この設定まで終えると開始できます。\n\nAcrux ウィンドウの [開始] を押すと、残りの設定案内が続けて表示されます。"],
+    # V1.4.14: 화면 캡처가 끊긴 걸 알려 줌
+    ["화면 캡처가 검은 화면만 받음", "Screen capture is only getting a black screen", "画面キャプチャが黒い画面しか受け取れていない"],
+    ["화면 캡처가 멈춤 (새 화면이 안 들어옴)", "Screen capture froze (no new frames)", "画面キャプチャが止まった (新しい画面が来ない)"],
+    ["다른 화면 녹화 앱이 켜져 있으면 끄고, 앱에서 [화면 캡처 시작] 을 다시 눌러 주세요", "if another screen recorder is running, stop it, then tap [Start screen capture] in the app again", "他の画面録画アプリが動いていたら止めて、アプリで [画面キャプチャ開始] をもう一度押してください"],
 ]
 
 

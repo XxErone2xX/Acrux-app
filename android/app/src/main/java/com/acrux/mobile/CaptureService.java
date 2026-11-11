@@ -30,6 +30,8 @@ import java.nio.ByteBuffer;
 /**
  * 화면 캡처 (MediaProjection) — 자동 낚시가 화면 색을 보는 데 씀 · 녹화 · 저장은 안 함
  * 화면이 돌아가면(세로 → 가로) 캡처 크기도 맞춰 바꿈
+ * 캡처가 끊겼는지 지켜봄: 다른 화면 녹화 앱이 켜지면 기종에 따라 검은 화면만 오거나 새 화면이 안 옴 (마지막 화면에 멈춤)
+ *  → 매크로가 '낚시 창을 못 찾음' 으로만 끝나서 이유를 몰랐음 → 기록 · 알림으로 알려 줌
  */
 public class CaptureService extends Service implements Fisher.Screen {
     static volatile CaptureService active;
@@ -43,6 +45,12 @@ public class CaptureService extends Service implements Fisher.Screen {
     long checkedAt;
     HandlerThread thread;
     Handler handler;
+    // 캡처 상태: 마지막으로 새 화면이 온 때 · 검은 화면인지 (1초에 한 번 확인) · 마지막 경고
+    volatile long frameAt, blackAt, blackSince;
+    volatile boolean black;
+    long warnedAt;
+    // 검은 화면은 6초 넘게 이어질 때만 (로블록스 로딩 · 리셋 때 잠깐 검은 화면은 괜찮음)
+    static final long STALE_MS = 8000, BLACK_MS = 6000, WARN_GAP_MS = 30000;
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -92,6 +100,7 @@ public class CaptureService extends Service implements Fisher.Screen {
             reader = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 3);
             vd = mp.createVirtualDisplay("acrux", w, h, dpi, DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, reader.getSurface(), null, handler);
             active = this;
+            frameAt = SystemClock.uptimeMillis();
             Hub.log("화면 캡처 시작 (" + w + "x" + h + ")", 'g');
         } catch (RuntimeException e) {
             Hub.log("화면 캡처를 시작하지 못함: " + e, 'r');
@@ -128,6 +137,7 @@ public class CaptureService extends Service implements Fisher.Screen {
         w = s[0];
         h = s[1];
         dpi = s[2];
+        frameAt = t;                                 // 새 크기의 첫 화면을 기다리는 동안은 멈춤으로 보지 않음
         Hub.log("화면 크기 바뀜 → " + w + "x" + h, 'd');
     }
 
@@ -153,10 +163,19 @@ public class CaptureService extends Service implements Fisher.Screen {
         } catch (IllegalStateException e) {
             img = null;
         }
+        long now = SystemClock.uptimeMillis();
         if (img != null) {
             if (cur != null) cur.close();
             cur = img;
+            frameAt = now;
+            if (now - blackAt >= 1000) {
+                blackAt = now;
+                boolean b = isBlack(img);
+                if (b && !black) blackSince = now;
+                black = b;
+            }
         }
+        watch(now);
         if (cur == null) return null;
         int iw = cur.getWidth(), ih = cur.getHeight();
         int x0 = Math.max(0, x), y0 = Math.max(0, y), x1 = Math.min(iw, x + gw), y1 = Math.min(ih, y + gh);
@@ -188,6 +207,44 @@ public class CaptureService extends Service implements Fisher.Screen {
             }
         }
         return out;
+    }
+
+    /** 거의 다 검은 화면인지 (드문드문 찍어 봄) */
+    static boolean isBlack(Image img) {
+        try {
+            Image.Plane p = img.getPlanes()[0];
+            ByteBuffer buf = p.getBuffer();
+            int iw = img.getWidth(), ih = img.getHeight(), rs = p.getRowStride(), ps = Math.max(4, p.getPixelStride()), lim = buf.limit();
+            int seen = 0, lit = 0;
+            for (int yy = ih / 40; yy < ih; yy += Math.max(1, ih / 20)) {
+                for (int xx = iw / 60; xx < iw; xx += Math.max(1, iw / 30)) {
+                    int at = yy * rs + xx * ps;
+                    if (at + 2 >= lim) continue;
+                    seen++;
+                    if ((buf.get(at) & 255) + (buf.get(at + 1) & 255) + (buf.get(at + 2) & 255) > 36) lit++;
+                }
+            }
+            return seen > 100 && lit < seen * 0.01;
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    /** 지금 캡처 문제 (null = 괜찮음) */
+    String problem(long now) {
+        if (black && now - blackSince > BLACK_MS) return "화면 캡처가 검은 화면만 받음";
+        if (frameAt > 0 && now - frameAt > STALE_MS) return "화면 캡처가 멈춤 (새 화면이 안 들어옴)";
+        return null;
+    }
+
+    /** 매크로가 화면을 보는 중에 캡처가 끊겼으면 알림 (30초에 한 번) */
+    void watch(long now) {
+        String why = problem(now);
+        if (why == null || now - warnedAt < WARN_GAP_MS) return;
+        warnedAt = now;
+        String msg = why + " — 다른 화면 녹화 앱이 켜져 있으면 끄고, 앱에서 [화면 캡처 시작] 을 다시 눌러 주세요";
+        Hub.log(msg, 'r');
+        Hub.main.post(() -> android.widget.Toast.makeText(this, com.acrux.mobile.core.I18n.t(msg), android.widget.Toast.LENGTH_LONG).show());
     }
 
     @Override

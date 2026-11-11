@@ -9,6 +9,13 @@ import java.util.List;
  */
 public final class ReelControl {
     public static final double RISE_GAIN = 2.0, RISE_MAX = 0.5, CLICK_SETTLE = 0.2;
+    /**
+     * 구간을 벗어나기 전에 미리 누름 (PC 와 같음 · FishSol 의 Advanced Detection 과 같은 생각)
+     * EDGE_MARGIN = 구간 왼쪽 끝에서 이만큼(바 폭 비율) 안쪽에 오면 누름 · EDGE_ZONE = 구간 폭의 이 비율까지만
+     * EDGE_K_MAX = 미리 누르는 폭 자동 조절 범위 · RECLICK = 눌렀는데도 구간 밖에서 계속 떨어지면 이 시간 뒤 다시 누름 (초)
+     * LEAD_MAX = 떨어지는 중엔 터치가 반영되기까지 걸린 시간만큼 미리 봄 — 그 최대 (초)
+     */
+    public static final double EDGE_MARGIN = 0.06, EDGE_ZONE = 0.35, EDGE_K_MAX = 1.6, RECLICK = 0.06, LEAD_MAX = 0.15;
 
     final Settings cfg;
     final List<double[]> hist = new ArrayList<>();    // (시각, 위치) 최근 5개
@@ -19,6 +26,9 @@ public final class ReelControl {
     boolean rose = true;
     /** 모바일: 터치가 반영되기까지 걸린 시간(평균) — 누른 뒤 다시 누르지 않고 기다리는 시간을 그만큼 늘림 */
     public double riseDelay = 0.0;
+    /** 미리 누르는 폭 배율 (0 ~ EDGE_K_MAX) · 내 위치가 구간의 어느 쪽 밖인지 (-1 왼쪽 · 0 안 · 1 오른쪽) */
+    public double edgeK = 1.0;
+    int side = 0;
     // 마지막 step 결과 (기록용)
     public Double usedMarker;
     public int[] usedZone;
@@ -32,10 +42,21 @@ public final class ReelControl {
         rose = false;
     }
 
+    /** 누르는 기준 위치 = 구간 왼쪽 끝 + 구간 폭 × targetPct% + 미리 누르는 폭 (k 로 자동 조절) */
+    public static double target(int[] zone, Settings cfg, int w, double k) {
+        double zw = zone[1] - zone[0];
+        return zone[0] + zw * cfg.targetPct / 100.0 + Math.min(w * EDGE_MARGIN, zw * EDGE_ZONE) * k;
+    }
+
     public static boolean decision(Double marker, int[] zone, double vel, Settings cfg, int w) {
+        return decision(marker, zone, vel, cfg, w, 0.0, 1.0);
+    }
+
+    /** lead: 떨어지는 중일 때 이 시간(초) 뒤의 위치로 봄 · k: 미리 누르는 폭 배율 */
+    public static boolean decision(Double marker, int[] zone, double vel, Settings cfg, int w, double lead, double k) {
         if (marker == null || zone == null) return false;
-        double target = zone[0] + (zone[1] - zone[0]) * cfg.targetPct / 100.0;
-        double pred = marker + vel * cfg.leadMs / 1000.0;
+        double target = target(zone, cfg, w, k);
+        double pred = marker + Math.min(0.0, vel) * lead + vel * cfg.leadMs / 1000.0;
         if (Math.max(marker, pred) > (zone[0] + zone[1]) / 2.0) return false;
         return pred <= target - cfg.deadband * w;
     }
@@ -114,9 +135,18 @@ public final class ReelControl {
         List<int[]> cands = zones != null ? zones : new ArrayList<>();
         if (zones == null && zone != null) cands.add(zone);
         int[] z = trackZone(now, cands, m, w);
+        // 미리 누르는 폭 자동 조절: 누른 직후 오른쪽으로 넘어가면 줄이고 · 왼쪽으로 빠지면 늘림 (구간 밖으로 나가는 순간마다 한 번)
+        if (m != null && z != null) {
+            int sd = m > z[1] ? 1 : (m < z[0] - w * 0.01 ? -1 : 0);
+            if (sd != side) {
+                if (sd == 1 && now - lastClick < 0.8) edgeK = Math.max(0.0, edgeK * 0.7 - 0.05);
+                else if (sd == -1) edgeK = Math.min(EDGE_K_MAX, edgeK * 1.15 + 0.05);
+                side = sd;
+            }
+        }
         boolean fast = false;
         if (m != null && z != null && hist.size() >= 3) {
-            double target = z[0] + (z[1] - z[0]) * cfg.targetPct / 100.0;
+            double target = target(z, cfg, w, edgeK);
             double allow = Math.min(w * RISE_MAX, Math.max(0.0, target - m) * RISE_GAIN);
             fast = vel > Math.max(w * 0.05, allow);
         }
@@ -127,8 +157,11 @@ public final class ReelControl {
         }
         double settle = cfg.adaptive ? Math.min(0.5, Math.max(CLICK_SETTLE, riseDelay * 1.6)) : CLICK_SETTLE;
         boolean waiting = lastClick != 0 && !rose && now - lastClick < settle;
+        // 눌렀는데도 구간 밖(왼쪽)에서 계속 떨어지는 중이면 올라가는 게 보일 때까지 기다리지 않고 다시 누름
+        if (waiting && m != null && z != null && m < z[0] && vel <= 0 && now - lastClick >= RECLICK) waiting = false;
         usedMarker = m;
         usedZone = z;
-        return !waiting && !fast && (now - lastClick) * 1000 >= cfg.clickGapMs && decision(m, z, vel, cfg, w);
+        return !waiting && !fast && (now - lastClick) * 1000 >= cfg.clickGapMs
+                && decision(m, z, vel, cfg, w, Math.min(LEAD_MAX, riseDelay), edgeK);
     }
 }

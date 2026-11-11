@@ -1,3 +1,21 @@
+## Acrux Mobile V1.4.14 업데이트
+- 화면 캡처가 끊기면 알려 주도록 추가
+  - 다른 화면 녹화 앱을 켜면 기종에 따라 Acrux 화면 캡처가 검은 화면만 받거나 멈춤 [ 전에는 '낚시 창을 못 찾음' 으로만 끝나서 이유를 알 수 없었음 ]
+  - 검은 화면이 6초 넘게 이어지거나 새 화면이 8초 동안 안 들어오면 기록 · 알림으로 안내 [ 로블록스 로딩 화면은 제외 ]
+- 릴링 성공률 개선 [ PC V3.0.3 과 같음 ]
+  - 구간을 벗어나기 조금 전에 미리 누름 [ 전에는 구간 왼쪽 끝까지 떨어진 뒤에 눌러서 매번 구간 밖으로 나갔다 들어왔음 ]
+  - 눌렀는데도 구간 밖에서 계속 떨어지면 바로 다시 누름 [ 전에는 0.2 ~ 0.5초 기다려서 세게 당기는 물고기를 놓쳤음 ]
+  - 미리 누르는 폭은 물고기 · 기기에 맞춰 자동 조절 [ 오른쪽으로 넘어가면 줄이고, 왼쪽으로 빠지면 늘림 ]
+
+## Acrux Mobile V1.4.14 Update
+- Added a warning when screen capture is cut off
+  - Starting another screen recorder can make Acrux's capture get only a black screen or freeze on some phones [ it used to just end with "fishing window not found" ]
+  - Shows a log line and a popup if the screen stays black for over 6 s or no new frames arrive for 8 s [ Roblox loading screens are ignored ]
+- Better reeling success rate [ same as PC V3.0.3 ]
+  - Taps slightly before the marker leaves the fish zone [ it used to tap only after falling to the zone's left edge, so it left the zone every time ]
+  - Taps again right away if the marker keeps falling outside the zone [ it used to wait 0.2 ~ 0.5 s and lost hard-pulling fish ]
+  - The early-tap margin adjusts itself to the fish and the device [ smaller after overshooting right, larger after dropping out left ]
+
 ## Acrux Mobile V1.4.13 업데이트
 - 자동 낚시는 이동 · 판매 설정을 모두 마쳐야 시작되도록 변경
   - 전에는 설정 없이도 시작돼서 그 자리에서 낚시만 하다가 가득 차면 멈췄음

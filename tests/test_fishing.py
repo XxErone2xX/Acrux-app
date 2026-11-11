@@ -138,5 +138,26 @@ class FishingTests(unittest.TestCase):
         self.assertEqual(float(wait[1]), fishing.CAST_WAIT)
 
 
+
+class ReelTests(unittest.TestCase):
+    CFG = dict(fishing.DEFAULTS)
+
+    def test_clicks_before_leaving_zone(self):
+        # 구간 (100~180) 안쪽 6% (바 폭 400 → 24px) 에 들어오면 누름 · 가운데보다 오른쪽은 안 누름
+        self.assertTrue(fishing.reel_decision(120, (100, 180), 0, self.CFG, 400))
+        self.assertFalse(fishing.reel_decision(130, (100, 180), 0, self.CFG, 400))
+        self.assertFalse(fishing.reel_decision(150, (100, 180), -500, self.CFG, 400, lead=0.15))
+
+    def test_reclicks_while_still_falling_below_zone(self):
+        ctl = fishing.ReelControl(self.CFG)
+        t, x, clicks = 0.0, 90.0, []
+        for _ in range(40):                       # 눌러도 안 올라오고 계속 떨어짐
+            t, x = t + 0.01, x - 1.0
+            if ctl.step(t, x, (100, 180), 400, [(100, 180)])[0]:
+                ctl.clicked(t)
+                clicks.append(t)
+        self.assertGreaterEqual(len(clicks), 5)   # 0.2초씩 기다리면 2번뿐
+
+
 if __name__ == '__main__':
     unittest.main()

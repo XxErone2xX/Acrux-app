@@ -10,7 +10,7 @@
   · 릴링 바: 왼쪽부터 차는 막대 끝(◇ 표시) = 내 위치, 막대 색이 아닌 색 덩어리 = 물고기 구간
     (바가 떠 있는지는 색 있는 칸으로 봄 — 막대가 거의 비어도 구간은 보임 · 막대는 청록 ~ 파랑 폭넓게)
     막대와 구간이 겹친 부분은 구간 색이 밝게 보임 · 클릭하면 내 위치가 오른쪽으로, 안 누르면 왼쪽으로 떨어짐
-    → 구간 왼쪽 끝 근처로 떨어질 때만 눌러서 구간 안에 붙잡아 둠
+    → 구간 왼쪽 끝 근처로 떨어질 때만 눌러서 구간 안에 붙잡아 둠 (구간을 벗어나기 조금 전에 미리 누름 · EDGE_MARGIN)
   · 결과창 제목 색: 하늘색 = 성공 / 회색 = 쓰레기 / 빨강 = 실패
 - 위치는 전부 로블록스 창 기준 비율 → 창 크기가 바뀌어도 그대로
 """
@@ -34,6 +34,13 @@ REEL_FRAME = 0.008       # 릴링 중 화면 읽는 최소 간격 (초)
 RISE_GAIN = 2.0          # 목표까지 거리(px) × 이 값 = 허용하는 올라가는 속도 (px/초)
 RISE_MAX = 0.5           # 허용하는 올라가는 속도 최대 (바 폭 × 이 값 / 초)
 CLICK_SETTLE = 0.2       # 누른 뒤 효과가 보일 때까지 다시 안 누르는 최대 시간 (초)
+# 구간을 벗어나기 전에 미리 누름 (FishSol 의 Advanced Detection 과 같은 생각: 구간 안에 25px/404px ≈ 6% 남으면 누름)
+# 전에는 구간 왼쪽 변까지 다 떨어진 뒤에 눌러서, 화면 · 입력이 늦는 만큼 매번 구간 밖으로 나갔다 들어왔음
+EDGE_MARGIN = 0.06       # 구간 왼쪽 끝에서 이만큼(바 폭 비율) 안쪽에 오면 누름
+EDGE_ZONE = 0.35         # 단, 구간 폭의 이 비율까지만 (좁은 구간에서 가운데까지 올라가지 않게)
+EDGE_K_MAX = 1.6         # 미리 누르는 폭 자동 조절 범위 (오른쪽으로 넘어가면 줄이고 · 왼쪽으로 빠지면 늘림)
+RECLICK = 0.06           # 눌렀는데도 구간 밖(왼쪽)에서 계속 떨어지고 있으면 이 시간 뒤 바로 다시 누름 (초)
+LEAD_MAX = 0.15          # 떨어지는 중엔 '누른 게 보이기까지 걸린 시간'만큼 미리 봄 — 그 최대 (초)
 REEL_MAX = 15.0          # 미니게임 최대 길이 (초) — 넘으면 멈춘 걸로 보고 닫기
 REEL_GONE = 0.6          # 바 · ◇ 신호가 둘 다 이만큼 안 보여야 미니게임 끝으로 봄 (초)
 # 낚시 창 ◇ 표시 (낚시 창 영역 안 비율) — 대기 땐 왼쪽(IDLE) 자리, 미니게임 땐 창이 넓어지며 오른쪽(REEL) 자리로 옮겨감
@@ -506,17 +513,24 @@ def analyze_bar(rgb, bar_top, bar_h, fill_ref=None):
     return out
 
 
-def reel_decision(marker, zone, vel, cfg, w):
-    """누를지: 내 위치(lead_ms 만큼 미리 본 위치 · 기본 0 = 지금 위치)가 목표 위치 이하면 누름
-    목표 위치 = 구간 왼쪽 끝 + 구간 폭 × target_pct% (기본 0 = 왼쪽 변 · 50 = 가운데)
-    → 왼쪽 끝 가까이로 떨어질 때만 눌러서 튀어 오른 만큼 구간 안에 머물게 함 (가운데 기준이면 너무 자주 눌러 오른쪽으로 넘어감)"""
+def reel_target(zone, cfg, w, k=1.0):
+    """누르는 기준 위치 = 구간 왼쪽 끝 + 구간 폭 × target_pct% + 미리 누르는 폭(EDGE_MARGIN · k 로 자동 조절)"""
+    zw = zone[1] - zone[0]
+    return (zone[0] + zw * cfg.get("target_pct", DEFAULTS["target_pct"]) / 100.0
+            + min(w * EDGE_MARGIN, zw * EDGE_ZONE) * k)
+
+
+def reel_decision(marker, zone, vel, cfg, w, lead=0.0, k=1.0):
+    """누를지: 내 위치가 기준 위치(reel_target) 이하면 누름
+    lead: 떨어지는 중일 때 이 시간(초) 뒤의 위치로 봄 (누른 게 반영되기까지 그만큼 더 떨어지므로) · lead_ms 설정은 거기에 더함
+    → 구간을 벗어나기 조금 전에 눌러서 튀어 오른 만큼 구간 안에 머물게 함 (가운데 기준이면 너무 자주 눌러 오른쪽으로 넘어감)"""
     if marker is None or zone is None:
         return False
-    target = zone[0] + (zone[1] - zone[0]) * cfg.get("target_pct", DEFAULTS["target_pct"]) / 100.0
-    pred = marker + vel * cfg.get("lead_ms", DEFAULTS["lead_ms"]) / 1000.0
+    target = reel_target(zone, cfg, w, k)
+    pred = marker + min(0.0, vel) * lead + vel * cfg.get("lead_ms", DEFAULTS["lead_ms"]) / 1000.0
     if max(marker, pred) > (zone[0] + zone[1]) / 2:
         return False                                      # 구간 가운데보다 오른쪽이면 절대 안 누름 (오른쪽으로 넘어가는 것 방지)
-    return pred <= target - cfg.get("deadband", 0) * w   # 기본: 내 위치가 구간 왼쪽 변 이하로 내려오면 그때 누름
+    return pred <= target - cfg.get("deadband", 0) * w
 
 
 # ---------------------------------------------------------------- 실행기
@@ -1073,6 +1087,9 @@ class ReelControl:
         self.zone_ref = None        # 구간 기억 (폭, 가운데, 마지막으로 본 시각)
         self.last_click = 0.0
         self.rose = True            # 마지막 클릭 뒤 올라가기 시작한 게 보였는지
+        self.rise_delay = 0.0       # 누른 뒤 올라가는 게 보이기까지 걸린 시간 (평균)
+        self.edge_k = 1.0           # 미리 누르는 폭 배율 (0 ~ EDGE_K_MAX)
+        self.side = 0               # 내 위치가 구간의 어느 쪽 밖인지 (-1 왼쪽 · 0 안 · 1 오른쪽)
 
     def clicked(self, t):
         self.last_click, self.rose = t, False
@@ -1139,16 +1156,32 @@ class ReelControl:
         # 누르면 힘이 쌓일 수 있음 → 올라가는 중에 마구 누르면 오른쪽으로 튀어나감. 그래서
         #  ① 누른 뒤엔 올라가기 시작하는 게 보일 때까지 다시 안 누름 (게임에 반영되기까지 몇 화면 걸림 · 최대 CLICK_SETTLE)
         #  ② 올라가는 속도 제한: 목표에서 멀리 아래면 빨리 올라가도 되고 가까우면 천천히만 — 이미 그 이상으로 올라가는 중이면 안 누름
+        # 미리 누르는 폭 자동 조절: 누른 직후 구간 오른쪽으로 넘어가면 (한 번 누를 때 많이 튀는 물고기) 줄이고,
+        # 왼쪽으로 빠지면 (빨리 떨어지는 물고기 · 입력이 늦는 기기) 늘림 — 구간 밖으로 나가는 순간마다 한 번씩
+        if m is not None and zone:
+            side = 1 if m > zone[1] else (-1 if m < zone[0] - w * 0.01 else 0)
+            if side != self.side:
+                if side == 1 and now - self.last_click < 0.8:
+                    self.edge_k = max(0.0, self.edge_k * 0.7 - 0.05)
+                elif side == -1:
+                    self.edge_k = min(EDGE_K_MAX, self.edge_k * 1.15 + 0.05)
+                self.side = side
         fast = False
         if m is not None and zone and len(hist) >= 3:
-            target = zone[0] + (zone[1] - zone[0]) * cfg.get("target_pct", DEFAULTS["target_pct"]) / 100.0
+            target = reel_target(zone, cfg, w, self.edge_k)
             allow = min(w * RISE_MAX, max(0.0, target - m) * RISE_GAIN)
             fast = vel > max(w * 0.05, allow)
         if self.last_click and not self.rose and len(hist) >= 3 and vel > w * 0.05 and hist[-1][0] > self.last_click:
             self.rose = True
+            d = hist[-1][0] - self.last_click
+            self.rise_delay = d if not self.rise_delay else self.rise_delay * 0.7 + d * 0.3
         waiting = self.last_click and not self.rose and now - self.last_click < CLICK_SETTLE
+        # 눌렀는데도 구간 밖(왼쪽)에서 계속 떨어지는 중이면 올라가는 게 보일 때까지 기다리지 않고 다시 누름
+        # (세게 당기는 물고기는 한 번 눌러선 안 올라옴 — 0.2초씩 기다리면 1초에 5번밖에 못 눌러서 놓쳤음)
+        if waiting and m is not None and zone and m < zone[0] and vel <= 0 and now - self.last_click >= RECLICK:
+            waiting = False
         click = (not waiting and not fast and (now - self.last_click) * 1000 >= cfg["click_gap_ms"]
-                 and reel_decision(m, zone, vel, cfg, w))
+                 and reel_decision(m, zone, vel, cfg, w, min(LEAD_MAX, self.rise_delay), self.edge_k))
         return bool(click), m, zone, vel
 
 
