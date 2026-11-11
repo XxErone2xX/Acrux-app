@@ -720,3 +720,5 @@ Acrux 창 ⚙ → [조이스틱] → 강조된 '조이스틱 찾기' 를 눌러 
 못 찾은 화면을 사진으로 남김: {0} — 문제를 알릴 때 같이 보내 주세요	Saved a screenshot of what could not be found: {0} — please send it along when reporting the problem	見つからなかった画面を写真で保存: {0} — 問題を報告するときに一緒に送ってください
 사진첩 Pictures/Acrux/{0}	Gallery Pictures/Acrux/{0}	ギャラリー Pictures/Acrux/{0}
 화면 사진을 남기지 못함: {0}	Could not save the screenshot: {0}	画面の写真を保存できなかった: {0}
+첫 번째 물고기 칸 자리를 고쳐서 저장함 ({0}, {1})	Fixed and saved the first fish slot position ({0}, {1})	最初の魚の枠の位置を直して保存 ({0}, {1})
+첫 번째 물고기 칸을 눌러도 골라진 게 안 보임 — 물고기가 있는지 확인해 주세요	The first fish slot does not look selected after tapping — please check that you have fish	最初の魚の枠を押しても選ばれていないように見える — 魚を持っているか確認してください

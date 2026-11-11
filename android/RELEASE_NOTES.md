@@ -1,3 +1,25 @@
+## Acrux Mobile V1.4.17 업데이트
+- 판매 템플릿 4개 (2400x1080 · 2560x1600 · 3120x1440 두 개) 로 판매 버튼 찾기를 다시 맞춤
+- 잔디 위에서 [Sell Fish] 를 못 찾던 문제 수정
+  - 초록 [Open Shop] 테두리가 뒤의 잔디와 한 덩어리로 보여서 선택지 줄을 못 찾았음 [ 템플릿 4개 중 3개가 그랬음 ]
+  - 이제 파란 [Sell Fish] 부터 찾음 [ 오른쪽 빨간 Leave · 화면 가운데 ] — 템플릿 4개 모두 찾음
+- 잔디 위에서 상점 [Sell All] 을 색으로 못 찾던 문제도 같은 방식으로 수정
+- 첫 번째 물고기 칸을 안 눌러서 물고기를 못 팔던 문제 수정
+  - 첫 칸 자리를 글자로 찾을 때 상점 밖 글자까지 물고기 이름으로 봤음 [ 오른쪽 알림 'Aura Auto Added' · 상점 뒤로 비치는 'Captain Flarg' · 한 줄로 읽힌 이름들의 가운데 ]
+  - 이제 첫 칸은 상점 모양 ([Sell All] 크기 · 'Fishing Shop' 제목) 으로 계산하고, 글자는 상점 안 물고기 칸의 이름만 봄
+  - 첫 칸을 누른 뒤 왼쪽 칸에 'Weight' 가 보이는지로 골라졌는지 확인 · 안 골라졌으면 다른 자리로 다시 누르고 맞는 자리를 저장
+
+## Acrux Mobile V1.4.17 Update
+- Re-tuned sell button detection with 4 sell templates (2400x1080 · 2560x1600 · two 3120x1440)
+- Fixed [Sell Fish] not being found over grass
+  - The green [Open Shop] border merged with the grass behind it, so the choice row was not found [ 3 of the 4 templates ]
+  - It now starts from the blue [Sell Fish] [ red Leave on the right · centered on screen ] — found in all 4 templates
+- Fixed the shop [Sell All] color detection over grass the same way
+- Fixed fish not being sold because the first fish slot was not tapped
+  - When finding the first slot by text, text outside the shop was taken as fish names [ the 'Aura Auto Added' notice on the right · 'Captain Flarg' showing through the shop · the middle of several names read as one line ]
+  - The first slot is now computed from the shop layout ([Sell All] size · 'Fishing Shop' title), and only names inside the fish grid are used
+  - After tapping the first slot it checks for 'Weight' in the left panel · if it's not selected it taps another spot and saves the one that works
+
 ## Acrux Mobile V1.4.16 업데이트
 - [Sell Fish] 를 못 찾던 문제 수정
   - 선택지가 서서히 떠오르는 동안 대화창을 0.35초마다 계속 눌러서, 흐린 선택지를 못 보고 끝났음 [ 이제 누른 뒤 1.2초는 보기만 함 ]

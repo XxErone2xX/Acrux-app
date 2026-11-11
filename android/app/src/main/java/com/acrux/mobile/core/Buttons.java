@@ -326,6 +326,121 @@ public final class Buttons {
         return b;
     }
 
+    /** 밝은 초록 (버튼 테두리 · 글자 · 연한 초록 Sell 글자도) — 상점 창에 비친 어두운 잔디는 빼려고 밝기를 높게 */
+    static boolean brightGreen(int r, int g, int b) {
+        int mx = Math.max(r, Math.max(g, b)), mn = Math.min(r, Math.min(g, b));
+        return g == mx && mx >= 140 && g - Math.max(r, b) >= 30 && cls(r, g, b) == GREEN;
+    }
+
+    /** span 과 같은데 밝고 진한 초록만 셈 */
+    static Box greenSpan(Img im, Box row, int from, int to) {
+        from = Math.max(0, from);
+        to = Math.min(im.w, to);
+        int y1 = Math.max(0, row.y1), y2 = Math.min(im.h - 1, row.y2), n = to - from;
+        if (n <= 4) return null;
+        int[] col = new int[n];
+        for (int x = from; x < to; x++) {
+            int c = 0;
+            for (int y = y1; y <= y2; y++) {
+                int k = y * im.w + x;
+                if (brightGreen(im.r[k], im.g[k], im.b[k])) c++;
+            }
+            col[x - from] = c;
+        }
+        // 버튼 오른쪽 끝에서 가까운 이어진 범위 (잔디가 멀리 있어도 바로 옆 버튼만)
+        int skip = Math.max(3, (int) (row.w() * 0.35)), b = -1, a = -1, last = -1;   // 테두리와 글자 사이 빈 칸은 넘어감
+        for (int i = n - 1; i >= 0; i--) {
+            if (col[i] < 2) continue;
+            if (b < 0) b = a = last = i;
+            else if (last - i <= skip) a = last = i;
+            else break;
+        }
+        if (b < 0) return null;
+        Box out = new Box();
+        out.c = GREEN;
+        out.x1 = from + a;
+        out.x2 = from + b;
+        out.y1 = row.y1;
+        out.y2 = row.y2;
+        return out;
+    }
+
+    /**
+     * 대화 선택지를 파란 [Sell Fish] 부터 찾기 (dialog 가 못 찾을 때) → {Open Shop(없으면 null), Sell Fish, Leave} 또는 null
+     *  · 잔디 위에서는 초록 [Open Shop] 테두리가 잔디와 한 덩어리가 돼서 초록 상자를 못 찾았음 (판매 템플릿 1 · 2 · 3 이 전부 그랬음)
+     *  · 파란 상자 → 오른쪽에 빨간 [Leave] · 왼쪽에 밝은 초록 [Open Shop] (있으면) · 초록이 안 보이면 화면 가운데에 있어야 함 (선택지 줄은 늘 가운데)
+     */
+    public static Box[] dialogBlue(Img im) {
+        List<Box> bs = buttons(boxes(im, 0, (int) (im.h * 0.4), im.w, im.h), im);
+        Box[] best = null;
+        double bestScore = 1e18;
+        for (Box b : bs) {
+            if (b.c != BLUE) continue;
+            int bw = b.w();
+            Box r = span(im, b, b.x2 + 1, b.x2 + (int) (bw * 1.9), RED);
+            if (r == null || r.w() < bw * 0.3 || r.w() > bw * 1.8) continue;
+            double gr = r.x1 - b.x2;
+            if (gr > bw * 0.6) continue;
+            Box g = greenSpan(im, b, b.x1 - (int) (bw * 1.9), b.x1 - 1);
+            double gl = g == null ? -1 : b.x1 - g.x2;
+            boolean gOk = g != null && g.w() >= bw * 0.4 && gl <= bw * 0.6 && Math.abs(gl - gr) <= Math.max(bw * 0.35, im.w * 0.02);
+            double off = Math.abs(b.cx() - im.w / 2.0);
+            if (!gOk && off > im.w * 0.05) continue;
+            double score = (gOk ? 0 : im.w) + off + (gOk ? Math.abs(gl - gr) : 0);
+            if (score < bestScore) {
+                bestScore = score;
+                best = new Box[]{gOk ? g : null, b, r};
+            }
+        }
+        return best;
+    }
+
+    /**
+     * 상점 [Sell All] 을 파란 상자부터 찾기 (shop 이 못 찾을 때) → {Sell, Sell All} 또는 null
+     * 잔디 위에서는 상점 창이 반투명이라 초록 [Sell] 테두리가 비친 잔디와 한 덩어리가 됨 → 파란 상자 + 왼쪽 바로 옆 밝은 초록
+     */
+    public static Box[] shopBlue(Img im) {
+        List<Box> bs = buttons(boxes(im, 0, (int) (im.h * 0.3), im.w, im.h), im);
+        Box[] best = null;
+        double bestScore = 1e18;
+        for (Box b : bs) {
+            if (b.c != BLUE) continue;
+            // [Sell All] 은 상점 창 왼쪽 칸 아래 (템플릿 4개 모두 가로 0.35 · 세로 0.74 근처)
+            if (b.cx() > im.w * 0.5 || b.cx() < im.w * 0.2 || b.cy() < im.h * 0.6 || b.cy() > im.h * 0.9) continue;
+            int bw = b.w(), from = Math.max(0, b.x1 - (int) (bw * 1.15)), n = b.x1 - from;
+            if (n < 8) continue;
+            // 왼쪽 바로 옆 [Sell]: 밝은 초록 테두리 · 글자가 드문드문 (꽉 찬 초록 = 잔디)
+            int cols = 0, near = 0;
+            for (int x = from; x < b.x1; x++) {
+                int c = 0;
+                for (int y = b.y1; y <= b.y2; y++) {
+                    int k = y * im.w + x;
+                    if (brightGreen(im.r[k], im.g[k], im.b[k])) c++;
+                }
+                if (c >= 2) {
+                    cols++;
+                    if (x >= b.x1 - bw * 0.3) near++;
+                }
+            }
+            double frac = (double) cols / n;
+            if (cols < 3 || frac > 0.7 || near == 0) continue;
+            Box r = span(im, b, b.x2 + 1, b.x2 + (int) (bw * 1.9), RED);
+            if (r != null && r.w() >= bw * 0.3 && r.x1 - b.x2 <= bw * 0.6) continue;        // 대화 선택지 줄
+            Box g = new Box();
+            g.c = GREEN;
+            g.x1 = from;
+            g.x2 = b.x1 - 1;
+            g.y1 = b.y1;
+            g.y2 = b.y2;
+            double score = Math.abs(b.cx() - im.w * 0.35) + Math.abs(b.cy() - im.h * 0.745);
+            if (score < bestScore) {
+                bestScore = score;
+                best = new Box[]{g, b};
+            }
+        }
+        return best;
+    }
+
     /** 상점 [Sell] · [Sell All] → {Sell, Sell All} 또는 null */
     public static Box[] shop(Img im) {
         List<Box> bs = buttons(boxes(im, 0, (int) (im.h * 0.3), im.w, im.h), im);

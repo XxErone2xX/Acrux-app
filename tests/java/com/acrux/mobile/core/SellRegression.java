@@ -36,15 +36,20 @@ public final class SellRegression {
                 }
                 return b;
             }
-            b.add(new SellText.Box("Fishing Shop", 0.5, 0.2, 0.2, 0.04));
-            b.add(new SellText.Box("Sell All", 0.4, 0.8, 0.08, 0.03));
-            if (fish > 0) {
-                b.add(new SellText.Box("Rainbow Trout", 0.3, 0.4, 0.1, 0.02));
-                b.add(new SellText.Box("Salmon", 0.4, 0.4, 0.1, 0.02));
-            }
+            // 템플릿 1 (2400x1080) 의 자리 · 오른쪽 알림 · 상점 뒤로 비치는 NPC 이름도 같이 (이름으로 잘못 보면 안 됨)
+            b.add(new SellText.Box("Fishing Shop", 0.293, 0.251, 0.09, 0.026));
+            b.add(new SellText.Box("Buy", 0.4875, 0.29, 0.012, 0.011));
+            b.add(new SellText.Box("Sell", 0.667, 0.288, 0.011, 0.011));
+            b.add(new SellText.Box("Aura Auto Added", 0.89, 0.30, 0.08, 0.014));
+            b.add(new SellText.Box("Captain Flarg", 0.55, 0.41, 0.06, 0.02));
+            b.add(new SellText.Box("Sell", 0.282, 0.745, 0.015, 0.015));
+            b.add(new SellText.Box("Sell All", 0.357, 0.745, 0.03, 0.015));
+            b.add(new SellText.Box(selected ? "Weight: 19.8" : "Empty.", 0.27, 0.66, 0.05, 0.03));
+            b.add(new SellText.Box(selected ? "Sells for 40" : "Sells for 0", 0.27, 0.716, 0.04, 0.02));
+            if (fish > 0) b.add(new SellText.Box(fish > 1 ? "Spiraldrift Moonfish" : "Spiraldrift", fish > 1 ? 0.47 : 0.435, 0.43, fish > 1 ? 0.12 : 0.05, 0.017));
             if (confirm) {
-                b.add(new SellText.Box("Sell", 0.45, 0.6, 0.05, 0.03));
-                b.add(new SellText.Box("Cancel", 0.55, 0.6, 0.06, 0.03));
+                b.add(new SellText.Box("Sell", 0.4217, 0.59, 0.03, 0.03));
+                b.add(new SellText.Box("Cancel", 0.578, 0.59, 0.04, 0.03));
             }
             return b;
         }
@@ -62,7 +67,7 @@ public final class SellRegression {
                 return;
             }
             if (confirm) {
-                if (Math.abs(x - 0.45) < 0.03 && Math.abs(y - 0.6) < 0.03) {
+                if (Math.abs(x - 0.4217) < 0.03 && Math.abs(y - 0.59) < 0.03) {
                     confirm = selected = false;
                     fish--;
                     sold++;
@@ -70,7 +75,7 @@ public final class SellRegression {
                 }
                 return;
             }
-            if (Math.abs(y - 0.4 + 0.3 * 0.1) < 0.06 && x < 0.35) {
+            if (x >= 0.405 && x <= 0.465 && y >= 0.322 && y <= 0.456) {      // 첫 번째 칸
                 firstTaps++;
                 if (swallowFirst && firstTaps == 1) {
                     taps.add("first(swallowed)");
@@ -78,9 +83,11 @@ public final class SellRegression {
                 }
                 if (fish > 0) selected = true;
                 taps.add("first");
-            } else if (Math.abs(x - 0.4) < 0.03 && Math.abs(y - 0.8) < 0.03) {
+            } else if (Math.abs(x - 0.357) < 0.035 && Math.abs(y - 0.745) < 0.02) {
                 taps.add("sellall");
                 if (selected) confirm = true;
+            } else {
+                taps.add(String.format("miss(%.3f,%.3f)", x, y));
             }
         }
     }
@@ -117,9 +124,9 @@ public final class SellRegression {
         g.shop = true;
         g.fish = 3;
         g.swallowFirst = true;
-        pos.put("first_fish_pos", new double[]{0.3, 0.37});
-        pos.put("sell_all_pos", new double[]{0.4, 0.8});
-        pos.put("confirm_sell_pos", new double[]{0.45, 0.6});
+        pos.put("first_fish_pos", new double[]{0.435, 0.39});
+        pos.put("sell_all_pos", new double[]{0.357, 0.745});
+        pos.put("confirm_sell_pos", new double[]{0.4217, 0.59});
         Seller s2 = seller(g, pos);
         int sold = s2.sellLoop(0);
         check(sold == 3 && g.fish == 0, "sold " + sold + " left " + g.fish + " taps " + g.taps);
@@ -129,7 +136,7 @@ public final class SellRegression {
         g = new Game();
         g.shop = true;
         g.fish = 2;
-        pos.put("first_fish_pos", new double[]{0.8, 0.1});
+        pos.put("first_fish_pos", new double[]{0.55, 0.39});      // 두 번째 칸 쪽 (첫 칸이 아님)
         Seller s3 = seller(g, pos);
         sold = s3.sellLoop(0);
         check(sold == 2, "wrong first slot: sold " + sold + " taps " + g.taps);
