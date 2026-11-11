@@ -713,3 +713,10 @@ Acrux 창 ⚙ → [조이스틱] → 강조된 '조이스틱 찾기' 를 눌러 
 ⚙ → [길] → '기준 장소 → 낚시 장소' 로 미리 확인할 수 있습니다.	You can test it first with ⚙ → [Routes] → 'Base spot → fishing spot'.	⚙ → [道] → 「基準地点 → 釣り場」で事前に確認できます。
 [시작] 을 누르면 기준 장소 → 낚시 장소로 이동한 뒤 낚시를 시작합니다.	Tap [Start] to walk from the base spot to the fishing spot and start fishing.	[開始] を押すと基準地点 → 釣り場へ移動して釣りを始めます。
 언어를 고를 수 있습니다	Choose a language	言語を選べます
+[Sell Fish] 버튼을 못 찾음 — 대화 선택지가 보이는 상태에서 다시 해 주세요	Could not find the [Sell Fish] button — try again while the dialog choices are visible	[Sell Fish] ボタンが見つからない — 会話の選択肢が見えている状態でもう一度試してください
+[Sell Fish] 를 못 찾아서 저장된 자리 그대로	[Sell Fish] not found, so the saved position is kept	[Sell Fish] が見つからないので保存済みの位置のまま
+물고기가 아직 보임 — 첫 칸을 화면에서 다시 찾아서 다시 팔아 봄	Fish are still visible — finding the first slot on screen again and retrying the sale	まだ魚が見える — 最初の枠を画面から探し直してもう一度売ってみる
+물고기가 남아 있는데 확인창이 안 뜸 — 판매 자동 보정을 다시 해 주세요 (상점 화면을 사진으로 남김)	Fish are left but the confirm window does not appear — please redo sell auto-calibration (a screenshot of the shop was saved)	魚が残っているのに確認ウィンドウが出ない — 販売の自動補正をやり直してください (ショップ画面を写真で保存)
+못 찾은 화면을 사진으로 남김: {0} — 문제를 알릴 때 같이 보내 주세요	Saved a screenshot of what could not be found: {0} — please send it along when reporting the problem	見つからなかった画面を写真で保存: {0} — 問題を報告するときに一緒に送ってください
+사진첩 Pictures/Acrux/{0}	Gallery Pictures/Acrux/{0}	ギャラリー Pictures/Acrux/{0}
+화면 사진을 남기지 못함: {0}	Could not save the screenshot: {0}	画面の写真を保存できなかった: {0}

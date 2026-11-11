@@ -18,7 +18,6 @@ public final class Seller {
     public static final String[][] TALK = {{"talk_btn", "대화 버튼 (E)"}};
     static final double CONFIRM_GREEN = 0.04;
     static final double[] DIALOG_AREA = {0.0, 0.4, 1.0, 1.0};
-    static final double SKIP_SETTLE = 0.35;
 
     final Fisher.Screen scr;
     final Mover mv;
@@ -28,6 +27,10 @@ public final class Seller {
     final Fisher.Out out;
     public int sellMax = 100;
     public double sellDelay = 0;
+    /** 찾기에 실패했을 때 지금 화면을 사진으로 남김 (이름) — 안드로이드 쪽에서 넣어 줌 · 없으면 안 남김 */
+    public java.util.function.Consumer<String> shot;
+    /** 선택지가 떠오르는 중일 수 있어서 대화창을 다시 누르기 전에 기다리는 시간 (초) */
+    static final double SKIP_PATIENCE = 1.2;
 
     public Seller(Fisher.Screen scr, Mover mv, Mover.Ocr ocr, Map<String, double[]> pos, Route sellRoute, Route fishRoute, Fisher.Out out) {
         this.scr = scr;
@@ -102,25 +105,42 @@ public final class Seller {
         return SellText.findConfirm(ocr.read(null)) != null;
     }
 
-    /** 대화 넘기기 — 선택지(keys)가 보일 때까지: 글자 확인 → 없으면 대화창 한 번 누름 → 잠깐 → 다시 확인 */
+    /**
+     * 대화 넘기기 — 선택지(keys)가 보일 때까지: 확인 → 없으면 조금 더 기다리며 확인 → 그래도 없으면 대화창 한 번 누름
+     * 선택지는 대사가 다 나온 뒤 서서히 떠오름 → 전에는 0.35초마다 대화창을 눌러서, 떠오르는 중이라 흐린 선택지를 못 보고
+     * 계속 누르기만 하다가 끝났음 ('Sell Fish 를 못 찾음') → 누른 뒤 SKIP_PATIENCE 초 동안은 다시 누르지 않고 보기만 함
+     */
     SellText.Box skipDialog(Runnable click, double timeout, String... keys) {
-        long end = System.nanoTime() + (long) (timeout * 1e9);
+        long end = System.nanoTime() + (long) (timeout * 1e9), next = System.nanoTime() + (long) (SKIP_PATIENCE * 0.6e9);
         SellText.Box b = options(keys);
         while (b == null && System.nanoTime() < end) {
-            click.run();
-            mv.sleep(SKIP_SETTLE);
+            if (System.nanoTime() >= next) {
+                click.run();
+                next = System.nanoTime() + (long) (SKIP_PATIENCE * 1e9);
+            }
+            mv.sleep(0.25);
             b = options(keys);
         }
         return b;
     }
 
-    /** 선택지가 보이나: [Sell Fish] 는 색으로 먼저 (Roll 글자가 비쳐서 글자 읽기가 틀릴 때가 있음) → 글자 */
+    /** 선택지가 보이나: [Sell Fish] 는 색으로 먼저 (Roll 글자가 비쳐서 글자 읽기가 틀릴 때가 있음) → 글자 (섞여 읽힌 글자 · 양옆 선택지로도) */
     SellText.Box options(String... keys) {
         if (keys.length == 1 && "sellfish".equals(keys[0])) {
             double[] at = findSellFish();
             if (at != null) return new SellText.Box("[Sell Fish]", at[0], at[1], 0, 0);
+            return SellText.sellFish(ocr.read(DIALOG_AREA));
         }
         return SellText.findText(ocr.read(DIALOG_AREA), keys);
+    }
+
+    /** 찾기에 실패한 화면을 남김 (문제 확인용) */
+    void snap(String why) {
+        if (shot == null) return;
+        try {
+            shot.accept(why);
+        } catch (RuntimeException ignored) {
+        }
     }
 
     /** 로블록스 버튼 누르기: t 번째 시도 — 0 탭 (0.15초) · 1 짧은 탭 (0.08초) · 2 길게 (0.3초) */
@@ -137,6 +157,7 @@ public final class Seller {
         Img im = full();
         if (im == null || im.w == 0) return null;
         Buttons.Box[] d = Buttons.dialog(im);
+        if (d == null) d = Buttons.dialogRow(im);            // 테두리가 옆 칸과 이어지거나 흐릴 때: 가로 띠로 초록 → 파랑 → 빨강
         return d == null ? null : Buttons.center(d[1], im);
     }
 
@@ -181,6 +202,11 @@ public final class Seller {
     double[] sellAll(double before, double d) {
         double[] at = p("confirm_sell_pos");
         for (int t = 0; t < 3; t++) {
+            if (t > 0) {
+                // 첫 칸 탭이 씹혀서 물고기가 안 골라졌을 수도 있음 (상점을 연 직후 첫 탭) → 다시 고르고 Sell All
+                ui(p("first_fish_pos"), t);
+                mv.sleep(0.4 + d);
+            }
             // 누르기 직전에 화면에서 [Sell All] 을 다시 찾음 (저장한 자리가 어긋나 있어도)
             double[] btn = findSellAll();
             if (btn != null) pos.put("sell_all_pos", btn);
@@ -195,24 +221,16 @@ public final class Seller {
         return null;
     }
 
-    /** 판매 한 번 → 판 종류 수 */
-    public int run() {
-        String m = missing();
-        if (m != null) throw new RuntimeException(m);
-        double d = sellDelay;
-        out.log("물고기 팔러 감", 'c');
-        out.state("판매 · 물고기 판매 장소로 가는 중");
-        mv.goBase();
-        mv.walk("물고기 판매 장소", sellRoute);
-        out.state("판매 · 카메라 정렬 (도감)");
-        mv.alignCamera();                              // 대화 버튼을 누르기 전에 화면부터 맞춤
-        out.state("판매 · 대화");
-        mv.tapUi(p("talk_btn"));                       // PC 의 E — 화면에 뜨는 대화 버튼
-        mv.sleep(0.2);
-        SellText.Box sf = skipDialog(() -> ui(p("dialog_pos"), 0), 12.0, "sellfish");
-        mv.sleep(0.15 + d);
-        if (!openShop(sf != null ? new double[]{sf.x, sf.y} : p("sell_fish_pos"), d)) out.log("[Sell Fish] 를 3번 눌러도 상점이 안 열림 — 그대로 이어감", 'y');
-        mv.sleep(0.5 + d);
+    /** 상점에 물고기 이름이 보이면 첫 번째 물고기 칸 자리 (없으면 null = 다 판 것) */
+    double[] fishLeft() {
+        List<SellText.Box> boxes = ocr.read(null);
+        SellText.Box title = SellText.findText(boxes, "fishingshop"), sa = SellText.findText(boxes, true, "sellall");
+        if (title == null || sa == null) return null;
+        return SellText.firstFish(boxes, title, sa, (double) scr.width() / Math.max(1, scr.height()));
+    }
+
+    /** 상점이 열린 상태에서: (첫 칸 → Sell All → 확인 Sell) 을 확인창이 안 뜰 때까지 → 판 종류 수 */
+    int sellLoop(double d) {
         int sold = 0;
         boolean warned = false;
         for (int i = 0; i < sellMax; i++) {
@@ -221,7 +239,24 @@ public final class Seller {
             mv.sleep(0.5 + d);
             double before = green(p("confirm_sell_pos"));
             double[] sellAt = sellAll(before, d);
-            if (sellAt == null) break;                  // Sell All 을 3번 눌러도 확인창이 없음 = 팔 물고기가 없음
+            if (sellAt == null) {
+                // Sell All 을 3번 눌러도 확인창이 없음 → 정말 팔 물고기가 없는지 화면 글자로 확인 (물고기 이름이 보이면 아직 있음)
+                //  전에는 여기서 바로 '다 팔았음' 으로 보고 상점을 닫아서, 물고기가 남았는데 그냥 닫는 일이 있었음
+                double[] ff = fishLeft();
+                if (ff != null) {
+                    out.log("물고기가 아직 보임 — 첫 칸을 화면에서 다시 찾아서 다시 팔아 봄", 'd');
+                    ui(ff, 0);
+                    mv.sleep(0.5 + d);
+                    before = green(p("confirm_sell_pos"));
+                    sellAt = sellAll(before, d);
+                    if (sellAt != null) pos.put("first_fish_pos", ff);
+                    else {
+                        snap("sell_confirm");
+                        out.log("물고기가 남아 있는데 확인창이 안 뜸 — 판매 자동 보정을 다시 해 주세요 (상점 화면을 사진으로 남김)", 'y');
+                    }
+                }
+                if (sellAt == null) break;
+            }
             if (sellAt != p("confirm_sell_pos") && !warned) {
                 warned = true;
                 out.log("확인창 Sell 이 지정한 자리와 달라서 글자로 찾아 누름 — 판매 자동 보정을 다시 해주세요", 'y');
@@ -240,6 +275,29 @@ public final class Seller {
             mv.sleep(0.3 + d);
             sold++;
         }
+        return sold;
+    }
+
+    /** 판매 한 번 → 판 종류 수 */
+    public int run() {
+        String m = missing();
+        if (m != null) throw new RuntimeException(m);
+        double d = sellDelay;
+        out.log("물고기 팔러 감", 'c');
+        out.state("판매 · 물고기 판매 장소로 가는 중");
+        mv.goBase();
+        mv.walk("물고기 판매 장소", sellRoute);
+        out.state("판매 · 카메라 정렬 (도감)");
+        mv.alignCamera();                              // 대화 버튼을 누르기 전에 화면부터 맞춤
+        out.state("판매 · 대화");
+        mv.tapUi(p("talk_btn"));                       // PC 의 E — 화면에 뜨는 대화 버튼
+        mv.sleep(0.2);
+        SellText.Box sf = skipDialog(() -> ui(p("dialog_pos"), 0), 12.0, "sellfish");
+        mv.sleep(0.15 + d);
+        if (sf == null) snap("sell_fish");
+        if (!openShop(sf != null ? new double[]{sf.x, sf.y} : p("sell_fish_pos"), d)) out.log("[Sell Fish] 를 3번 눌러도 상점이 안 열림 — 그대로 이어감", 'y');
+        mv.sleep(0.5 + d);
+        int sold = sellLoop(d);
         out.log("물고기 판매 완료 (" + sold + "종류)", 'g');
         ui(p("shop_close_pos"), 0);
         mv.sleep(0.5 + d);
@@ -262,7 +320,7 @@ public final class Seller {
             if (System.nanoTime() > end) throw new RuntimeException("대화창이 안 보임 — Captain Flarg 앞에서 대화 버튼을 눌러 주세요");
             boxes = ocr.read(DIALOG_AREA);
             dlg = SellText.dialogPoint(boxes);
-            if (dlg != null || SellText.findText(boxes, "sellfish") != null) break;
+            if (dlg != null || SellText.sellFish(boxes) != null || findSellFish() != null) break;
             mv.sleep(0.4);
         }
         out.state("대화창 찾음 — 이제 화면을 만지지 마세요");
@@ -276,7 +334,12 @@ public final class Seller {
             if (!pos.containsKey("dialog_pos")) throw new RuntimeException("대화창을 못 찾음");
             sf = skipDialog(() -> ui(p("dialog_pos"), 0), 12.0, "sellfish");
         }
-        if (sf == null) throw new RuntimeException("[Sell Fish] 버튼을 못 찾음");
+        if (sf == null) {
+            snap("sellcal_sell_fish");
+            if (p("sell_fish_pos") == null) throw new RuntimeException("[Sell Fish] 버튼을 못 찾음 — 대화 선택지가 보이는 상태에서 다시 해 주세요");
+            notes.add("[Sell Fish] 를 못 찾아서 저장된 자리 그대로");
+            sf = new SellText.Box("[Sell Fish]", p("sell_fish_pos")[0], p("sell_fish_pos")[1], 0, 0);
+        }
         pos.put("sell_fish_pos", new double[]{SellText.r4(sf.x), SellText.r4(sf.y)});
         if (dlg == null) notes.add("대화창은 못 찾음");
         out.state("상점 여는 중");
@@ -289,7 +352,10 @@ public final class Seller {
             sa = SellText.findText(boxes, true, "sellall");
             if (title != null && sa != null) break;
         }
-        if (title == null || sa == null) throw new RuntimeException("상점(Fishing Shop · Sell All)을 못 찾음");
+        if (title == null || sa == null) {
+            snap("sellcal_shop");
+            throw new RuntimeException("상점(Fishing Shop · Sell All)을 못 찾음");
+        }
         mv.sleep(0.4);
         boxes = ocr.read(null);
         SellText.Box t2 = SellText.findText(boxes, "fishingshop"), s2 = SellText.findText(boxes, true, "sellall");

@@ -1,3 +1,27 @@
+## Acrux Mobile V1.4.16 업데이트
+- [Sell Fish] 를 못 찾던 문제 수정
+  - 선택지가 서서히 떠오르는 동안 대화창을 0.35초마다 계속 눌러서, 흐린 선택지를 못 보고 끝났음 [ 이제 누른 뒤 1.2초는 보기만 함 ]
+  - 색으로 못 찾으면 가로 띠로 다시 찾음 [ 초록 Open Shop → 파랑 Sell Fish → 빨강 Leave 순서 ]
+  - 글자가 Roll 과 섞여 읽혀도 찾음 [ 'Fish' 가 들어간 글자 · Open Shop 과 Leave 사이 가운데 ]
+  - 판매 자동 보정에서 못 찾으면 저장된 자리를 그대로 씀 [ 처음 보정이면 안내와 함께 멈춤 ]
+- 물고기가 남았는데 팔지 않고 상점을 닫던 문제 수정
+  - 상점을 연 직후 첫 칸 탭이 씹히면 Sell All 을 눌러도 확인창이 안 떠서 '다 팔았음' 으로 봤음 [ 이제 다시 누를 때마다 첫 칸도 다시 고름 ]
+  - 닫기 전에 물고기 이름이 보이는지 확인 · 보이면 첫 칸을 화면에서 다시 찾아서 다시 팖
+  - 'Sell All' 글자를 물고기 이름으로 잘못 읽던 문제도 수정
+- 판매 중 버튼을 못 찾으면 그 화면을 사진첩 (Pictures/Acrux) 에 남김 [ 문제를 알릴 때 같이 보내 주세요 ]
+
+## Acrux Mobile V1.4.16 Update
+- Fixed [Sell Fish] not being found
+  - It kept tapping the dialog every 0.35 s while the choices were fading in, so it never saw them [ it now only watches for 1.2 s after a tap ]
+  - If the colors are not found, it scans again by horizontal band [ green Open Shop → blue Sell Fish → red Leave ]
+  - It also finds it when the text is read mixed with Roll [ text containing 'Fish' · midway between Open Shop and Leave ]
+  - Sell auto-calibration keeps the saved position if it still can't find it [ the first calibration stops with a hint ]
+- Fixed the shop closing without selling while fish were left
+  - If the first-slot tap right after opening the shop was swallowed, Sell All showed no confirm window and it assumed everything was sold [ every retry now selects the first slot again ]
+  - Before closing, it checks for fish names · if any, it finds the first slot on screen and sells again
+  - Also fixed the 'Sell All' text being mistaken for a fish name
+- When a button can't be found while selling, that screen is saved to the gallery (Pictures/Acrux) [ please send it along when reporting a problem ]
+
 ## Acrux Mobile V1.4.15 업데이트
 - 튜토리얼에서 언어를 바꿀 수 있게 추가
   - 튜토리얼 첫 화면에 한국어 · English · 日本語 버튼 [ 누르면 앱 · Acrux 창 · 튜토리얼이 바로 그 언어로 바뀜 ]

@@ -226,6 +226,106 @@ public final class Buttons {
         return best;
     }
 
+    /**
+     * 대화 선택지 줄을 '줄 단위 색 띠' 로 찾기 (dialog 가 못 찾을 때) → {Open Shop, Sell Fish, Leave} 또는 null
+     *  · dialog 는 초록 테두리를 상자로 먼저 찾는데, 테두리가 옆의 Auto roll 칸 테두리와 이어지거나 반투명으로 흐리면 상자가 틀어져서 못 찾았음
+     *  · 여기선 아래쪽을 가로 띠로 훑어서, 띠 안에 초록 → 파랑 → 빨강 글자 · 테두리 칸이 왼쪽부터 차례로 비슷한 폭으로 있으면 선택지 줄로 봄
+     */
+    public static Box[] dialogRow(Img im) {
+        int W = im.w, H = im.h;
+        int y0 = (int) (H * 0.5), y1 = H, bh = Math.max(6, (int) (H * 0.05)), step = Math.max(2, bh / 3);
+        if (y1 - y0 < bh) return null;
+        byte[] cl = new byte[(y1 - y0) * W];
+        for (int y = y0; y < y1; y++) {
+            for (int x = 0; x < W; x++) {
+                int k = y * W + x;
+                cl[(y - y0) * W + x] = (byte) cls(im.r[k], im.g[k], im.b[k]);
+            }
+        }
+        Box[] best = null;
+        double bestScore = 0;
+        int[][] col = new int[3][W];
+        for (int top = y0; top + bh <= y1; top += step) {
+            for (int c = 0; c < 3; c++) java.util.Arrays.fill(col[c], 0);
+            for (int y = top; y < top + bh; y++) {
+                int o = (y - y0) * W;
+                for (int x = 0; x < W; x++) {
+                    int c = cl[o + x];
+                    if (c >= 0) col[c][x]++;
+                }
+            }
+            List<int[]> gr = runs(col[GREEN], W), bl = runs(col[BLUE], W), rd = runs(col[RED], W);
+            for (int[] g : gr) {
+                int gw = g[1] - g[0] + 1;
+                if (gw < W * 0.04 || gw > W * 0.3) continue;
+                for (int[] b : bl) {
+                    int bw = b[1] - b[0] + 1, gap1 = b[0] - g[1];
+                    if (gap1 < 0 || gap1 > gw * 0.6 || bw < gw * 0.45 || bw > gw * 1.8) continue;
+                    for (int[] r : rd) {
+                        int rw = r[1] - r[0] + 1, gap2 = r[0] - b[1];
+                        if (gap2 < 0 || gap2 > gw * 0.6 || rw < gw * 0.3 || rw > gw * 1.8) continue;
+                        // 세 칸 사이 간격이 비슷해야 함 (한 줄에 고르게 놓인 버튼)
+                        if (Math.abs(gap1 - gap2) > Math.max(gw * 0.35, W * 0.02)) continue;
+                        double score = g[2] + b[2] + r[2];
+                        if (score > bestScore) {
+                            bestScore = score;
+                            best = new Box[]{box(g, top, bh, GREEN), box(b, top, bh, BLUE), box(r, top, bh, RED)};
+                        }
+                    }
+                }
+            }
+        }
+        if (best == null || bestScore < bh * W * 0.01) return null;
+        // 파란 칸의 실제 위아래 (띠보다 정확히 · 버튼 가운데를 누르려고)
+        Box b = best[1];
+        int ya = -1, yb = -1;
+        for (int y = Math.max(y0, b.y1 - bh); y < Math.min(y1, b.y2 + bh); y++) {
+            int n = 0, o = (y - y0) * W;
+            for (int x = b.x1; x <= b.x2; x++) if (cl[o + x] == BLUE) n++;
+            if (n >= Math.max(2, b.w() / 40)) {
+                if (ya < 0) ya = y;
+                yb = y;
+            }
+        }
+        if (ya >= 0 && yb - ya <= bh * 2.5) {
+            b.y1 = ya;
+            b.y2 = yb;
+        }
+        return best;
+    }
+
+    /** 열마다 센 수 → 이어진 범위들 {시작, 끝, 합} (열에 2칸 이상 · 작은 틈은 넘어감) */
+    static List<int[]> runs(int[] col, int W) {
+        List<int[]> out = new ArrayList<>();
+        int skip = Math.max(3, W / 120), a = -1, last = -1, sum = 0;
+        for (int x = 0; x < W; x++) {
+            if (col[x] < 2) continue;
+            if (a >= 0 && x - last > skip) {
+                out.add(new int[]{a, last, sum});
+                a = -1;
+            }
+            if (a < 0) {
+                a = x;
+                sum = 0;
+            }
+            last = x;
+            sum += col[x];
+        }
+        if (a >= 0) out.add(new int[]{a, last, sum});
+        return out;
+    }
+
+    static Box box(int[] run, int top, int bh, int c) {
+        Box b = new Box();
+        b.x1 = run[0];
+        b.x2 = run[1];
+        b.y1 = top;
+        b.y2 = top + bh - 1;
+        b.n = run[2];
+        b.c = c;
+        return b;
+    }
+
     /** 상점 [Sell] · [Sell All] → {Sell, Sell All} 또는 null */
     public static Box[] shop(Img im) {
         List<Box> bs = buttons(boxes(im, 0, (int) (im.h * 0.3), im.w, im.h), im);

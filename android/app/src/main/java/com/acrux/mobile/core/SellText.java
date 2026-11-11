@@ -76,6 +76,26 @@ public final class SellText {
         return new double[]{r4(Math.min(1.0, Math.max(0.0, x))), r4(Math.min(1.0, Math.max(0.0, y)))};
     }
 
+    /**
+     * 대화 선택지 [Sell Fish] 를 글자로 찾기 — 선택지가 Roll 버튼 위에 겹쳐 그려져서 'SeRollsh' 처럼 섞여 읽힐 때가 많음
+     *  1. sellfish 그대로 · 2. 'fish' · 'sellf' 가 들어간 글자 (대사 줄 아래) · 3. [Open Shop] 과 [Leave] 사이 가운데
+     */
+    public static Box sellFish(List<Box> boxes) {
+        Box b = findText(boxes, "sellfish");
+        if (b != null) return b;
+        Box line = findText(boxes, "whotdoyou", "orrr", "clicktoskip", "toskip");
+        double below = line != null ? line.y + line.h / 2 : 0;
+        for (Box c : boxes) {
+            String n = norm(c.text);
+            if (c.y <= below || n.contains("coptoln")) continue;
+            if (n.contains("flsh") || n.contains("sellf") || n.contains("ellfl")) return n.length() > 9 && n.contains("flsh") ? subBox(c, "flsh") : c;
+        }
+        Box open = findText(boxes, "openshop", "openshp"), leave = findText(boxes, "leove", "leave");
+        if (open != null && leave != null && leave.x > open.x && Math.abs(open.y - leave.y) < 0.04)
+            return new Box("[Sell Fish]", (open.x + leave.x) / 2, (open.y + leave.y) / 2, 0, 0);
+        return null;
+    }
+
     /** NPC 대화창 가운데 (대사 줄 · Click to skip · 이름 줄) */
     public static double[] dialogPoint(List<Box> boxes) {
         Box line = findText(boxes, "orrr", "whotdoyou");
@@ -99,9 +119,13 @@ public final class SellText {
         return r(0.5, sum / n);
     }
 
-    /** 상점에 늘 있는 글자 (물고기 이름이 아님) */
-    static final java.util.Set<String> SHOP_WORDS = new java.util.HashSet<>(java.util.Arrays.asList(
-            "sell", "sellall", "buy", "flshlngshop", "fishingshop", "concel", "cancel", "exit", "close"));
+    /** 상점에 늘 있는 글자 (물고기 이름이 아님) — norm 을 거친 모양으로 (전에는 'sellall' 그대로라 norm 한 'selloll' 과 안 맞아서
+     *  Sell All 글자를 물고기 이름으로 봤음 → 물고기가 없어도 '아직 있음' 으로 보거나 첫 칸 자리가 틀어졌음) */
+    static final java.util.Set<String> SHOP_WORDS = new java.util.HashSet<>();
+
+    static {
+        for (String w : new String[]{"sell", "sell all", "buy", "fishing shop", "cancel", "exit", "close"}) SHOP_WORDS.add(norm(w));
+    }
 
     /**
      * 첫 번째 물고기 칸 (Buy · Sell 탭 없이) — 제목 (Fishing Shop) 아래 · Sell All 위에 있는 물고기 이름들 → 맨 윗줄 맨 왼쪽 이름의 칸

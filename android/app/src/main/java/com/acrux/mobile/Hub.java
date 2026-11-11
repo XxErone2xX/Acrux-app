@@ -295,7 +295,49 @@ final class Hub {
         Seller s = new Seller(cap, mv, new MlOcr(), pos, sellRoute, fishRoute, OUT);
         s.sellMax = sellMax;
         s.sellDelay = sellDelay;
+        s.shot = why -> saveShot(cap, why);
         return s;
+    }
+
+    /**
+     * 판매에서 버튼 찾기에 실패한 화면을 사진으로 남김 (사진첩 → Pictures/Acrux) — 보내 주면 왜 못 찾았는지 볼 수 있음
+     * 안드로이드 10 이상: 권한 없이 사진첩에 · 그 아래: 앱 폴더 (Android/data/com.acrux.mobile/files/Pictures)
+     */
+    static void saveShot(CaptureService cap, String why) {
+        try {
+            com.acrux.mobile.core.Img im = cap.grab(0, 0, cap.width(), cap.height());
+            if (im == null || im.w * im.h == 0) return;
+            int[] px = new int[im.w * im.h];
+            for (int k = 0; k < px.length; k++) px[k] = 0xFF000000 | (im.r[k] << 16) | (im.g[k] << 8) | im.b[k];
+            android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(px, im.w, im.h, android.graphics.Bitmap.Config.ARGB_8888);
+            String name = "acrux_" + why + "_" + new SimpleDateFormat("MMdd_HHmmss", Locale.ROOT).format(new Date()) + ".jpg";
+            String where;
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                android.content.ContentValues v = new android.content.ContentValues();
+                v.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name);
+                v.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/jpeg");
+                v.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/Acrux");
+                android.net.Uri uri = app.getContentResolver().insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
+                if (uri == null) return;
+                try (java.io.OutputStream o = app.getContentResolver().openOutputStream(uri)) {
+                    if (o == null) return;
+                    bm.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, o);
+                }
+                where = "사진첩 Pictures/Acrux/" + name;
+            } else {
+                java.io.File dir = app.getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES);
+                if (dir == null) return;
+                java.io.File f = new java.io.File(dir, name);
+                try (java.io.OutputStream o = new java.io.FileOutputStream(f)) {
+                    bm.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, o);
+                }
+                where = f.getAbsolutePath();
+            }
+            bm.recycle();
+            log("못 찾은 화면을 사진으로 남김: " + where + " — 문제를 알릴 때 같이 보내 주세요", 'd');
+        } catch (Exception | OutOfMemoryError e) {
+            log("화면 사진을 남기지 못함: " + e, 'd');
+        }
     }
 
     // ---------------------------------------------------------------- 저장 위치는 항상 화면 안
