@@ -10,14 +10,15 @@ dependencies = [
  "jni 0.21.1",
  "regex",
  "reqwest",
+ "rustix",
  "rustls",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
+ "tempfile",
  "uuid",
  "webpki-roots",
- "windows-sys 0.61.2",
  "x11rb",
 ]
 

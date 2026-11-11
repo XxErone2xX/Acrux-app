@@ -23,12 +23,22 @@ export interface Stats {
 
 export interface DuaStatus {
   supported: boolean;
+  background: boolean;
+  hotkeys: boolean;
   running: boolean;
   route: "headless" | "screenshot" | null;
   reason: string;
   headlessTicks: number;
   screenshotFrames: number;
   transitions: number;
+}
+
+export interface SessionStatus {
+  supported: boolean;
+  state: "stopped" | "starting" | "ready" | "error" | "unsupported";
+  message: string;
+  width: number;
+  height: number;
 }
 
 export interface Status {
@@ -48,6 +58,7 @@ export interface Status {
   measuringElapsed: number | null;
   measuredSeconds: number | null;
   dua: DuaStatus;
+  session: SessionStatus;
   generation: number;
 }
 

@@ -1,12 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { biomeStatus, saveBiome, type BiomeSettings } from "./biome";
 import defaults from "./desktop-defaults.json";
-import { control, saveTuning, status, type Status, type Tuning } from "./engine";
+import { control, saveTuning, status, type SessionStatus, type Status, type Tuning } from "./engine";
 
 const key = "acrux.desktop.preferences";
 type Bag = Record<string, unknown>;
 type Position = [number, number];
-type Place = "fish" | "sell";
 type Waypoint = { pos: Position | null; time: number | null };
 type Location = { name: string; feat: string; key: string; points: Waypoint[] };
 type Movement = Bag & { places: Location[] };
@@ -98,6 +97,350 @@ function reportError(message: string) {
   window.dispatchEvent(new CustomEvent("acrux-desktop-error", { detail: message }));
 }
 
+function snapshotPixels(buffer: ArrayBuffer) {
+  if (!(buffer instanceof ArrayBuffer) || buffer.byteLength < 8) throw new Error("Sober 화면 데이터를 읽을 수 없습니다.");
+  const header = new DataView(buffer);
+  const width = header.getUint32(0, true), height = header.getUint32(4, true);
+  const bytes = width * height * 4;
+  if (width < 1 || height < 1 || width > 16384 || height > 16384 || bytes > 256 * 1024 * 1024 || buffer.byteLength !== 8 + bytes) {
+    throw new Error("Sober 화면 크기나 픽셀 데이터가 올바르지 않습니다.");
+  }
+  return { width, height, pixels: new Uint8ClampedArray(buffer, 8) };
+}
+
+type ManualEvent = { kind: "key"; vk: number; down: boolean }
+  | { kind: "pointer"; x: number; y: number; right: boolean; down: boolean }
+  | { kind: "look"; dx: number; dy: number } | { kind: "release" };
+
+function gameKey(code: string): number | undefined {
+  if (/^Key[A-Z]$/.test(code)) return code.charCodeAt(3);
+  if (/^Digit[0-9]$/.test(code)) return code.charCodeAt(5);
+  return ({ Space: 0x20, ArrowLeft: 0x25, ArrowUp: 0x26, ArrowRight: 0x27, ArrowDown: 0x28,
+    Escape: 0x1b, Enter: 0x0d, Tab: 0x09, Backspace: 0x08,
+    ShiftLeft: 0x10, ShiftRight: 0x10, ControlLeft: 0x11, ControlRight: 0x11,
+    AltLeft: 0x12, AltRight: 0x12 } as Record<string, number>)[code];
+}
+
+let closeGameView: (() => void) | undefined;
+let releaseGameInput: (() => Promise<void>) | undefined;
+let openingGameView = false;
+let gameViewRevision = 0;
+let gameInputCleanup = Promise.resolve();
+
+async function openGameView() {
+  if (closeGameView || openingGameView) return;
+  openingGameView = true;
+  const revision = gameViewRevision;
+  try {
+    await gameInputCleanup;
+    let current = await status();
+    if (revision !== gameViewRevision) throw new Error("화면 열기를 취소했습니다.");
+    if (!current.dua.background || current.session.state !== "ready") throw new Error("앱 전용 게임을 먼저 여세요.");
+    const dialog = document.createElement("dialog");
+    dialog.id = "desktopGameView";
+    dialog.className = "card";
+    dialog.setAttribute("aria-labelledby", "desktopGameTitle");
+    Object.assign(dialog.style, { maxWidth: "94vw", maxHeight: "94vh", background: "var(--panel)", color: "var(--fg)", border: "1px solid var(--line)", padding: "18px 20px" });
+    const title = document.createElement("h3");
+    title.id = "desktopGameTitle";
+    title.textContent = "앱 전용 게임 화면";
+    const hint = document.createElement("p");
+    hint.className = "hint";
+    const canvas = document.createElement("canvas");
+    canvas.tabIndex = 0;
+    canvas.setAttribute("aria-label", "앱 전용 게임 조작 화면");
+    Object.assign(canvas.style, { display: "block", maxWidth: "min(88vw, 1200px)", maxHeight: "70vh", width: "auto", height: "auto", touchAction: "none" });
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Sober 화면을 표시할 수 없습니다.");
+    const buttons = document.createElement("div");
+    buttons.className = "confirm-btns";
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "btn ghost";
+    close.textContent = "화면 닫기";
+    buttons.append(close);
+    dialog.append(title, hint, canvas, buttons);
+    let closed = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let lookTimer: ReturnType<typeof setTimeout> | undefined;
+    type PendingInput = { event: ManualEvent; generation: number; revision: number };
+    let critical: PendingInput[] = [];
+    let motion: PendingInput | undefined;
+    let pendingRelease: PendingInput | undefined;
+    let releasePromise: Promise<void> | undefined;
+    let resolveRelease: (() => void) | undefined;
+    let pumping = false;
+    const keys = new Map<string, number>(), mouse = new Set<number>();
+    let inputRevision = 0;
+    let pointer: Position = [0.5, 0.5];
+    let lastPointer: Position | undefined;
+    let look: Position = [0, 0];
+    const manualAllowed = () => !closed && current.dua.background && current.session.state === "ready"
+      && !config.macro_on && !current.dua.running && current.phase === "idle";
+    const modeHint = () => { hint.textContent = manualAllowed()
+      ? "화면을 클릭한 뒤 키보드로 조작하세요. 우클릭 드래그로 시점을 움직입니다."
+      : "매크로 실행 중에는 보기만 가능합니다. 조작하려면 매크로를 중지하세요."; };
+    const clearHeld = () => {
+      ++inputRevision;
+      keys.clear(); mouse.clear(); lastPointer = undefined; look = [0, 0];
+      if (lookTimer !== undefined) clearTimeout(lookTimer);
+      lookTimer = undefined;
+    };
+    const pending = (event: ManualEvent): PendingInput => ({ event, generation: current.generation, revision: inputRevision });
+    const pump = async () => {
+      if (pumping) return;
+      pumping = true;
+      try {
+        while (pendingRelease || critical.length || motion) {
+          let next: PendingInput;
+          if (pendingRelease) { next = pendingRelease; pendingRelease = undefined; }
+          else if (critical.length) next = critical.shift()!;
+          else { next = motion!; motion = undefined; }
+          if (next.event.kind !== "release" && (next.revision !== inputRevision || !manualAllowed() || next.generation !== current.generation)) continue;
+          try {
+            await invoke("desktop_manual", { event: next.event, generation: next.generation });
+          } catch (error) {
+            if (!closed) hint.textContent = String(error);
+            if (next.event.kind !== "release") void release();
+            else { clearHeld(); critical = []; motion = undefined; }
+          } finally {
+            if (next.event.kind === "release") {
+              const done = resolveRelease;
+              releasePromise = undefined; resolveRelease = undefined;
+              done?.();
+            }
+          }
+        }
+      } finally { pumping = false; }
+    };
+    const release = (): Promise<void> => {
+      clearHeld(); critical = []; motion = undefined;
+      if (!releasePromise) {
+        releasePromise = new Promise<void>(resolve => { resolveRelease = resolve; });
+        pendingRelease = pending({ kind: "release" });
+      }
+      void pump();
+      return releasePromise;
+    };
+    const send = (event: ManualEvent) => {
+      if (critical.length >= 64) {
+        hint.textContent = "입력이 밀려 모두 해제했습니다. 다시 조작하세요.";
+        void release();
+        return;
+      }
+      critical.push(pending(event));
+      void pump();
+    };
+    const sendMotion = (event: ManualEvent) => {
+      if (event.kind === "look" && motion?.event.kind === "look") {
+        event = { kind: "look", dx: event.dx + motion.event.dx, dy: event.dy + motion.event.dy };
+      }
+      if (event.kind === "look") {
+        const limitX = Math.min(2048, canvas.width), limitY = Math.min(2048, canvas.height);
+        event = { kind: "look", dx: Math.max(-limitX, Math.min(limitX, event.dx)), dy: Math.max(-limitY, Math.min(limitY, event.dy)) };
+      }
+      motion = pending(event);
+      void pump();
+    };
+    releaseGameInput = release;
+    const finish = () => {
+      if (closed) return;
+      closed = true;
+      ++gameViewRevision;
+      if (timer !== undefined) clearTimeout(timer);
+      gameInputCleanup = release();
+      window.removeEventListener("blur", blurred);
+      closeGameView = undefined;
+      releaseGameInput = undefined;
+      dialog.close(); dialog.remove();
+    };
+    const blurred = () => { void release(); };
+    closeGameView = finish;
+    close.addEventListener("click", finish);
+    dialog.addEventListener("cancel", event => { event.preventDefault(); finish(); });
+    dialog.addEventListener("close", finish);
+    dialog.addEventListener("keydown", event => event.stopPropagation());
+    dialog.addEventListener("keyup", event => event.stopPropagation());
+    window.addEventListener("blur", blurred);
+    canvas.addEventListener("blur", blurred);
+    canvas.addEventListener("contextmenu", event => event.preventDefault());
+    const keyEvent = (event: KeyboardEvent, down: boolean) => {
+      event.preventDefault(); event.stopPropagation();
+      const vk = gameKey(event.code);
+      if (vk === undefined) return;
+      if (!manualAllowed()) { if (!down) void release(); return; }
+      if (down && keys.has(event.code) || !down && !keys.has(event.code)) return;
+      const alreadyHeld = [...keys.values()].includes(vk);
+      if (down) keys.set(event.code, vk); else keys.delete(event.code);
+      if (down && alreadyHeld || !down && [...keys.values()].includes(vk)) return;
+      void send({ kind: "key", vk, down });
+    };
+    canvas.addEventListener("keydown", event => keyEvent(event, true));
+    canvas.addEventListener("keyup", event => keyEvent(event, false));
+    const position = (event: PointerEvent): Position | undefined => {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      const x = (event.clientX - rect.left) / rect.width, y = (event.clientY - rect.top) / rect.height;
+      if (x < 0 || x >= 1 || y < 0 || y >= 1 || !Number.isFinite(x + y)) return;
+      return [x, y];
+    };
+    canvas.addEventListener("pointerdown", event => {
+      event.preventDefault(); event.stopPropagation();
+      if (!manualAllowed() || event.button !== 0 && event.button !== 2) return;
+      const point = position(event);
+      if (!point) return;
+      canvas.focus(); canvas.setPointerCapture?.(event.pointerId);
+      pointer = point; lastPointer = [event.clientX, event.clientY]; mouse.add(event.button);
+      void send({ kind: "pointer", x: point[0], y: point[1], right: event.button === 2, down: true });
+    });
+    canvas.addEventListener("pointerup", event => {
+      event.preventDefault(); event.stopPropagation();
+      if (!mouse.delete(event.button)) return;
+      motion = undefined; look = [0, 0];
+      if (lookTimer !== undefined) clearTimeout(lookTimer);
+      lookTimer = undefined;
+      pointer = position(event) ?? pointer;
+      if (!manualAllowed()) { void release(); return; }
+      void send({ kind: "pointer", x: pointer[0], y: pointer[1], right: event.button === 2, down: false });
+      if (!mouse.size) lastPointer = undefined;
+    });
+    canvas.addEventListener("pointercancel", () => { void release(); });
+    canvas.addEventListener("pointermove", event => {
+      if (!manualAllowed() || !mouse.size) return;
+      event.preventDefault(); event.stopPropagation();
+      pointer = position(event) ?? pointer;
+      if (mouse.has(2) && lastPointer) {
+        const rect = canvas.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          look[0] = Math.max(-2048, Math.min(2048, look[0] + (event.clientX - lastPointer[0]) * canvas.width / rect.width));
+          look[1] = Math.max(-2048, Math.min(2048, look[1] + (event.clientY - lastPointer[1]) * canvas.height / rect.height));
+        }
+        lastPointer = [event.clientX, event.clientY];
+      }
+      if (lookTimer !== undefined) return;
+      lookTimer = setTimeout(() => {
+        lookTimer = undefined;
+        if (!manualAllowed()) return;
+        if (mouse.has(2)) {
+          const dx = Math.round(look[0]), dy = Math.round(look[1]);
+          look = [0, 0];
+          if (dx || dy) sendMotion({ kind: "look", dx, dy });
+        } else if (mouse.has(0)) sendMotion({ kind: "pointer", x: pointer[0], y: pointer[1], right: false, down: true });
+      }, 34);
+    });
+    const refresh = async () => {
+      try {
+        const next = await status();
+        if (closed) return;
+        const changed = current.generation !== next.generation || current.dua.running !== next.dua.running;
+        current = next;
+        if (changed) await release();
+        modeHint();
+        if (!current.dua.background || current.session.state !== "ready") throw new Error(current.session.message);
+        const image = snapshotPixels(await invoke<ArrayBuffer>("desktop_snapshot"));
+        if (closed) return;
+        canvas.width = image.width; canvas.height = image.height;
+        context.putImageData(new ImageData(image.pixels, image.width, image.height), 0, 0);
+      } catch (error) { if (!closed) { hint.textContent = String(error); await release(); } }
+      finally { if (!closed) timer = setTimeout(() => { void refresh(); }, 500); }
+    };
+    modeHint();
+    document.body.append(dialog); dialog.showModal(); canvas.focus();
+    void refresh();
+  } finally { openingGameView = false; }
+}
+
+let pickRevision = 0;
+let pickingDesktop = false;
+let cancelPreview: (() => void) | undefined;
+
+async function cancelDesktopPick() {
+  ++pickRevision;
+  cancelPreview?.();
+}
+
+async function pickDesktop(): Promise<Position> {
+  if (pickingDesktop) throw new Error("위치를 이미 지정 중입니다.");
+  pickingDesktop = true;
+  const revision = ++pickRevision;
+  try {
+    ++gameViewRevision;
+    closeGameView?.();
+    await gameInputCleanup;
+    const current = await status();
+    if (revision !== pickRevision) throw new Error("위치 지정을 취소했습니다.");
+    if (!current.dua.background || current.session.state !== "ready") throw new Error("앱 전용 게임을 먼저 여세요.");
+    if (current.dua.running || current.phase !== "idle") throw new Error("실행 중인 작업을 먼저 중지하세요.");
+    const buffer = await invoke<ArrayBuffer>("desktop_snapshot");
+    if (revision !== pickRevision) throw new Error("위치 지정을 취소했습니다.");
+    const { width, height, pixels } = snapshotPixels(buffer);
+    const dialog = document.createElement("dialog");
+    dialog.id = "desktopPickPreview";
+    dialog.className = "card";
+    dialog.setAttribute("aria-labelledby", "desktopPickTitle");
+    Object.assign(dialog.style, {
+      maxWidth: "94vw", maxHeight: "94vh", background: "var(--panel)", color: "var(--fg)",
+      border: "1px solid var(--line)", padding: "18px 20px",
+    });
+    const title = document.createElement("h3");
+    title.id = "desktopPickTitle";
+    title.textContent = "Sober 화면에서 저장할 위치를 클릭하세요.";
+    const hint = document.createElement("p");
+    hint.className = "hint";
+    hint.textContent = "캡처한 Sober 화면입니다. Esc 또는 취소로 닫을 수 있습니다.";
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    canvas.setAttribute("aria-label", "Sober 위치 선택 화면");
+    Object.assign(canvas.style, {
+      display: "block", maxWidth: "min(88vw, 1200px)", maxHeight: "70vh", width: "auto", height: "auto", cursor: "crosshair",
+    });
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Sober 화면을 표시할 수 없습니다.");
+    context.putImageData(new ImageData(pixels, width, height), 0, 0);
+    const buttons = document.createElement("div");
+    buttons.className = "confirm-btns";
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "btn ghost";
+    cancel.textContent = "취소";
+    buttons.append(cancel);
+    dialog.append(title, hint, canvas, buttons);
+    return await new Promise<Position>((resolve, reject) => {
+      let settled = false;
+      const finish = (point?: Position) => {
+        if (settled) return;
+        settled = true;
+        cancelPreview = undefined;
+        dialog.close();
+        dialog.remove();
+        if (point) resolve(point);
+        else reject(new Error("위치 지정을 취소했습니다."));
+      };
+      cancelPreview = () => finish();
+      cancel.addEventListener("click", () => finish());
+      dialog.addEventListener("cancel", event => { event.preventDefault(); finish(); });
+      dialog.addEventListener("close", () => finish());
+      dialog.addEventListener("keydown", event => {
+        if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); finish(); }
+      });
+      canvas.addEventListener("click", event => {
+        const rect = canvas.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return;
+        const x = (event.clientX - rect.left) / rect.width;
+        const y = (event.clientY - rect.top) / rect.height;
+        if (Number.isFinite(x) && Number.isFinite(y) && x >= 0 && y >= 0 && x < 1 && y < 1) finish([x, y]);
+      });
+      document.body.append(dialog);
+      dialog.showModal();
+      cancel.focus();
+    });
+  } finally {
+    cancelPreview?.();
+    pickingDesktop = false;
+  }
+}
+
 let desktopRevision = 0;
 async function syncDesktop(featuresChanged: boolean, toggle: boolean) {
   const revision = ++desktopRevision;
@@ -115,7 +458,8 @@ async function syncDesktop(featuresChanged: boolean, toggle: boolean) {
       }
       return;
     }
-    await configureDesktop();
+    if (!current.dua.background || current.session.state !== "ready") throw new Error("앱 전용 게임을 먼저 여세요.");
+    await releaseGameInput?.();
     if (revision !== desktopRevision || !config.macro_on) return;
     await invoke<Status>("desktop_start", { features: enabledFeatures(), generation: current.generation });
   } catch (error) {
@@ -123,68 +467,7 @@ async function syncDesktop(featuresChanged: boolean, toggle: boolean) {
   }
 }
 
-async function configureDesktop() {
-  const positions = Object.fromEntries([
-    ...["chat_pos", "collection_pos", "collection_close", "dialog_pos"].map(key => [key, config.base[key] ?? null]),
-    ...["sell_fish_pos", "first_fish_pos", "sell_all_pos", "confirm_sell_pos", "shop_close_pos"].map(key => [key, config.mfish[key] ?? null]),
-  ]);
-  await invoke("desktop_navigation", { setup: {
-    movement: config.move, positions, sell_max: Math.trunc(Number(config.mfish.sell_max ?? 100)), sell_delay: config.mfish.sell_delay ?? 0,
-  } });
-}
-
-function placeAt(index: number): Place {
-  switch (config.move.places[index]?.key) {
-    case "fish_spot": return "fish";
-    case "sell_spot": return "sell";
-    default: throw new Error("낚시 장소와 판매 장소의 이동을 지원합니다.");
-  }
-}
-
-let measuring: { place: number; point: number } | undefined;
-let pickingWaypoint = false;
-async function moveTask(task: string) {
-  await configureDesktop();
-  await invoke("desktop_task", { task });
-  return { ok: true };
-}
-
-async function waypoint(payload: Bag, measure: boolean) {
-  const i = Number(payload.place);
-  const j = Number(payload.point);
-  const place = placeAt(i);
-  const point = config.move.places[i]?.points[j];
-  if (!point) return { error: "지점을 찾을 수 없습니다." };
-  const fromBase = payload.from_base !== false;
-  if (measure) {
-    await configureDesktop();
-    await invoke("desktop_waypoint", { place, index: j, measure: true, fromBase });
-    measuring = { place: i, point: j };
-    return { ok: true };
-  }
-  pickingWaypoint = true;
-  try {
-    if (fromBase) {
-      await configureDesktop();
-      await invoke("desktop_waypoint", { place, index: j, measure: false, fromBase });
-      let s: Status;
-      do {
-        await new Promise(resolve => setTimeout(resolve, 250));
-        s = await status();
-      } while (s.phase === "moving" && pickingWaypoint);
-      if (!pickingWaypoint || s.message !== "이동 동작이 끝났습니다.") return { error: s.message };
-    }
-    const pos = await invoke<Position>("desktop_pick");
-    const current = config.move.places[i]?.points[j];
-    if (current !== point) return { error: "지점 목록이 바뀌었습니다. 다시 지정하세요." };
-    point.pos = pos;
-    point.time = null;
-    persist();
-    return { move: structuredClone(config.move) };
-  } finally {
-    pickingWaypoint = false;
-  }
-}
+const pendingNavigation = "지도 기반 이동은 준비 중입니다. 게임 화면에서 직접 장소를 맞춰 주세요.";
 
 function biomeSettings(source: Bag): BiomeSettings {
   return {
@@ -259,26 +542,13 @@ async function request(name: string, payload: Bag) {
       const online = await invoke<{ share: boolean }>("online_status");
       config.online_share = online.share;
       applyStatus(s);
-      return { ...saved(), version: s.version, status: desktopStatus(s), dua: s.dua, mods: [], mods_error: modsError };
+      return { ...saved(), version: s.version, status: desktopStatus(s), dua: s.dua, session: s.session, mods: [], mods_error: modsError };
     }
     case "poll": {
       const s = await status();
       const biome = await biomeStatus();
       const online = await invoke<{ online: number | null }>("online_status");
-      if (measuring && s.measuredSeconds !== null) {
-        const point = config.move.places[measuring.place]?.points[measuring.point];
-        if (point) {
-          point.time = Math.round(s.measuredSeconds * 100) / 100;
-          persist();
-        }
-        measuring = undefined;
-      }
-      if (s.phase === "idle") measuring = undefined;
-      const move = {
-        running: s.phase === "moving" || s.phase === "selling",
-        msg: s.message,
-        measuring: measuring && s.measuringElapsed !== null ? { ...measuring, since: Date.now() / 1000 - s.measuringElapsed } : null,
-      };
+      const move = { running: false, msg: pendingNavigation, measuring: null };
       if (!s.dua.running && s.phase === "idle" && config.macro_on) config.macro_on = false;
       const message = s.dua.running ? `DUA · ${s.dua.route ?? "대기"} · ${s.dua.reason} · ${s.message}` : s.message;
       const logs = message === last ? [] : [{ seq: ++seq, time: Date.now() / 1000, msg: message, color: "d" }];
@@ -286,7 +556,7 @@ async function request(name: string, payload: Bag) {
       return {
         biome: { current: biome.current, history: biome.history, owner: biome.owner, log: biome.watching },
         online: online.online, online_on: true,
-        seq, logs, status: desktopStatus(s), dua: s.dua,
+        seq, logs, status: desktopStatus(s), dua: s.dua, session: s.session,
         roblox: s.gameAvailable, macro_on: config.macro_on, move,
         mfish: { running: s.phase !== "idle", msg: s.message, stats: s.stats },
       };
@@ -319,32 +589,39 @@ async function request(name: string, payload: Bag) {
       return { mfish: { ...config.mfish }, done: "낚시 대기 창 · 미니게임 창" };
     }
     case "move_base":
-      return moveTask("base");
     case "move_place":
-      return moveTask(placeAt(Number(payload.place)) === "fish" ? "fish" : "shop");
-    case "sell_test":
-      return moveTask("sell");
-    case "move_pick":
-      return waypoint(payload, false);
     case "move_test":
-      return waypoint(payload, true);
+    case "move_pick":
+    case "move_arrive":
+    case "sell_test":
+      return { error: pendingNavigation };
     case "move_get":
       return { move: structuredClone(config.move) };
-    case "move_arrive":
-      await invoke("desktop_arrive");
-      return { ok: true };
     case "move_stop":
       ++desktopRevision;
       config.macro_on = false;
-      measuring = undefined;
-      pickingWaypoint = false;
-      await invoke("desktop_cancel_pick");
+      await cancelDesktopPick();
       await control("stop");
       return { ok: true };
     case "pick_cancel":
-      if (pickingWaypoint) await control("stop");
-      pickingWaypoint = false;
-      await invoke("desktop_cancel_pick");
+      await cancelDesktopPick();
+      return {};
+    case "session_start":
+      return { session: await invoke<SessionStatus>("desktop_session_start") };
+    case "session_stop":
+      ++gameViewRevision;
+      closeGameView?.();
+      await gameInputCleanup;
+      await cancelDesktopPick();
+      ++desktopRevision;
+      config.macro_on = false;
+      return { session: await invoke<SessionStatus>("desktop_session_stop") };
+    case "game_view":
+      await openGameView();
+      return { ok: true };
+    case "game_view_close":
+      ++gameViewRevision;
+      closeGameView?.();
       return {};
     case "mpos_point": {
       const feat = String(payload.feat);
@@ -355,7 +632,7 @@ async function request(name: string, payload: Bag) {
       if (feat === "mfish" && ["fish_btn", "close_pos", "title_pos"].includes(key)) {
         return { error: "낚시 위치는 자동 보정을 사용하세요." };
       }
-      const pos = await invoke<Position>("desktop_pick");
+      const pos = await pickDesktop();
       const group = config[feat] as Bag;
       group[key] = pos;
       persist();

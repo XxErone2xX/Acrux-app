@@ -6,14 +6,12 @@ mod fishing;
 mod linux;
 mod navigation;
 mod online;
+pub mod pathfinding;
+pub mod travel;
 mod vision;
-#[cfg(target_os = "windows")]
-mod windows;
 
 #[cfg(target_os = "linux")]
 use linux as desktop;
-#[cfg(target_os = "windows")]
-use windows as desktop;
 
 use fishing::{Calibration, CalibrationPositions, Fishing, Phase, Stats, Tuning};
 use navigation::{Job, Motion, Navigation, Options, Place, Task, Tick};
@@ -77,20 +75,86 @@ struct DuaStatus {
     headless_ticks: u64,
     screenshot_frames: u64,
     transitions: u64,
+    background: bool,
+    hotkeys: bool,
 }
 
 impl Default for DuaStatus {
     fn default() -> Self {
         Self {
-            supported: cfg!(any(target_os = "windows", target_os = "linux")),
+            supported: cfg!(target_os = "linux"),
             running: false,
             route: None,
             reason: "DUA 대기 중",
             headless_ticks: 0,
             screenshot_frames: 0,
             transitions: 0,
+            background: false,
+            hotkeys: false,
         }
     }
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BackgroundStatus {
+    supported: bool,
+    state: &'static str,
+    message: String,
+    width: usize,
+    height: usize,
+}
+impl Default for BackgroundStatus {
+    fn default() -> Self {
+        Self {
+            supported: cfg!(target_os = "linux"),
+            state: if cfg!(target_os = "linux") {
+                "stopped"
+            } else {
+                "unsupported"
+            },
+            message: if cfg!(target_os = "linux") {
+                "백그라운드 게임을 열어 주세요."
+            } else {
+                "이 운영체제의 독립 입력 연결은 아직 준비되지 않았습니다."
+            }
+            .into(),
+            width: 1280,
+            height: 720,
+        }
+    }
+}
+fn background_status() -> BackgroundStatus {
+    #[cfg(target_os = "linux")]
+    return linux::session_status();
+    #[cfg(not(target_os = "linux"))]
+    BackgroundStatus::default()
+}
+pub fn session_helper() -> Option<i32> {
+    #[cfg(target_os = "linux")]
+    {
+        if std::env::args().nth(1).as_deref() == Some("--acrux-private-game-check") {
+            return Some(match linux::game_check() {
+                Ok(()) => 0,
+                Err(error) => {
+                    eprintln!("{error}");
+                    1
+                }
+            });
+        }
+        if std::env::args().nth(1).as_deref() == Some("--acrux-private-probe") {
+            return Some(match linux::probe() {
+                Ok(()) => 0,
+                Err(error) => {
+                    eprintln!("{error}");
+                    1
+                }
+            });
+        }
+        return linux::session::bootstrap();
+    }
+    #[cfg(not(target_os = "linux"))]
+    None
 }
 
 #[derive(Default, Deserialize, Serialize)]
@@ -109,6 +173,7 @@ struct Profile {
 struct Status {
     platform: &'static str,
     version: &'static str,
+    session: BackgroundStatus,
     capture_ready: bool,
     input_ready: bool,
     game_available: bool,
@@ -143,7 +208,7 @@ enum GameInput {
 enum DeviceTick {
     Input(GameInput),
     Wait,
-    Observe,
+    Observe(Option<vision::Region>),
 }
 
 impl Runtime {
@@ -151,6 +216,7 @@ impl Runtime {
         Status {
             platform: std::env::consts::OS,
             version: env!("CARGO_PKG_VERSION"),
+            session: background_status(),
             capture_ready: self.capture,
             input_ready: self.input,
             game_available: game_available(),
@@ -179,6 +245,13 @@ impl Runtime {
                     self.totals = profile.totals;
                     self.navigation = profile.navigation;
                     self.navigation.fit_positions();
+                    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+                    {
+                        // Retain saved positions, but never resume retired timed
+                        // travel when upgrading to the private game runtime.
+                        self.navigation.options.use_move = false;
+                        self.navigation.options.use_sell = false;
+                    }
                     if let Err(error) = self.navigation.options.validate() {
                         self.navigation.options = Options::default();
                         self.settings_error = Some(error.into());
@@ -215,11 +288,7 @@ impl Runtime {
             calibration: self.fishing.calibration,
             tuning,
             totals: self.totals,
-            navigation: if cfg!(any(target_os = "windows", target_os = "linux")) {
-                Navigation::default()
-            } else {
-                self.navigation.clone()
-            },
+            navigation: self.navigation.clone(),
         })
         .map_err(|error| error.to_string())?;
         let temporary = path.with_extension("tmp");
@@ -232,7 +301,7 @@ impl Runtime {
     fn frame(&mut self, frame: &vision::Frame<'_>) -> Option<GameInput> {
         match self.tick(now(), (frame.width, frame.height), Some(frame)) {
             DeviceTick::Input(input) => Some(input),
-            DeviceTick::Wait | DeviceTick::Observe => None,
+            DeviceTick::Wait | DeviceTick::Observe(_) => None,
         }
     }
 
@@ -272,7 +341,7 @@ impl Runtime {
                     "판매 화면의 실제 상태를 확인합니다.",
                     false,
                 );
-                return DeviceTick::Observe;
+                return DeviceTick::Observe(None);
             }
             self.route(
                 if visual {
@@ -336,14 +405,14 @@ impl Runtime {
             }
             return DeviceTick::Wait;
         }
-        let reason = if self.fishing.phase == Phase::Calibrating {
-            "낚시 창의 위치를 화면에서 보정합니다."
-        } else {
-            "던지기 · 입질 · 릴링 · 결과를 화면에서 확인합니다."
-        };
-        self.route(Route::Screenshot, reason, frame.is_some());
+        let observation = self.fishing.observation(at, geometry);
+        if frame.is_none() && at < observation.due_at {
+            self.route(Route::Headless, "다음 관측 시각까지 기다립니다.", false);
+            return DeviceTick::Wait;
+        }
+        self.route(Route::Screenshot, observation.reason, frame.is_some());
         let Some(frame) = frame else {
-            return DeviceTick::Observe;
+            return DeviceTick::Observe(observation.region);
         };
         let before = self.fishing.stats;
         let tap = self.fishing.frame(at, frame);
@@ -418,10 +487,13 @@ impl Runtime {
             return Err("실행할 매크로 기능을 켜 주세요.");
         }
         if features.iter().any(|feature| feature != "mfish") {
-            return Err("현재 데스크톱 DUA는 자동 낚시 · 이동 · 판매를 지원합니다. 다른 기능은 이식 전입니다.");
+            return Err("현재 데스크톱 DUA는 자동 낚시만 지원합니다. 이동과 판매를 포함한 다른 기능은 준비 중입니다.");
         }
         if self.active() {
             return Err("실행 중인 작업을 먼저 중지하세요.");
+        }
+        if !self.dua.background {
+            return Err("사용자 입력과 분리된 백그라운드 게임을 먼저 열어 주세요.");
         }
         if !self.capture || !self.input {
             return Err("화면 캡처와 입력을 먼저 준비하세요.");
@@ -434,6 +506,8 @@ impl Runtime {
         };
         self.dua = DuaStatus {
             running: true,
+            background: self.dua.background,
+            hotkeys: self.dua.hotkeys,
             ..DuaStatus::default()
         };
         self.generation = self.generation.wrapping_add(1);
@@ -637,9 +711,9 @@ impl Runtime {
 }
 
 fn game_available() -> bool {
-    #[cfg(any(target_os = "windows", target_os = "linux"))]
+    #[cfg(target_os = "linux")]
     return desktop::game_available();
-    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    #[cfg(not(target_os = "linux"))]
     false
 }
 
@@ -661,6 +735,10 @@ fn status() -> Status {
 #[tauri::command]
 fn control(action: Action) -> Result<Status, String> {
     let mut state = runtime();
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+    if action == Action::Start {
+        validate_desktop_entry(&state)?;
+    }
     state.control(action)?;
     Ok(state.status())
 }
@@ -668,9 +746,7 @@ fn control(action: Action) -> Result<Status, String> {
 #[tauri::command]
 fn desktop_start(features: Vec<String>, generation: i32) -> Result<Status, String> {
     if !cfg!(any(target_os = "windows", target_os = "linux")) {
-        return Err(
-            "데스크톱 DUA의 게임 캡처 · 입력은 Windows와 Linux(X11)에서 지원합니다.".into(),
-        );
+        return Err("데스크톱 DUA의 게임 캡처 · 입력은 Windows와 Linux에서 지원합니다.".into());
     }
     let mut state = runtime();
     if state.generation != generation {
@@ -678,10 +754,74 @@ fn desktop_start(features: Vec<String>, generation: i32) -> Result<Status, Strin
     }
     #[cfg(target_os = "linux")]
     if !desktop::game_available() {
-        return Err("Sober를 X11/XWayland로 실행한 뒤 다시 시작하세요.".into());
+        return Err(
+            "실행 중인 Sober 게임 창을 찾지 못했습니다. Sober에서 게임을 연 뒤 다시 시작하세요."
+                .into(),
+        );
     }
+    validate_desktop_entry(&state)?;
     state.start_desktop(&features, now())?;
     Ok(state.status())
+}
+
+fn validate_desktop_entry(state: &Runtime) -> Result<(), String> {
+    if !state.dua.background {
+        return Err("백그라운드 게임을 먼저 열어 주세요.".into());
+    }
+    if state.navigation.options.use_move || state.navigation.options.use_sell {
+        return Err("지도 관측과 해안·판매 목표가 준비돼야 이동할 수 있습니다. 시간 기반 경로는 사용하지 않습니다.".into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn desktop_session_start() -> Result<BackgroundStatus, String> {
+    #[cfg(target_os = "linux")]
+    return linux::launch_session();
+    #[cfg(not(target_os = "linux"))]
+    Err("이 운영체제의 독립 입력 연결은 아직 준비되지 않았습니다.".into())
+}
+#[tauri::command]
+async fn desktop_session_stop() -> BackgroundStatus {
+    #[cfg(target_os = "linux")]
+    let _ = tauri::async_runtime::spawn_blocking(linux::stop_session).await;
+    background_status()
+}
+#[tauri::command]
+async fn desktop_manual(event: serde_json::Value, generation: i32) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        let event = serde_json::from_value::<linux::ManualEvent>(event)
+            .map_err(|_| "게임 입력 요청이 올바르지 않습니다.".to_owned())?;
+        return tauri::async_runtime::spawn_blocking(move || linux::manual(event, generation))
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (event, generation);
+        Err("독립 게임 입력이 준비되지 않았습니다.".into())
+    }
+}
+#[tauri::command]
+async fn navigation_plan(
+    map: pathfinding::Map,
+    request: pathfinding::Request,
+) -> Result<pathfinding::Route, String> {
+    tauri::async_runtime::spawn_blocking(move || pathfinding::plan(&map, &request))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn desktop_snapshot() -> Result<tauri::ipc::Response, String> {
+    #[cfg(target_os = "linux")]
+    return tauri::async_runtime::spawn_blocking(linux::snapshot)
+        .await
+        .map_err(|error| error.to_string())?
+        .map(tauri::ipc::Response::new);
+    #[cfg(not(target_os = "linux"))]
+    Err("이 환경에서는 앱 미리보기 위치 지정을 사용할 수 없습니다.".into())
 }
 
 #[tauri::command]
@@ -725,22 +865,32 @@ fn save_navigation(options: Options) -> Result<(), String> {
 #[tauri::command]
 fn desktop_navigation(setup: navigation::DesktopSetup) -> Result<(), String> {
     if !cfg!(any(target_os = "windows", target_os = "linux")) {
-        return Err("Windows와 Linux(X11)에서 게임 입력을 사용할 수 있습니다.".into());
+        return Err("Windows와 Linux에서 게임 입력을 사용할 수 있습니다.".into());
     }
     let mut state = runtime();
     if state.active() {
         return Err("실행 중인 작업을 먼저 중지하세요.".into());
     }
-    state.navigation = Navigation::desktop(setup)?;
+    // Preserve useful interaction positions without reviving timed desktop travel.
+    let previous = Navigation::desktop(setup)?;
+    let mut navigation = Navigation {
+        positions: previous.positions,
+        options: previous.options,
+        ..Navigation::default()
+    };
+    navigation.options.use_move = false;
+    navigation.options.use_sell = false;
+    state.navigation = navigation;
     Ok(())
 }
 
 #[tauri::command]
 fn desktop_task(task: Task) -> Result<(), String> {
     if !cfg!(any(target_os = "windows", target_os = "linux")) {
-        return Err("Windows와 Linux(X11)에서 게임 입력을 사용할 수 있습니다.".into());
+        return Err("Windows와 Linux에서 게임 입력을 사용할 수 있습니다.".into());
     }
-    runtime().task(task).map_err(str::to_owned)
+    let _ = task;
+    Err("시간 기반 이동은 지도 기반 경로로 교체 중입니다.".into())
 }
 
 #[tauri::command]
@@ -750,20 +900,8 @@ fn desktop_waypoint(
     measure: bool,
     from_base: bool,
 ) -> Result<(), String> {
-    if !cfg!(any(target_os = "windows", target_os = "linux")) {
-        return Err("Windows와 Linux(X11)에서 게임 입력을 사용할 수 있습니다.".into());
-    }
-    let mut state = runtime();
-    if state.active() {
-        return Err("실행 중인 작업을 먼저 중지하세요.".into());
-    }
-    state.job = Some(
-        state
-            .navigation
-            .desktop_waypoint(place, index, measure, from_base, now())?,
-    );
-    state.measured_seconds = None;
-    Ok(())
+    let _ = (place, index, measure, from_base);
+    Err("시간 측정 이동은 지도 기반 경로로 교체 중입니다.".into())
 }
 
 #[tauri::command]
@@ -777,17 +915,17 @@ fn desktop_arrive() -> Result<(), String> {
 
 #[tauri::command]
 async fn desktop_pick() -> Result<vision::Point, String> {
-    #[cfg(any(target_os = "windows", target_os = "linux"))]
+    #[cfg(target_os = "linux")]
     return tauri::async_runtime::spawn_blocking(desktop::pick)
         .await
         .map_err(|e| e.to_string())?;
-    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
-    Err("Windows와 Linux(X11)에서 화면 위치를 지정할 수 있습니다.".into())
+    #[cfg(not(target_os = "linux"))]
+    Err("독립 입력 연결이 준비된 환경에서 위치를 지정할 수 있습니다.".into())
 }
 
 #[tauri::command]
 fn desktop_cancel_pick() {
-    #[cfg(any(target_os = "windows", target_os = "linux"))]
+    #[cfg(target_os = "linux")]
     desktop::cancel_pick();
 }
 
@@ -942,7 +1080,7 @@ pub fn run() {
             }
             #[cfg(target_os = "windows")]
             biome::watch_windows();
-            #[cfg(any(target_os = "windows", target_os = "linux"))]
+            #[cfg(target_os = "linux")]
             desktop::start()?;
             Ok(())
         })
@@ -956,6 +1094,11 @@ pub fn run() {
             save_online,
             control,
             desktop_start,
+            desktop_snapshot,
+            desktop_session_start,
+            desktop_session_stop,
+            desktop_manual,
+            navigation_plan,
             save_tuning,
             android_setup,
             reset,
@@ -970,8 +1113,14 @@ pub fn run() {
             desktop_pick,
             desktop_cancel_pick
         ])
-        .run(tauri::generate_context!())
-        .expect("could not launch Acrux");
+        .build(tauri::generate_context!())
+        .expect("could not launch Acrux")
+        .run(|_app, event| {
+            #[cfg(target_os = "linux")]
+            if matches!(event, tauri::RunEvent::Exit) {
+                linux::shutdown();
+            }
+        });
 }
 
 #[cfg(test)]
@@ -995,8 +1144,77 @@ mod tests {
         assert!(!runtime().dua.running);
     }
 
+    #[test]
+    fn desktop_runtime_refuses_shared_input_and_production_rejects_timed_travel() {
+        let mut state = Runtime {
+            capture: true,
+            input: true,
+            ..Runtime::default()
+        };
+        assert!(state.start_desktop(&["mfish".into()], 0.0).is_err());
+        assert!(!state.active());
+        state.dua.background = true;
+        assert!(validate_desktop_entry(&state).is_ok());
+        state.navigation.options.use_move = true;
+        assert!(validate_desktop_entry(&state).is_err());
+        state.navigation.options.use_move = false;
+        state.navigation.options.use_sell = true;
+        assert!(validate_desktop_entry(&state).is_err());
+    }
+
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+    #[test]
+    fn old_profile_keeps_positions_but_cannot_enable_timed_desktop_travel() {
+        let path = std::env::temp_dir().join(format!(
+            "acrux-profile-upgrade-{}.json",
+            uuid::Uuid::new_v4()
+        ));
+        let profile = serde_json::json!({
+            "navigation": {
+                "options": { "useMove": true, "useSell": true, "sellMax": 37 },
+                "positions": { "chat_pos": [0.3, 0.4], "sell_fish_pos": [0.6, 0.7] },
+                "fish": [{ "x": 1, "y": 0, "ms": 500, "jump": false }],
+                "sell": [{ "x": 0, "y": -1, "ms": 700, "jump": true }]
+            }
+        });
+        fs::write(&path, serde_json::to_vec(&profile).unwrap()).unwrap();
+        let previous_biome = biome::settings();
+        let previous_online = online::settings();
+        let mut state = desktop_runtime();
+        state.load(path.clone());
+        assert!(state.settings_error.is_none());
+        assert!(!state.navigation.options.use_move && !state.navigation.options.use_sell);
+        let loaded = serde_json::to_value(&state.navigation).unwrap();
+        for key in ["positions", "fish", "sell"] {
+            assert_eq!(loaded[key], profile["navigation"][key]);
+        }
+        assert_eq!(loaded["options"]["sellMax"], 37);
+        assert!(validate_desktop_entry(&state).is_ok());
+        state.start_desktop(&["mfish".into()], 10.0).unwrap();
+        assert!(state.dua.running && state.job.is_none());
+        assert!(state.fishing.phase == Phase::Calibrating);
+        state.save(state.fishing.tuning).unwrap();
+        let mut reloaded = desktop_runtime();
+        reloaded.load(path.clone());
+        biome::load(previous_biome);
+        online::load(previous_online);
+        fs::remove_file(path).unwrap();
+        assert!(reloaded.settings_error.is_none());
+        assert!(!reloaded.navigation.options.use_move && !reloaded.navigation.options.use_sell);
+        let restored = serde_json::to_value(&reloaded.navigation).unwrap();
+        for key in ["positions", "fish", "sell"] {
+            assert_eq!(restored[key], profile["navigation"][key]);
+        }
+        assert_eq!(restored["options"]["sellMax"], 37);
+        assert!(validate_desktop_entry(&reloaded).is_ok());
+    }
+
     fn desktop_runtime() -> Runtime {
         Runtime {
+            dua: DuaStatus {
+                background: true,
+                ..DuaStatus::default()
+            },
             capture: true,
             input: true,
             ..Runtime::default()
@@ -1066,7 +1284,7 @@ mod tests {
         assert!(state.dua.running && state.resume_after_calibration);
         assert!(matches!(
             state.tick(0.1, (480, 270), None),
-            DeviceTick::Observe
+            DeviceTick::Observe(_)
         ));
         assert_eq!(state.dua.screenshot_frames, 0);
         assert!(matches!(
@@ -1080,7 +1298,7 @@ mod tests {
         assert!(state.dua.running && state.resume_after_calibration);
         assert!(matches!(
             state.tick(0.2, (480, 270), None),
-            DeviceTick::Observe
+            DeviceTick::Observe(_)
         ));
         assert!(!state.resume_after_calibration);
         let DeviceTick::Input(GameInput::Tap(tap)) = state.tick(0.2, (480, 270), Some(&frame))
@@ -1111,7 +1329,7 @@ mod tests {
         for step in 0..100 {
             match state.tick(step as f64 * 10.0, (480, 270), None) {
                 DeviceTick::Input(GameInput::Motion(_)) => inputs += 1,
-                DeviceTick::Observe => break,
+                DeviceTick::Observe(_) => break,
                 DeviceTick::Wait => {}
                 _ => panic!("movement must not produce a screenshot-dependent fishing tap"),
             }
@@ -1145,7 +1363,7 @@ mod tests {
         for step in 1..100 {
             match state.tick(10.0 + step as f64 * 10.0, (480, 270), None) {
                 DeviceTick::Input(GameInput::Motion(_)) => inputs += 1,
-                DeviceTick::Observe => break,
+                DeviceTick::Observe(_) => break,
                 DeviceTick::Wait => {}
                 _ => panic!("sale movement requires structured commands"),
             }
@@ -1175,7 +1393,7 @@ mod tests {
             let at = step as f64 * 10.0;
             let tick = state.tick(at, (480, 270), None);
             match tick {
-                DeviceTick::Observe => {
+                DeviceTick::Observe(_) => {
                     let mut pixels = vec![0; 480 * 270 * 4];
                     for (point, color) in [
                         (vision::Point(0.5, 0.6), [20, 75, 205]),
@@ -1227,7 +1445,7 @@ mod tests {
         assert!(state.dua.running && state.phase() == Phase::Searching);
         assert!(matches!(
             state.tick(3001.0, (480, 270), None),
-            DeviceTick::Observe
+            DeviceTick::Observe(_)
         ));
     }
 

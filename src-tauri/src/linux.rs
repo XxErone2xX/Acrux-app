@@ -1,24 +1,216 @@
 use crate::{
     fishing::{Phase, Tap},
     now, runtime,
-    vision::{Frame, Point},
+    vision::{Frame, Point, Region},
     DeviceTick, GameInput, Motion,
 };
 use std::{
+    collections::{BTreeSet, VecDeque},
     io,
-    sync::atomic::{AtomicBool, AtomicU8, Ordering},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc, Arc, Mutex,
+    },
     thread,
     time::{Duration, Instant},
 };
+
+pub(crate) mod session;
 use x11rb::{
     connection::Connection as _,
     protocol::{xproto::*, xtest::ConnectionExt as _},
     rust_connection::RustConnection,
 };
 
-const SETUP: &str = "Linux 입력에는 Sober X11이 필요합니다. Sober를 X11 모드로 실행하세요.";
 static AVAILABLE: AtomicBool = AtomicBool::new(false);
-static PICKING: AtomicU8 = AtomicU8::new(0);
+static SESSION_STOP: AtomicBool = AtomicBool::new(false);
+static SESSION_RUNNING: AtomicBool = AtomicBool::new(false);
+static STOP_HANDLE: Mutex<Option<session::StopHandle>> = Mutex::new(None);
+static SESSION_STATE: Mutex<Option<crate::BackgroundStatus>> = Mutex::new(None);
+static SNAPSHOT: Mutex<Option<mpsc::Sender<Result<Vec<u8>, String>>>> = Mutex::new(None);
+static MANUAL: Mutex<VecDeque<ManualRequest>> = Mutex::new(VecDeque::new());
+#[derive(serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum ManualEvent {
+    Key {
+        vk: u16,
+        down: bool,
+    },
+    Pointer {
+        x: f64,
+        y: f64,
+        right: bool,
+        down: bool,
+    },
+    Look {
+        dx: i32,
+        dy: i32,
+    },
+    Release,
+}
+struct ManualRequest {
+    event: ManualEvent,
+    generation: i32,
+    reply: mpsc::Sender<Result<(), String>>,
+    expires: Instant,
+    canceled: Arc<AtomicBool>,
+}
+impl ManualRequest {
+    fn current(&self) -> bool {
+        matches!(self.event, ManualEvent::Release)
+            || (!self.canceled.load(Ordering::Acquire) && Instant::now() < self.expires)
+    }
+}
+#[derive(Default)]
+struct Held {
+    keys: BTreeSet<u8>,
+    buttons: BTreeSet<u32>,
+}
+impl Held {
+    fn release(&mut self, connection: &Connection) {
+        for key in std::mem::take(&mut self.keys) {
+            connection.key(key, false);
+        }
+        for button in std::mem::take(&mut self.buttons) {
+            connection.button(button, false);
+        }
+    }
+    fn apply(
+        &mut self,
+        connection: &Connection,
+        event: &ManualEvent,
+        current: impl Fn() -> bool,
+    ) -> Result<(), String> {
+        if !current() {
+            self.release(connection);
+            return Err("기한이 지난 게임 입력을 취소했습니다.".into());
+        }
+        let ok = match *event {
+            ManualEvent::Release => {
+                self.release(connection);
+                true
+            }
+            ManualEvent::Key { vk, down } => {
+                let code = connection
+                    .keycode(vk)
+                    .ok_or("이 키는 게임 화면에 전달할 수 없습니다.")?;
+                if down {
+                    if connection.focused().is_none() {
+                        return Err("게임 입력 대상을 확인하지 못했습니다.".into());
+                    }
+                    if !current() {
+                        false
+                    } else if self.keys.insert(code) {
+                        connection.key(code, true)
+                    } else {
+                        true
+                    }
+                } else if self.keys.contains(&code) {
+                    let ok = connection.key(code, false);
+                    if ok {
+                        self.keys.remove(&code);
+                    }
+                    ok
+                } else {
+                    true
+                }
+            }
+            ManualEvent::Pointer { x, y, right, down } => {
+                let button = if right { 3 } else { 1 };
+                if down {
+                    let target = connection
+                        .focused()
+                        .ok_or("게임 입력 대상을 확인하지 못했습니다.")?;
+                    let x = target.x + (x * target.width as f64).floor() as i32;
+                    let y = target.y + (y * target.height as f64).floor() as i32;
+                    if !current() || !connection.move_pointer(x, y) {
+                        false
+                    } else {
+                        let over = connection
+                            .pointer()
+                            .is_some_and(|(_, _, _, child)| connection.over(child, target.window));
+                        if !over || connection.focused() != Some(target) || !current() {
+                            false
+                        } else {
+                            self.buttons.insert(button);
+                            connection.button(button, true)
+                        }
+                    }
+                } else if self.buttons.contains(&button) {
+                    let ok = connection.button(button, false);
+                    if ok {
+                        self.buttons.remove(&button);
+                    }
+                    ok
+                } else {
+                    true
+                }
+            }
+            ManualEvent::Look { dx, dy } => {
+                if !self.buttons.contains(&3) || connection.focused().is_none() || !current() {
+                    false
+                } else {
+                    connection.fake(MOTION_NOTIFY_EVENT, 1, 0, dx as i16, dy as i16)
+                }
+            }
+        };
+        if ok {
+            Ok(())
+        } else {
+            self.release(connection);
+            Err("독립 게임에 입력을 보내지 못했습니다.".into())
+        }
+    }
+}
+pub fn manual(event: ManualEvent, generation: i32) -> Result<(), String> {
+    match &event {
+        ManualEvent::Key { vk, .. } if key_symbol(*vk).is_none() => {
+            return Err("지원하지 않는 키입니다.".into())
+        }
+        ManualEvent::Pointer { x, y, .. }
+            if !x.is_finite()
+                || !y.is_finite()
+                || !(0.0..1.0).contains(x)
+                || !(0.0..1.0).contains(y) =>
+        {
+            return Err("게임 화면의 입력 위치를 확인하세요.".into())
+        }
+        ManualEvent::Look { dx, dy } if dx.unsigned_abs() > 32767 || dy.unsigned_abs() > 32767 => {
+            return Err("카메라 이동량이 너무 큽니다.".into())
+        }
+        _ => {}
+    }
+    if SESSION_STOP.load(Ordering::Acquire) || session_status().state != "ready" {
+        return Err("백그라운드 게임이 연결되지 않았습니다.".into());
+    }
+    {
+        let state = runtime();
+        if !matches!(event, ManualEvent::Release)
+            && (state.active() || state.generation != generation)
+        {
+            return Err("매크로 실행 중에는 게임 화면을 보기만 할 수 있습니다.".into());
+        }
+    }
+    let (send, receive) = mpsc::channel();
+    let canceled = Arc::new(AtomicBool::new(false));
+    {
+        let mut queue = MANUAL.lock().unwrap_or_else(|e| e.into_inner());
+        if queue.len() >= 64 {
+            return Err("이전 게임 입력을 처리 중입니다.".into());
+        }
+        queue.push_back(ManualRequest {
+            event,
+            generation,
+            reply: send,
+            expires: Instant::now() + Duration::from_secs(2),
+            canceled: canceled.clone(),
+        });
+    }
+    let result = receive.recv_timeout(Duration::from_secs(2));
+    canceled.store(true, Ordering::Release);
+    result.map_err(|_| "게임 입력 확인 시간이 초과됐습니다.".to_owned())?
+}
+static WORKER: Mutex<Option<thread::JoinHandle<()>>> = Mutex::new(None);
 
 struct Connection {
     conn: RustConnection,
@@ -31,10 +223,13 @@ struct Connection {
 }
 
 impl Connection {
+    #[cfg(test)]
     fn open() -> Option<Self> {
-        // Only the caller's DISPLAY/XAUTHORITY session is used. Protocol and
-        // connection errors are local Result values, independent of GTK/Xlib.
         let (conn, screen) = RustConnection::connect(None).ok()?;
+        Self::from_connection(conn, screen)
+    }
+
+    fn from_connection(conn: RustConnection, screen: usize) -> Option<Self> {
         conn.xtest_get_version(2, 2).ok()?.reply().ok()?;
         let setup = conn.setup();
         let root = setup.roots.get(screen)?.root;
@@ -253,34 +448,89 @@ impl Connection {
     }
 
     fn capture(&self, target: Target) -> Option<Image> {
-        let reply = self
+        self.capture_region(target, None)
+    }
+
+    fn capture_region(&self, target: Target, region: Option<Region>) -> Option<Image> {
+        self.capture_checked(target, region).ok()
+    }
+
+    fn capture_checked(&self, target: Target, region: Option<Region>) -> Result<Image, String> {
+        let region = region.unwrap_or(Region::full(target.width, target.height));
+        if !region.valid((target.width, target.height))
+            || region
+                .width
+                .checked_mul(region.height)
+                .and_then(|v| v.checked_mul(4))
+                .is_none_or(|bytes| bytes > 64 * 1024 * 1024)
+        {
+            return Err("게임 캡처 영역이 유효하지 않거나 너무 큽니다.".into());
+        }
+        let mut reply = self
             .conn
             .get_image(
                 ImageFormat::Z_PIXMAP,
                 target.window,
-                0,
-                0,
-                target.width.try_into().ok()?,
-                target.height.try_into().ok()?,
+                region.x.try_into().map_err(|_| "캡처 x 범위 오류")?,
+                region.y.try_into().map_err(|_| "캡처 y 범위 오류")?,
+                region.width.try_into().map_err(|_| "캡처 폭 범위 오류")?,
+                region
+                    .height
+                    .try_into()
+                    .map_err(|_| "캡처 높이 범위 오류")?,
                 u32::MAX,
             )
-            .ok()?
+            .map_err(|error| format!("전용 화면 읽기 요청 실패: {error}"))?
             .reply()
-            .ok()?;
+            .map_err(|error| format!("전용 화면 읽기 실패: {error}"))?;
         let setup = self.conn.setup();
         let format = setup
             .pixmap_formats
             .iter()
-            .find(|format| format.depth == reply.depth)?;
+            .find(|format| format.depth == reply.depth)
+            .ok_or_else(|| format!("화면 깊이 {}의 형식을 찾지 못했습니다.", reply.depth))?;
         let visual = setup
             .roots
-            .get(self.screen)?
+            .get(self.screen)
+            .ok_or("전용 화면 번호 오류")?
             .allowed_depths
             .iter()
             .flat_map(|depth| &depth.visuals)
-            .find(|visual| visual.visual_id == reply.visual)?;
+            .find(|visual| visual.visual_id == reply.visual)
+            .ok_or_else(|| format!("화면 visual {}을 찾지 못했습니다.", reply.visual))?;
         let (stride, pixel_stride, bgra) =
-            pixel_layout(target.width, format, setup.image_byte_order, visual)?;
+            pixel_layout(region.width, format, setup.image_byte_order, visual)
+                .ok_or_else(|| format!("지원하지 않는 전용 화면 형식: depth={}, bpp={}, pad={}, order={}, class={}, masks={:x}/{:x}/{:x}",
+                    format.depth, format.bits_per_pixel, format.scanline_pad,
+                    u8::from(setup.image_byte_order), u8::from(visual.class),
+                    visual.red_mask, visual.green_mask, visual.blue_mask))?;
+        if visual.class == VisualClass::DIRECT_COLOR {
+            let colormap = self
+                .conn
+                .get_window_attributes(target.window)
+                .map_err(|error| error.to_string())?
+                .reply()
+                .map_err(|error| error.to_string())?
+                .colormap;
+            // DirectColor pixels are channel indices. Read the actual ramps;
+            // SDL normally initializes them to identity, but can change them.
+            let pixels: [u32; 256] = std::array::from_fn(|index| (index as u32) * 0x010101);
+            let colors = self
+                .conn
+                .query_colors(colormap, &pixels)
+                .map_err(|error| error.to_string())?
+                .reply()
+                .map_err(|error| error.to_string())?;
+            normalize_direct_color(
+                &mut reply.data,
+                stride,
+                pixel_stride,
+                region.width,
+                region.height,
+                bgra,
+                &colors.colors,
+            )?;
+        }
         let image = Image {
             data: reply.data,
             width: target.width,
@@ -288,9 +538,12 @@ impl Connection {
             stride,
             pixel_stride,
             bgra,
+            region: Some(region),
         };
-        image.frame()?;
-        Some(image)
+        image
+            .frame()
+            .ok_or("전용 화면 데이터 길이가 잘못됐습니다.")?;
+        Ok(image)
     }
 }
 
@@ -310,10 +563,22 @@ struct Image {
     stride: usize,
     pixel_stride: usize,
     bgra: bool,
+    region: Option<Region>,
 }
 
 impl Image {
     fn frame(&self) -> Option<Frame<'_>> {
+        if let Some(region) = self.region {
+            return Frame::region(
+                &self.data,
+                self.width,
+                self.height,
+                self.stride,
+                self.pixel_stride,
+                self.bgra,
+                region,
+            );
+        }
         Frame::new(
             &self.data,
             self.width,
@@ -336,7 +601,7 @@ fn pixel_layout(
         || ![24, 32].contains(&format.depth)
         || ![24, 32].contains(&format.bits_per_pixel)
         || ![8, 16, 32].contains(&format.scanline_pad)
-        || visual.class != VisualClass::TRUE_COLOR
+        || ![VisualClass::TRUE_COLOR, VisualClass::DIRECT_COLOR].contains(&visual.class)
     {
         return None;
     }
@@ -354,12 +619,65 @@ fn pixel_layout(
     Some((stride, usize::from(format.bits_per_pixel / 8), bgra))
 }
 
+fn normalize_direct_color(
+    bytes: &mut [u8],
+    stride: usize,
+    pixel_stride: usize,
+    width: usize,
+    height: usize,
+    bgra: bool,
+    colors: &[Rgb],
+) -> Result<(), String> {
+    if colors.len() != 256 || pixel_stride < 3 || width == 0 || height == 0 {
+        return Err("전용 화면 색상표가 유효하지 않습니다.".into());
+    }
+    let row = width
+        .checked_sub(1)
+        .and_then(|v| v.checked_mul(pixel_stride))
+        .and_then(|v| v.checked_add(3))
+        .ok_or("전용 화면 색상표 영역 오류")?;
+    let length = height
+        .checked_sub(1)
+        .and_then(|v| v.checked_mul(stride))
+        .and_then(|v| v.checked_add(row))
+        .ok_or("전용 화면 색상표 길이 오류")?;
+    if stride < row || bytes.len() < length {
+        return Err("전용 화면 색상 데이터가 부족합니다.".into());
+    }
+    if colors.iter().enumerate().all(|(index, color)| {
+        let expected = index as u16 * 257;
+        color.red == expected && color.green == expected && color.blue == expected
+    }) {
+        return Ok(());
+    }
+    let channel = |value: u16| ((u32::from(value) + 128) / 257) as u8;
+    for y in 0..height {
+        for x in 0..width {
+            let offset = y * stride + x * pixel_stride;
+            let (r, b) = if bgra { (2, 0) } else { (0, 2) };
+            bytes[offset + r] = channel(colors[usize::from(bytes[offset + r])].red);
+            bytes[offset + 1] = channel(colors[usize::from(bytes[offset + 1])].green);
+            bytes[offset + b] = channel(colors[usize::from(bytes[offset + b])].blue);
+        }
+    }
+    Ok(())
+}
+
 fn sober_class(value: &[u8]) -> bool {
     value.eq_ignore_ascii_case(b"sober") || value.eq_ignore_ascii_case(b"org.vinegarhq.Sober")
 }
 
 fn key_symbol(vk: u16) -> Option<u32> {
     Some(match vk {
+        0x08 => 0xff08,
+        0x09 => 0xff09,
+        0x10 => 0xffe1,
+        0x11 => 0xffe3,
+        0x12 => 0xffe9,
+        0x25 => 0xff51,
+        0x26 => 0xff52,
+        0x27 => 0xff53,
+        0x28 => 0xff54,
         0x1b => 0xff1b,
         0x0d => 0xff0d,
         0x20 => 0x20,
@@ -372,39 +690,135 @@ fn key_symbol(vk: u16) -> Option<u32> {
 }
 
 pub fn start() -> io::Result<()> {
-    if Connection::open().is_none() {
-        let mut state = runtime();
-        state.capture = false;
-        state.input = false;
-        state.stop(SETUP);
-        return Ok(());
-    }
-    thread::Builder::new()
-        .name("acrux-x11".into())
-        .spawn(worker)?;
+    *SESSION_STATE.lock().unwrap_or_else(|e| e.into_inner()) =
+        Some(crate::BackgroundStatus::default());
     Ok(())
 }
 
+pub fn session_status() -> crate::BackgroundStatus {
+    SESSION_STATE
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+        .unwrap_or_default()
+}
+fn set_session(state: &'static str, message: impl Into<String>) {
+    *SESSION_STATE.lock().unwrap_or_else(|e| e.into_inner()) = Some(crate::BackgroundStatus {
+        supported: true,
+        state,
+        message: message.into(),
+        width: 1280,
+        height: 720,
+    });
+}
+pub fn launch_session() -> Result<crate::BackgroundStatus, String> {
+    if SESSION_RUNNING
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return Ok(session_status());
+    }
+    SESSION_STOP.store(false, Ordering::Release);
+    set_session("starting", "사용자 입력과 분리된 게임 화면을 준비합니다.");
+    let thread = thread::Builder::new()
+        .name("acrux-private-game".into())
+        .spawn(|| {
+            let result = (|| -> Result<(), String> {
+                let mut owned = session::Session::launch_with_cancel(&SESSION_STOP)?;
+                *STOP_HANDLE.lock().unwrap_or_else(|e| e.into_inner()) = Some(owned.stop_handle());
+                if SESSION_STOP.load(Ordering::Acquire) {
+                    return Ok(());
+                }
+                let (conn, screen) = owned.connect_x11()?;
+                let connection = Connection::from_connection(conn, screen)
+                    .ok_or("독립 게임 화면에 연결하지 못했습니다.")?;
+                set_session("ready", "백그라운드 게임에 연결됐습니다.");
+                worker(connection, &mut owned);
+                owned.stop()?;
+                Ok(())
+            })();
+            STOP_HANDLE.lock().unwrap_or_else(|e| e.into_inner()).take();
+            AVAILABLE.store(false, Ordering::Release);
+            {
+                let mut state = runtime();
+                state.stop("백그라운드 게임 연결이 종료됐습니다.");
+                state.capture = false;
+                state.input = false;
+                state.dua.background = false;
+            }
+            for request in std::mem::take(&mut *MANUAL.lock().unwrap_or_else(|e| e.into_inner())) {
+                let _ = request
+                    .reply
+                    .send(Err("게임 세션이 종료돼 입력을 취소했습니다.".into()));
+            }
+            if let Some(reply) = SNAPSHOT.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                let _ = reply.send(Err("백그라운드 게임 연결이 종료됐습니다.".into()));
+            }
+            match result {
+                Ok(()) => set_session("stopped", "백그라운드 게임을 열어 주세요."),
+                Err(error) => set_session("error", error),
+            }
+            SESSION_RUNNING.store(false, Ordering::Release);
+        })
+        .map_err(|error| {
+            SESSION_RUNNING.store(false, Ordering::Release);
+            set_session("error", error.to_string());
+            error.to_string()
+        })?;
+    *WORKER.lock().unwrap_or_else(|e| e.into_inner()) = Some(thread);
+    Ok(session_status())
+}
+pub fn stop_session() {
+    SESSION_STOP.store(true, Ordering::Release);
+    let handle = STOP_HANDLE
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    if let Some(handle) = handle {
+        if let Err(error) = handle.stop() {
+            set_session("error", error);
+        }
+    }
+    // Kill the owned server before waiting on Runtime: a stalled server can
+    // otherwise hold that mutex through an acknowledged input request.
+    runtime().stop("백그라운드 게임을 닫는 중입니다.");
+}
+pub fn shutdown() {
+    stop_session();
+    let end = Instant::now() + Duration::from_secs(4);
+    while SESSION_RUNNING.load(Ordering::Acquire) && Instant::now() < end {
+        thread::sleep(Duration::from_millis(20));
+    }
+    if !SESSION_RUNNING.load(Ordering::Acquire) {
+        if let Some(thread) = WORKER.lock().unwrap_or_else(|e| e.into_inner()).take() {
+            let _ = thread.join();
+        }
+    }
+}
 pub fn game_available() -> bool {
     AVAILABLE.load(Ordering::Acquire)
 }
 
-fn worker() {
-    let Some(connection) = Connection::open() else {
-        let mut state = runtime();
-        state.capture = false;
-        state.input = false;
-        state.stop(SETUP);
-        return;
-    };
+fn worker(connection: Connection, session: &mut session::Session) {
     {
         let mut state = runtime();
         state.capture = true;
         state.input = true;
+        state.dua.background = true;
+        state.dua.hotkeys = false;
     }
     let mut previous = None;
+    let mut manual_held = Held::default();
     loop {
         let started = Instant::now();
+        if SESSION_STOP.load(Ordering::Acquire) {
+            manual_held.release(&connection);
+            return;
+        }
+        if !session.healthy() {
+            manual_held.release(&connection);
+            return;
+        }
         if connection
             .conn
             .get_input_focus()
@@ -416,10 +830,32 @@ fn worker() {
             let mut state = runtime();
             state.capture = false;
             state.input = false;
-            state.stop("Sober X11 연결이 끊겼습니다. 앱을 다시 실행하세요.");
+            state.stop("Sober 연결이 끊겼습니다. 앱을 다시 실행하세요.");
             return;
         }
         AVAILABLE.store(connection.available(), Ordering::Release);
+        if let Some(reply) = SNAPSHOT.lock().unwrap_or_else(|e| e.into_inner()).take() {
+            let result = connection
+                .focused()
+                .and_then(|target| connection.capture(target))
+                .ok_or_else(|| "게임 화면을 찾지 못했습니다.".to_owned())
+                .and_then(|image| encode_snapshot(&image));
+            let _ = reply.send(result);
+        }
+        let requests = std::mem::take(&mut *MANUAL.lock().unwrap_or_else(|e| e.into_inner()));
+        for request in requests {
+            let state = runtime();
+            let allowed = request.current()
+                && (matches!(request.event, ManualEvent::Release)
+                    || (!state.active() && state.generation == request.generation));
+            let result = if allowed {
+                manual_held.apply(&connection, &request.event, || request.current())
+            } else {
+                manual_held.release(&connection);
+                Err("실행 상태가 바뀌어 게임 입력을 취소했습니다.".into())
+            };
+            let _ = request.reply.send(result);
+        }
         let (active, phase) = {
             let state = runtime();
             (state.active(), state.phase())
@@ -436,6 +872,7 @@ fn worker() {
         if connection.pressed(0x75) && runtime().arrive_desktop() {
             continue;
         }
+        manual_held.release(&connection);
         let target = connection.focused();
         if previous.is_some() && previous != target.map(|target| target.window) {
             runtime().no_target();
@@ -451,8 +888,8 @@ fn worker() {
             let mut state = runtime();
             (state.tick(now(), geometry, None), state.generation)
         };
-        if matches!(step, DeviceTick::Observe) {
-            let image = connection.capture(target);
+        if let DeviceTick::Observe(region) = step {
+            let image = connection.capture_region(target, region);
             let mut state = runtime();
             if !state.input_current(generation) {
                 continue;
@@ -464,7 +901,7 @@ fn worker() {
             step = match image.as_ref().and_then(Image::frame) {
                 Some(frame) => state.tick(now(), geometry, Some(&frame)),
                 None => {
-                    state.stop("Sober X11 화면을 캡처하지 못했습니다.");
+                    state.stop("Sober 화면을 캡처하지 못했습니다.");
                     DeviceTick::Wait
                 }
             };
@@ -479,7 +916,7 @@ fn worker() {
                         if result.is_none() {
                             state.no_target();
                         } else {
-                            state.input_rejected("Sober X11 입력을 보내지 못했습니다.");
+                            state.input_rejected("Sober 입력을 보내지 못했습니다.");
                         }
                     }
                 }
@@ -491,7 +928,7 @@ fn worker() {
 }
 
 fn keep_input(connection: &Connection, target: Target, generation: i32) -> bool {
-    if !runtime().input_current(generation) {
+    if SESSION_STOP.load(Ordering::Acquire) || !runtime().input_current(generation) {
         return false;
     }
     if connection.pressed(0x72) || connection.pressed(0x76) {
@@ -716,66 +1153,413 @@ fn tilt(connection: &Connection, target: Target, pixels: i32, ms: u32, generatio
 }
 
 pub fn cancel_pick() {
-    let _ = PICKING.compare_exchange(1, 2, Ordering::AcqRel, Ordering::Acquire);
+    if let Some(reply) = SNAPSHOT.lock().unwrap_or_else(|e| e.into_inner()).take() {
+        let _ = reply.send(Err("위치 지정을 취소했습니다.".into()));
+    }
+}
+
+pub fn snapshot() -> Result<Vec<u8>, String> {
+    if session_status().state != "ready" {
+        return Err("백그라운드 게임을 먼저 열어 주세요.".into());
+    }
+    let (send, receive) = mpsc::channel();
+    {
+        let mut request = SNAPSHOT.lock().unwrap_or_else(|e| e.into_inner());
+        if request.is_some() {
+            return Err("화면을 이미 요청 중입니다.".into());
+        }
+        *request = Some(send);
+    }
+    receive
+        .recv_timeout(Duration::from_secs(3))
+        .map_err(|_| "게임 화면 확인 시간이 초과됐습니다.".to_owned())?
+}
+
+fn encode_snapshot(image: &Image) -> Result<Vec<u8>, String> {
+    image
+        .frame()
+        .ok_or("Sober 화면 데이터가 올바르지 않습니다.")?;
+    if image
+        .region
+        .is_some_and(|r| r.x != 0 || r.y != 0 || r.width != image.width || r.height != image.height)
+    {
+        return Err("전체 게임 화면이 필요합니다.".into());
+    }
+    let bytes = image
+        .width
+        .checked_mul(image.height)
+        .and_then(|v| v.checked_mul(4))
+        .filter(|bytes| *bytes <= 256 * 1024 * 1024)
+        .ok_or("Sober 화면 크기가 너무 큽니다.")?;
+    let mut data = Vec::with_capacity(8 + bytes);
+    data.extend_from_slice(&(image.width as u32).to_le_bytes());
+    data.extend_from_slice(&(image.height as u32).to_le_bytes());
+    for y in 0..image.height {
+        for x in 0..image.width {
+            let offset = y * image.stride + x * image.pixel_stride;
+            let pixel = &image.data[offset..offset + 3];
+            if image.bgra {
+                data.extend_from_slice(&[pixel[2], pixel[1], pixel[0], 255]);
+            } else {
+                data.extend_from_slice(&[pixel[0], pixel[1], pixel[2], 255]);
+            }
+        }
+    }
+    Ok(data)
 }
 
 pub fn pick() -> Result<Point, String> {
-    if runtime().active() {
-        return Err("실행 중인 작업을 먼저 중지하세요.".into());
+    Err("앱의 게임 미리보기에서 위치를 지정하세요.".into())
+}
+
+/// Explicit integration check: starts one owned Sober only if none is running.
+pub(crate) fn game_check() -> Result<(), String> {
+    if std::env::var("ACRUX_GAME_TEST").as_deref() != Ok("1") {
+        return Err("실제 게임 시작 검사는 명시적으로 활성화해야 합니다.".into());
     }
-    if PICKING
-        .compare_exchange(0, 1, Ordering::AcqRel, Ordering::Acquire)
-        .is_err()
-    {
-        return Err("위치를 이미 지정 중입니다.".into());
-    }
-    struct Clear;
-    impl Drop for Clear {
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+    let cancel = AtomicBool::new(false);
+    let mut owned = session::Session::launch_with_cancel(&cancel)?;
+    let finished = std::sync::Arc::new(AtomicBool::new(false));
+    struct Finished(std::sync::Arc<AtomicBool>);
+    impl Drop for Finished {
         fn drop(&mut self) {
-            PICKING.store(0, Ordering::Release);
+            self.0.store(true, Ordering::Release);
         }
     }
-    let _clear = Clear;
-    let connection = Connection::open().ok_or(SETUP)?;
-    let start = Instant::now();
-    let mut previous = None;
-    let mut ready = false;
-    while start.elapsed() < Duration::from_secs(60) {
-        if PICKING.load(Ordering::Acquire) != 1 || connection.pressed(0x1b) || runtime().active() {
-            return Err("위치 지정을 취소했습니다.".into());
+    let _finish = Finished(finished.clone());
+    let kill = owned.stop_handle();
+    thread::spawn(move || {
+        let until = Instant::now() + Duration::from_secs(20);
+        while !finished.load(Ordering::Acquire) && Instant::now() < until {
+            thread::sleep(Duration::from_millis(20));
         }
-        let target = connection.focused();
-        if target != previous {
-            ready = false;
-            previous = target;
+        if !finished.load(Ordering::Acquire) {
+            let _ = kill.stop();
         }
-        if let Some(target) = target {
-            if let Some((x, y, mask, child)) = connection.pointer() {
-                let down = mask & u32::from(u16::from(KeyButMask::BUTTON1)) != 0;
-                let (x, y) = (x - target.x, y - target.y);
-                if ready
-                    && down
-                    && connection.over(child, target.window)
-                    && (0..target.width as i32).contains(&x)
-                    && (0..target.height as i32).contains(&y)
-                {
-                    return Ok(Point(
-                        f64::from(x) / target.width as f64,
-                        f64::from(y) / target.height as f64,
-                    ));
+    });
+    let (wire, screen) = owned.connect_x11()?;
+    let c = Connection::from_connection(wire, screen)
+        .ok_or("전용 게임 입력 연결을 확인하지 못했습니다.")?;
+    let end = Instant::now() + Duration::from_secs(15);
+    let mut last_target = None;
+    let mut captured = false;
+    let mut distinct_colors = 0;
+    let mut last_capture_error = None;
+    loop {
+        if !owned.healthy() {
+            return Err("전용 Sober가 시작 중 종료됐습니다.".into());
+        }
+        if let Some(target) = c.focused() {
+            last_target = Some((target.width, target.height));
+            match c.capture_checked(target, None) {
+                Ok(image) => {
+                    captured = true;
+                    let mut colors = BTreeSet::new();
+                    let sample_step = (image.data.len() / image.pixel_stride / 4096).max(1);
+                    for pixel in image
+                        .data
+                        .chunks(image.pixel_stride)
+                        .step_by(sample_step)
+                        .take(4096)
+                    {
+                        if pixel.len() >= 3 {
+                            colors.insert([pixel[0], pixel[1], pixel[2]]);
+                        }
+                    }
+                    distinct_colors = colors.len();
+                    if colors.len() >= 16 {
+                        let data = encode_snapshot(&image)?;
+                        let mut file = std::fs::OpenOptions::new()
+                            .write(true)
+                            .create(true)
+                            .truncate(true)
+                            .mode(0o600)
+                            .open("/tmp/acrux-private-game.rgba")
+                            .map_err(|e| e.to_string())?;
+                        file.write_all(&data).map_err(|e| e.to_string())?;
+                        owned.stop()?;
+                        println!(
+                            "{}",
+                            serde_json::json!({"soberWindowCaptured":true,"width":image.width,"height":image.height,
+                        "distinctSampleColors":colors.len(),"gameplayVerified":false,"stopped":true})
+                        );
+                        return Ok(());
+                    }
                 }
-                ready = !down;
+                Err(error) => last_capture_error = Some(error),
             }
         }
-        thread::sleep(Duration::from_millis(15));
+        if Instant::now() >= end {
+            let focus = c
+                .conn
+                .get_input_focus()
+                .ok()
+                .and_then(|cookie| cookie.reply().ok())
+                .map(|reply| reply.focus);
+            let windows = c
+                .conn
+                .query_tree(c.root)
+                .ok()
+                .and_then(|cookie| cookie.reply().ok())
+                .map(|tree| {
+                    tree.children
+                        .into_iter()
+                        .take(32)
+                        .map(|window| {
+                            let class = c
+                                .conn
+                                .get_property(
+                                    false,
+                                    window,
+                                    AtomEnum::WM_CLASS,
+                                    AtomEnum::STRING,
+                                    0,
+                                    64,
+                                )
+                                .ok()
+                                .and_then(|cookie| cookie.reply().ok())
+                                .map(|reply| {
+                                    String::from_utf8_lossy(&reply.value).replace('\0', "/")
+                                });
+                            (window, class)
+                        })
+                        .collect::<Vec<_>>()
+                });
+            return Err(owned.startup_error(&format!(
+                "전용 Sober의 실제 화면을 확인하지 못했습니다. 창 발견={}, 입력 대상={last_target:?}, 캡처={captured}, 표본 색상={distinct_colors}, 오류={last_capture_error:?}",
+                c.available()
+            )) + &format!("\n전용 화면 진단: focus={focus:?}, windows={windows:?}"));
+        }
+        thread::sleep(Duration::from_millis(100));
     }
-    Err("Sober X11 화면에서 위치를 선택하지 않았습니다.".into())
+}
+
+/// Explicit development probe: private display only, never starts Sober.
+pub(crate) fn probe() -> Result<(), String> {
+    if std::env::var("ACRUX_SESSION_TEST").as_deref() != Ok("1") {
+        return Err("독립 화면 검사는 명시적으로 활성화해야 합니다.".into());
+    }
+    use x11rb::{protocol::Event, wrapper::ConnectionExt as _};
+    let cancel = AtomicBool::new(false);
+    let mut owned = session::Session::launch_probe_with_cancel(&cancel)?;
+    struct ProbeDeadline(std::sync::Arc<AtomicBool>);
+    impl Drop for ProbeDeadline {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::Release);
+        }
+    }
+    let done = std::sync::Arc::new(AtomicBool::new(false));
+    let _deadline = ProbeDeadline(done.clone());
+    let kill = owned.stop_handle();
+    thread::spawn(move || {
+        let end = Instant::now() + Duration::from_secs(5);
+        while !done.load(Ordering::Acquire) && Instant::now() < end {
+            thread::sleep(Duration::from_millis(20));
+        }
+        if !done.load(Ordering::Acquire) {
+            let _ = kill.stop();
+        }
+    });
+    let (wire, screen) = owned.connect_x11()?;
+    let c = Connection::from_connection(wire, screen)
+        .ok_or("독립 화면의 XTEST 연결을 확인하지 못했습니다.")?;
+    let window = c.conn.generate_id().map_err(|e| e.to_string())?;
+    c.conn
+        .create_window(
+            x11rb::COPY_DEPTH_FROM_PARENT,
+            window,
+            c.root,
+            20,
+            20,
+            480,
+            270,
+            0,
+            WindowClass::INPUT_OUTPUT,
+            0,
+            &CreateWindowAux::new()
+                .background_pixel(0x2878d0)
+                .event_mask(EventMask::BUTTON_PRESS | EventMask::KEY_PRESS | EventMask::EXPOSURE),
+        )
+        .map_err(|e| e.to_string())?
+        .check()
+        .map_err(|e| e.to_string())?;
+    c.conn
+        .change_property8(
+            PropMode::REPLACE,
+            window,
+            AtomEnum::WM_CLASS,
+            AtomEnum::STRING,
+            b"sober\0org.vinegarhq.Sober\0",
+        )
+        .map_err(|e| e.to_string())?
+        .check()
+        .map_err(|e| e.to_string())?;
+    c.conn
+        .map_window(window)
+        .map_err(|e| e.to_string())?
+        .check()
+        .map_err(|e| e.to_string())?;
+    let ready_deadline = Instant::now() + Duration::from_secs(2);
+    while c.target(window).is_none() {
+        if Instant::now() >= ready_deadline {
+            return Err("독립 시험 창이 표시되지 않았습니다.".into());
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+    c.conn
+        .set_input_focus(InputFocus::PARENT, window, x11rb::CURRENT_TIME)
+        .map_err(|e| e.to_string())?
+        .check()
+        .map_err(|e| e.to_string())?;
+    let target = c
+        .target(window)
+        .ok_or("독립 시험 창이 준비되지 않았습니다.")?;
+    let full = c.capture(target).ok_or("독립 시험 창 캡처 실패")?;
+    let crop = c
+        .capture_region(
+            target,
+            Some(Region {
+                x: 8,
+                y: 8,
+                width: 40,
+                height: 40,
+            }),
+        )
+        .ok_or("독립 부분 캡처 실패")?;
+    let pixel = if crop.bgra {
+        [crop.data[2], crop.data[1], crop.data[0]]
+    } else {
+        [crop.data[0], crop.data[1], crop.data[2]]
+    };
+    if pixel != [0x28, 0x78, 0xd0] {
+        return Err("독립 화면에서 그린 픽셀이 캡처와 다릅니다.".into());
+    }
+    if crop.data.len() >= full.data.len() {
+        return Err("부분 캡처가 전체 프레임보다 작지 않습니다.".into());
+    }
+    thread::sleep(Duration::from_millis(150));
+    let focus_before = c
+        .conn
+        .get_input_focus()
+        .map_err(|e| e.to_string())?
+        .reply()
+        .map_err(|e| e.to_string())?
+        .focus;
+    c.move_pointer(target.x + 24, target.y + 24);
+    let pointer_after = c.pointer();
+    if !c.button(1, true) {
+        return Err("독립 버튼 입력 실패".into());
+    }
+    c.button(1, false);
+    let key = c.keycode(0x57).ok_or("독립 키 매핑 실패")?;
+    if !c.key(key, true) {
+        return Err("독립 키 입력 실패".into());
+    }
+    c.key(key, false);
+    let mut button = false;
+    let mut keyboard = false;
+    let mut event_kinds = Vec::new();
+    let end = Instant::now() + Duration::from_secs(2);
+    while Instant::now() < end && !(button && keyboard) {
+        match c.conn.poll_for_event().map_err(|e| e.to_string())? {
+            Some(Event::ButtonPress(e)) => {
+                button |= e.event == window;
+                event_kinds.push(format!("button:{}", e.event));
+            }
+            Some(Event::KeyPress(e)) => {
+                keyboard |= e.event == window;
+                event_kinds.push(format!("key:{}", e.event));
+            }
+            Some(event) => {
+                if event_kinds.len() < 8 {
+                    event_kinds.push(format!("event:{}", event.response_type()));
+                }
+            }
+            _ => thread::sleep(Duration::from_millis(5)),
+        }
+    }
+    c.conn
+        .destroy_window(window)
+        .map_err(|e| e.to_string())?
+        .check()
+        .map_err(|e| e.to_string())?;
+    owned.stop()?;
+    if !button || !keyboard {
+        eprintln!(
+            "{}",
+            serde_json::json!({"fixture":true,"window":window,"focusBefore":focus_before,"pointerAfter":pointer_after,"button":button,"keyboard":keyboard,"events":event_kinds})
+        );
+        return Err("독립 시험 창에서 버튼·키 이벤트를 확인하지 못했습니다.".into());
+    }
+    println!(
+        "{}",
+        serde_json::json!({"fixture":true,"soberLaunched":false,"privateEndpointValidated":true,
+        "buttonReceived":button,"keyReceived":keyboard,"pixelVerified":true,"fullBytes":full.data.len(),"roiBytes":crop.data.len(),"stopped":true})
+    );
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use x11rb::{protocol::Event, wrapper::ConnectionExt as _};
+
+    #[test]
+    fn manual_input_rejects_invalid_or_overflowing_requests_before_queueing() {
+        for event in [
+            ManualEvent::Look {
+                dx: i32::MIN,
+                dy: 0,
+            },
+            ManualEvent::Pointer {
+                x: f64::NAN,
+                y: 0.5,
+                right: false,
+                down: true,
+            },
+            ManualEvent::Pointer {
+                x: 1.0,
+                y: 0.5,
+                right: false,
+                down: true,
+            },
+            ManualEvent::Key {
+                vk: 0xffff,
+                down: true,
+            },
+        ] {
+            assert!(manual(event, 0).is_err());
+        }
+    }
+
+    #[test]
+    fn preview_encoding_preserves_header_colors_and_row_stride() {
+        let image = Image {
+            data: vec![10, 20, 30, 0, 40, 50, 60, 0, 99, 99, 99, 99],
+            width: 2,
+            height: 1,
+            stride: 12,
+            pixel_stride: 4,
+            bgra: true,
+            region: None,
+        };
+        assert_eq!(
+            encode_snapshot(&image).unwrap(),
+            [
+                2u32.to_le_bytes().as_slice(),
+                1u32.to_le_bytes().as_slice(),
+                &[30, 20, 10, 255, 60, 50, 40, 255]
+            ]
+            .concat()
+        );
+        let invalid = Image {
+            data: vec![],
+            ..image
+        };
+        assert!(encode_snapshot(&invalid).is_err());
+    }
 
     #[test]
     fn sober_identity_requires_an_exact_class() {
@@ -801,6 +1585,28 @@ mod tests {
             assert_eq!(key_symbol(vk), Some(symbol));
         }
         assert_eq!(key_symbol(0xffff), None);
+    }
+
+    #[test]
+    fn direct_color_conversion_respects_channel_order_padding_and_bounds() {
+        let colors: Vec<Rgb> = (0..256u16)
+            .map(|index| Rgb {
+                red: (255 - index) * 257,
+                green: index * 257,
+                blue: index * 257,
+            })
+            .collect();
+        let mut bgra = [5, 17, 30, 99, 8, 19, 40, 98, 77, 77, 77, 77];
+        normalize_direct_color(&mut bgra, 12, 4, 2, 1, true, &colors).unwrap();
+        assert_eq!(bgra, [5, 17, 225, 99, 8, 19, 215, 98, 77, 77, 77, 77]);
+        let mut rgb = [5, 17, 30];
+        normalize_direct_color(&mut rgb, 3, 3, 1, 1, false, &colors).unwrap();
+        assert_eq!(rgb, [250, 17, 30]);
+        assert!(normalize_direct_color(&mut rgb, 3, 3, 1, 1, false, &colors[..255]).is_err());
+        assert!(normalize_direct_color(&mut rgb, 3, 3, 2, 1, false, &colors).is_err());
+        assert!(
+            normalize_direct_color(&mut rgb, usize::MAX, 4, 2, usize::MAX, false, &colors).is_err()
+        );
     }
 
     #[test]
@@ -849,10 +1655,102 @@ mod tests {
             height: 5,
             stride: 24,
             pixel_stride: 3,
-            bgra: true
+            bgra: true,
+            region: None,
         }
         .frame()
         .is_none());
+    }
+
+    #[test]
+    #[ignore = "requires ACRUX_X11_TEST=1 and a dedicated Xvfb display >= :90"]
+    fn native_x11_capture_and_input_direct_color() {
+        assert_eq!(std::env::var("ACRUX_X11_TEST").as_deref(), Ok("1"));
+        let display = std::env::var("DISPLAY").unwrap();
+        assert!(display
+            .strip_prefix(':')
+            .and_then(|s| s.split('.').next())
+            .and_then(|s| s.parse::<u32>().ok())
+            .is_some_and(|n| n >= 90));
+        let connection = Connection::open().expect("dedicated Xvfb with XTest");
+        let c = &connection.conn;
+        let visual = c.setup().roots[connection.screen]
+            .allowed_depths
+            .iter()
+            .filter(|depth| depth.depth == 24)
+            .flat_map(|depth| &depth.visuals)
+            .find(|visual| {
+                visual.class == VisualClass::DIRECT_COLOR
+                    && visual.colormap_entries == 256
+                    && (visual.red_mask, visual.green_mask, visual.blue_mask)
+                        == (0xff0000, 0xff00, 0xff)
+            })
+            .expect("Xvfb must expose the 24-bit DirectColor visual used by Sober");
+        let colormap = c.generate_id().unwrap();
+        c.create_colormap(
+            ColormapAlloc::ALL,
+            colormap,
+            connection.root,
+            visual.visual_id,
+        )
+        .unwrap()
+        .check()
+        .unwrap();
+        let window = c.generate_id().unwrap();
+        c.create_window(
+            24,
+            window,
+            connection.root,
+            10,
+            10,
+            64,
+            48,
+            0,
+            WindowClass::INPUT_OUTPUT,
+            visual.visual_id,
+            &CreateWindowAux::new()
+                .colormap(colormap)
+                .background_pixel(0x123456)
+                .border_pixel(0),
+        )
+        .unwrap()
+        .check()
+        .unwrap();
+        c.map_window(window).unwrap().check().unwrap();
+        let target = connection.target(window).expect("viewable test window");
+        // Change the real server palette without repainting the window. Each
+        // capture must query current ramps, rather than treating indices as RGB
+        // or reusing a palette from the preceding frame.
+        for invert_red in [true, false] {
+            let colors: Vec<_> = (0u16..256)
+                .map(|index| Coloritem {
+                    pixel: u32::from(index) * 0x010101,
+                    red: if invert_red { 255 - index } else { index } * 257,
+                    green: if invert_red { index } else { 255 - index } * 257,
+                    blue: index * 257,
+                    flags: ColorFlag::RED | ColorFlag::GREEN | ColorFlag::BLUE,
+                })
+                .collect();
+            c.store_colors(colormap, &colors).unwrap().check().unwrap();
+            let image = connection
+                .capture_checked(target, None)
+                .expect("capture the real DirectColor window");
+            let rgba = encode_snapshot(&image).unwrap();
+            assert_eq!(&rgba[..4], &64u32.to_le_bytes());
+            assert_eq!(&rgba[4..8], &48u32.to_le_bytes());
+            assert_eq!(rgba.len(), 8 + 64 * 48 * 4);
+            let expected = if invert_red {
+                [0xed, 0x34, 0x56, 255]
+            } else {
+                [0x12, 0xcb, 0x56, 255]
+            };
+            assert!(
+                rgba[8..].chunks_exact(4).all(|pixel| pixel == expected),
+                "capture must apply the current nonidentity DirectColor ramps"
+            );
+        }
+        c.destroy_window(window).unwrap().check().unwrap();
+        c.free_colormap(colormap).unwrap().check().unwrap();
     }
 
     #[test]
@@ -1018,6 +1916,46 @@ mod tests {
         assert!(connection.relative(3));
         let after = connection.pointer().unwrap();
         assert_eq!((after.0, after.1), (before.0, before.1 + 3));
+        // A slow focus reply must not revive a canceled manual key-down.
+        let mut held = Held::default();
+        let checks = std::cell::Cell::new(0);
+        assert!(held
+            .apply(
+                &connection,
+                &ManualEvent::Key {
+                    vk: 0x57,
+                    down: true
+                },
+                || {
+                    checks.set(checks.get() + 1);
+                    checks.get() == 1
+                },
+            )
+            .is_err());
+        assert!(!connection.pressed(0x57));
+        held.apply(
+            &connection,
+            &ManualEvent::Key {
+                vk: 0x57,
+                down: true,
+            },
+            || true,
+        )
+        .unwrap();
+        assert!(connection.pressed(0x57));
+        let (reply, _) = mpsc::channel();
+        let expired_release = ManualRequest {
+            event: ManualEvent::Release,
+            generation: -1,
+            reply,
+            expires: Instant::now() - Duration::from_secs(1),
+            canceled: Arc::new(AtomicBool::new(true)),
+        };
+        held.apply(&connection, &expired_release.event, || {
+            expired_release.current()
+        })
+        .unwrap();
+        assert!(!connection.pressed(0x57), "release survives request expiry");
         let stop = thread::spawn(|| {
             thread::sleep(Duration::from_millis(60));
             runtime().stop("isolated stop");

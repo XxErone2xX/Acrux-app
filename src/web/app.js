@@ -521,7 +521,7 @@ $('confirmYes').addEventListener('click', async () => {
 
 function toast(msg) {
   const t = $('toast');
-  t.textContent = msg;
+  t.textContent = shortcutText(msg);
   t.classList.add('on');
   clearTimeout(toast.h);
   toast.h = setTimeout(() => t.classList.remove('on'), 1800);
@@ -595,7 +595,7 @@ function addLog(x) {
   const d = document.createElement('div');
   d.innerHTML = `<span class="t"></span><span></span>`;
   d.children[0].textContent = fmtTime(x.time);
-  d.children[1].textContent = x.msg;
+  d.children[1].textContent = shortcutText(x.msg);
   if (x.color) d.children[1].className = x.color;
   l.appendChild(d);
   while (l.children.length > 1500) l.firstChild.remove();
@@ -635,17 +635,40 @@ document.addEventListener('click', e => {
 
 // 켜진 매크로 탭 기능 수
 const macroFeatures = () => FEATS.filter(k => featCfg(k).enabled).length;
-let lastBio = null, lastMpop = null, lastMfish = null, lastMitem = null, lastMmerch = null, lastMcraft = null, lastMmatch = null, lastMblood = null, lastDua = null;
+let lastBio = null, lastMpop = null, lastMfish = null, lastMitem = null, lastMmerch = null, lastMcraft = null, lastMmatch = null, lastMblood = null, lastDua = null, lastSession = null;
 const duaRoute = route => route === 'headless' ? 'Headless' : route === 'screenshot' ? '스크린샷' : '대기';
+const stopHints = new WeakMap();
+function shortcutText(text) {
+  if (lastDua?.hotkeys !== false) return text;
+  return I18N.t(String(text)).replace(/\bF3\b/g, I18N.t('앱의 시작·중지 버튼'))
+    .replace(/\bF6\b/g, `[${I18N.t('도착')}]`).replace(/\bF7\b/g, I18N.t('앱의 중지 버튼'));
+}
 function updateDua(st) {
   lastDua = st || null;
   $('duaPanel').hidden = !window.acruxDesktopApi || !st;
   if (!st) return;
   setText($('duaRoute'), duaRoute(st.route));
-  setText($('duaReason'), st.reason || '대기');
+  setText($('duaReason'), shortcutText(st.reason || '대기'));
   setText($('duaHeadless'), String(st.headlessTicks));
   setText($('duaScreenshots'), String(st.screenshotFrames));
   setText($('duaTransitions'), String(st.transitions));
+  setText($('duaStopMethod'), st.hotkeys === false ? '앱의 중지 버튼' : 'F7 또는 앱의 중지 버튼');
+  document.querySelectorAll('[data-stop-shortcut]').forEach(el => {
+    if (!stopHints.has(el)) stopHints.set(el, I18N.source(el));
+    setText(el, shortcutText(stopHints.get(el)));
+  });
+}
+function updateSession(st) {
+  if (!window.acruxDesktopApi || !st) return;
+  lastSession = st;
+  setText($('desktopSessionMessage'), st.message || '게임을 열어 주세요.');
+  $('desktopSessionStart').disabled = !st.supported || st.state === 'ready' || st.state === 'starting';
+  $('desktopSessionStop').disabled = st.state === 'stopped' || st.state === 'unsupported';
+  $('desktopGameViewOpen').disabled = st.state !== 'ready';
+}
+function applyDesktopText() {
+  if (!window.acruxDesktopApi) return;
+  document.querySelectorAll('[data-desktop-text]').forEach(el => setText(el, el.dataset.desktopText));
 }
 function syncMainTiles() {
   const bOn = !!bio().enabled;
@@ -654,9 +677,9 @@ function syncMainTiles() {
   setText($('mtBiome'), bOn ? `작동 중 · ${cur ? bioName(cur) : '바이옴 확인 중'}`
     : (bio().player ? '꺼짐' : '꺼짐 · 플레이어 이름 필요'));
   const mOn = !!config.macro_on, n = macroFeatures();
-  setTile('macro', mOn, mOn ? '중지 · F3' : '시작 · F3');
+  setTile('macro', mOn, lastDua?.hotkeys === false ? (mOn ? '중지' : '시작') : (mOn ? '중지 · F3' : '시작 · F3'));
   tile('macro').classList.remove('wait');
-  const mText = !mOn ? (n ? `꺼짐 · 기능 ${n}개 켜짐` : '꺼짐')
+  const mText = shortcutText(!mOn ? (n ? `꺼짐 · 기능 ${n}개 켜짐` : '꺼짐')
     : lastDua && lastDua.running ? `DUA · ${duaRoute(lastDua.route)} · ${lastDua.reason}`
     : lastMpop && lastMpop.running ? (lastMpop.msg || '포션 사용 중')
     : lastMblood && lastMblood.running ? (lastMblood.msg || '블러드 레인 만드는 중')
@@ -665,7 +688,7 @@ function syncMainTiles() {
     : lastMcraft && lastMcraft.running ? (lastMcraft.msg || '포션 제작 중')
     : lastMmatch && lastMmatch.running ? (lastMmatch.msg || '메모리 매치 중')
     : lastMfish && lastMfish.running ? (lastMfish.msg || '낚시 중')
-    : n ? `작동 중 · 기능 ${n}개` : '켜진 기능 없음';
+    : n ? `작동 중 · 기능 ${n}개` : '켜진 기능 없음');
   setText($('mtMacro'), mText);
   // 매크로 설정 화면 위쪽: 매크로 버튼 상태
   setData($('macroDot'), 's', mOn ? 'flux' : '');
@@ -678,7 +701,7 @@ function syncMainTiles() {
 
 function setStatus([state, text]) {
   document.querySelectorAll('[data-status-dot]').forEach(d => setData(d, 's', state));
-  document.querySelectorAll('[data-status-text]').forEach(t => setText(t, text));
+  document.querySelectorAll('[data-status-text]').forEach(t => setText(t, shortcutText(text)));
 }
 
 // ---------------------------------------------------------------- 주기적으로 엔진 상태 받기
@@ -688,6 +711,8 @@ async function poll() {
     const r = await api('poll', { since: seq }, 8000);
     pollFails = 0;
     seq = r.seq;
+    updateDua(r.dua);
+    updateSession(r.session);
     setStatus(r.status);
     r.logs.forEach(addLog);
     updateCrash(r.crash);
@@ -696,7 +721,6 @@ async function poll() {
     updateBiome(r.biome);
     updateMpop(r.mpop);
     updateMfish(r.mfish);
-    updateDua(r.dua);
     updateMove(r.move);
     lastBio = r.biome; lastMpop = r.mpop; lastMfish = r.mfish; lastMitem = r.mitem; lastMmerch = r.mmerch; lastMcraft = r.mcraft; lastMmatch = r.mmatch;
     lastMblood = r.mblood;
@@ -826,7 +850,7 @@ function updatePlay(st, roblox) {
   if ($('robloxState').classList.contains('ok') !== !!roblox) $('robloxState').classList.toggle('ok', !!roblox);
   const running = !!(st && st.running);
   document.querySelectorAll('[data-play-dot]').forEach(d => setData(d, 's', running ? 'flux' : ''));
-  document.querySelectorAll('[data-play-state]').forEach(t => setText(t, running ? (st.msg || '실행 중') : '대기'));
+  document.querySelectorAll('[data-play-state]').forEach(t => setText(t, running ? shortcutText(st.msg || '실행 중') : '대기'));
   $('playTest').disabled = running;
 }
 
@@ -1094,7 +1118,7 @@ function fillMpop() {
 function updateMpop(st) {
   const running = !!(st && st.running);
   setData($('mpopDot'), 's', running ? 'flux' : '');
-  setText($('mpopState'), running ? (st.msg || '실행 중') : '대기');
+  setText($('mpopState'), running ? shortcutText(st.msg || '실행 중') : '대기');
   document.querySelectorAll('[data-bio-test^="mpop:"]').forEach(b => { b.disabled = running; });
 }
 $('mpopStop').addEventListener('click', () => api('mpop_stop'));
@@ -1131,7 +1155,7 @@ function renderMfish() {
 function updateMfish(st) {
   const running = !!(st && st.running);
   setData($('mfishDot'), 's', running ? 'flux' : '');
-  setText($('mfishState'), running ? (st.msg || '실행 중') : '대기');
+  setText($('mfishState'), running ? shortcutText(st.msg || '실행 중') : '대기');
   const s = st && st.stats;
   if (s) setText($('mfishStats'), `${s.success} · ${s.junk} · ${s.fail} · ${s.full}`);
 }
@@ -1165,7 +1189,7 @@ function renderMitem() {
 function updateMitem(st) {
   const running = !!(st && st.running);
   setData($('mitemDot'), 's', running ? 'flux' : '');
-  setText($('mitemState'), running ? (st.msg || '사용 중') : '대기');
+  setText($('mitemState'), running ? shortcutText(st.msg || '사용 중') : '대기');
   $('mitemTest').disabled = running;
   const it = (st && st.items) || {};
   document.querySelectorAll('[data-mitem-left]').forEach(el => {
@@ -1208,7 +1232,7 @@ function renderMblood() {
 function updateMblood(st) {
   const running = !!(st && st.running);
   setData($('mbloodDot'), 's', running ? 'flux' : '');
-  setText($('mbloodState'), running ? (st.msg || '실행 중') : '대기');
+  setText($('mbloodState'), running ? shortcutText(st.msg || '실행 중') : '대기');
   $('mbloodTest').disabled = running;
   const used = $('mbloodUsed');
   if (used && st) setText(used, String(st.used || 0));
@@ -1272,7 +1296,7 @@ function renderMcraft() {
 function updateMcraft(st) {
   const running = !!(st && st.running);
   setData($('mcraftDot'), 's', running ? 'flux' : '');
-  setText($('mcraftState'), running ? (st.msg || '제작 중') : '대기');
+  setText($('mcraftState'), running ? shortcutText(st.msg || '제작 중') : '대기');
   const t = $('mcraftTest');
   if (t) t.disabled = running;
   if (st) setText($('mcraftCount'), String(st.crafted ?? 0));
@@ -1312,7 +1336,7 @@ function updateMmatch(st) {
   if (!st) return;
   const running = !!st.running;
   setData($('mmatchDot'), 's', running ? 'flux' : '');
-  setText($('mmatchState'), running ? (st.msg || '메모리 매치 중') : '대기');
+  setText($('mmatchState'), running ? shortcutText(st.msg || '메모리 매치 중') : '대기');
   const t = $('mmatchTest');
   if (t) t.disabled = running;
   setText($('mmatchCount'), String(st.played ?? 0));
@@ -1377,7 +1401,7 @@ function syncMerchPick() {
 function updateMmerch(st) {
   const running = !!(st && st.running);
   setData($('mmerchDot'), 's', running ? 'flux' : '');
-  setText($('mmerchState'), running ? (st.msg || '작동 중') : '대기');
+  setText($('mmerchState'), running ? shortcutText(st.msg || '작동 중') : '대기');
   $('mmerchCheck').disabled = running;
   if (st) setText($('mmerchBought'), String(st.bought ?? 0));
 }
@@ -1560,6 +1584,10 @@ const moveCall = async (name, args, msg) => { const r = await api(name, args); t
 // data-mpos-custom: 'movebase' (공통 위치 → 기준 장소) / 'places:기능' (그 기능이 가는 장소)
 function renderMoveCustom(el) {
   const [kind, feat] = el.dataset.mposCustom.split(':');
+  if (window.acruxDesktopApi && ['movebase', 'movebaserev', 'places', 'sell'].includes(kind)) {
+    el.innerHTML = `<div class="row"><span>지도 기반 이동 준비 중<small>게임 화면에서 직접 장소를 맞춘 뒤 매크로를 시작하세요. 이전 시간 기반 이동은 사용하지 않습니다.</small></span></div>`;
+    return;
+  }
   if (kind === 'itemuse') renderItemSettings(el);
   else if (kind === 'movebase') MPOS_CUSTOM.movebase(el);
   else if (kind === 'sell') MPOS_CUSTOM.sell(el);
@@ -1681,8 +1709,8 @@ const MPOS_CUSTOM = {
     el.innerHTML = SELL_SET.map(([k, name, sub, def, min, step]) => `
       <label class="row"><span>${name}<small>${sub} · 기본 ${def}</small></span>
         <input type="number" min="${min}" step="${step}" data-sell-set="${k}" value="${m[k] ?? def}"></label>`).join('') + `
-      <div class="row"><span>판매 테스트<small>기준 장소 → 물고기 판매 장소 → 판매 → 낚시 장소 · 정지: F7</small></span>
-        <span class="pos"><b class="move-state">${esc(busy ? (st.msg || '이동 중') : '대기')}</b>
+      <div class="row"><span>판매 테스트<small>${shortcutText('기준 장소 → 물고기 판매 장소 → 판매 → 낚시 장소 · 정지: F7')}</small></span>
+        <span class="pos"><b class="move-state">${esc(shortcutText(busy ? (st.msg || '이동 중') : '대기'))}</b>
         <button class="btn mini" type="button" data-sell-test ${busy ? 'disabled' : ''}>판매 테스트</button>
         <button class="btn mini ghost" type="button" data-move-stop ${busy ? '' : 'disabled'}>멈춤</button></span></div>`;
     el.querySelectorAll('[data-sell-set]').forEach(i => i.addEventListener('input', () => {
@@ -1700,7 +1728,7 @@ const MPOS_CUSTOM = {
     const m = move(), st = lastMove || {}, busy = !!st.running;
     el.innerHTML = `
       <div class="row"><span>기준 장소로 이동<small>위 순서대로 테스트</small></span>
-        <span class="pos"><b class="move-state">${esc(busy ? (st.msg || '이동 중') : '대기')}</b>
+        <span class="pos"><b class="move-state">${esc(shortcutText(busy ? (st.msg || '이동 중') : '대기'))}</b>
         <button class="btn mini" type="button" data-move-base ${busy ? 'disabled' : ''}>기준 장소로 이동</button>
         <button class="btn mini ghost" type="button" data-move-stop ${busy ? '' : 'disabled'}>멈춤</button></span></div>` +
       MOVE_SET.map(([k, name, sub, def, min, step]) => `
@@ -1726,7 +1754,7 @@ const MPOS_CUSTOM = {
     const m = move(), st = lastMove || {}, busy = !!st.running;
     el.innerHTML = `
       <div class="row"><span>반대쪽 기준 장소로 이동<small>위 순서대로 테스트</small></span>
-        <span class="pos"><b class="move-state">${esc(busy ? (st.msg || '이동 중') : '대기')}</b>
+        <span class="pos"><b class="move-state">${esc(shortcutText(busy ? (st.msg || '이동 중') : '대기'))}</b>
         <button class="btn mini" type="button" data-move-rev ${busy ? 'disabled' : ''}>반대쪽 기준 장소로 이동</button>
         <button class="btn mini ghost" type="button" data-move-stop ${busy ? '' : 'disabled'}>멈춤</button></span></div>` +
       REV_SET.map(([k, name, sub, def, min, step]) => `
@@ -1757,11 +1785,11 @@ const MPOS_CUSTOM = {
     const meas = st.measuring && mine.some(([, i]) => i === st.measuring.place) ? st.measuring : null;
     const fixed = MOVE_FIXED.includes(feat);              // 정해진 장소만 쓰는 기능 (장소를 만들거나 지우지 않음)
     el.innerHTML = `
-      ${meas ? `<div class="row move-measure"><span>시간 재는 중<small>캐릭터가 도착하면 F6 을 누르거나 [도착] 을 누르기</small></span>
+      ${meas ? `<div class="row move-measure"><span>시간 재는 중<small>${lastDua?.hotkeys === false ? I18N.t('캐릭터가 도착하면 [도착] 을 누르기') : '캐릭터가 도착하면 F6 을 누르거나 [도착] 을 누르기'}</small></span>
         <span class="pos"><b data-move-timer>0.0초</b><button class="btn mini" type="button" data-move-arrive>도착</button>
         <button class="btn mini ghost" type="button" data-move-stop>멈춤</button></span></div>` : ''}
       <div class="row"><span>장소<small>멀리 갈 때는 지점을 여러 개로</small></span>
-        <span class="pos">${busy && !meas ? `<b class="move-state">${esc(st.msg || '이동 중')}</b>` : ''}
+        <span class="pos">${busy && !meas ? `<b class="move-state">${esc(shortcutText(st.msg || '이동 중'))}</b>` : ''}
         ${fixed ? '' : '<button class="btn mini" type="button" data-move-add-place>장소 추가</button>'}</span></div>` +
       (mine.length ? '' : `<div class="row"><span><small>아직 장소 없음 — [장소 추가] 로 만들기</small></span></div>`) +
       mine.map(([pl, i]) => `
@@ -1832,7 +1860,7 @@ function updateMove(st) {
     else rerenderMove();
     return;
   }
-  document.querySelectorAll('.move-state').forEach(s => setText(s, now ? (st.msg || '이동 중') : '대기'));
+  document.querySelectorAll('.move-state').forEach(s => setText(s, shortcutText(now ? (st.msg || '이동 중') : '대기')));
 }
 // 위치는 서버가 이미 저장함 → 화면만 다시 그림 (준비 상태 · ▾ · 왼쪽 목록 표시도)
 function mposChanged(feat) {
@@ -1912,7 +1940,7 @@ for (const feat of ['mfish', 'mcraft', 'mmatch'])
 // 기능마다 할 일 (순서대로 안내)
 const FEAT_TASKS = { mpop: ['inv'], mitem: ['inv'], mblood: ['inv'],
   mmerch: ['inv', 'dialog', 'merchChat', 'merchShop'],
-  mfish: ['fishWin', 'notice', 'moveBase', 'mfishPlace', 'fishSell', 'dialog'],
+  mfish: window.acruxDesktopApi ? [] : ['fishWin', 'notice', 'moveBase', 'mfishPlace', 'fishSell', 'dialog'],
   mcraft: ['notice', 'moveBase', 'craftRev', 'mcraftPlace', 'craftShop'],
   mmatch: ['moveBase', 'mmatchPlace', 'matchNote', 'matchBoard'] };
 const taskCalDone = t => !t.cal || !!featCfg(t.feat)[t.cal];
@@ -1923,6 +1951,7 @@ const taskKeysOk = t => {
 };
 // 이 기능을 쓰는 데 꼭 필요한데 비어 있는 것 (이름 목록 · 선택 항목은 빼고)
 function featMissing(k) {
+  if (window.acruxDesktopApi && k === 'mfish') return lastSession?.state === 'ready' ? [] : ['앱 전용 게임'];
   const out = [];
   if ((k === 'mpop' || k === 'mblood') && !(config.biome?.player || '').trim()) out.push('플레이어 이름');   // 바이옴 감지에 필요
   if (k === 'mmerch' && !Object.values(mmerch().buy || {}).some(v => v > 0)) out.push('살 아이템');
@@ -2752,6 +2781,10 @@ const Tutorial = (() => {
     next.textContent = last ? '확인' : '다음';
     updateReq();
     I18N.apply(card);                  // 번역된 글자 크기로 위치를 잡도록 먼저 번역
+    if (lastDua?.hotkeys === false) {
+      const walker = document.createTreeWalker($('tutBody'), NodeFilter.SHOW_TEXT);
+      while (walker.nextNode()) walker.currentNode.nodeValue = shortcutText(walker.currentNode.nodeValue);
+    }
     const first = !moved;
     moved = true;
     focusEl = s.target ? s.target() : null;
@@ -2847,7 +2880,7 @@ const Tutorial = (() => {
   const startFollow = () => { if (!following) { following = true; requestAnimationFrame(follow); } };
 
   // 튜토리얼 중에는 안내창과 강조된 곳만 누를 수 있음 (나머지 버튼·단축키 차단)
-  const allowed = t => card.contains(t) || !!t.closest?.('.lang') || (!el.classList.contains('passive') && focusEl && focusEl.contains(t));
+  const allowed = t => !!t.closest?.('#desktopPickPreview, #desktopGameView') || card.contains(t) || !!t.closest?.('.lang') || (!el.classList.contains('passive') && focusEl && focusEl.contains(t));
   for (const type of ['pointerdown', 'mousedown', 'mouseup', 'click', 'dblclick', 'contextmenu', 'auxclick']) {
     addEventListener(type, e => {
       if (el.hidden || allowed(e.target)) return;
@@ -2858,6 +2891,7 @@ const Tutorial = (() => {
   addEventListener('keydown', e => {
     if (el.hidden) return;
     const t = document.activeElement;
+    if (t?.closest?.('#desktopPickPreview, #desktopGameView')) return;
     if (t && t !== document.body && allowed(t) && e.key !== 'Escape') return;   // 강조된 입력칸에 입력은 허용
     if (e.key === 'Tab' || e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
@@ -2931,6 +2965,20 @@ const Tutorial = (() => {
 })();
 
 window.addEventListener('acrux-desktop-error', e => toast(e.detail));
+$('desktopSessionStart').addEventListener('click', async () => {
+  const result = await api('session_start');
+  if (result.error) toast(result.error);
+  updateSession(result.session);
+});
+$('desktopSessionStop').addEventListener('click', async () => {
+  const result = await api('session_stop');
+  if (result.error) toast(result.error);
+  updateSession(result.session);
+});
+$('desktopGameViewOpen').addEventListener('click', async () => {
+  const result = await api('game_view');
+  if (result.error) toast(result.error);
+});
 
 // ---------------------------------------------------------------- 모드 · 플러그인
 // 모드 = 설정 탭 · 화면이 있는 큰 기능 · 플러그인 = 화면 없이 뒤에서 도는 작은 기능
@@ -3062,10 +3110,12 @@ $('modRestart').addEventListener('click', async () => {
 // ---------------------------------------------------------------- 시작
 setTimeout(() => document.body.classList.remove('booting'), 4000);   // 켜다가 막혀도 화면은 보이게
 (async function init() {
+  applyDesktopText();
   I18N.init();
   const s = await api('state');
   config = s.config;
   updateDua(s.dua);
+  updateSession(s.session);
   await Mods.load(s.mods);               // 모드 화면 · 탭 · 메뉴를 먼저 붙이고 메뉴를 만듦
   buildMenu();
   buildLang($('langBox'), false);
@@ -3073,7 +3123,7 @@ setTimeout(() => document.body.classList.remove('booting'), 4000);   // 켜다�
   if (s.version) $('verText').textContent = 'V' + s.version;
   I18N.set(config.lang || I18N.detect());
   if (!config.lang) queueSave({ lang: I18N.lang });   // 처음 실행: 윈도우 언어로 정해서 저장
-  I18N.onChange(() => { Tutorial.refresh(); requestAnimationFrame(() => setTab(curTab, false)); });   // 글자 길이가 바뀌면 간격 다시
+  I18N.onChange(() => { updateDua(lastDua); Tutorial.refresh(); requestAnimationFrame(() => setTab(curTab, false)); });   // 글자 길이가 바뀌면 간격 다시
   setTab(config.menu_tab || 'macro', false);
   document.body.classList.remove('booting');
   fillPlay();

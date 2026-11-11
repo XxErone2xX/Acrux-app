@@ -1,4 +1,4 @@
-use crate::vision::{Bar, Button, Catch, Frame, Point, Rect, WindowFinder};
+use crate::vision::{Bar, Button, Catch, Frame, Point, Rect, Region, WindowFinder};
 use serde::{Deserialize, Serialize};
 use std::{collections::VecDeque, time::Duration};
 
@@ -111,9 +111,23 @@ impl Calibration {
 
     fn diamond_moved(self, frame: &Frame<'_>) -> bool {
         let radius = ((self.panel.2 - self.panel.0) * frame.width as f64 * 0.012) as usize;
-        frame.diamond(self.reel.at(0.9317, 0.8310), radius.max(3))
-            && !frame.diamond(self.panel.at(0.9268, 0.8264), radius.max(3))
+        frame.diamond(self.reel.at(0.9317, 0.8310), radius.max(3)) == Some(true)
+            && frame.diamond(self.panel.at(0.9268, 0.8264), radius.max(3)) == Some(false)
     }
+
+    fn observation_rect(self) -> Rect {
+        // Includes both panel sizes, button sampling, the marker above the
+        // bar, and both diamond positions. Input points remain viewport based.
+        self.reel.inset(-0.12, -0.20, 1.12, 1.20)
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Observation {
+    pub due_at: f64,
+    /// None requests the full game viewport; Some requests only these pixels.
+    pub region: Option<Region>,
+    pub reason: &'static str,
 }
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
@@ -175,6 +189,8 @@ pub struct Fishing {
     pub calibration_changed: bool,
     phase_at: f64,
     last_scan: f64,
+    last_observed: f64,
+    last_full_observed: f64,
     last_progress: f64,
     known_at: f64,
     last_cast: f64,
@@ -183,6 +199,7 @@ pub struct Fishing {
     diamond_seen: bool,
     gone_at: Option<f64>,
     result: Option<Catch>,
+    result_rect: Option<Rect>,
     window: WindowFinder,
     bar: Bar,
     controller: ReelControl,
@@ -199,6 +216,8 @@ impl Default for Fishing {
             calibration_changed: false,
             phase_at: 0.0,
             last_scan: f64::NEG_INFINITY,
+            last_observed: f64::NEG_INFINITY,
+            last_full_observed: f64::NEG_INFINITY,
             last_progress: 0.0,
             known_at: 0.0,
             last_cast: f64::NEG_INFINITY,
@@ -207,6 +226,7 @@ impl Default for Fishing {
             diamond_seen: false,
             gone_at: None,
             result: None,
+            result_rect: None,
             window: WindowFinder::default(),
             bar: Bar::default(),
             controller: ReelControl::default(),
@@ -215,6 +235,61 @@ impl Default for Fishing {
 }
 
 impl Fishing {
+    pub fn observation(&self, now: f64, geometry: (usize, usize)) -> Observation {
+        let (interval, reason) = match self.phase {
+            Phase::Calibrating => (0.25, "낚시 패널의 버튼과 테두리를 찾습니다."),
+            Phase::Casting => (0.05, "Fish 입력 뒤 Exit 전환을 확인합니다."),
+            Phase::Waiting => (0.10, "낚시 패널에서 미니게임 등장을 확인합니다."),
+            Phase::Reeling => (0.016, "바와 마커, 목표 구간만 추적합니다."),
+            Phase::Result => (0.35, "결과 제목과 실제 닫기 표시를 확인합니다."),
+            Phase::Searching => (0.25, "낚시 패널을 다시 확인합니다."),
+            _ => {
+                return Observation {
+                    due_at: f64::INFINITY,
+                    region: None,
+                    reason: "화면 관측을 기다립니다.",
+                }
+            }
+        };
+        let due_at = if self.last_observed.is_finite() {
+            self.last_observed + interval
+        } else {
+            now
+        };
+        let calibration = self.calibration;
+        let full = self.phase == Phase::Calibrating
+            || calibration.is_none()
+            || calibration.is_some_and(|c| {
+                geometry.1 == 0
+                    || (geometry.0 as f64 / geometry.1 as f64 / c.aspect - 1.0).abs() > 0.04
+            })
+            || (self.phase == Phase::Searching && now - self.last_full_observed >= 4.0)
+            || (self.phase == Phase::Result
+                && (self.result_rect.is_none() || now - self.last_full_observed >= 3.0));
+        let region = if full {
+            None
+        } else {
+            calibration.and_then(|c| {
+                let mut rect = c.observation_rect();
+                if let Some(result) = self.result_rect.filter(|_| self.phase == Phase::Result) {
+                    let result = result.inset(-0.03, -0.05, 1.08, 1.03);
+                    rect = Rect(
+                        rect.0.min(result.0),
+                        rect.1.min(result.1),
+                        rect.2.max(result.2),
+                        rect.3.max(result.3),
+                    );
+                }
+                rect.region(geometry)
+            })
+        };
+        Observation {
+            due_at,
+            region,
+            reason,
+        }
+    }
+
     fn phase(&mut self, phase: Phase, now: f64, message: &'static str) {
         if self.phase != phase {
             self.phase_at = now;
@@ -228,6 +303,8 @@ impl Fishing {
             return Err("실행 중인 작업을 먼저 중지하세요.");
         }
         self.last_scan = f64::NEG_INFINITY;
+        self.last_observed = f64::NEG_INFINITY;
+        self.last_full_observed = f64::NEG_INFINITY;
         self.phase(Phase::Calibrating, now, "Roblox에서 낚시 창을 열어 주세요.");
         Ok(())
     }
@@ -258,6 +335,8 @@ impl Fishing {
         self.bar_seen = 0;
         self.gone_at = None;
         self.result = None;
+        self.result_rect = None;
+        self.last_observed = f64::NEG_INFINITY;
     }
 
     pub fn stop(&mut self, message: &'static str) {
@@ -296,6 +375,8 @@ impl Fishing {
             (0.35..=1.6).contains(&ratio)
                 && rect.3 - rect.1 >= 0.25
                 && ((rect.0 + rect.2) / 2.0 - 0.5).abs() <= 0.15
+                && frame.title(rect.at(0.4972, 0.0913)).is_some()
+                && frame.result_close(rect).is_some()
         })
     }
 
@@ -309,8 +390,12 @@ impl Fishing {
     }
 
     pub fn frame(&mut self, now: f64, frame: &Frame<'_>) -> Option<Tap> {
-        if !self.phase.active() {
+        if !self.phase.active() || !now.is_finite() || now < self.last_observed {
             return None;
+        }
+        self.last_observed = now;
+        if frame.is_full() {
+            self.last_full_observed = now;
         }
         if self.phase == Phase::Calibrating {
             if now - self.phase_at > 30.0 {
@@ -329,6 +414,11 @@ impl Fishing {
         }
 
         let mut calibration = self.calibration?;
+        // Absence outside a crop is unknown, never evidence that a button,
+        // marker, or panel disappeared.
+        if self.phase != Phase::Result && !frame.contains(calibration.observation_rect()) {
+            return None;
+        }
         if now - self.last_progress > self.tuning.bite_seconds + 60.0 {
             self.stop("낚시 화면을 찾을 수 없어 중지했습니다.");
             return None;
@@ -372,8 +462,11 @@ impl Fishing {
                 self.last_scan = now;
                 if let Some(window) = self.result_window(frame) {
                     self.known_at = now;
+                    self.result_rect = Some(window);
                     self.result = frame.title(window.at(0.4972, 0.0913)).or(self.result);
-                    return Some(Self::tap(frame, frame.result_close(window), 40));
+                    return frame
+                        .result_close(window)
+                        .map(|close| Self::tap(frame, close, 40));
                 }
             }
             return None;
@@ -679,10 +772,103 @@ mod tests {
                 put(&mut bytes, x, 86 + i, [235; 3]);
             }
         }
+        for y in 79..84 {
+            for x in 225..249 {
+                put(&mut bytes, x, y, [186; 3]);
+            }
+        }
         let frame = frame(&bytes);
         let mut engine = Fishing::default();
         let result = engine.result_window(&frame).unwrap();
-        assert_eq!(frame.position(frame.result_close(result)), (268, 89));
+        assert_eq!(
+            frame.position(frame.result_close(result).unwrap()),
+            (268, 89)
+        );
+        let region = result
+            .inset(-0.15, -0.15, 1.15, 1.15)
+            .region((W, H))
+            .unwrap();
+        let mut pixels = Vec::new();
+        for y in region.y..region.y + region.height {
+            pixels.extend_from_slice(
+                &bytes[y * STRIDE + region.x * 4..y * STRIDE + (region.x + region.width) * 4],
+            );
+        }
+        let cropped = Frame::region(&pixels, W, H, region.width * 4, 4, false, region).unwrap();
+        let cropped_result = engine.result_window(&cropped).unwrap();
+        assert_eq!(
+            cropped.position(cropped.result_close(cropped_result).unwrap()),
+            (268, 89)
+        );
+    }
+
+    #[test]
+    fn bright_world_rectangle_is_not_a_result_without_title_and_close() {
+        let mut bytes = vec![65; STRIDE * H];
+        window(&mut bytes, 185, 70, 290, 214);
+        assert!(Fishing::default().result_window(&frame(&bytes)).is_none());
+        for y in 79..84 {
+            for x in 225..249 {
+                put(&mut bytes, x, y, [186; 3]);
+            }
+        }
+        assert!(Fishing::default().result_window(&frame(&bytes)).is_none());
+    }
+
+    #[test]
+    fn observation_reuses_panel_pixels_and_only_reacquires_when_needed() {
+        let bytes = vec![0; STRIDE * H];
+        let full = frame(&bytes);
+        let mut engine = Fishing::default();
+        engine.calibration = Some(Calibration::from_panel(Rect(0.25, 0.5, 0.75, 0.8), &full));
+        engine.phase = Phase::Waiting;
+        engine.last_observed = 10.0;
+        engine.last_full_observed = 10.0;
+        let waiting = engine.observation(10.05, (W, H));
+        assert_eq!(waiting.due_at, 10.1);
+        let region = waiting.region.unwrap();
+        assert!(region.valid((W, H)) && region.width * region.height < W * H / 2);
+        assert_eq!(engine.observation(10.09, (W, H)).due_at, waiting.due_at);
+        engine.phase = Phase::Reeling;
+        assert_eq!(engine.observation(10.01, (W, H)).due_at, 10.016);
+        assert!(engine.observation(20.0, (W, H)).region.is_some());
+        engine.phase = Phase::Result;
+        assert!(engine.observation(10.1, (W, H)).region.is_none());
+        engine.result_rect = Some(Rect(0.38, 0.25, 0.62, 0.75));
+        assert!(engine.observation(10.5, (W, H)).region.is_some());
+        assert!(engine.observation(13.0, (W, H)).region.is_none());
+        engine.phase = Phase::Searching;
+        assert!(engine.observation(13.9, (W, H)).region.is_some());
+        assert!(engine.observation(14.0, (W, H)).region.is_none());
+        assert!(engine.observation(10.1, (H, W)).region.is_none());
+        engine.stop("중지됨");
+        assert!(engine.observation(10.1, (W, H)).due_at.is_infinite());
+    }
+
+    #[test]
+    fn crop_cannot_clear_calibration_or_fabricate_missing_state() {
+        let bytes = vec![0; STRIDE * H];
+        let full = frame(&bytes);
+        let mut engine = Fishing::default();
+        let calibration = Calibration::from_panel(Rect(0.25, 0.5, 0.75, 0.8), &full);
+        engine.calibration = Some(calibration);
+        engine.phase = Phase::Waiting;
+        engine.phase_at = 5.0;
+        engine.last_progress = 5.0;
+        let region = Region {
+            x: 0,
+            y: 0,
+            width: 32,
+            height: 32,
+        };
+        let crop_bytes = vec![0; region.width * region.height * 4];
+        let crop = Frame::region(&crop_bytes, W, H, region.width * 4, 4, false, region).unwrap();
+        assert!(engine.frame(5.1, &crop).is_none());
+        assert!(engine.phase == Phase::Waiting && engine.calibration.is_some());
+        assert_eq!(engine.stats.full, 0);
+        assert!(engine.frame(5.0, &full).is_none());
+        assert!(engine.phase == Phase::Waiting);
+        assert_eq!(engine.last_observed, 5.1);
     }
 
     #[test]

@@ -206,7 +206,7 @@
     <nav class="side">
       <button class="item deco" data-sec="mf-base"><b>공통 위치</b><span>여러 기능이 같이 쓰는 위치</span></button>
       <button class="item deco feat-item" data-sec="mf-pop" data-feat-item="mpop"><b>레어 바이옴 자동 팝핑</b><span data-feat-sub="mpop">내 서버에서 포션 사용</span><i class="feat-dot"></i></button>
-      <button class="item deco feat-item" data-sec="mf-fish" data-feat-item="mfish"><b>자동 낚시</b><span data-feat-sub="mfish">던지기 · 릴링 · 판매</span><i class="feat-dot"></i></button>
+      <button class="item deco feat-item" data-sec="mf-fish" data-feat-item="mfish"><b>자동 낚시</b><span data-feat-sub="mfish" data-desktop-text="던지기 · 릴링">던지기 · 릴링 · 판매</span><i class="feat-dot"></i></button>
       <button class="item deco feat-item" data-sec="mf-item" data-feat-item="mitem"><b>오토 아이템 사용</b><span data-feat-sub="mitem">쿨타임마다 사용</span><i class="feat-dot"></i></button>
       <button class="item deco feat-item" data-sec="mf-merchant" data-feat-item="mmerch"><b>상인 자동 구매</b><span data-feat-sub="mmerch">마리 · 제스터</span><i class="feat-dot"></i></button>
       <button class="item deco feat-item" data-sec="mf-craft" data-feat-item="mcraft"><b>포션 자동 제작</b><span data-feat-sub="mcraft">Auto Crafted · 재료 채우기</span><i class="feat-dot"></i></button>
@@ -218,11 +218,16 @@
         <div class="sec-head"><h2>공통 위치</h2>
           <button class="btn ghost" id="mposPopOcr">OCR 테스트</button></div>
         <div class="card" id="duaPanel" hidden><div class="form">
+          <div class="row"><span>앱 전용 게임<small id="desktopSessionMessage">게임을 열어 주세요.</small></span><span class="pos">
+            <button class="btn mini" type="button" id="desktopSessionStart">게임 열기</button>
+            <button class="btn mini ghost" type="button" id="desktopSessionStop" disabled>게임 닫기</button>
+            <button class="btn mini" type="button" id="desktopGameViewOpen" disabled>게임 화면</button></span></div>
           <div class="row"><span>DUA 실행 경로<small>상태와 명령을 우선 사용하고, 화면 확인이 필요할 때 캡처</small></span><b id="duaRoute">대기</b></div>
           <div class="row"><span>현재 판단</span><span id="duaReason">-</span></div>
           <div class="row"><span>Headless 처리</span><b id="duaHeadless">0</b></div>
           <div class="row"><span>스크린샷 처리</span><b id="duaScreenshots">0</b></div>
           <div class="row"><span>경로 전환</span><b id="duaTransitions">0</b></div>
+          <div class="row"><span>정지 방법</span><b id="duaStopMethod">F7 또는 앱의 중지 버튼</b></div>
         </div></div>
         <p class="hint">여러 기능이 같이 쓰는 위치 · [위치 지정] 후 로블록스 화면에서 클릭 (영역은 드래그)</p>
         <div class="mpos-cards" id="mposBase"></div>
@@ -233,7 +238,7 @@
           <span class="status-mini mpop-status"><span class="dot" id="mpopDot"></span><span id="mpopState">대기</span></span>
           <button class="btn ghost mini" data-feat-tut="mpop">설정 안내</button>
           <button class="btn ghost" id="mpopStop">정지</button></div>
-        <p class="hint">내 서버에서 레어 바이옴이 시작되면 포션 사용 · 정지: F7</p>
+        <p class="hint" data-stop-shortcut>내 서버에서 레어 바이옴이 시작되면 포션 사용 · 정지: F7</p>
         <div class="card form" id="mpopForm" data-jump-label="켜기"></div>
         <div class="grp">
           <div class="grp-head"><b>설정</b></div>
@@ -252,7 +257,7 @@
           <button class="btn ghost" id="mfishCheck">상태 확인</button>
           <button class="btn ghost mini" data-feat-tut="mfish">설정 안내</button>
           <button class="btn ghost" id="mfishStop">정지</button></div>
-        <p class="hint">매크로가 켜져 있는 동안 낚시 장소에서 계속 낚시 · 가득 차면 팔고 돌아옴 · 정지: F7</p>
+        <p class="hint" data-stop-shortcut data-desktop-text="앱 전용 게임에서 자동 낚시 · 가득 차면 중지 · 이동과 판매는 준비 중 · 정지: 앱의 중지 버튼">매크로가 켜져 있는 동안 낚시 장소에서 계속 낚시 · 가득 차면 팔고 돌아옴 · 정지: F7</p>
         <div class="card form" id="mfishForm" data-jump-label="켜기"></div>
         <div class="grp">
           <div class="grp-head"><b>세부 설정</b></div>
@@ -267,7 +272,7 @@
           <button class="btn ghost" id="mitemTest">지금 사용 테스트</button>
           <button class="btn ghost mini" data-feat-tut="mitem">설정 안내</button>
           <button class="btn ghost" id="mitemStop">정지</button></div>
-        <p class="hint">쿨타임마다 인벤토리에서 아이템을 1개씩 사용 · 자동 낚시는 잠깐 비켜줌 · 정지: F7</p>
+        <p class="hint" data-stop-shortcut>쿨타임마다 인벤토리에서 아이템을 1개씩 사용 · 자동 낚시는 잠깐 비켜줌 · 정지: F7</p>
         <div class="card form" id="mitemForm" data-jump-label="켜기"></div>
         <div class="grp">
           <div class="grp-head"><b>사용할 아이템</b></div>
@@ -281,7 +286,7 @@
           <button class="btn ghost" id="mmerchCheck">채팅 확인 테스트</button>
           <button class="btn ghost mini" data-feat-tut="mmerch">설정 안내</button>
           <button class="btn ghost" id="mmerchStop">정지</button></div>
-        <p class="hint">채팅에 상인 도착이 뜨면 Merchant Teleporter 로 가서 고른 아이템을 삼 · 정지: F7</p>
+        <p class="hint" data-stop-shortcut>채팅에 상인 도착이 뜨면 Merchant Teleporter 로 가서 고른 아이템을 삼 · 정지: F7</p>
         <div class="card form" id="mmerchForm" data-jump-label="켜기"></div>
         <div class="grp">
           <div class="grp-head"><b>설정</b></div>
@@ -299,7 +304,7 @@
           <span class="status-mini mpop-status"><span class="dot" id="mcraftDot"></span><span id="mcraftState">대기</span></span>
           <button class="btn ghost mini" data-feat-tut="mcraft">설정 안내</button>
           <button class="btn ghost" id="mcraftStop">정지</button></div>
-        <p class="hint">알림에 Auto Crafted 가 뜨면 Stella 에게 가서 포션 재료를 다시 채움 (입력한 포션 · 비워 두면 알림의 포션) · 정지: F7</p>
+        <p class="hint" data-stop-shortcut>알림에 Auto Crafted 가 뜨면 Stella 에게 가서 포션 재료를 다시 채움 (입력한 포션 · 비워 두면 알림의 포션) · 정지: F7</p>
         <div class="card form" id="mcraftForm" data-jump-label="켜기"></div>
         <div class="grp">
           <div class="grp-head"><b>설정</b></div>
@@ -313,7 +318,7 @@
           <span class="status-mini mpop-status"><span class="dot" id="mmatchDot"></span><span id="mmatchState">대기</span></span>
           <button class="btn ghost mini" data-feat-tut="mmatch">설정 안내</button>
           <button class="btn ghost" id="mmatchStop">정지</button></div>
-        <p class="hint">매크로를 켜면 메모리 매치 장소로 가서 확인 · 쿨타임이면 남은 시간 뒤에 다시 · 정지: F7</p>
+        <p class="hint" data-stop-shortcut>매크로를 켜면 메모리 매치 장소로 가서 확인 · 쿨타임이면 남은 시간 뒤에 다시 · 정지: F7</p>
         <div class="card form" id="mmatchForm" data-jump-label="켜기"></div>
         <div class="grp">
           <div class="grp-head"><b>설정</b></div>
@@ -328,7 +333,7 @@
           <button class="btn ghost" id="mbloodTest">개수 확인 테스트</button>
           <button class="btn ghost mini" data-feat-tut="mblood">설정 안내</button>
           <button class="btn ghost" id="mbloodStop">정지</button></div>
-        <p class="hint">할로윈 이벤트 · 내 서버에 PUMPKIN MOON · GRAVEYARD 가 뜨면 Cursed Rune Fragment 를 1개 사용 · 정지: F7</p>
+        <p class="hint" data-stop-shortcut>할로윈 이벤트 · 내 서버에 PUMPKIN MOON · GRAVEYARD 가 뜨면 Cursed Rune Fragment 를 1개 사용 · 정지: F7</p>
         <div class="card form" id="mbloodForm" data-jump-label="켜기"></div>
         <div class="grp">
           <div class="grp-head"><b>설정</b></div>
