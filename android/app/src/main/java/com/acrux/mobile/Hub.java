@@ -35,7 +35,7 @@ final class Hub {
     /** 기준 장소 → 낚시 장소 · 판매 장소: 플레이어가 조이스틱으로 직접 걸어간 길 */
     static volatile Route fishRoute = new Route(), sellRoute = new Route();
     static boolean autoUpdate = true;
-    static boolean useMove = true, useSell = true;
+    static boolean useMove = false, useSell = false;
     /** 로블록스 클래식 조이스틱 {가운데 x / 화면 너비, 가운데 y / 화면 높이, 반지름 / 화면 높이} (못 찾았으면 null) · W A S D 를 조이스틱 터치로 */
     static volatile double[] stick;
     static int sellMax = 100;
@@ -551,8 +551,9 @@ final class Hub {
         cfg.adaptive = p.getBoolean("adaptive", cfg.adaptive);
         cfg.tapAbove = p.getBoolean("tapAbove", true);
         autoUpdate = p.getBoolean("autoUpdate", true);
-        useMove = p.getBoolean("useMove", true);
-        useSell = p.getBoolean("useSell", true);
+        // 새로 설치하면 이동 · 판매는 꺼진 채로 (켤 때 설정 안내) — 전에 쓰던 사람은 저장된 값 그대로
+        useMove = p.getBoolean("useMove", false);
+        useSell = p.getBoolean("useSell", false);
         sellMax = p.getInt("sellMax", 100);
         sellDelay = num(p, "sellDelay", 0);
         move.resetWait = num(p, "m_reset_wait", move.resetWait);

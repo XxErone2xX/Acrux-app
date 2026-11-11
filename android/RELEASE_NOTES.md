@@ -1,3 +1,23 @@
+## Acrux Mobile V1.4.9 업데이트
+- 튜토리얼을 PC 버전처럼 기능마다 하나로 정리
+  - 시작 준비 · 자동 낚시 · 이동 · 판매 [ 전에는 이동 설정 · 판매 설정이 따로였음 ]
+  - 이미 해 둔 단계는 빼고 남은 것만 안내
+- 쓰지 않는 기능의 튜토리얼이 뜨지 않도록 변경
+  - 앱을 켤 때는 권한이 없을 때 '시작 준비' 만 표시
+  - 자동 낚시: 보정 없이 [시작] 을 눌렀을 때 · 이동 · 판매: 스위치를 켰을 때만 표시
+  - 하나가 끝나도 다음 튜토리얼로 줄줄이 넘어가지 않음
+  - 새로 설치하면 이동 · 판매 스위치는 꺼진 상태로 시작 [ 쓰던 사람은 그대로 ]
+
+## Acrux Mobile V1.4.9 Update
+- Tutorials are now one per feature, like the PC version
+  - Getting ready · Auto fishing · Movement · Selling [ movement and selling setup used to be separate ]
+  - Steps you've already done are skipped
+- Tutorials for features you don't use no longer appear
+  - On launch, only 'Getting ready' shows, and only if permissions are missing
+  - Auto fishing: shown when you tap [Start] without calibration · Movement · Selling: shown when you turn the switch on
+  - Finishing one tutorial no longer opens the next one
+  - New installs start with the Movement · Selling switches off [ existing users keep their settings ]
+
 ## Acrux Mobile V1.4.8 업데이트
 - 앱 아이콘 변경
 

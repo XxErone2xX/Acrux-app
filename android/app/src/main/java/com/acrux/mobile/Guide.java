@@ -12,7 +12,10 @@ import java.util.function.BooleanSupplier;
 
 /**
  * 기능별 설정 안내 (PC 튜토리얼과 같은 방식)
- *  · 시작 준비 · 낚시 보정 · 이동 설정 · 판매 설정 — 필요한 것만 차례로 (하나 끝나면 다음 것)
+ *  · 기능 하나 = 안내 하나: 시작 준비 (권한) · 자동 낚시 (낚시 보정) · 이동 · 판매 (조이스틱 → 기준 장소 → 길 → 판매)
+ *  · 저절로 뜨는 건 '시작 준비' 뿐 (권한이 없으면 아무것도 못 함) · 나머지는 그 기능을 쓰려고 할 때만
+ *    (자동 낚시: 보정 없이 [시작] · 이동 · 판매: 스위치를 켤 때) — 안 쓰는 기능의 안내가 줄줄이 뜨지 않게
+ *  · 이미 해 둔 단계는 빼고 보여 줌 (해야 할 것만)
  *  · 단계마다 해야 할 것 (check) 이 있으면 그걸 해야 [다음] 이 눌림 · 하면 저절로 다음 단계 · 선택 단계만 [이 단계 건너뛰기]
  *  · 첫 단계에서만 [나중에] (이번 실행 동안 다시 안 띄움 · 홈 → 사용법 → 설정 안내에서 언제든)
  *  · 앱 화면에서는 앱 위에 · 로블록스 화면에서는 떠 있는 Acrux 창 옆에 같은 안내가 뜸 · 눌러야 할 곳 (⚙ · 분류 · 항목 등) 을 파랗게 강조
@@ -96,6 +99,13 @@ final class Guide {
         return true;
     }
 
+    /** 이동 · 판매에 아직 안 한 설정이 있나 (켜 둔 것만) */
+    static boolean moveNeeded() {
+        boolean move = Hub.stick == null || !baseReady() || Hub.fishRoute.isEmpty();
+        boolean sell = !sellReady() || Hub.sellRoute.isEmpty();
+        return (Hub.useMove || Hub.useSell) && move || Hub.useSell && sell;
+    }
+
     static List<Tut> all() {
         List<Tut> l = new ArrayList<>();
         l.add(new Tut("ready", "시작 준비", () -> TapService.instance == null || CaptureService.active == null)
@@ -109,9 +119,9 @@ final class Guide {
                         .act("cap").need(() -> CaptureService.active != null))
                 .add(new Step("로블록스 준비",
                         "· 로블록스 (Sol's RNG) 를 가로 전체 화면으로 실행합니다.\n· 로블록스 설정 → 이동 방식을 '조이스틱' (클래식) 으로 바꿉니다.\n\n로블록스 위에는 작은 Acrux 창이 표시되며, 끌어서 옮길 수 있습니다. 이 안내도 그 옆에 이어서 표시됩니다."))
-                .add(new Step("준비 완료", "이제 로블록스를 열어 주세요. 다음 안내 (낚시 보정) 가 이어서 표시됩니다.")));
+                .add(new Step("준비 완료", "이제 로블록스를 열고 Acrux 창의 [시작] 을 눌러 주세요.\n\n기능마다 처음 쓸 때 필요한 설정 안내가 그때 표시됩니다.")));
 
-        l.add(new Tut("fish", "낚시 보정", () -> !Hub.cfg.ready())
+        l.add(new Tut("fish", "자동 낚시", () -> !Hub.cfg.ready())
                 .add(new Step("낚시 보정",
                         "낚시 창 · 미니게임 창 · 결과창의 위치를 이 기기 화면에 맞춥니다. 처음 한 번만 하면 됩니다.").later())
                 .add(new Step("낚시 자리로 이동",
@@ -120,11 +130,14 @@ final class Guide {
                         "Acrux 창 ⚙ → [낚시] → 강조된 '낚시 자동 보정' 을 누르고 끝날 때까지 기다려 주세요. Fish 를 한 번 던져 창 위치를 자동으로 맞춥니다.\n\n보정하는 동안에는 이 안내가 잠시 숨겨집니다.")
                         .at("fish", "act:cal").need(() -> Hub.cfg.ready()))
                 .add(new Step("낚시 보정 완료",
-                        "Acrux 창의 [시작] 을 누르면 자동 낚시가 시작되며, [정지] 로 멈출 수 있습니다.\n\n가득 찼을 때 판매까지 하려면 앱의 낚시 칸 → 이동 · 판매에서 켜 주세요.").at(null, "run")));
+                        "Acrux 창의 [시작] 을 누르면 자동 낚시가 시작되며, [정지] 로 멈출 수 있습니다.\n\n낚시 장소로 이동하거나 가득 찼을 때 판매까지 하려면 앱의 이동 · 판매 스위치를 켜 주세요. 그때 설정 안내가 표시됩니다.").at(null, "run")));
 
-        Tut mv = new Tut("move", "이동 설정", () -> Hub.useMove && (Hub.stick == null || !baseReady() || Hub.fishRoute.isEmpty()))
-                .add(new Step("이동 설정",
-                        "스폰 위치가 무작위이기 때문에, 리셋 후 '기준 장소' 에서 기록한 길을 따라 이동합니다.\n\n조이스틱 → 기준 장소 위치 → 낚시 장소 길 순서로 설정합니다.").later())
+        boolean sell = Hub.useSell;
+        Tut mv = new Tut("move", "이동 · 판매", Guide::moveNeeded)
+                .add(new Step("이동 · 판매 설정",
+                        "스폰 위치가 무작위이기 때문에, 리셋 후 '기준 장소' 에서 기록한 길을 따라 이동합니다."
+                                + (sell ? " 인벤토리가 가득 차면 판매 장소로 이동해 판매한 뒤 돌아옵니다." : "")
+                                + "\n\n아직 안 한 것만 차례로 안내합니다.").later())
                 .add(new Step("조이스틱 찾기",
                         "Acrux 창 ⚙ → [조이스틱] → 강조된 '조이스틱 찾기' 를 눌러 주세요.\n\n로블록스 이동 방식이 '조이스틱' 이어야 합니다. 자동으로 찾지 못하면 '조이스틱 직접 지정' 을 사용할 수 있습니다.")
                         .at("stick", "act:stickfind").need(() -> Hub.stick != null))
@@ -137,28 +150,26 @@ final class Guide {
                     .at("base", "pos:" + k[0]).need(() -> has(k[0])));
         }
         mv.add(new Step("낚시 장소 길 기록",
-                        "⚙ → [길] → 낚시 장소 '길 기록' 을 눌러 주세요.\n\n기준 장소로 이동한 뒤 WASD 패드가 표시됩니다.\n· W A S D 탭 = 켜기 · 다시 탭 = 끄기 · 모서리 = 대각선 · ■ = 멈춤\n· 점프 탭 = 한 번 · [홀드] = 계속 누름\n\n도착하면 Acrux 창의 [도착] 을 눌러 주세요.")
-                        .at("route", "act:rec_fish").need(() -> !Hub.fishRoute.isEmpty()))
-                .add(new Step("이동 설정 완료",
-                        "[시작] 을 누르면 기준 장소 → 낚시 장소로 이동한 뒤 낚시를 시작합니다.\n\n⚙ → [길] → '기준 장소 → 낚시 장소' 로 미리 확인할 수 있습니다."));
+                "⚙ → [길] → 낚시 장소 '길 기록' 을 눌러 주세요.\n\n기준 장소로 이동한 뒤 WASD 패드가 표시됩니다.\n· W A S D 탭 = 켜기 · 다시 탭 = 끄기 · 모서리 = 대각선 · ■ = 멈춤\n· 점프 탭 = 한 번 · [홀드] = 계속 누름\n\n도착하면 Acrux 창의 [도착] 을 눌러 주세요.")
+                .at("route", "act:rec_fish").need(() -> !Hub.fishRoute.isEmpty()));
+        if (sell) {
+            mv.add(new Step("판매 장소 길 기록",
+                            "⚙ → [길] → 물고기 판매 장소 '길 기록' 을 누른 뒤, 기준 장소에서 Captain Flarg 앞까지 WASD 패드로 이동하고 [도착] 을 눌러 주세요.")
+                            .at("route", "act:rec_sell").need(() -> !Hub.sellRoute.isEmpty()))
+                    .add(new Step("대화 버튼 위치",
+                            "판매 장소에 선 상태로 ⚙ → [판매] → 강조된 '대화 버튼' 을 누르고, 포인터를 화면의 대화 버튼에 맞춘 뒤 [확인] 을 눌러 주세요.")
+                            .at("sell", "pos:talk_btn").need(() -> has("talk_btn")))
+                    .add(new Step("판매 자동 보정",
+                            "⚙ → [판매] → '판매 자동 보정' 을 누른 뒤, Captain Flarg 앞에서 대화 버튼을 직접 눌러 주세요. 대화창 · 상점 · 확인창의 위치를 자동으로 찾습니다.\n\n확인창 위치까지 찾으려면 물고기를 가진 상태에서 진행해 주세요.")
+                            .at("sell", "act:sellcal").need(Guide::sellReady))
+                    .add(new Step("판매 테스트",
+                            "⚙ → [판매] → '판매 한 번 해 보기' 로 판매가 끝까지 되는지 확인할 수 있습니다. 건너뛰어도 됩니다.")
+                            .at("sell", "act:sell").opt());
+        }
+        mv.add(new Step("이동 · 판매 설정 완료",
+                "[시작] 을 누르면 기준 장소 → 낚시 장소로 이동한 뒤 낚시를 시작합니다." + (sell ? " 인벤토리가 가득 차면 판매하고 돌아옵니다." : "")
+                        + "\n\n⚙ → [길] → '기준 장소 → 낚시 장소' 로 미리 확인할 수 있습니다."));
         l.add(mv);
-
-        l.add(new Tut("sell", "판매 설정", () -> Hub.useSell && (!sellReady() || Hub.sellRoute.isEmpty()))
-                .add(new Step("판매 설정",
-                        "인벤토리가 가득 차면 판매 장소로 이동해 물고기를 판매한 뒤 돌아옵니다.\n\n판매 장소 길 → 대화 버튼 → 판매 자동 보정 순서로 설정합니다. [ 이동 설정이 먼저 필요합니다 ]").later())
-                .add(new Step("판매 장소 길 기록",
-                        "⚙ → [길] → 물고기 판매 장소 '길 기록' 을 누른 뒤, 기준 장소에서 Captain Flarg 앞까지 WASD 패드로 이동하고 [도착] 을 눌러 주세요.")
-                        .at("route", "act:rec_sell").need(() -> !Hub.sellRoute.isEmpty()))
-                .add(new Step("대화 버튼 위치",
-                        "판매 장소에 선 상태로 ⚙ → [판매] → 강조된 '대화 버튼' 을 누르고, 포인터를 화면의 대화 버튼에 맞춘 뒤 [확인] 을 눌러 주세요.")
-                        .at("sell", "pos:talk_btn").need(() -> has("talk_btn")))
-                .add(new Step("판매 자동 보정",
-                        "⚙ → [판매] → '판매 자동 보정' 을 누른 뒤, Captain Flarg 앞에서 대화 버튼을 직접 눌러 주세요. 대화창 · 상점 · 확인창의 위치를 자동으로 찾습니다.\n\n확인창 위치까지 찾으려면 물고기를 가진 상태에서 진행해 주세요.")
-                        .at("sell", "act:sellcal").need(Guide::sellReady))
-                .add(new Step("판매 테스트",
-                        "⚙ → [판매] → '판매 한 번 해 보기' 로 판매가 끝까지 되는지 확인할 수 있습니다. 건너뛰어도 됩니다.")
-                        .at("sell", "act:sell").opt())
-                .add(new Step("판매 설정 완료", "[시작] 을 누르면 낚시 중 인벤토리가 가득 찼을 때 판매하고 돌아옵니다.")));
         return l;
     }
 
@@ -187,17 +198,6 @@ final class Guide {
         Hub.prefs().edit().putStringSet("guideDone", d).apply();
     }
 
-    /** 지금 필요한데 아직 안 한 안내 (나중에 · 다 한 것 · 지금 것 빼고) */
-    static int remaining() {
-        int n = 0;
-        Set<String> d = done();
-        for (Tut t : all()) {
-            if (cur != null && t.id.equals(cur.id)) continue;
-            if (!d.contains(t.id) && t.needed.getAsBoolean()) n++;
-        }
-        return n;
-    }
-
     static Step step() {
         return cur == null ? null : cur.steps.get(idx);
     }
@@ -205,29 +205,39 @@ final class Guide {
     static void start(String id) {
         Tut t = find(id);
         if (t == null) return;
+        // 이미 해 둔 단계는 뺌 (처음 · 마지막 안내는 그대로) — 다 해 뒀으면 그대로 보여 줌 (다시 보기)
+        List<Step> todo = new ArrayList<>();
+        for (int i = 0; i < t.steps.size(); i++) {
+            Step st = t.steps.get(i);
+            boolean edge = i == 0 || i == t.steps.size() - 1;
+            if (edge || st.check == null || !st.check.getAsBoolean()) todo.add(st);
+        }
+        boolean anyTodo = false;
+        for (Step st : todo) if (st.check != null) anyTodo = true;
+        if (anyTodo) {
+            t.steps.clear();
+            t.steps.addAll(todo);
+        }
         cur = t;
         later.remove(id);
         go(0);
         tick();
     }
 
-    /** 앱을 켤 때 · 기능을 켤 때: 필요한 안내가 있으면 띄움 */
+    /** 앱을 켤 때: 권한이 없으면 '시작 준비' 만 (다른 기능 안내는 그 기능을 쓰려고 할 때) */
     static void auto() {
-        if (cur != null) return;
-        Set<String> d = done();
-        for (Tut t : all()) {
-            if (!d.contains(t.id) && !later.contains(t.id) && t.needed.getAsBoolean()) {
-                start(t.id);
-                return;
-            }
-        }
+        if (cur != null || later.contains("ready")) return;
+        Tut t = find("ready");
+        if (t != null && t.needed.getAsBoolean()) start("ready");
     }
 
-    /** 기능 스위치를 켰을 때 (이동 · 판매) — 설정이 덜 돼 있으면 그 안내 */
+    /** 기능을 쓰려고 할 때 (스위치를 켬 · 설정 없이 [시작]) — 그 기능에 덜 된 설정이 있으면 그 안내 */
     static void featureOn(String id) {
-        if (cur != null) return;
+        if (cur != null && cur.id.equals(id)) return;
         Tut t = find(id);
-        if (t != null && t.needed.getAsBoolean()) start(id);
+        if (t == null || !t.needed.getAsBoolean()) return;
+        if (cur != null) cur = null;                   // 다른 안내가 떠 있으면 지금 쓰려는 기능 안내로 바꿈
+        start(id);
     }
 
     static void go(int i) {
@@ -271,8 +281,7 @@ final class Guide {
     static void finish() {
         if (cur == null) return;
         markDone(cur.id);
-        cur = null;
-        auto();                       // 다음 필요한 안내로 이어서
+        cur = null;                   // (다음 안내로 줄줄이 넘어가지 않음 — 기능마다 쓸 때 뜸)
         redraw();
     }
 

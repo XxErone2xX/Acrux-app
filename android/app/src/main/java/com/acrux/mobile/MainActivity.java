@@ -428,7 +428,7 @@ public class MainActivity extends Activity {
         for (String s : steps) how.addView(Ui.text(this, s, 13, Ui.MUTED, false), Ui.fill(this, 6));
         LinearLayout.LayoutParams tl = Ui.wrap();
         tl.topMargin = Ui.dp(this, 10);
-        how.addView(Ui.text(this, "설정 안내 — 기능별로 하나씩 따라 하기 (PC 튜토리얼과 같음)", 13, Ui.FG, true), tl);
+        how.addView(Ui.text(this, "설정 안내 — 기능마다 하나씩 (처음 쓸 때 저절로 뜸 · 여기서 다시 보기)", 13, Ui.FG, true), tl);
         LinearLayout gl = new LinearLayout(this);
         gl.setOrientation(LinearLayout.VERTICAL);
         for (Guide.Tut t : Guide.all()) {
@@ -504,7 +504,7 @@ public class MainActivity extends Activity {
         }), Ui.fill(this, 8));
         mv.addView(sw("가득 차면 판매하러 가기", Hub.useSell, on -> {
             Hub.useSell = on;
-            if (on) Guide.featureOn(Guide.find("move").needed.getAsBoolean() ? "move" : "sell");
+            if (on) Guide.featureOn("move");              // (이동 · 판매 안내 하나 · 판매 단계 포함)
         }), Ui.fill(this, 4));
 
         LinearLayout base = section(pg, "기준 장소 (초)");

@@ -105,8 +105,7 @@ final class GuideCard {
         Guide.Tut t = Guide.cur;
         Guide.Step s = Guide.step();
         if (t == null || s == null) return;
-        int left = Guide.remaining();
-        Ui.set(badge, left > 0 ? "남은 튜토리얼 " + left + "개" : "튜토리얼");
+        Ui.set(badge, "튜토리얼");                          // (안내는 기능마다 따로 · 다음 안내로 줄줄이 넘어가지 않아서 '남은 개수' 는 뺌)
         Ui.set(name, t.name);
         Ui.set(count, (Guide.idx + 1) + " / " + t.steps.size());
         Ui.set(title, s.title);

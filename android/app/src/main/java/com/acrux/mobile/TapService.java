@@ -552,6 +552,9 @@ public class TapService extends AccessibilityService {
             Hub.state = err;
             Hub.changed();
             android.widget.Toast.makeText(this, com.acrux.mobile.core.I18n.t(err), android.widget.Toast.LENGTH_LONG).show();
+            // 쓰려는 기능에 설정이 덜 됐으면 그 기능의 설정 안내 (처음 [시작] 을 누른 때 등)
+            if (TapService.instance == null || CaptureService.active == null) Guide.featureOn("ready");
+            else if (m.equals("run") && !Hub.cfg.ready()) Guide.featureOn("fish");
         }
         closeMenu();
         refresh();
