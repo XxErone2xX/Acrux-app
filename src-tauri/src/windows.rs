@@ -116,7 +116,7 @@ fn worker() {
                 Some(false) => {
                     let mut state = runtime();
                     if state.input_current(generation) {
-                        state.stop("Windows에서 게임 입력을 보내지 못했습니다.");
+                        state.input_rejected("Windows에서 게임 입력을 보내지 못했습니다.");
                     }
                 }
                 None => {

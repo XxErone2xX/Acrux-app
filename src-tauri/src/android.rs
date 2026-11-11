@@ -123,10 +123,7 @@ extern "system" fn Java_com_acrux_next_Native_noTarget(_: JNIEnv, _: JClass) {
 
 #[no_mangle]
 extern "system" fn Java_com_acrux_next_Native_inputRejected(_: JNIEnv, _: JClass) {
-    let mut state = runtime();
-    if state.phase().active() {
-        state.stop("안드로이드 터치가 취소됐습니다. 조작 창 위치를 확인하고 다시 시작하세요.");
-    }
+    runtime().input_rejected("안드로이드 터치가 취소됐습니다. 조작 창 위치를 확인하세요.");
 }
 
 fn reply(env: &JNIEnv, result: Result<(), String>) -> jstring {

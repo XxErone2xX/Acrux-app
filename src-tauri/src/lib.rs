@@ -273,6 +273,27 @@ impl Runtime {
         self.fishing.stop(message);
     }
 
+    fn input_rejected(&mut self, message: &'static str) {
+        if !self.phase().active() {
+            return;
+        }
+        if self.job.as_mut().is_some_and(Job::retry_input) {
+            self.generation = self.generation.wrapping_add(1);
+        } else {
+            let relocating = self.job.as_ref().is_some_and(Job::resumes_fishing)
+                && (1..3).contains(&self.relocations);
+            self.stop(message);
+            if relocating {
+                if let Err(error) = self.fishing.start(now()) {
+                    self.stop(error);
+                } else {
+                    self.fishing.message = message;
+                }
+            }
+        }
+        self.record();
+    }
+
     fn no_target(&mut self) {
         if let Some(job) = self.job.as_ref() {
             if job.action == Task::Measure
@@ -691,4 +712,55 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("could not launch Acrux");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn input_failures_retry_sales_and_relocation_but_respect_stop() {
+        let mut positions = std::collections::BTreeMap::new();
+        for key in navigation::BASE.into_iter().chain(navigation::SELL).chain([
+            "stick_center",
+            "stick_edge",
+            "talk_btn",
+        ]) {
+            positions.insert(key, vision::Point(0.2, 0.7));
+        }
+        positions.insert("stick_edge", vision::Point(0.25, 0.7));
+        let navigation: Navigation = serde_json::from_value(serde_json::json!({
+            "positions": positions,
+            "fish": [{"x": 0, "y": -1, "ms": 500, "jump": false}],
+            "sell": [{"x": 0, "y": -1, "ms": 500, "jump": false}]
+        }))
+        .unwrap();
+        let mut state = Runtime::default();
+        state.job = Some(navigation.job(Task::Sell, 0.0, true).unwrap());
+        state.input_rejected("입력 취소");
+        assert!(matches!(state.phase(), Phase::Selling));
+        assert!(!state.input_current(0));
+        state.input_rejected("입력 취소");
+        assert!(matches!(state.phase(), Phase::Selling));
+        state.input_rejected("입력 취소");
+        assert!(matches!(state.phase(), Phase::Idle));
+
+        state.fishing.calibration = Some(
+            serde_json::from_value(serde_json::json!({
+                "panel": [0.2, 0.2, 0.8, 0.8],
+                "reel": [0.1, 0.2, 0.9, 0.8],
+                "aspect": 1.5
+            }))
+            .unwrap(),
+        );
+        state.relocations = 1;
+        state.job = Some(navigation.job(Task::Fish, 0.0, true).unwrap());
+        state.input_rejected("입력 취소");
+        assert!(matches!(state.phase(), Phase::Searching));
+        assert_eq!(state.relocations, 1);
+        state.control(Action::Stop).unwrap();
+        state.input_rejected("늦게 도착한 입력 오류");
+        assert!(matches!(state.phase(), Phase::Idle));
+        assert_eq!(state.message(), "중지됨");
+    }
 }

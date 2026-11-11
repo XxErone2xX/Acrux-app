@@ -842,13 +842,26 @@ impl Job {
         Tick::Wait
     }
 
-    fn retry_sale(&mut self, error: &'static str) -> Tick {
-        if self.attempts >= 3 {
-            return Tick::Failed(error);
+    pub fn retry_input(&mut self) -> bool {
+        if self.action != Task::Sell || self.attempts >= 3 {
+            return false;
         }
         self.attempts += 1;
         self.steps = self.sale_start.clone();
-        Tick::Wait
+        self.ready_at = 0.0;
+        true
+    }
+
+    pub fn resumes_fishing(&self) -> bool {
+        self.action == Task::Fish && self.resume
+    }
+
+    fn retry_sale(&mut self, error: &'static str) -> Tick {
+        if self.retry_input() {
+            Tick::Wait
+        } else {
+            Tick::Failed(error)
+        }
     }
 
     fn end_sale(&mut self) {
@@ -1039,6 +1052,12 @@ mod tests {
         let mut job = nav.job(Task::Sell, 0.0, true).unwrap();
         let pixels = vec![0; 100 * 100 * 4];
         let frame = Frame::new(&pixels, 100, 100, 400, 4, false).unwrap();
+        job.ready_at = 1000.0;
+        assert!(job.retry_input());
+        assert_eq!(job.ready_at, 0.0);
+        assert!(job.retry_input());
+        assert!(!job.retry_input());
+        let mut job = nav.job(Task::Sell, 0.0, true).unwrap();
         let mut failed = false;
         for step in 0..500 {
             if matches!(job.tick(step as f64 * 10.0, &frame), Tick::Failed(_)) {
