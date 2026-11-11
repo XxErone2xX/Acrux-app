@@ -30,7 +30,7 @@
       </div>
     </div>
 
-    <!-- 기능별 시작 버튼: 바이옴 매크로 / 매크로 (+ 모드가 붙이는 타일 · 예: 오토 스나이핑) — 각자 따로 켜고 끔 · 이름 쪽을 누르면 아래 설정 탭으로
+    <!-- 기능별 시작 버튼: 바이옴 매크로 / 매크로 (+ 모드가 붙이는 타일) — 각자 따로 켜고 끔 · 이름 쪽을 누르면 아래 설정 탭으로
          ▾: 그 자리에서 세부 기능을 바로 켜고 끔 (매크로 = 기능 7개) -->
     <div class="mains" id="mains">
       <div class="main-tile deco" data-main="biome" style="--k: var(--cyan)">
@@ -216,7 +216,6 @@
     <div class="content">
       <div class="sec" data-sec="mf-base" data-jump>
         <div class="sec-head"><h2>공통 위치</h2>
-          <button class="btn ghost" id="mposPopCopy">오토 팝핑 위치 가져오기</button>
           <button class="btn ghost" id="mposPopOcr">OCR 테스트</button></div>
         <p class="hint">여러 기능이 같이 쓰는 위치 · [위치 지정] 후 로블록스 화면에서 클릭 (영역은 드래그)</p>
         <div class="mpos-cards" id="mposBase"></div>
@@ -361,12 +360,12 @@
             <input id="retLink" placeholder="https://www.roblox.com/share?code=...&type=Server" spellcheck="false"></label>
           <div class="row"><span>바이옴 매크로 설정의 브섭 링크 사용<small>바이옴 매크로 설정 → 기본 설정에 입력한 링크를 가져옴</small></span>
             <button class="btn ghost mini" type="button" id="retFromBiome">가져오기</button></div>
-          <label class="row"><span>매크로 다시 시작까지 대기<small>내 서버에 들어간 뒤 매크로(또는 커스텀 매크로)를 켜기까지 (초) · 기본 7.5</small></span>
+          <label class="row"><span>매크로 다시 시작까지 대기<small>내 서버에 들어간 뒤 매크로를 다시 켜기까지 (초) · 기본 7.5</small></span>
             <input type="number" min="0" step="0.5" id="retStartWait"></label>
         </div>
       </div>
       <div class="sec" data-sec="play">
-        <div class="sec-head"><h2>게임 입장</h2><span class="hint" id="robloxState"></span><button class="btn ghost mini" id="playTutorialBtn">튜토리얼 보기</button></div>
+        <div class="sec-head"><h2>게임 입장</h2><span class="hint" id="robloxState"></span><button class="btn ghost mini" id="playTutorialBtn" hidden>튜토리얼 보기</button></div>
         <p class="hint">로블록스가 뜨면 Play ↔ Click to skip 을 번갈아 눌러 게임에 들어감 · 내 서버로 복귀 · 로블록스 꺼짐 복구에 씀</p>
         <div class="grp">
           <div class="grp-head"><b>버튼 위치</b><em id="playPosCount"></em></div>
@@ -415,7 +414,7 @@
       <div class="sec" data-sec="mod-help">
         <div class="sec-head"><h2>모드 · 플러그인</h2></div>
         <div class="card form">
-          <p class="hint"><b>모드</b>: 매크로에 없는 기능을 따로 만들어 넣은 것 · 설정 탭과 화면이 생김 (예: 스나이핑)</p>
+          <p class="hint"><b>모드</b>: 매크로에 없는 기능을 따로 만들어 넣은 것 · 설정 탭과 화면이 생김</p>
           <p class="hint"><b>플러그인</b>: 화면 없이 뒤에서 이벤트 (바이옴 변경 · 매크로 켜기 등) 에 반응하는 작은 기능</p>
           <p class="hint">모드는 Acrux 와 같은 권한으로 도는 프로그램이라, 믿을 수 있는 곳에서 받은 것만 설치</p>
           <div class="row"><span>Acrux 웹사이트<small>모드 · 플러그인 받기 · 올리기 · 질문</small></span>
@@ -451,7 +450,7 @@
       <div class="sec" data-sec="ac-ocr">
         <div class="sec-head"><h2>OCR 감지 방식</h2></div>
         <div class="card form">
-          <label class="row"><span>OCR 엔진<small>오토 팝핑 · 레어 바이옴 자동 팝핑에서 아이템 이름 · 개수를 읽을 때 씀</small></span>
+          <label class="row"><span>OCR 엔진<small>인벤토리 기능 (레어 바이옴 자동 팝핑 등) 에서 아이템 이름 · 개수를 읽을 때 씀</small></span>
             <select id="acOcr">
               <option value="auto">자동 (추천)</option>
               <option value="rapid">RapidOCR</option>
@@ -506,7 +505,7 @@
   <div class="body"><div class="content"><div class="log" id="log"></div></div></div>
 </section>
 
-<!-- 감시 대상 설정 튜토리얼 -->
+<!-- 튜토리얼 (설정 안내) -->
 <div id="tut" hidden>
   <div class="tut-dim"></div>
   <div class="tut-spot" id="tutSpot"></div>

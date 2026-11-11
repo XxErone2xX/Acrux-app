@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Acrux macro — 창 화면은 HTML/CSS 로 그리고, 윈도우 기본 Edge 엔진(앱 모드)으로 띄운다.
-스나이핑 (디스코드 링크 감지 · 접속) 은 본체에서 빠지고 모드로 옮겨짐 — 모드 · 플러그인은 mods.py
+모드 · 플러그인 (본체에 없는 기능을 따로 넣는 확장) 은 mods.py
 
 구조
   - 127.0.0.1 에만 열리는 작은 웹 서버가 화면 파일(web/)과 API(/api/...)를 제공
@@ -34,7 +34,6 @@ import sell
 import merchant
 import crafter
 import memmatch
-import steps as stepmod
 from version import VERSION
 
 
@@ -148,10 +147,11 @@ class Bridge:
                                    kill=core.kill_roblox, launch=core.open_link,
                                    before_launch=self.biome.own_next_session)
         self.ret_fails, self.ret_watch = 0, None   # 복귀 Play 실패 횟수 · 복귀 실패 뒤 직접 들어갔는지 보는 로그 감시
-        self.ret_cause = None               # "crash": 로블록스가 꺼져서 하는 복구 (끝나면 하던 대로 · 커스텀 매크로는 안 돌림)
+        self.ret_cause = None               # "crash": 로블록스가 꺼져서 하는 복구 (끝나면 하던 대로 · 모드 일은 다시 안 함)
         self.crash_warned = None            # 자동 복구를 못 하는 이유를 한 번만 알림
-        # custom_hold: 모드가 원래 매크로를 멈춰 둠 (예: 스나이핑 모드의 커스텀 매크로) — 매크로를 다시 켜면 풀림
-        self.custom_hold = False
+        # mod_hold: 모드가 원래 매크로를 멈춰 둠 (모드가 대신 할 일을 하는 동안) — 매크로를 다시 켜거나 모드가 풀면 다시 시작
+        self.mod_hold = False
+        self.locked_keys = {"stats", "mods"}  # 화면(set_config)에서 못 바꾸는 키 — 엔진 · 모드만 씀
         self.afk_at = time.time()           # AFK 방지 점프: 마지막으로 점프한 시각
         self.craft_busy = False             # Auto Crafted 알림 확인(OCR)이 도는 중
         # 통계 (Acrux 탭): 이번 실행은 기능마다 센 값 · 올타임은 그만큼씩 더해서 설정 파일에 (바뀐 뒤 1분마다 · 끌 때)
@@ -221,8 +221,8 @@ class Bridge:
         self.hooks.emit("state", out)
         return out
 
-    # ---------------- 로블록스가 갑자기 꺼짐 (오토 스나이핑 · 매크로 작동 중) ----------------
-    # 오토 스나이핑(시작 버튼)이나 매크로(F3)가 켜져 있고, 매크로가 일부러 끈 게 아닌데 로블록스 창이 사라지면:
+    # ---------------- 로블록스가 갑자기 꺼짐 (매크로 · 모드 작동 중) ----------------
+    # 매크로(F3)나 모드가 켜져 있고, 매크로가 일부러 끈 게 아닌데 로블록스 창이 사라지면:
     #   오른쪽 아래 알림 + 소리 → 10초 뒤 자동 복구(매크로 복귀). 그 전에 [대기] 를 누르면 일부러 끈 걸로 보고 복귀 안 함
     #   복구가 끝나면 하던 대로 (매크로가 켜져 있으면 다시 시작)
     CRASH_WAIT = 10.0
@@ -238,8 +238,8 @@ class Bridge:
         """자동 복구에 필요한데 비어 있는 설정"""
         pl = self.data.get("play") or {}
         miss = [n for n, ok in (("내 브섭 링크 (복귀 설정)", self._ret_cfg().get("ps_link")),
-                                ("Play 버튼 위치 (접속 설정 → 게임 입장)", pl.get("pos")),
-                                ("Click to skip 버튼 위치 (접속 설정 → 게임 입장)", pl.get("skip_pos"))) if not ok]
+                                ("Play 버튼 위치 (복구 · 게임 입장)", pl.get("pos")),
+                                ("Click to skip 버튼 위치 (복구 · 게임 입장)", pl.get("skip_pos"))) if not ok]
         return miss
 
     def _crash_watch(self):
@@ -381,7 +381,7 @@ class Bridge:
 
     def api_set_config(self, p):
         patch = p.get("patch") or {}
-        allowed = (set(core.DEFAULT_CONFIG) | self.mod_keys) - {"names", "channels", "guild_ids", "channel_ids", "stats", "mods"}   # 통계는 엔진만 씀
+        allowed = (set(core.DEFAULT_CONFIG) | self.mod_keys) - self.locked_keys
         with self.lock:
             for k, v in patch.items():
                 if k in allowed:
@@ -394,29 +394,29 @@ class Bridge:
         if reason == "복귀":
             self.ret_fails, self.ret_watch = 0, None
             self._after_return("매크로 복귀 완료 — 내 서버 입장")
-        else:                               # 모드가 다른 서버로 들어감 (예: 스나이핑 모드 → 오토 팝핑)
+        else:                               # 모드가 다른 서버로 들어감
             self.hooks.emit("ingame", path, reason)
 
     def _after_return(self, head):
-        """내 서버로 돌아옴: 대기 뒤 원래 매크로 다시 시작 (모드가 대신 할 일이 있으면 모드가 함 · 예: 커스텀 매크로)"""
+        """내 서버로 돌아옴: 대기 뒤 원래 매크로 다시 시작 (모드가 대신 할 일이 있으면 모드가 함)"""
         r = self.data.get("ret", {})
         wait = float(r.get("start_wait", 7.5))
         self.resume_at = time.time() + wait          # 게임이 다 뜰 때까지 기다렸다가
         self.afk_at = time.time()
         cause, self.ret_cause = self.ret_cause, None
-        if cause == "crash":                         # 로블록스가 꺼져서 복구함 → 하던 대로 (커스텀 매크로는 다시 안 돌림)
-            on = bool(self.data.get("macro_on")) and not self.custom_hold
+        if cause == "crash":                         # 로블록스가 꺼져서 복구함 → 하던 대로 (모드 일은 다시 안 함)
+            on = bool(self.data.get("macro_on")) and not self.mod_hold
             self._on_log("자동 복구 완료 — 내 서버 입장" + (f" · {wait:g}초 뒤 매크로 다시 시작" if on else ""), "g")
             return
         if self.hooks.any("after_return", head, wait):
             return
-        self.custom_hold = False
+        self.mod_hold = False
         self._on_log(f"{head} · {wait:g}초 뒤 매크로 다시 시작", "g")
 
     RET_RETRY = 2                           # 복귀 Play 가 실패했을 때 다시 복귀하는 횟수
 
     def _on_play_fail(self, reason):
-        if reason != "복귀":               # 모드가 들어가려던 서버에 못 들어감 (예: 스나이핑 → 복귀)
+        if reason != "복귀":               # 모드가 들어가려던 서버에 못 들어감
             self.hooks.emit("play_fail", reason)
         else:              # 내 서버 입장을 확인 못 함 → 다시 복귀 (몇 번까지) · 그래도 안 되면 매크로는 멈춘 채로
             self.ret_fails += 1
@@ -430,8 +430,8 @@ class Bridge:
 
     # ---------------- 매크로 탭 · 자동 낚시 ----------------
     def _macro_loop(self):
-        """1초마다: 매크로 버튼 + 자동 낚시 켜기 + 로블록스 창 있음 + 내 서버(스나이핑 아님)
-        + 스나이핑 쪽 동작(오토 팝핑 · 복귀 · Play 클릭 · 복귀 후 대기) 없음 → 자동 낚시 돌림, 아니면 멈춤 (돌아오면 다시 켜짐)"""
+        """1초마다: 매크로 버튼 + 자동 낚시 켜기 + 로블록스 창 있음 + 내 서버(다른 서버 접속 아님)
+        + 다른 일(모드 · 복귀 · Play 클릭 · 복귀 후 대기) 없음 → 자동 낚시 돌림, 아니면 멈춤 (돌아오면 다시 켜짐)"""
         warned, paused = None, False
         while True:
             time.sleep(1.0)
@@ -450,37 +450,35 @@ class Bridge:
                 if rw is not None and not self.ret.running() and not self.play.running() and rw.in_game():
                     self.ret_watch = None                    # 복귀 실패 뒤 직접 게임에 들어감 → 기다렸다가 매크로 다시 시작
                     self._after_return("게임 입장 확인")
-                if self.custom_hold and self.data.get("ret", {}).get("after_macro", True):
-                    self.custom_hold = False                 # 토글을 다시 켬 → 원래 매크로로
                 busy = self.ret.running() or self.play.running() or time.time() < self.resume_at \
                     or self.ret_watch is not None or self._mod_busy("macro")
-                sniping = busy or self.biome.muted() or self.custom_hold
-                if want and sniping and not paused:
+                away = busy or self.biome.away() or self.mod_hold
+                if want and away and not paused:
                     paused = True
-                    if self.custom_hold:
-                        self._on_log("모드가 매크로를 멈춰 둠 (예: 커스텀 매크로) — 매크로를 다시 켜면 시작", "c")
+                    if self.mod_hold:
+                        self._on_log("모드가 매크로를 멈춰 둠 — 매크로를 다시 켜면 시작", "c")
                     else:
                         self._on_log("다른 일 중 (복귀 · 모드) — 매크로 잠시 멈춤 (끝나면 다시 시작)", "c")
-                elif paused and (not want or not sniping):
+                elif paused and (not want or not away):
                     paused = False
                     if want:
                         self._on_log("내 서버 — 매크로 다시 시작", "g")
-                ok = want and not sniping and bool(macro.roblox_window_cached(2.0))
+                ok = want and not away and bool(macro.roblox_window_cached(2.0))
                 now = time.time()
                 if self.merchant_pending and now - self.merchant_pending[1] > 180:
                     self.merchant_pending = None             # 상인이 떠났을 시간
                 if self.craft_pending and now - self.craft_pending[1] > 300:
                     self.craft_pending = None
-                # 끄거나 스나이핑하러 가면 하던 기능을 멈춤 (테스트는 끝까지)
-                if self.merchant.running() and self.merchant.job == "buy" and (sniping or not want_merch):
+                # 끄거나 다른 일(다른 서버 접속 등)이 생기면 하던 기능을 멈춤 (테스트는 끝까지)
+                if self.merchant.running() and self.merchant.job == "buy" and (away or not want_merch):
                     self.merchant.stop()
-                if self.crafter.running() and not self.crafter.test and (sniping or not want_craft):
+                if self.crafter.running() and not self.crafter.test and (away or not want_craft):
                     self.crafter.stop()
-                if self.matcher.running() and not self.matcher.test and (sniping or not want_match):
+                if self.matcher.running() and not self.matcher.test and (away or not want_match):
                     self.matcher.stop()
-                if self.items.running() and not self.items.test and (sniping or not want_items):
+                if self.items.running() and not self.items.test and (away or not want_items):
                     self.items.stop()
-                if self.blood.running() and not self.blood.test and (sniping or not want_blood):
+                if self.blood.running() and not self.blood.test and (away or not want_blood):
                     self.blood.stop()
                 if ok and want_match and now >= self.matcher.next_at and self._place_of("mmatch", "match_spot") is None:
                     self.matcher.next_at = now + 600         # 장소가 없으면 낚시를 멈추지 않고 알림만 (10분마다)
@@ -657,7 +655,7 @@ class Bridge:
         self.fish_block, self.fish_fails, self.zero_sells, self.fish_backoff = None, 0, 0, 0
         self.ret_watch = None               # 복귀 실패로 멈춰 둔 것도 풂
         if on:
-            self.custom_hold = False        # 커스텀 매크로 쪽으로 돌아와 멈춰 둔 것도 풂
+            self.mod_hold = False           # 모드가 멈춰 둔 것도 풂
         with self.lock:
             self.data["macro_on"] = bool(on)
         self._save()
@@ -709,7 +707,7 @@ class Bridge:
     AFK_EVERY = 300                         # 하던 동작이 끝나고 입력이 없으면 5분마다 점프
 
     def _afk_idle(self):
-        """Acrux 가 로블록스에서 아무것도 안 하는 중 (바이옴이 끝나길 기다리는 오토 팝핑은 쉬는 것으로 봄)"""
+        """Acrux 가 로블록스에서 아무것도 안 하는 중 (모드 일은 모드가 busy("afk") 로 알려 줌)"""
         busy = (self.play.running() or self.ret.running() or self._mod_busy("afk") or self.mpop.running()
                 or self.blood.running() or self.fisher.running() or self.items.running() or self.merchant.running() or self.crafter.running()
                 or self.matcher.running() or self.mover.running() or self._cal_running() or self.craft_busy
@@ -764,15 +762,15 @@ class Bridge:
         self._save()
         self._on_log("F7 — 매크로 꺼짐", "y")
 
-    def _on_biome_change(self, prev, found, sniping):
+    def _on_biome_change(self, prev, found, away):
         """매크로 탭 · 레어 바이옴 자동 팝핑: 지금 켜져 있는 로블록스(내 서버)에서 레어 바이옴이 시작되면 포션 사용
-        스나이핑으로 들어간 다른 사람 서버이거나, 오토 팝핑 · 복귀 · Play 클릭이 도는 중이면 안 함"""
-        self.hooks.emit("biome", prev, found, sniping)
+        모드가 들어간 다른 사람 서버이거나, 모드 일 · 복귀 · Play 클릭이 도는 중이면 안 함"""
+        self.hooks.emit("biome", prev, found, away)
         mp = self.data.get("mpop", {})
         if not self.data.get("macro_on") or not mp.get("enabled") or found not in popping.POP_BIOMES:
             return
-        if sniping:
-            self._on_log(f"{found} 감지 — 스나이핑 접속이라 내 서버 팝핑 안 함", "d")
+        if away:
+            self._on_log(f"{found} 감지 — 다른 서버 접속이라 팝핑 안 함", "d")
             return
         if self.ret.running() or self.play.running() or self._mod_busy("mpop"):
             self._on_log(f"{found} 감지 — 다른 기능이 도는 중이라 내 서버 팝핑 안 함", "y")
@@ -876,30 +874,6 @@ class Bridge:
             return None
         occ = hist[-1]
         return occ if occ[1] == cur and occ != self.blood_seen else None
-
-    def api_list_windows(self, _):
-        seen, out = set(), []
-        for w in macro.list_windows():
-            k = (w["title"], w["exe"])
-            if k not in seen and w["title"].strip():
-                seen.add(k)
-                out.append({"title": w["title"], "exe": w["exe"]})
-        return {"windows": out}
-
-    def api_steps_info(self, _):
-        return {"keys": macro.KEY_NAMES, "types": stepmod.STEP_TYPES}
-
-    def api_combo_check(self, p):
-        try:
-            return {"keys": stepmod.parse_combo(p.get("keys"))}
-        except ValueError as e:
-            return {"error": str(e)}
-
-    def api_pick_point_overlay(self, _):
-        return self._pick_overlay("--pick-point")
-
-    def api_pick_file(self, _):
-        return self._pick_overlay("--pick-file")
 
     def api_ret_join(self, _):
         """로블록스가 꺼져 있을 때 메인 알림에서: 매크로 복귀 설정의 내 브섭 링크로 바로 접속"""
@@ -1536,20 +1510,6 @@ class Bridge:
                 c.update(lay)
         self._save()
         return {"region": r["region"], feat: self.data[feat]}
-
-    def api_mpos_copy_pop(self, _):
-        """기준 위치(인벤토리) ← 스나이프 탭 오토 팝핑에 지정한 위치 그대로 복사"""
-        src = self.data.get("pop", {})
-        keys = (*self.MPOS_POINTS["base"], "ocr_region")
-        if not any(src.get(k) for k in keys):
-            return {"error": "오토 팝핑 설정에 지정된 위치 없음"}
-        with self.lock:
-            b = self.data.setdefault("base", {})
-            for k in keys:
-                if src.get(k):
-                    b[k] = json.loads(json.dumps(src[k]))
-        self._save()
-        return {"base": self.data["base"]}
 
     def api_mpop_ocr_test(self, _):
         region = self.data.get("base", {}).get("ocr_region")
@@ -2403,7 +2363,7 @@ _SHUT = threading.Lock()
 
 
 def shutdown(server=None):
-    """프로그램을 끌 때: 모드에 알림 (스나이핑 모드는 디스코드를 보통 모드로) → 통계 저장"""
+    """프로그램을 끌 때: 모드에 알림 (모드가 하던 일 정리) → 통계 저장"""
     if not _SHUT.acquire(blocking=False):
         return
     core.STOP.set()

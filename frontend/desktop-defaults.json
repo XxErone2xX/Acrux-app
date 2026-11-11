@@ -1,28 +1,9 @@
 {
-  "enabled": true,
-  "open_link": true,
-  "discord": "stable",
-  "discord_connect": true,
-  "auto_restart_discord": true,
-  "guild_ids": [],
-  "channel_ids": [],
-  "names": {},
-  "channels": {},
-  "keywords": [],
-  "ignore_words": [
-    "Ended",
-    "End"
-  ],
-  "max_age_sec": 15,
-  "beep": true,
-  "stable_join": true,
-  "show_all_links": false,
-  "autostart": false,
   "lang": "",
   "tutorials_done": [],
   "online_share": true,
   "install_id": "",
-  "menu_tab": "snipe",
+  "menu_tab": "macro",
   "win_size": "",
   "play": {
     "pos": null,
@@ -32,18 +13,8 @@
     "max_time": 300
   },
   "pop": {
-    "inventory_pos": null,
-    "items_pos": null,
-    "search_pos": null,
-    "item_pos": null,
-    "amount_pos": null,
-    "use_pos": null,
-    "ocr_region": null,
     "match_threshold": 70,
-    "delays": {},
-    "templates": {},
-    "biomes_on": {},
-    "favs": null
+    "delays": {}
   },
   "ret": {},
   "biome": {
@@ -189,74 +160,6 @@
     "button": "right",
     "margin": 0.3,
     "places": []
-  },
-  "snipe": {
-    "delay_min": 0.0,
-    "delay_max": 0.0,
-    "delay_v0": false,
-    "direct": true,
-    "same_link_min": 10,
-    "cooldown_sec": 5
-  },
-  "prime": {
-    "enabled": false,
-    "delay_min": 2.0,
-    "delay_max": 3.5,
-    "words": [
-      "get link",
-      "link",
-      "join",
-      "reveal",
-      "show",
-      "server",
-      "🔗"
-    ],
-    "skip": [
-      "report",
-      "delete",
-      "remove",
-      "fake",
-      "scam",
-      "ended",
-      "dead",
-      "expired",
-      "unsub",
-      "stop",
-      "cancel",
-      "close",
-      "dismiss",
-      "mute",
-      "block",
-      "ping",
-      "role",
-      "verify",
-      "help",
-      "신고",
-      "삭제",
-      "종료",
-      "취소",
-      "닫기"
-    ],
-    "mode": "signal",
-    "fallback": true,
-    "single": true,
-    "selects": true,
-    "steps": 6,
-    "timeout": 15,
-    "navigate": true,
-    "go_back": true,
-    "resolve": true,
-    "dm": true,
-    "per_min": 6,
-    "bots": [],
-    "ai": {
-      "enabled": false,
-      "provider": "groq",
-      "key": "",
-      "model": "",
-      "base": ""
-    },
-    "rev": 2
   },
   "stats": {}
 }

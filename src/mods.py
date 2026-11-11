@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 모드 · 플러그인 — Acrux 본체에 없는 기능을 따로 만들어 넣는 확장
-  모드 (type: "mod")      설정 탭 · 화면이 있는 큰 기능 (예: 스나이핑 모드)
+  모드 (type: "mod")      설정 탭 · 화면이 있는 큰 기능
   플러그인 (type: "plugin") 화면 없이 뒤에서 이벤트에 반응하는 작은 기능 (예: 바이옴이 바뀌면 소리)
 
 설치 위치: <데이터 폴더>/mods/<id>/  (config.json 옆 · 업데이트로 앱 폴더를 갈아도 남음)
-  mod.json    {"id": "sniping", "name": "스나이핑", "version": "1.0.0", "type": "mod", "author": "…",
+  mod.json    {"id": "my_mod", "name": "내 모드", "version": "1.0.0", "type": "mod", "author": "…",
                "description": "…", "entry": "main", "acrux": "3.0.0",
                "ui": {"html": "ui.html", "js": "ui.js", "css": "ui.css"}}
   main.py     setup(ctx) 함수 — 켤 때 한 번 불림 (ctx = Context: 로그 · 설정 · API 등록 · 이벤트)
@@ -48,7 +48,7 @@ class Hooks:
       ingame(path, reason)     Play 클릭으로 게임에 들어감 (reason 이 '복귀' 가 아닐 때)
       play_fail(reason)        Play 클릭으로 못 들어감 (reason 이 '복귀' 가 아닐 때)
       after_return(head, wait) 내 서버로 복귀 끝 (로블록스 꺼짐 복구 말고) → True 를 돌려주면 본체는 아무것도 안 함
-      biome(prev, found, sniping)  바이옴이 바뀜
+      biome(prev, found, away)  바이옴이 바뀜 (away: 모드가 들어간 다른 사람 서버인지)
       macro(on)                매크로 버튼이 켜지거나 꺼짐
       stop()                   [정지] · F7 — 하던 일 멈춤
       ready()                  창이 뜨기 직전 (모든 모드를 불러온 뒤)
@@ -117,8 +117,10 @@ class Context:
     def on(self, event, fn):
         self.bridge.hooks.on(event, fn)
 
-    def config_keys(self, defaults, normalize=None):
+    def config_keys(self, defaults, normalize=None, locked=()):
+        """모드가 쓰는 config.json 맨 위 키 (defaults: 처음 값) · normalize(d): 정리 · locked: 화면이 못 바꾸는 키 (모드 엔진만 씀)"""
         self.bridge.mod_keys |= set(defaults)
+        self.bridge.locked_keys |= set(locked)
 
         def norm(d):
             for k, v in defaults.items():

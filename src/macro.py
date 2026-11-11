@@ -153,7 +153,7 @@ def move_to(x, y):
     _send(_mouse(MOUSEEVENTF_MOVE, -1, 0))
 
 
-# 사람처럼 클릭 (스나이핑 안정성 설정): on = 부드럽게 이동 + 누르는 시간 랜덤 / jitter = 클릭 위치 랜덤 범위(px)
+# 사람처럼 클릭 (모드가 켤 수 있음): on = 부드럽게 이동 + 누르는 시간 랜덤 / jitter = 클릭 위치 랜덤 범위(px)
 HUMAN = {"on": False, "jitter": 0}
 
 
@@ -786,7 +786,7 @@ RESET_WHEN_STOPPED = [lambda: False]
 
 def respawn(stop=None):
     """Esc → R → Enter (0.5초 간격) → 방금 리셋하고 안 움직였으면 건너뜀 → 리셋했으면 True
-    stop: 멈춤 신호 — 멈췄으면(매크로 끔 · 스나이핑 등) · F7 을 누르고 있으면 · 로블록스 창을 앞으로 못 가져오면 키를 안 보냄
+    stop: 멈춤 신호 — 멈췄으면(매크로 끔 · 다른 서버 접속 등) · F7 을 누르고 있으면 · 로블록스 창을 앞으로 못 가져오면 키를 안 보냄
     (다른 창에 Esc · R · Enter 가 들어가지 않게)"""
     import time as _t
 

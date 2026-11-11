@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """모드 파일 만들기: mods/<id>/ → out/mods/Acrux-<이름>-V<버전>.acxm (zip · mod.json 이 맨 위)
   python mods/build.py            모든 모드
-  python mods/build.py sniping    그 모드만"""
+  python mods/build.py <id>       그 모드만"""
 import json
 import os
 import sys

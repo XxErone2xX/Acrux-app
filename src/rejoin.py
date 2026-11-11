@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-오토 팝핑 — Play 버튼 자동 클릭
+게임 입장 — Play 버튼 자동 클릭 · 내 서버로 복귀 (로블록스 꺼짐 복구 · 모드가 다른 서버에 들어갈 때)
 1. 로블록스 창이 뜰 때까지 기다림
 2. 창을 맨 앞으로 → 지정한 Play 버튼 위치를 일정 간격으로 클릭
 3. 로블록스 로그에 '"state":"Equipped' 가 새로 찍히면(= 게임에 들어감) 멈춤
@@ -44,7 +44,7 @@ class LogWatch:
         if self.new_only and p == self.base:
             return False
         if INGAME_MARK in text:
-            self.hit_file = p                       # 게임에 들어간 로그 파일 (오토 팝핑의 바이옴 확인용)
+            self.hit_file = p                       # 게임에 들어간 로그 파일 (모드가 바이옴 확인에 씀)
             return True
         return False
 
@@ -52,7 +52,7 @@ class LogWatch:
 class PlayClicker:
     def __init__(self, get_cfg, log, log_dir=None, on_ingame=None, on_fail=None):
         self.get_cfg = get_cfg          # () -> play 설정 dict
-        self.on_ingame = on_ingame      # (로그 파일, 이유) — 게임 입장 확인 후 (오토 팝핑 시작)
+        self.on_ingame = on_ingame      # (로그 파일, 이유) — 게임 입장 확인 후
         self.on_fail = on_fail          # (이유) — 입장 못 하고 끝남 (사용자가 멈춘 경우 제외)
         self.log = log                  # (msg, color)
         self.log_dir = log_dir
@@ -99,7 +99,7 @@ class PlayClicker:
         pos, skip = cfg.get("pos"), cfg.get("skip_pos")
         if not pos or not skip:
             miss = " · ".join(n for n, v in (("Play 버튼", pos), ("Click to skip 버튼", skip)) if not v)
-            self.log(f"{miss} 위치가 지정되지 않아 클릭 안 함 (접속 설정 → 게임 입장에서 지정)", "n")
+            self.log(f"{miss} 위치가 지정되지 않아 클릭 안 함 (복구 · 게임 입장에서 지정)", "n")
             return
         targets = [("Play", pos), ("Click to skip", skip)]   # 번갈아 클릭
         interval = max(0.05, float(cfg.get("interval", 0.15)))
@@ -113,7 +113,7 @@ class PlayClicker:
                 if not stop.is_set():
                     self.log("로블록스 창이 안 떠서 Play 클릭 취소", "r")
                 return
-            # 스나이핑으로 클라이언트가 새로 뜬 경우: 바로 맨 앞으로 끌어옴
+            # 링크로 클라이언트가 새로 뜬 경우: 바로 맨 앞으로 끌어옴
             macro.focus(hwnd, wait=0.1)
             fg = "맨 앞으로 가져옴" if macro.is_foreground(hwnd) else "맨 앞으로 못 가져옴"
             self.log(f"로블록스 창 감지 ({fg}) — {wait0:g}초 뒤 Play / Click to skip 클릭", "d")
@@ -177,7 +177,7 @@ class PlayClicker:
             self._set(msg="대기")
             if not watch.hit_file and not stop.is_set() and self.on_fail and reason != "테스트" and gen == self.gen:
                 def fail():
-                    if gen == self.gen:             # 그 사이 새 접속(스나이핑)이 시작됐으면 무시
+                    if gen == self.gen:             # 그 사이 새 접속이 시작됐으면 무시
                         self.on_fail(reason)
                 threading.Thread(target=fail, daemon=True).start()
 

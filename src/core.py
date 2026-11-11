@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
 Acrux 본체 공통 — 설정 (config.json) · 경로 · 로그 · 로블록스 링크 열기
-스나이핑 (디스코드 링크 감지 · 접속 · Prime Snipe) 은 본체에서 빠지고 모드로 옮겨짐 (mods.py · 스나이핑 모드)
 모드가 쓰는 설정은 NORMALIZERS 로 각 모드가 정리함 (본체는 모르는 키를 지우지 않음)
 """
 import json
@@ -14,7 +13,6 @@ import threading
 import time
 from pathlib import Path
 
-import biome
 import procs
 
 if getattr(sys, "frozen", False):          # exe 로 묶었을 때
@@ -33,9 +31,9 @@ DEFAULT_CONFIG = {
     "install_id": "",         # 사용자 수 집계용 무작위 번호 (처음 켤 때 만듦 · 개인 정보 아님)
     "menu_tab": "macro",      # 메인 화면 설정 탭 (biome / macro / acrux · 모드 탭) — 마지막에 본 탭
     "win_size": "",           # 기본 창 크기를 맞춘 적 있는지 (맞춘 크기) — 한 번만 맞춤
-    "play": {},               # 오토 팝핑: Play 버튼 자동 클릭 (아래 PLAY_DEFAULT)
-    "pop": {},                # 오토 팝핑: 레어 바이옴 포션 사용 (아래 POP_DEFAULT)
-    "ret": {},                # 복구 · 복귀: {"ps_link": 내 브섭 링크, "start_wait", 모드가 쓰는 after_macro · steps}
+    "play": {},               # 게임 입장: Play 버튼 자동 클릭 (복구 · 복귀) (아래 PLAY_DEFAULT)
+    "pop": {},                # 팝핑 공통 설정: 딜레이 · 이름 일치율 (아래 POP_DEFAULT · 매크로 탭 팝핑 기능이 같이 씀)
+    "ret": {},                # 복구 · 복귀: {"ps_link": 내 브섭 링크, "start_wait"} (모드가 쓰는 다른 키는 그대로 둠)
     "biome": {},              # 바이옴 매크로 설정 (아래 BIOME_DEFAULT)
     "ocr_engine": "auto",     # Acrux 설정 · OCR 감지 방식: auto / rapid / windows
     "macro_on": False,        # 메인 화면 '매크로' 버튼 — 꺼져 있으면 매크로 탭 기능이 전부 안 돎 (켤 때마다 꺼진 상태로 시작)
@@ -67,17 +65,8 @@ PLAY_DEFAULT = {
     "max_time": 300,          # 게임 입장이 확인될 때까지 최대 시도 시간 (초)
 }
 POP_DEFAULT = {
-    # 버튼 위치 (로블록스 창 기준 비율) — 전부 플레이어가 직접 지정
-    "inventory_pos": None, "items_pos": None, "search_pos": None,
-    "item_pos": None, "amount_pos": None, "use_pos": None,
-    "ocr_region": None,           # 검색 결과 아이템 이름·개수 OCR 영역 [x1, y1, x2, y2]
     "match_threshold": 70,        # 이름 일치율 기준 (%)
     "delays": {},                 # 동작 사이 대기 (popping.DELAY_DEFAULT)
-    # 바이옴별 템플릿: mode = all(목록 전부 순서대로) / one(위에서부터 조건 맞는 하나만)
-    # items: [{name, amount: 숫자 또는 "ALL", min_have: 최소 보유 개수}]
-    "templates": {},
-    "biomes_on": {},              # 팝핑 바이옴 설정 — 켜진 바이옴에서만 오토 팝핑 (기본 전부 켜짐)
-    "favs": None,                 # 메인 화면 오토 스나이핑 ▾ 에 보일 즐겨찾기 바이옴 (None = 처음 · 기본 6개)
 }
 BASE_INV_KEYS = ("inventory_pos", "items_pos", "search_pos", "item_pos", "amount_pos", "use_pos")
 BASE_DEFAULT = {
@@ -128,24 +117,24 @@ MOVE_DEFAULT = {
     "places": [],
 }
 MPOP_DEFAULT = {
-    # 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버) — 위치 · OCR 영역은 매크로 기준 위치(base), 딜레이 · 일치율은 오토 팝핑(pop) 설정을 같이 씀
+    # 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버) — 위치 · OCR 영역은 매크로 기준 위치(base), 딜레이 · 일치율은 팝핑 공통 설정(pop)을 같이 씀
     "enabled": False,             # 켜짐: 지금 켜져 있는 로블록스(내 서버)에서 레어 바이옴이 감지되면 포션 사용
     "start_delay": 1.0,           # 바이옴 감지 후 인벤토리를 열기까지 대기 (초)
     "close_inventory": True,      # 다 쓰고 Inventory 버튼을 한 번 더 눌러 닫기
-    "templates": {},              # 바이옴별 포션 목록 (오토 팝핑과 따로)
+    "templates": {},              # 바이옴별 포션 목록
     "biomes_on": {},              # 켜진 바이옴에서만 (기본 전부 켜짐)
 }
 MBLOOD_DEFAULT = {
     # 매크로 탭 · 블러드 레인 자동 생성 (할로윈 이벤트) — 내 서버에서 PUMPKIN MOON · GRAVEYARD 가 떠 있으면 그 바이옴에 한 번
     # Cursed Rune Fragment 가 2개 이상일 때 1개 사용 (popping.BLOOD_ITEM)
-    # 위치 · OCR 영역은 매크로 기준 위치(base), 딜레이 · 일치율은 오토 팝핑(pop) 설정을 같이 씀
+    # 위치 · OCR 영역은 매크로 기준 위치(base), 딜레이 · 일치율은 팝핑 공통 설정(pop)을 같이 씀
     "enabled": False,
     "start_delay": 1.0,           # 바이옴 감지 후 인벤토리를 열기까지 대기 (초)
     "close_inventory": True,      # 다 쓰고 Inventory 버튼을 한 번 더 눌러 닫기
 }
 MITEM_DEFAULT = {
     # 매크로 탭 · 오토 아이템 사용 — 쿨타임마다 인벤토리에서 아이템 사용
-    # 위치 · OCR 영역은 매크로 기준 위치(base), 딜레이 · 일치율은 오토 팝핑(pop) 설정을 같이 씀
+    # 위치 · OCR 영역은 매크로 기준 위치(base), 딜레이 · 일치율은 팝핑 공통 설정(pop)을 같이 씀
     "enabled": False,
     "strange": True,              # Strange Controller 사용
     "strange_min": 10.5,          # Strange Controller 간격 (분)
@@ -236,12 +225,6 @@ MFISH_DEFAULT = {
     "cal_sell": False,            # 판매 자동 보정을 끝냈는지 (튜토리얼 안내용)
 }
 POP_BIOMES = ("CYBERSPACE", "GLITCHED", "DREAMSPACE")
-STEP_TYPES = ("key", "combo", "click", "wait", "text", "scroll", "run", "focus", "kill")   # 커스텀 매크로 동작 종류
-# 스나이핑(오토 팝핑) 바이옴 — 레어 바이옴 + 일반 스나이핑 바이옴(Windy · Snowy · Rainy 빼고 전부: 들어가서 바이옴이 끝날 때까지 머묾)
-STAY_BIOMES = biome.STAY_BIOMES
-SNIPE_BIOMES = POP_BIOMES + STAY_BIOMES
-FAV_DEFAULT = POP_BIOMES + ("RADIANTFOREST", "SINGULARITY", "LOSTFOREST")   # ▾ 즐겨찾기 처음 값 (예전 ▾ 에 있던 6개)
-POP_OFF_DEFAULT = STAY_BIOMES                     # 팝핑 바이옴 설정에서 기본으로 꺼져 있는 바이옴 (꺼져 있으면 들어가서 팝핑 없이 머묾)
 # 기본 템플릿 — 레어 바이옴 자동 팝핑
 # (처음 한 번만 채워짐 · 이후엔 플레이어가 추가/삭제/순서 변경)
 _STD = [("Warp Potion", 1), ("Oblivion Potion", "ALL"), ("Godlike Potion", "ALL"),
@@ -249,9 +232,6 @@ _STD = [("Warp Potion", 1), ("Oblivion Potion", "ALL"), ("Godlike Potion", "ALL"
 POP_TEMPLATES = {
     "GLITCHED": {"mode": "all", "items": [{"name": n, "amount": a, "min_have": 1} for n, a in _STD]},
     "DREAMSPACE": {"mode": "all", "items": [{"name": n, "amount": a, "min_have": 1} for n, a in _STD]},
-    "SINGULARITY": {"mode": "all", "items": [{"name": n, "amount": a, "min_have": 1} for n, a in _STD]},
-    "RADIANTFOREST": {"mode": "all", "items": [{"name": n, "amount": a, "min_have": 1} for n, a in _STD]},
-    "LOSTFOREST": {"mode": "all", "items": [{"name": n, "amount": a, "min_have": 1} for n, a in _STD]},
     # 우선순위 트리 (위에서부터 조건 맞는 하나만):
     # 워프 5개 이상 → 워프 5개 / 트랜센던트 있음 → 1개 / Tidal Shifter 2개 이상 → 1개 / 워프 있음 → 전부
     "CYBERSPACE": {"mode": "one", "items": [
@@ -261,43 +241,12 @@ POP_TEMPLATES = {
         {"name": "Warp Potion", "amount": "ALL", "min_have": 1},
     ]},
 }
-for _b in STAY_BIOMES:                            # 일반 스나이핑 바이옴은 전부 같은 기본 목록 (팝핑은 기본 꺼짐)
-    POP_TEMPLATES.setdefault(_b, {"mode": "all", "items": [{"name": n, "amount": a, "min_have": 1} for n, a in _STD]})
-POP_DELAYS = {"after_join": 7.5, "inventory": 0.5, "items": 0.5, "search": 0.5, "typing": 0.5,
+POP_DELAYS = {"inventory": 0.5, "items": 0.5, "search": 0.5, "typing": 0.5,
               "item_click": 0.35, "dbl_gap": 0.1, "after_dbl": 0.5, "after_enter": 0.35}
 REMOVED_KEYS = ("print_all_links", "run_on_link", "cooldown_sec", "kill_multiscope", "popping",
                 "debug_port")                 # 디버그 포트는 이제 켤 때마다 무작위
 
-_U = r"[^\s\"'<>()\[\]]"     # URL 에 들어갈 수 있는 글자
-LINK_RE = re.compile(
-    r"https?://(?:www\.)?roblox\.com/(?:"
-    r"share\?" + _U + r"*code=" + _U + r"+"                                     # roblox.com/share?code=...
-    r"|games/\d+" + _U + r"*privateServerLinkCode=" + _U + r"+)"                 # games/ID/...?privateServerLinkCode=...
-    r"|roblox://" + _U + r"*(?:privateServerLinkCode|linkCode|code)=" + _U + r"+",  # roblox:// 딥링크
-    re.I,
-)
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-
-
-_CODE_RE = re.compile(r"(?:privateServerLinkCode|linkCode|code)=([A-Za-z0-9_\-]+)", re.I)
-
-
-def link_codes(text):
-    """링크 안의 비공개 서버 코드들 (share?code= / privateServerLinkCode= / linkCode=)"""
-    return {c.lower() for c in _CODE_RE.findall(text or "")}
-
-
-def own_codes(cfg):
-    """내 브섭 링크(매크로 복귀 설정 · 바이옴 매크로 설정)의 코드들"""
-    codes = set()
-    for sec in ("ret", "biome"):
-        try:
-            codes |= link_codes((cfg[sec] or {}).get("ps_link") or "")
-        except Exception:
-            pass
-    return codes
-
-
 
 
 # ---------------------------------------------------------------- 창과 연결되는 콜백
@@ -349,20 +298,15 @@ def normalize(raw):
             play[k] = max(lo, float(play[k]))
         except (TypeError, ValueError):
             play[k] = PLAY_DEFAULT[k]
-    play.pop("pre_steps", None)              # 접속 전 동작 없앰 (스나이핑 중엔 매크로가 알아서 쉼)
+    play.pop("pre_steps", None)              # 예전 설정 (접속 전 동작) 없앰
     d["play"] = play
-    pop = dict(POP_DEFAULT)
-    pop.update(d.get("pop") if isinstance(d.get("pop"), dict) else {})
-
     def _ratio_list(v, n):
         try:
             v = [min(1.0, max(0.0, float(x))) for x in v][:n]
             return v if len(v) == n else None
         except Exception:
             return None
-    for k in ("inventory_pos", "items_pos", "search_pos", "item_pos", "amount_pos", "use_pos"):
-        pop[k] = _ratio_list(pop.get(k), 2)
-    pop["ocr_region"] = _ratio_list(pop.get("ocr_region"), 4)
+    pop = dict(d.get("pop") if isinstance(d.get("pop"), dict) else {})   # 모드가 쓰는 다른 키는 그대로 둠
     try:
         th = float(pop.get("match_threshold", 70))
         if not pop.get("th70") and th == 50:      # 예전 기본값(50%) 그대로면 새 기본값 70% 로 한 번 바꿈
@@ -371,25 +315,13 @@ def normalize(raw):
     except (TypeError, ValueError):
         pop["match_threshold"] = 70
     pop["th70"] = True
-    dl = dict(POP_DELAYS)
-    for k, v in (pop.get("delays") or {}).items():
-        if k in dl:
-            try:
-                dl[k] = max(0.0, float(v))
-            except (TypeError, ValueError):
-                pass
+    dl = dict(pop.get("delays") or {}) if isinstance(pop.get("delays"), dict) else {}
+    for k, v in POP_DELAYS.items():
+        try:
+            dl[k] = max(0.0, float(dl.get(k, v)))
+        except (TypeError, ValueError):
+            dl[k] = v
     pop["delays"] = dl
-    pop["templates"], pop["biomes_on"] = _norm_templates(pop, SNIPE_BIOMES)
-    if not pop.get("sing_off"):             # Singularity 팝핑은 기본 꺼짐 — 예전에 켜진 채로 저장된 것도 한 번 끔
-        pop["biomes_on"]["SINGULARITY"] = False
-        pop["sing_off"] = True
-    pop["seeded"] = True                    # 기본 템플릿은 한 번만 (지운 건 다시 안 채움)
-    pop["use_base"] = bool(pop.get("use_base"))   # 스나이프 오토 팝핑도 매크로 기준 위치를 씀
-    favs = pop.get("favs")
-    if not isinstance(favs, list):
-        favs = FAV_DEFAULT                  # 처음: 예전 ▾ 에 있던 6개
-    favs = {str(b).upper() for b in favs}
-    pop["favs"] = [b for b in SNIPE_BIOMES if b in favs]    # 아는 바이옴만 · 화면 순서대로 (비워 둘 수도 있음)
     d["pop"] = pop
     # 매크로 기준 위치: 예전엔 레어 바이옴 자동 팝핑(mpop) · 자동 낚시(mfish)에 따로 있던 걸 한 번 옮겨 옴
     old_mp = d.get("mpop") if isinstance(d.get("mpop"), dict) else {}
@@ -602,16 +534,14 @@ def normalize(raw):
     d["online_share"] = bool(d.get("online_share", True))
     if not re.fullmatch(r"[0-9a-f]{32}", str(d.get("install_id") or "")):
         d["install_id"] = secrets.token_hex(16)
-    ret = d.get("ret") if isinstance(d.get("ret"), dict) else {}
+    ret = dict(d.get("ret") if isinstance(d.get("ret"), dict) else {})   # 모드가 쓰는 다른 키는 그대로 둠
     try:
         start_wait = max(0.0, float(ret.get("start_wait", 7.5)))
     except (TypeError, ValueError):
         start_wait = 7.5
-    # start_wait: 복귀 후 Play 로 게임 입장이 감지된 뒤, 매크로(또는 커스텀 매크로)를 켜기까지 대기 (초)
-    # after_macro: [스나이핑이 끝나고 매크로 실행] — 켜짐: 원래 매크로가 다시 켜짐 / 꺼짐: 커스텀 매크로(steps)를 대신 실행
-    steps = [dict(x) for x in (ret.get("steps") or []) if isinstance(x, dict) and x.get("type") in STEP_TYPES]
-    d["ret"] = {"ps_link": str(ret.get("ps_link") or "").strip(), "start_wait": start_wait,
-                "after_macro": bool(ret.get("after_macro", True)), "steps": steps}
+    # start_wait: 복귀 후 Play 로 게임 입장이 감지된 뒤, 매크로를 다시 켜기까지 대기 (초)
+    ret.update(ps_link=str(ret.get("ps_link") or "").strip(), start_wait=start_wait)
+    d["ret"] = ret
     bio = dict(BIOME_DEFAULT)
     bio.update(d.get("biome") if isinstance(d.get("biome"), dict) else {})
     hooks = [str(h).strip() for h in (bio.get("webhooks") or []) if isinstance(h, str)]
@@ -651,16 +581,17 @@ def normalize(raw):
     return d
 
 
-def _norm_templates(src_cfg, biomes=POP_BIOMES):
-    """바이옴별 포션 템플릿 · 켜진 바이옴 정리 (오토 팝핑 · 매크로 탭 팝핑 공용)
-    처음 한 번(seeded 전)은 비어 있는 템플릿을 기본 템플릿으로 채움"""
+def _norm_templates(src_cfg, biomes=POP_BIOMES, defaults=None, off=()):
+    """바이옴별 포션 템플릿 · 켜진 바이옴 정리 (매크로 탭 팝핑 · 모드 공용)
+    처음 한 번(seeded 전)은 비어 있는 템플릿을 기본 템플릿(defaults · 없으면 POP_TEMPLATES)으로 채움 · off: 기본으로 꺼진 바이옴"""
+    defaults = defaults or POP_TEMPLATES
     tpls = {}
     src = src_cfg.get("templates") or {}
     for b in biomes:
         t = src.get(b) or {}
         # 처음 한 번 · 새로 생긴 바이옴(저장된 적 없음)만 기본 템플릿으로
         if (not src_cfg.get("seeded") or b not in src) and not (t.get("items") or []):
-            t = json.loads(json.dumps(POP_TEMPLATES[b]))      # 처음 한 번: 기본 템플릿으로 채움
+            t = json.loads(json.dumps(defaults.get(b) or {}))   # 처음 한 번: 기본 템플릿으로 채움
         items = []
         for it in t.get("items") or []:
             if not isinstance(it, dict):
@@ -680,7 +611,7 @@ def _norm_templates(src_cfg, biomes=POP_BIOMES):
             items.append({"name": str(it.get("name") or "").strip(), "amount": amt, "min_have": mh})
         tpls[b] = {"mode": "one" if t.get("mode") == "one" else "all", "items": items}
     on = src_cfg.get("biomes_on") if isinstance(src_cfg.get("biomes_on"), dict) else {}
-    return tpls, {b: bool(on.get(b, b not in POP_OFF_DEFAULT)) for b in biomes}
+    return tpls, {b: bool(on.get(b, b not in off)) for b in biomes}
 
 
 def load_config():
@@ -734,8 +665,7 @@ _CODE = r"([A-Za-z0-9_-]{1,200})"
 
 def parse_link(url):
     """비공개 서버 링크 → ("private", placeId, linkCode) / ("share", code) / None
-    디스코드 메시지(누구나 쓸 수 있는 글)에서 온 주소라 그대로 실행하지 않고,
-    필요한 값(숫자 ID · 코드)만 뽑아서 새로 만든 링크만 실행함"""
+    붙여 넣은 주소를 그대로 실행하지 않고, 필요한 값(숫자 ID · 코드)만 뽑아서 새로 만든 링크만 실행함"""
     texts = [str(url or "")]
     try:
         d = _up.unquote(texts[0])
@@ -776,7 +706,6 @@ def to_weblink(url):
 
 # 링크를 열기 전에 강제 종료할 로블록스 클라이언트 프로세스
 ROBLOX_PROCESSES = ["RobloxPlayerBeta.exe", "RobloxPlayerLauncher.exe", "RobloxCrashHandler.exe"]
-JOIN_DELAY_SEC = 0.5
 
 
 # 매크로가 일부러 로블록스를 끄거나 다시 켜는 중 (이 동안 로블록스가 꺼져도 '갑자기 꺼짐' 알림 안 띄움)
@@ -822,10 +751,3 @@ def kill_roblox():
         log("로블록스 클라이언트 전부 종료", "d")
 
 
-
-def beep():
-    try:
-        import winsound
-        winsound.MessageBeep(winsound.MB_ICONASTERISK)
-    except Exception:
-        pass

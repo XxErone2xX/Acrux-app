@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-오토 팝핑 — 레어 바이옴 자동 포션 사용 (게임 접속 후)
-흐름: 입장 확인 → 대기 → 현재 바이옴 확인(템플릿 없는 바이옴이면 종료)
-     → Inventory → Items → [포션마다: Search → 이름 입력 + 엔터 → OCR 확인(일치율, 1회 재시도)
-     → 아이템 클릭 → 수량칸 더블클릭 → 개수 입력 + 엔터 → Use] → 바이옴이 끝날 때까지 대기 → 종료
+팝핑 — 인벤토리에서 포션 · 아이템을 찾아서 사용 (매크로 탭: 레어 바이옴 자동 팝핑 · 블러드 레인 · 오토 아이템 사용 · 상인)
+흐름: Inventory → Items → [포션마다: Search → 이름 입력 + 엔터 → OCR 확인(일치율, 1회 재시도)
+     → 아이템 클릭 → 수량칸 더블클릭 → 개수 입력 + 엔터 → Use]
 
 - 아이템 찾기
   · 이름은 '정확 일치' 원칙 — "Warp Potion" 을 찾을 때 "Super Warp Potion", "Warp Potion X" 같은
@@ -11,6 +10,7 @@
   · OCR 은 글자가 조금씩 틀릴 수 있어서, 정규화(NFKC · 소문자 · 기호 제거) 후 일치율(%)로 판단
   · 목록 순서 = 우선순위 / amount 는 숫자 또는 ALL / 보유 개수가 없으면(0) 건너뜀
   · '하나만' 모드 = 스크립트의 condition 우선순위 트리 (조건 맞는 첫 항목 하나만 사용하고 멈춤)
+- 딜레이 · 이름 일치율은 팝핑 공통 설정 (config 의 pop) · 위치는 공통 위치 (base)
 """
 import difflib
 import re
@@ -25,7 +25,6 @@ POP_BIOMES = ("CYBERSPACE", "GLITCHED", "DREAMSPACE")
 POS_KEYS = (("inventory_pos", "Inventory 버튼"), ("items_pos", "Items 버튼"), ("search_pos", "Search 버튼"),
             ("item_pos", "아이템 칸"), ("amount_pos", "수량 입력칸"), ("use_pos", "Use 버튼"))
 DELAY_DEFAULT = {
-    "after_join": 7.5,     # Play 후 게임 입장 확인 → 시작
     "inventory": 0.5,      # Inventory 클릭 후
     "items": 0.5,          # Items 클릭 후
     "search": 0.5,         # Search 클릭 후
@@ -92,69 +91,15 @@ def similarity(ocr_name, target):
     return round(difflib.SequenceMatcher(None, a, b).ratio() * 100, 1)
 
 
-# ---------------------------------------------------------------- 로그로 현재 바이옴
-def biome_in(text):
-    """텍스트에서 마지막으로 찍힌 바이옴"""
-    found = None
-    for ln in text.splitlines():
-        if "[BloxstrapRPC]" in ln and '"largeImage"' in ln:
-            m = biome.RPC_RE.search(ln)
-            if m and biome.norm_biome(m.group(1)):
-                found = biome.norm_biome(m.group(1))
-    return found
-
-
-class SessionBiome:
-    """한 로그 파일(이번 접속)을 따라 읽으며 현재 바이옴을 추적"""
-
-    def __init__(self, path):
-        self.path, self.pos, self.current = path, 0, None
-        self.disconnected = False            # 로그에 접속 끊김이 찍힘
-
-    def update(self):
-        if not self.path:
-            return self.current
-        try:
-            text, self.pos = biome.read_new(self.path, self.pos)   # 끝까지 써진 줄만 (반쯤 써진 줄은 다음에)
-        except OSError:
-            return self.current
-        if not text:
-            return self.current
-        if biome.DISCONNECT_MARK in text:
-            self.disconnected = True
-        b = biome_in(text)
-        if b:
-            self.current = b
-        return self.current
-
-
 # ---------------------------------------------------------------- 실행기
-# 일반 스나이핑 바이옴: 팝핑이 꺼져 있어도 바로 돌아가지 않고, 팝핑 없이 바이옴이 끝날 때까지 머묾 (팝핑은 골라서 켬)
-STAY_BIOMES = biome.STAY_BIOMES
-BIOME_WAIT_MAX = 1800      # 오토 팝핑 후 바이옴이 끝나길 기다리는 최대 시간 (초) — 넘으면 끝내고 복귀
-# 입장한 서버의 바이옴 확인: 로그에 바이옴이 늦게 찍히거나(느린 PC · 로딩) 처음엔 NORMAL 로 찍혔다가 바뀌는 경우가 있어서
-# 한 번만 보고 돌아가지 않고, 원하는 바이옴이 보일 때까지 다시 확인
-DETECT_WAIT = 25.0         # 입장 뒤 이 시간 안에 원하는 바이옴이 안 보이면 돌아감 (초)
-DETECT_WAIT_HINT = 60.0    # 디스코드 메시지에 원하는 바이옴이 적혀 있었으면 더 기다림 (초)
-END_CONFIRM = 4.0          # 다른 바이옴이 이만큼 이어져야 바뀐 걸로 봄 (잠깐 잘못 찍힌 줄은 무시) (초)
-DETECT_AFTER_MIN = 10.0    # 입장 후 대기를 길게 해 둔 경우에도 그 뒤로 적어도 이만큼은 다시 확인 (초)
-HINT_STAY_MAX = 300        # 로그에 바이옴 정보가 없어 메시지의 바이옴으로 진행했을 때: 끝나는 걸 알 수 없으니 이만큼만 머묾 (초)
-
-
-def _title(b):
-    """로그에 보여줄 이름 ('LOSTFOREST' → 'Lost Forest' · 'GLITCHED' → 'Glitched')"""
-    return biome.show_name(b).title()
-
-
 class Stopped(Exception):
     pass
 
 
 class Popper:
-    def __init__(self, get_cfg, log, on_end=None):
-        self.get_cfg = get_cfg          # () -> pop 설정 dict
+    def __init__(self, get_cfg, log):
+        self.get_cfg = get_cfg          # () -> 팝핑 설정 dict (위치 · OCR 영역 · 딜레이 · 일치율 · 템플릿)
         self.log = log
-        self.on_end = on_end            # (사용자가 멈춘 것인지) — 오토 팝핑이 끝나면 (매크로 복귀)
         self.stop_ev = threading.Event()
         self.thread = None
         self.lock = threading.Lock()
@@ -173,17 +118,6 @@ class Popper:
 
     def stop(self):
         self.stop_ev.set()
-
-    def start(self, log_path=None, test_biome=None, hint=None):
-        """log_path: 이번 접속의 로그 파일 (바이옴 확인용) / test_biome: 테스트 — 그 템플릿으로 바로 실행
-        hint: 링크가 올라온 디스코드 메시지에 적힌 바이옴 (로그로 확인할 때 참고)"""
-        if self.running():
-            self.stop()
-            self.thread.join(3)
-        self.stop_ev = threading.Event()
-        self.thread = threading.Thread(target=self._run, args=(log_path, test_biome, self.stop_ev, hint), daemon=True)
-        self.thread.start()
-        return True
 
     @staticmethod
     def missing(cfg):
@@ -236,159 +170,7 @@ class Popper:
             return ""
 
     # ---- 메인
-    def _run(self, log_path, test_biome, stop, hint=None):
-        cfg = self.get_cfg() or {}
-        d = dict(DELAY_DEFAULT, **(cfg.get("delays") or {}))
-        stopped = False
-        try:
-            # 클릭 · 글자 읽기를 할 때만 타이머 1ms + 우선순위 높음 (바이옴이 끝나길 기다리는 동안은 보통으로 — 게임이 덜 버벅임)
-            self._sequence(cfg, d, log_path, test_biome, stop, hint)
-        except Stopped:
-            stopped = True
-            self.log("오토 팝핑 정지", "d")
-        except Exception as e:
-            self.log(f"오토 팝핑 오류: {e}", "r")
-        finally:
-            self._set(msg="대기")
-            stopped = stopped or stop.is_set()
-            # 어떤 이유로든 끝나면(사용자가 멈춘 경우·테스트 제외) 매크로 복귀
-            if self.on_end and not test_biome:
-                try:
-                    self.on_end(stopped)
-                except Exception as e:
-                    self.log(f"복귀 연결 오류: {e}", "r")
-
-    def _plan(self, b):
-        """바이옴 b 에서 할 일: pop(포션 사용) · stay(팝핑 없이 머묾) · off(팝핑 꺼짐) · empty(포션 목록 비어 있음) · None(목표 아님)"""
-        if not b:
-            return None
-        cfg = self.get_cfg() or {}                 # 머무는 동안 바꾼 설정도 바로 반영
-        on = cfg.get("biomes_on") or {}
-        tpl = (cfg.get("templates") or {}).get(b) or {}
-        has = any((it or {}).get("name") for it in tpl.get("items") or [])
-        if b in STAY_BIOMES:
-            return "pop" if on.get(b) and has else "stay"
-        if b in on:
-            return ("pop" if has else "empty") if on.get(b) else "off"
-        return "pop" if has else None
-
-    def _pop(self, d, cur, stop):
-        """포션 사용 (Inventory → Items → 템플릿) · 못 하면 None"""
-        cfg = self.get_cfg() or {}
-        miss = self.missing(cfg)
-        if miss:
-            self.log(f"오토 팝핑 취소 — 설정 필요: {', '.join(miss)}", "n")
-            return None
-        with macro.fast_timing():
-            return self._use_template(cfg, d, cur, stop)
-
-    def _detect(self, tracker, hint, t0, stop):
-        """입장한 서버의 바이옴 확인 → (바이옴, 할 일) · 할 일이 None 이면 돌아감
-        원하는 바이옴(팝핑 · 머묾)이 보이면 바로 · 안 보이면 DETECT_WAIT 초(메시지에 원하는 바이옴이 적혀 있었으면
-        DETECT_WAIT_HINT 초)까지 다시 확인 · 그래도 로그에 바이옴 정보가 아예 없으면 메시지의 바이옴으로"""
-        hint_plan = self._plan(hint)
-        want_hint = hint_plan in ("pop", "stay")
-        deadline = max(t0 + (DETECT_WAIT_HINT if want_hint else DETECT_WAIT), time.time() + DETECT_AFTER_MIN)
-        if hint:
-            self.log(f"디스코드 메시지의 바이옴: {_title(hint)}", "d")
-        last = None
-        while True:
-            cur = tracker.update()
-            if cur and cur != last:
-                last = cur
-                self.log(f"현재 바이옴 확인: {_title(cur)} (입장 {time.time() - t0:.0f}초 뒤)", "d")
-            plan = self._plan(cur)
-            if plan:
-                return cur, plan
-            if tracker.disconnected:
-                self.log("로블록스 접속 끊김 — 오토 팝핑 종료", "y")
-                return cur, None
-            left = deadline - time.time()
-            if left <= 0:
-                break
-            self._set(msg=f"바이옴 확인 중 · {left:.0f}초")
-            self._wait(min(0.5, left), stop)
-        if cur is None and want_hint:
-            self.log(f"로그에 바이옴 정보가 없음 — 디스코드 메시지의 바이옴({_title(hint)})으로 진행", "y")
-            return hint, hint_plan
-        self.log(f"오토 팝핑 안 함 — 현재 바이옴 {biome.show_name(cur) if cur else '알 수 없음'} (템플릿 없음)", "y")
-        return cur, None
-
-    def _wait_end(self, tracker, cur, stop):
-        """cur 바이옴이 끝날 때까지 대기 → 다른 원하는 바이옴으로 바뀌면 (바이옴, 할 일) · 끝났으면 None
-        (잠깐 다른 바이옴이 찍혔다가 돌아오는 건 무시 — END_CONFIRM 초 동안 이어져야 바뀐 걸로 봄)"""
-        self._set(msg=f"{biome.show_name(cur)} 끝날 때까지 대기")
-        blind = tracker.current is None           # 로그에 바이옴 정보가 없음 (메시지의 바이옴으로 진행) → 끝을 알 수 없음
-        wait_max = HINT_STAY_MAX if blind else BIOME_WAIT_MAX
-        gone, end = 0, time.time() + wait_max
-        changed, since = None, 0.0
-        while True:
-            self._wait(1.0, stop)
-            if time.time() > end:
-                if blind:
-                    self.log(f"로그로 {biome.show_name(cur)} 가 끝나는 걸 알 수 없어서 {wait_max // 60}분 뒤 복귀", "y")
-                else:
-                    self.log(f"{biome.show_name(cur)} 가 {wait_max // 60}분 넘게 안 끝남 — 오토 팝핑 종료", "y")
-                return None
-            now = tracker.update()
-            if blind and now:                      # 이제라도 로그에 바이옴이 찍힘 → 보통대로 (끝나는 걸 로그로 확인)
-                blind, end = False, time.time() + BIOME_WAIT_MAX
-            if tracker.disconnected:
-                self.log("로블록스 접속 끊김 — 오토 팝핑 종료", "y")
-                return None
-            gone = gone + 1 if not macro.roblox_window_cached() else 0
-            if gone >= 5:                       # 로블록스가 꺼짐
-                self.log("로블록스 창이 사라짐 — 오토 팝핑 종료", "y")
-                return None
-            if not now or now == cur:
-                changed = None
-                continue
-            if now != changed:
-                changed, since = now, time.time()
-                continue
-            if time.time() - since < END_CONFIRM:
-                continue
-            plan = self._plan(now)
-            if plan in ("pop", "stay"):         # 같은 서버에서 다른 원하는 바이옴이 시작됨 → 나가지 않고 이어서
-                self.log(f"바이옴 바뀜 ({biome.show_name(cur)} → {biome.show_name(now)}) — "
-                         f"{'포션 사용' if plan == 'pop' else '이어서 머묾'}", "g")
-                return now, plan
-            self.log(f"바이옴 종료 ({biome.show_name(cur)} → {biome.show_name(now)}) — 오토 팝핑 종료", "c")
-            return None
-
-    def _sequence(self, cfg, d, log_path, test_biome, stop, hint=None):
-        if test_biome:
-            self.log(f"오토 팝핑 테스트 — {test_biome} 템플릿", "c")
-            self._pop(d, test_biome, stop)
-            return
-        tracker = SessionBiome(log_path)
-        t0 = time.time()
-        self._set(msg=f"입장 후 대기 {d['after_join']:g}초")
-        self._wait(d["after_join"], stop)
-        cur, plan = self._detect(tracker, hint, t0, stop)
-        while plan:
-            if plan == "off":
-                self.log(f"오토 팝핑 안 함 — {biome.show_name(cur)} 는 팝핑 바이옴 설정에서 꺼져 있음", "y")
-                return
-            if plan == "empty":
-                self.log(f"오토 팝핑 안 함 — 현재 바이옴 {biome.show_name(cur)} (템플릿 없음)", "y")
-                return
-            if plan == "pop":
-                self.log(f"오토 팝핑 시작 — {biome.show_name(cur)}", "g")
-                if self._pop(d, cur, stop) is None:
-                    return
-            else:
-                # 일반 스나이핑 바이옴 (팝핑 꺼짐): 포션 없이 바이옴이 끝날 때까지 서버에 머묾
-                on = (self.get_cfg() or {}).get("biomes_on") or {}
-                why = "팝핑 바이옴 설정에서 꺼져 있음" if not on.get(cur) else "포션 목록이 비어 있음"
-                self.log(f"{_title(cur)} — 팝핑 안 함 ({why}) · 바이옴이 끝날 때까지 머묾", "c")
-            # 바이옴이 끝날 때까지(다른 바이옴이 감지될 때까지) 대기 → 종료 (이후 매크로 복귀로 이어짐)
-            nxt = self._wait_end(tracker, cur, stop)
-            if not nxt:
-                return
-            cur, plan = nxt
-
-    def _use_template(self, cfg, d, cur, stop, label="오토 팝핑"):
+    def _use_template(self, cfg, d, cur, stop, label="팝핑"):
         """Inventory → Items → 템플릿 포션 순서대로 사용. 사용한 개수 (포션 목록이 비면 None)"""
         tpl = (cfg.get("templates") or {}).get(cur) or {}
         items = [it for it in (tpl.get("items") or []) if it.get("name")]
@@ -467,8 +249,8 @@ class Popper:
 # ---------------------------------------------------------------- 매크로 탭: 내 서버 팝핑
 class MyServerPopper(Popper):
     """지금 켜져 있는 로블록스(내 서버)에서 레어 바이옴이 감지되면 바로 포션 사용
-    - 버튼 위치 · OCR 영역 · 포션 목록 · 켜진 바이옴은 따로(mpop), 딜레이 · 일치율은 오토 팝핑(pop) 설정을 같이 씀
-    - 바이옴이 끝날 때까지 기다리거나 매크로 복귀로 이어지지 않음 (내 서버에 그대로 있음)"""
+    - 포션 목록 · 켜진 바이옴은 mpop, 버튼 위치 · OCR 영역은 공통 위치(base), 딜레이 · 일치율은 팝핑 공통 설정(pop)
+    - 바이옴이 끝날 때까지 기다리지 않음 (내 서버에 그대로 있음)"""
 
     LABEL = "레어 바이옴 자동 팝핑"
 
@@ -582,7 +364,7 @@ class BloodRainer(MyServerPopper):
 class ItemUser(Popper):
     """쿨타임이 찰 때마다 인벤토리에서 아이템을 1개씩 사용 
     Inventory → Items → (아이템 검색 → OCR 로 이름 확인 → 1개 사용) → Inventory 닫기
-    위치 · OCR 영역은 매크로 기준 위치, 딜레이 · 일치율은 오토 팝핑 설정을 같이 씀"""
+    위치 · OCR 영역은 매크로 기준 위치, 딜레이 · 일치율은 팝핑 공통 설정을 같이 씀"""
 
     LABEL = "오토 아이템 사용"
     ITEMS = (("strange", "Strange Controller", "strange_min"), ("randomizer", "Biome Randomizer", "randomizer_min"))
