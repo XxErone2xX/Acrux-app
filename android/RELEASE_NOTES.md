@@ -1,3 +1,19 @@
+## Acrux Mobile V1.4.15 업데이트
+- 튜토리얼에서 언어를 바꿀 수 있게 추가
+  - 튜토리얼 첫 화면에 한국어 · English · 日本語 버튼 [ 누르면 앱 · Acrux 창 · 튜토리얼이 바로 그 언어로 바뀜 ]
+- 튜토리얼 영어 · 일본어 번역 추가 [ 전에는 제목만 번역되고 설명은 한국어로 나왔음 ]
+- 렉 걸리는 기종에서 이동 중 조이스틱이 가끔 안 움직이던 문제 수정
+  - 조이스틱을 뗐다가 바로 다시 누르거나 아주 짧게 누르면 로블록스가 그 누름을 놓쳤음 [ 뗀 뒤 1ms 만에 다시 누르거나 30ms 만 누름 ]
+  - 이제 뗀 뒤 0.06초 쉬고 누르고, 한 번 누르면 0.06초 이상 누름 [ 쉰 만큼 뒤의 동작도 같이 밀어서 걷는 거리는 기록과 같음 ]
+
+## Acrux Mobile V1.4.15 Update
+- Added a language picker to the tutorial
+  - The first tutorial screen has 한국어 · English · 日本語 buttons [ the app, the Acrux window and the tutorial switch right away ]
+- Added English · Japanese translations for the tutorial [ only the titles were translated before; the descriptions stayed in Korean ]
+- Fixed the joystick sometimes not moving during movement on laggy phones
+  - Releasing and pressing the joystick again right away, or a very short press, could be missed by Roblox [ it re-pressed 1 ms after release, or pressed for only 30 ms ]
+  - It now waits 0.06 s after releasing before pressing, and each press lasts at least 0.06 s [ later actions are shifted by the same amount, so the walked distance matches the recording ]
+
 ## Acrux Mobile V1.4.14 업데이트
 - 화면 캡처가 끊기면 알려 주도록 추가
   - 다른 화면 녹화 앱을 켜면 기종에 따라 Acrux 화면 캡처가 검은 화면만 받거나 멈춤 [ 전에는 '낚시 창을 못 찾음' 으로만 끝나서 이유를 알 수 없었음 ]

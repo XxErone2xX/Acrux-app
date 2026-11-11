@@ -7,9 +7,12 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import com.acrux.mobile.core.I18n;
+
 /**
  * 설정 안내 카드 (PC 튜토리얼 카드와 같은 모양) — 앱 화면 · 떠 있는 Acrux 창 옆 둘 다 이걸 씀
  *  · 위: [남은 튜토리얼 n개] 표 · 안내 이름 · n / N · 제목 · 설명 · (해야 할 것) ✓ 됨 / · 아직
+ *  · 첫 단계: 언어 고르기 (한국어 · English · 日本語) — 고르면 앱 · 떠 있는 창 · 이 안내가 바로 그 언어로
  *  · 아래: [나중에] (첫 단계) · [이 단계 건너뛰기] (선택 단계) · [이전] · [다음] (해야 할 것을 해야 눌림) / [완료]
  */
 final class GuideCard {
@@ -18,7 +21,9 @@ final class GuideCard {
     final MainActivity app;
     final LinearLayout card;
     final TextView badge, name, count, title, body, state, act, hint, later, skip, prev, next;
-    String shown = "";
+    String shown = "", shownLang = "";
+    final LinearLayout langRow;
+    final TextView[] langChips = new TextView[I18n.CODES.length];
 
     /** 높이가 maxH 를 넘지 않는 스크롤 (긴 설명만 스크롤) */
     static final class CapScroll extends ScrollView {
@@ -59,6 +64,27 @@ final class GuideCard {
         head.setTag("head");
         title = Ui.text(c, "", compact ? 15 : 17, Ui.FG, true);
         card.addView(title, Ui.fill(c, 4));
+        // 언어 고르기 (첫 단계에서만 보임) — 언어 이름은 번역하지 않음
+        langRow = new LinearLayout(c);
+        langRow.setOrientation(LinearLayout.HORIZONTAL);
+        langRow.setGravity(Gravity.CENTER_VERTICAL);
+        langRow.addView(Ui.text(c, "🌐", compact ? 13 : 15, Ui.MUTED, false), Ui.wrap());
+        for (int i = 0; i < I18n.CODES.length; i++) {
+            String code = I18n.CODES[i];
+            TextView chip = Ui.chip(c, I18n.NAMES[i], v -> {
+                if (code.equals(I18n.lang())) return;
+                Hub.setLang(code);
+                Guide.redraw();
+            });
+            chip.setText(I18n.NAMES[i]);
+            chip.setTextSize(compact ? 11 : 12);
+            chip.setPadding(Ui.dp(c, 10), Ui.dp(c, 4), Ui.dp(c, 10), Ui.dp(c, 4));
+            langChips[i] = chip;
+            LinearLayout.LayoutParams lp = Ui.wrap();
+            lp.leftMargin = Ui.dp(c, 6);
+            langRow.addView(chip, lp);
+        }
+        card.addView(langRow, Ui.fill(c, 8));
         body = Ui.text(c, "", compact ? 12 : 13, Ui.FG, false);
         body.setLineSpacing(0, 1.3f);
         CapScroll sv = new CapScroll(c);
@@ -110,6 +136,11 @@ final class GuideCard {
         Ui.set(count, (Guide.idx + 1) + " / " + t.steps.size());
         Ui.set(title, s.title);
         Ui.set(body, s.body);
+        langRow.setVisibility(Guide.idx == 0 ? View.VISIBLE : View.GONE);
+        if (!I18n.lang().equals(shownLang)) {
+            shownLang = I18n.lang();
+            for (int i = 0; i < langChips.length; i++) Ui.chipOn(c, langChips[i], I18n.CODES[i].equals(shownLang));
+        }
         // 바뀐 단계면 살짝 떠오르며 나타남 (PC 와 같음)
         String key = t.id + Guide.idx;
         if (!key.equals(shown)) {
@@ -140,6 +171,9 @@ final class GuideCard {
             state.setTextColor(ok ? Ui.GREEN : Ui.YELLOW);
         }
         boolean last = Guide.idx >= t.steps.size() - 1;
+        Ui.set(later, "나중에");                            // (만들 때 한 번만 번역돼서 언어를 바꾸면 다시)
+        Ui.set(skip, "이 단계 건너뛰기");
+        Ui.set(prev, "이전");
         later.setVisibility(s.later ? View.VISIBLE : View.GONE);
         skip.setVisibility(s.optional ? View.VISIBLE : View.GONE);
         prev.setVisibility(Guide.idx > 0 ? View.VISIBLE : View.GONE);

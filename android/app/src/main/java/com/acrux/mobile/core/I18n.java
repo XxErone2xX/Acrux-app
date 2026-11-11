@@ -141,6 +141,8 @@ public final class I18n {
 
     static String lines(String s, int L) {
         if (s.indexOf('\n') < 0) return one(s, L);
+        String[] whole = exact.get(s);                     // 여러 줄을 통째로 넣은 사전 글자 (예전엔 줄마다만 찾아서 안 맞았음)
+        if (whole != null) return whole[L];
         String[] parts = s.split("\n", -1);
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < parts.length; i++) {
