@@ -14,7 +14,7 @@ import java.util.function.BooleanSupplier;
  * 기능별 설정 안내 (PC 튜토리얼과 같은 방식)
  *  · 기능 하나 = 안내 하나: 시작 준비 (권한) · 자동 낚시 (낚시 보정) · 이동 · 판매 (조이스틱 → 기준 장소 → 길 → 판매)
  *  · 저절로 뜨는 건 '시작 준비' 뿐 (권한이 없으면 아무것도 못 함) · 나머지는 그 기능을 쓰려고 할 때만
- *    (자동 낚시: 보정 없이 [시작] · 이동 · 판매: 스위치를 켤 때) — 안 쓰는 기능의 안내가 줄줄이 뜨지 않게
+ *    (자동 낚시: 보정 없이 [시작] · 이동 · 판매: 보정 뒤 설정 없이 [시작]) — 자동 낚시는 이동 · 판매 설정까지 마쳐야 시작됨
  *  · 이미 해 둔 단계는 빼고 보여 줌 (해야 할 것만)
  *  · 단계마다 해야 할 것 (check) 이 있으면 그걸 해야 [다음] 이 눌림 · 하면 저절로 다음 단계 · 선택 단계만 [이 단계 건너뛰기]
  *  · 첫 단계에서만 [나중에] (이번 실행 동안 다시 안 띄움 · 홈 → 사용법 → 설정 안내에서 언제든)
@@ -99,11 +99,9 @@ final class Guide {
         return true;
     }
 
-    /** 이동 · 판매에 아직 안 한 설정이 있나 (켜 둔 것만) */
+    /** 이동 · 판매에 아직 안 한 설정이 있나 (자동 낚시를 하려면 전부 필요) */
     static boolean moveNeeded() {
-        boolean move = Hub.stick == null || !baseReady() || Hub.fishRoute.isEmpty();
-        boolean sell = !sellReady() || Hub.sellRoute.isEmpty();
-        return (Hub.useMove || Hub.useSell) && move || Hub.useSell && sell;
+        return Hub.stick == null || !baseReady() || Hub.fishRoute.isEmpty() || !sellReady() || Hub.sellRoute.isEmpty();
     }
 
     static List<Tut> all() {
@@ -130,9 +128,9 @@ final class Guide {
                         "Acrux 창 ⚙ → [낚시] → 강조된 '낚시 자동 보정' 을 누르고 끝날 때까지 기다려 주세요. Fish 를 한 번 던져 창 위치를 자동으로 맞춥니다.\n\n보정하는 동안에는 이 안내가 잠시 숨겨집니다.")
                         .at("fish", "act:cal").need(() -> Hub.cfg.ready()))
                 .add(new Step("낚시 보정 완료",
-                        "Acrux 창의 [시작] 을 누르면 자동 낚시가 시작되며, [정지] 로 멈출 수 있습니다.\n\n낚시 장소로 이동하거나 가득 찼을 때 판매까지 하려면 앱의 이동 · 판매 스위치를 켜 주세요. 그때 설정 안내가 표시됩니다.").at(null, "run")));
+                        "다음은 이동 · 판매 설정입니다. 자동 낚시는 낚시 장소로 이동하고, 가득 차면 팔고 돌아오기 때문에 이 설정까지 마쳐야 시작됩니다.\n\nAcrux 창의 [시작] 을 누르면 남은 설정 안내가 이어서 표시됩니다.").at(null, "run")));
 
-        boolean sell = Hub.useSell;
+        boolean sell = true;                                   // 자동 낚시는 판매까지 항상 (V1.4.12)
         Tut mv = new Tut("move", "이동 · 판매", Guide::moveNeeded)
                 .add(new Step("이동 · 판매 설정",
                         "스폰 위치가 무작위이기 때문에, 리셋 후 '기준 장소' 에서 기록한 길을 따라 이동합니다."
@@ -231,7 +229,7 @@ final class Guide {
         if (t != null && t.needed.getAsBoolean()) start("ready");
     }
 
-    /** 기능을 쓰려고 할 때 (스위치를 켬 · 설정 없이 [시작]) — 그 기능에 덜 된 설정이 있으면 그 안내 */
+    /** 기능을 쓰려고 할 때 (설정 없이 [시작]) — 그 기능에 덜 된 설정이 있으면 그 안내 */
     static void featureOn(String id) {
         if (cur != null && cur.id.equals(id)) return;
         Tut t = find(id);

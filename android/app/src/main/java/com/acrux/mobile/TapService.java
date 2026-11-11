@@ -555,6 +555,7 @@ public class TapService extends AccessibilityService {
             // 쓰려는 기능에 설정이 덜 됐으면 그 기능의 설정 안내 (처음 [시작] 을 누른 때 등)
             if (TapService.instance == null || CaptureService.active == null) Guide.featureOn("ready");
             else if (m.equals("run") && !Hub.cfg.ready()) Guide.featureOn("fish");
+            else if (m.equals("run") && Guide.moveNeeded()) Guide.featureOn("move");   // 자동 낚시는 이동 · 판매 설정까지 필요
         }
         closeMenu();
         refresh();

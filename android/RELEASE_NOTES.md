@@ -1,3 +1,17 @@
+## Acrux Mobile V1.4.12 업데이트
+- 자동 낚시는 이동 · 판매 설정을 모두 마쳐야 시작되도록 변경
+  - 전에는 설정 없이도 시작돼서 그 자리에서 낚시만 하다가 가득 차면 멈췄음
+  - [시작] 을 누르면 남은 설정 (조이스틱 · 기준 장소 · 길 · 판매) 을 차례로 안내
+- [시작] 하면 항상 낚시 장소로 이동한 뒤 낚시 · 가득 차면 판매하고 돌아옴
+  - 이동 · 판매를 켜고 끄는 스위치 제거
+
+## Acrux Mobile V1.4.12 Update
+- Auto fishing now starts only after the movement · selling setup is finished
+  - It used to start without it, fish in place and stop when the inventory was full
+  - Tapping [Start] walks you through the missing setup (joystick · base spot · routes · selling) step by step
+- [Start] always walks to the fishing spot first, then sells and comes back when the inventory is full
+  - Removed the movement · selling on/off switches
+
 ## Acrux Mobile V1.4.11 업데이트
 - 던지는 동작이 느린 폰에서 낚시가 계속 취소되던 문제 수정
   - Fish 를 누른 뒤 반응을 1.5초 → 3초까지 기다림 [ 전에는 다시 누른 게 Exit 가 돼서 취소됨 ]

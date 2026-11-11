@@ -35,7 +35,6 @@ final class Hub {
     /** 기준 장소 → 낚시 장소 · 판매 장소: 플레이어가 조이스틱으로 직접 걸어간 길 */
     static volatile Route fishRoute = new Route(), sellRoute = new Route();
     static boolean autoUpdate = true;
-    static boolean useMove = false, useSell = false;
     /** 로블록스 클래식 조이스틱 {가운데 x / 화면 너비, 가운데 y / 화면 높이, 반지름 / 화면 높이} (못 찾았으면 null) · W A S D 를 조이스틱 터치로 */
     static volatile double[] stick;
     static int sellMax = 100;
@@ -229,13 +228,10 @@ final class Hub {
             if (miss != null) return miss;
         }
         if (m.equals("run")) {
-            if (!useMove) {
-                log("낚시 장소로 이동 꺼짐 — 지금 자리에서 낚시", 'd');
-            } else {
-                String why = sl.fishMissing();
-                if (why == null) f.onStart = sl::goFish;
-                else log("낚시 장소로 이동 안 함 — " + why + " · 지금 자리에서 낚시", 'd');
-            }
+            // 이동 · 판매 설정을 전부 마쳐야 자동 낚시 (전에는 설정 없이도 돌아서 낚시만 하다가 가득 차면 멈췄음)
+            String miss = sl.missing();
+            if (miss != null) return "자동 낚시는 이동 · 판매 설정을 모두 마쳐야 시작됨 — " + miss;
+            f.onStart = sl::goFish;
             zeroSells = 0;
             f.onFull = () -> sellOnce(sl);
         }
@@ -451,10 +447,6 @@ final class Hub {
 
     /** 인벤토리 가득 → 판매 · 돌아오면 true (PC 와 같음: 두 번 연속 팔 물고기가 없으면 낚시 자리 문제로 보고 멈춤) */
     static boolean sellOnce(Seller sl) {
-        if (!useSell) {
-            log("인벤토리 가득 — 판매가 꺼져 있음", 'y');
-            return false;
-        }
         String m = sl.missing();
         if (m != null) {
             log("인벤토리 가득 — 판매 못 함: " + m, 'y');
@@ -551,9 +543,6 @@ final class Hub {
         cfg.adaptive = p.getBoolean("adaptive", cfg.adaptive);
         cfg.tapAbove = p.getBoolean("tapAbove", true);
         autoUpdate = p.getBoolean("autoUpdate", true);
-        // 새로 설치하면 이동 · 판매는 꺼진 채로 (켤 때 설정 안내) — 전에 쓰던 사람은 저장된 값 그대로
-        useMove = p.getBoolean("useMove", false);
-        useSell = p.getBoolean("useSell", false);
         sellMax = p.getInt("sellMax", 100);
         sellDelay = num(p, "sellDelay", 0);
         move.resetWait = num(p, "m_reset_wait", move.resetWait);
@@ -594,7 +583,7 @@ final class Hub {
                 .putFloat("biteMax", (float) cfg.biteMax).putInt("clickMs", cfg.clickMs)
                 .putFloat("leadMs", (float) cfg.leadMs).putFloat("targetPct", (float) cfg.targetPct)
                 .putBoolean("adaptive", cfg.adaptive).putBoolean("tapAbove", cfg.tapAbove)
-                .putBoolean("autoUpdate", autoUpdate).putBoolean("useMove", useMove).putBoolean("useSell", useSell)
+                .putBoolean("autoUpdate", autoUpdate)
                 .putInt("sellMax", sellMax).putFloat("sellDelay", (float) sellDelay)
                 .putFloat("m_reset_wait", (float) move.resetWait)
                 .putFloat("m2_wa", (float) move.waTime).putFloat("m2_a", (float) move.aTime).putFloat("m2_aw", (float) move.awTime)

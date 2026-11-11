@@ -670,3 +670,6 @@ Captain Flarg 앞에서 E 를 눌러 대화를 여세요	Press E in front of Cap
 확인창이 안 떠서(물고기 없음?) 확인 Sell 은 계산한 자리	no confirm window (no fish?), so the confirm Sell is a calculated spot	確認ウィンドウが出ず (魚なし?) 確認の Sell は計算した位置
 상점 닫는 중	Closing the shop	ショップを閉じ中
 상점이 안 닫힘 — 상점 닫기 X 위치를 확인해 주세요	shop did not close — check the shop close X position	ショップが閉じない — ショップを閉じる X の位置を確認してください
+자동 낚시는 이동 · 판매 설정을 모두 마쳐야 시작됨 — {0}	Auto fishing needs the movement · selling setup finished first — {0}	自動釣りは移動・販売の設定をすべて終えてから開始 — {0}
+자동 낚시는 이동 · 판매 설정을 모두 마쳐야 시작됩니다 · 덜 된 설정은 [시작] 을 누르면 차례로 안내	Auto fishing starts only after the movement · selling setup is finished · tap [Start] and the missing steps are shown one by one	自動釣りは移動・販売の設定をすべて終えてから開始します ・ 未設定の項目は [開始] を押すと順番に案内
+다음은 이동 · 판매 설정입니다. 자동 낚시는 낚시 장소로 이동하고, 가득 차면 팔고 돌아오기 때문에 이 설정까지 마쳐야 시작됩니다.\n\nAcrux 창의 [시작] 을 누르면 남은 설정 안내가 이어서 표시됩니다.	Next is the movement · selling setup. Auto fishing walks to the fishing spot and goes to sell when your inventory is full, so it only starts once this is set up too.\n\nTap [Start] in the Acrux window and the remaining setup guide will follow.	次は移動・販売の設定です。自動釣りは釣り場へ移動し、いっぱいになったら売って戻るため、この設定まで終えると開始できます。\n\nAcrux ウィンドウの [開始] を押すと、残りの設定案内が続けて表示されます。
