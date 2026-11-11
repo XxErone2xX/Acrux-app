@@ -6,6 +6,15 @@
 - 번역: `frontend/main.ts` 가 `android/app/src/main/assets/i18n/` 의 tsv 를 읽음 → 번역은 `android/tools/mobile_i18n.py` 에 행을 추가하고 tsv 를 다시 만들어서 같이 커밋
 - 정식 앱 로직 (낚시 · 이동 · 바이옴 · 판매) 을 바꾼 커밋은 제목에 `[port]` → 알파에도 옮긴 뒤 아래 '옮긴 커밋' 에 적기
 
+## 개발 브랜치와 기기 테스트
+
+- `dev`는 크로스플랫폼 개발용 브랜치입니다. 기존 `Crossplatform-test`를 이름 변경했습니다.
+- `main`은 정식 PC Python 앱과 모바일 Java 앱의 패치·배포 기준입니다. 정식 앱의 수정은 `dev`에 이식하고 아래에 이식 기록을 남깁니다.
+- 테스트는 크로스플랫폼 빌드·회귀 검사와 DUA(Device Use Agent)의 Computer·Phone 기기 조작 검사를 함께 사용합니다.
+- DUA는 대상 기기의 앱 화면과 입력을 통해 시작·설정·보정·매크로 실행을 확인하고, 기기·OS·앱 버전·결과를 기록합니다. 기기에 접근할 수 없는 항목은 미검증으로 기록합니다.
+- Windows·Android·macOS가 빌드·검사 대상입니다. iOS는 빌드·실행 검사에서 제외합니다.
+- `dev`의 Android·Windows·macOS 빌드 결과는 GitHub Actions 실행의 첨부 파일로 받습니다.
+
 ## 받기
 
 - [Acrux-Alpha.apk](https://github.com/XxErone2xX/Acrux-app/releases/download/alpha/Acrux-Alpha.apk) — Android (arm64) · 패키지 `com.acrux.next` (정식 앱과 따로 깔림)
@@ -33,7 +42,7 @@ Mac은 기존 데스크톱 화면을 사용합니다. Mac 빌드에는 macOS와 
 
 - macOS Intel·Apple Silicon 통합 앱 빌드에는 `npm run build:macos`를 사용합니다. 두 Apple Darwin Rust 타깃이 필요합니다.
 - `.github/workflows/apple.yml`은 macOS 통합 앱을 빌드하고 시작을 확인합니다.
-- `.github/workflows/alpha.yml`은 `Crossplatform-test`에서도 Android·Windows 빌드를 확인합니다. 이 브랜치의 결과는 작업 실행의 첨부 파일로 제공하며 릴리스 갱신은 main에서 수행합니다.
+- `.github/workflows/alpha.yml`은 `dev`에서도 Android·Windows 빌드를 확인합니다. 이 브랜치의 결과는 작업 실행의 첨부 파일로 제공하며 릴리스 갱신은 main에서 수행합니다.
 
 검증 코드 커밋은 `0f47344`입니다. GitHub 실행기에서 Windows 실행 파일과 macOS Intel·Apple Silicon 통합 앱을 빌드하고 실제 시작을 확인했습니다. Android ARM64 APK 빌드와 순수 Java 터치 타임라인 회귀 검사도 통과했습니다. Rust 코어 테스트는 16개 모두 통과했습니다.
 

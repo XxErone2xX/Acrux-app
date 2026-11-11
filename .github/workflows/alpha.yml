@@ -1,5 +1,5 @@
 # Acrux 알파 (Tauri) 빌드 — 정식 앱 (PC V2.5.x · Mobile V1.4.x) 과 따로
-#   src-tauri/ · frontend/ 가 바뀐 커밋을 main 에 푸시하면 (또는 Run workflow) → Android APK · Windows exe 를 만들어 'alpha' 미리 보기 릴리스에 올림
+#   dev 에서는 Android APK · Windows exe 를 검사하고 실행 파일을 첨부하며, main 에서는 'alpha' 미리 보기 릴리스도 갱신
 #   'alpha' 는 최신 릴리스로 표시하지 않음 (PC 실행기는 releases/latest · 모바일 업데이트는 mobile-latest 를 봄 → 정식 앱 업데이트에 안 섞임)
 #   빌드가 실패하면 기록을 alpha-build-log 릴리스에 올림 (원인 확인용)
 name: Alpha
@@ -7,7 +7,7 @@ name: Alpha
 on:
   workflow_dispatch:
   push:
-    branches: [main, Crossplatform-test]
+    branches: [main, dev]
     paths: ["src-tauri/**", "frontend/**", "package.json", "package-lock.json", "tsconfig.json",
             "android/app/src/main/assets/i18n/**", "src/web/**", "tests/**", ".github/workflows/alpha.yml"]
 

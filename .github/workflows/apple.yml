@@ -2,7 +2,7 @@ name: macOS build checks
 
 on:
   push:
-    branches: [Crossplatform-test]
+    branches: [dev]
   workflow_dispatch:
 
 permissions:
