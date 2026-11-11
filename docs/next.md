@@ -74,7 +74,7 @@ flatpak run --socket=x11 --nosocket=wayland --env=SDL_VIDEO_DRIVER=x11 org.vineg
 
 Headless 루트는 캡처 없이 이동·키 입력·대기를 처리합니다. Screenshot 루트가 관찰을 요청할 때 Sober 클라이언트 영역을 캡처해 공유 Rust 엔진에 전달합니다. 입력 전에 전면 창·창 크기·실행 세대를 확인하고, F3·F7이나 메인 정지 버튼으로 취소합니다.
 
-Linux 최적화 빌드와 격리된 X11에서 앱의 5초 시작·설정 초기화를 확인했습니다. Rust 기본 검사 31개, 별도로 실행한 실제 X11 캡처·입력 검사 1개, 화면 연결부 11개와 Python 회귀 5개를 통과했습니다. 실제 X11 검사에는 캡처에서 보정·Fish 클릭, 상대 이동, 정지·전면 변경·크기 변경 시 키 해제, F7과 이전 입력 거절, 창 종료 후 캡처 오류가 포함됩니다. Windows 타깃 코드 검사도 통과했습니다.
+Linux 최적화 빌드와 격리된 X11에서 앱의 5초 시작·설정 초기화를 확인했습니다. Rust 기본 검사 31개, 별도로 실행한 실제 X11 캡처·입력 검사 1개, 화면 연결부 11개와 Python 회귀 5개를 통과했습니다. 실제 X11 검사에는 창 관리자 프레임 안의 클라이언트 캡처에서 보정·Fish 클릭, 상대 이동, 정지·전면 변경·크기 변경 시 키 해제, F7과 이전 입력 거절, 창 종료 후 캡처 오류가 포함됩니다. Windows 타깃 코드 검사도 통과했습니다.
 
 격리 검사는 `xvfb-run -a env ACRUX_X11_TEST=1 cargo test --locked --manifest-path src-tauri/Cargo.toml --lib linux::tests::native_x11_capture_and_input -- --ignored --test-threads=1`로 실행합니다. 실제 사용자 화면에서 잘못 실행하지 않도록 전용 `DISPLAY=:90` 이상과 명시적인 시험 환경 변수가 필요합니다. Linux 빌드·검사·시작 확인을 `dev`의 Alpha 작업에 추가했습니다.
 

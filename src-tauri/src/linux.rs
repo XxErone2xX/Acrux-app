@@ -235,10 +235,19 @@ impl Connection {
             if window <= 1 || window == self.root {
                 break;
             }
-            let Some(parent) = self.parent(window) else {
+            // The root pointer child can be a window-manager frame. Follow
+            // the pointer into the frame to find the actual Sober client.
+            let Some(child) = self
+                .conn
+                .query_pointer(window)
+                .ok()
+                .and_then(|cookie| cookie.reply().ok())
+                .map(|reply| reply.child)
+                .filter(|child| *child != 0 && *child != window)
+            else {
                 break;
             };
-            window = parent;
+            window = child;
         }
         false
     }
@@ -895,6 +904,47 @@ mod tests {
             .unwrap()
             .check()
             .unwrap();
+        let wrapper = c.generate_id().unwrap();
+        c.create_window(
+            x11rb::COPY_DEPTH_FROM_PARENT,
+            wrapper,
+            connection.root,
+            10,
+            10,
+            500,
+            290,
+            0,
+            WindowClass::INPUT_OUTPUT,
+            0,
+            &CreateWindowAux::new(),
+        )
+        .unwrap()
+        .check()
+        .unwrap();
+        c.reparent_window(window, wrapper, 0, 0)
+            .unwrap()
+            .check()
+            .unwrap();
+        c.map_window(wrapper).unwrap().check().unwrap();
+        c.map_window(window).unwrap().check().unwrap();
+        c.change_property32(
+            PropMode::REPLACE,
+            connection.root,
+            connection.clients,
+            AtomEnum::WINDOW,
+            &[window],
+        )
+        .unwrap()
+        .check()
+        .unwrap();
+        c.set_input_focus(InputFocus::PARENT, window, x11rb::CURRENT_TIME)
+            .unwrap()
+            .check()
+            .unwrap();
+        assert!(
+            connection.available(),
+            "EWMH must find a reparented Sober client"
+        );
         let gc = c.generate_id().unwrap();
         c.create_gc(gc, window, &CreateGCAux::new().foreground(0xf8f8f8))
             .unwrap()
@@ -1087,5 +1137,6 @@ mod tests {
             "destroyed-window capture must return an error without terminating the process"
         );
         assert!(connection.focused().is_none());
+        c.destroy_window(wrapper).unwrap().check().unwrap();
     }
 }
