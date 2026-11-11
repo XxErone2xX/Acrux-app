@@ -73,4 +73,4 @@ UI 재현 전 Android 16 (SM-S931N)에서 각 앱을 화면에 띄워 PSS를 세
 
 내 서버의 포션·아이템 사용, 상인 기능에서 사용하는 딜레이와 이름 일치율은 공통 위치 → 인벤토리에 모았습니다. 이전 화면에만 저장된 인벤토리 좌표는 비어 있는 공통 위치로 옮기며 이미 지정된 공통 좌표를 우선합니다. 일반 모드용 동작 실행 도구와 게임 복구·입장 기능은 공통 기능으로 유지합니다.
 
-PC 런타임 의존성 변경에 따라 Python 런타임 번호를 5로 올렸습니다. 회귀 검사는 `npm run test:desktop` (3개)과 `python -m unittest discover -s tests -v` (4개)이며 Windows·Mac 빌드 검사에 포함했습니다.
+PC 런타임 의존성 변경에 따라 Python 런타임 번호를 5로 올렸습니다. 회귀 검사는 `npm run test:desktop` (3개)과 `python -m unittest discover -s tests -v` (5개)이며 Windows·Mac 빌드 검사에 포함했습니다.

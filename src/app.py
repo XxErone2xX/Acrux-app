@@ -751,7 +751,7 @@ class Bridge:
     def _on_biome_change(self, prev, found):
         """매크로 탭 · 레어 바이옴 자동 팝핑: 지금 켜져 있는 로블록스(내 서버)에서 레어 바이옴이 시작되면 포션 사용
         복귀 · Play 클릭이나 다른 작업이 도는 중이면 기다림"""
-        self.hooks.emit("biome", prev, found)
+        self.hooks.emit("biome", prev, found, False)
         mp = self.data.get("mpop", {})
         if not self.data.get("macro_on") or not mp.get("enabled") or found not in popping.POP_BIOMES:
             return

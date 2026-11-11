@@ -33,7 +33,9 @@
 | `ctx.settings` · `ctx.save()` | 모드 자기 설정 (`config.json` → `mod_settings.<id>`) |
 | `ctx.bridge` · `ctx.core` | 본체 (고급 · 매크로 · 복귀 · Play 클릭 등을 직접) |
 
-이벤트 (`mods.Hooks`): `busy(kind)` → True 면 매크로가 쉼 · `active()` · `state(out)` · `poll(out, since)` · `stats()` · `ingame(path, reason)` · `play_fail(reason)` · `after_return(head, wait)` · `biome(prev, found)` · `macro(on)` · `stop()` · `ready()` · `shutdown()`
+이벤트 (`mods.Hooks`): `busy(kind)` → True 면 매크로가 쉼 · `active()` · `state(out)` · `poll(out, since)` · `stats()` · `ingame(path, reason)` · `play_fail(reason)` · `after_return(head, wait)` · `biome(prev, found, reserved)` · `macro(on)` · `stop()` · `ready()` · `shutdown()`
+
+`biome` 이벤트의 세 번째 인자는 기존 모드의 호출 형식 호환용이며 항상 `False`입니다.
 
 ## 화면 (모드)
 

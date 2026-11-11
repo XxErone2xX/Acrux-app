@@ -4,10 +4,12 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 from zipfile import ZipFile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+import app
 import biome
 import core
 import mods
@@ -69,6 +71,14 @@ class DesktopCleanupTests(unittest.TestCase):
             self.assertEqual(watcher.state()["current"], "CYBERSPACE")
             self.assertNotIn("muted", watcher.state())
             self.assertEqual(len(sent), 3)  # Enabled, previous biome ended, next biome started.
+
+    def test_public_biome_event_keeps_the_existing_three_argument_contract(self):
+        events = []
+        hooks = mods.Hooks(lambda *args: None)
+        hooks.on("biome", lambda previous, found, reserved: events.append((previous, found, reserved)))
+        bridge = SimpleNamespace(data={"macro_on": False}, hooks=hooks)
+        app.Bridge._on_biome_change(bridge, "GLITCHED", "CYBERSPACE")
+        self.assertEqual(events, [("GLITCHED", "CYBERSPACE", False)])
 
     def test_retired_mod_is_excluded_from_scanning_and_installation(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(mods, "MOD_DIR", Path(directory) / "mods"):

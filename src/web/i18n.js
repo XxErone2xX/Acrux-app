@@ -12,6 +12,7 @@ const I18N = (() => {
 
   // ---------------------------------------------------------------- 사전: [한국어, English, 日本語]
   const E = [
+    ["이 모드는 더 이상 지원하지 않습니다.", "This mod is no longer supported.", "このモッドはサポートされなくなりました。"],
     ["블러드 레인 자동 생성 취소 — 자동 낚시가 멈추지 않음", "Blood Rain auto summon canceled — auto fishing did not stop", "ブラッドレイン自動生成中止 — 自動釣りが止まらない"],
 
     ["아이템 사용 시 이름이 이 이상 같아야 사용 (%)","Minimum name match required to use an item (%)","アイテム使用に必要な名前一致率 (%)"],
