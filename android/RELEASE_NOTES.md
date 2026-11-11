@@ -1,3 +1,9 @@
+## Acrux Mobile V1.4.10 업데이트
+- 앱 아이콘 변경
+
+## Acrux Mobile V1.4.10 Update
+- New app icon
+
 ## Acrux Mobile V1.4.9 업데이트
 - 튜토리얼을 PC 버전처럼 기능마다 하나로 정리
   - 시작 준비 · 자동 낚시 · 이동 · 판매 [ 전에는 이동 설정 · 판매 설정이 따로였음 ]
