@@ -1,11 +1,9 @@
-## Acrux macro V3.0.0 업데이트
-- PC 버전 공식 배포
-- 모드 · 플러그인 [ 추가 기능 탭 ]
-  - 스나이핑은 본체에서 빠지고 스나이핑 모드로 분리
-- 복구 · 게임 입장 설정 [ 매크로 탭 ]
+## Acrux macro V3.0.1 업데이트
+1. 팝핑 딜레이 · 이름 일치율 설정 추가 [ 매크로 설정 → 공통 위치 ]
+2. 작업표시줄에 Acrux 아이콘이 안 붙던 문제 수정
+3. 안 쓰는 코드 · 설정 정리
 
-## Acrux macro V3.0.0 Update
-- Official PC release
-- Mods · plugins [ Extras tab ]
-  - Sniping is no longer built in · moved to the Sniping mod
-- Recovery · game entry settings [ Macro tab ]
+## Acrux macro V3.0.1 Update
+1. Added popping delay · name match settings [ Macro settings → Shared positions ]
+2. Fixed the Acrux icon not showing on the taskbar
+3. Cleaned up unused code · settings
