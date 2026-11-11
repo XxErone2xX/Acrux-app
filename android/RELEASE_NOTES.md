@@ -1,3 +1,13 @@
+## Acrux Mobile V1.4.12 업데이트
+- 보정의 첫 입력부터 Exit·입질 상태를 확인해 진행 중인 낚시를 취소하지 않도록 수정
+- 재입력·인벤토리 가득 참 판정 직전에 낚시 상태를 다시 확인
+- PC V3.0.2와 던지기 대기·보정 재입력 조건을 맞춤
+
+## Acrux Mobile V1.4.12 Update
+- Check for an existing cast or bite before the first calibration tap to avoid cancelling ongoing fishing
+- Recheck the fishing state before retrying Fish or reporting a full inventory
+- Matched cast waits and calibration retry conditions with PC V3.0.2
+
 ## Acrux Mobile V1.4.11 업데이트
 - 던지는 동작이 느린 폰에서 낚시가 계속 취소되던 문제 수정
   - Fish 를 누른 뒤 반응을 1.5초 → 3초까지 기다림 [ 전에는 다시 누른 게 Exit 가 돼서 취소됨 ]

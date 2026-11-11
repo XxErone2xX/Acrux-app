@@ -1086,7 +1086,7 @@ class Bridge:
                 return self.fisher._bar_seen(sct, rect, mf) or self.fisher._diamond_moved(sct, rect, mf)
 
             def cast():                              # Fish → Exit 로 바뀜 (또는 그새 입질이 옴)
-                end = time.time() + 1.5
+                end = time.time() + fishing.CAST_WAIT
                 while time.time() < end:
                     check()
                     if fishing.button_state(self.fisher._grab_box(sct, macro.client_rect(hwnd), mf["fish_btn"])) == "exit" \
@@ -1095,6 +1095,15 @@ class Bridge:
                     time.sleep(0.1)
                 return False
             for _ in range(3):                       # 최대 3번 눌러 봄
+                check()
+                bs = fishing.button_state(self.fisher._grab_box(sct, macro.client_rect(hwnd), mf["fish_btn"]))
+                if bs not in ("fish", "exit"):
+                    wait(1.0)
+                    bs = fishing.button_state(self.fisher._grab_box(sct, macro.client_rect(hwnd), mf["fish_btn"]))
+                if bs == "exit" or biting():
+                    break                           # 첫 입력도 이미 던진 상태면 Exit 를 누르지 않음
+                if bs != "fish":
+                    continue
                 click(mf["fish_btn"])
                 if cast():
                     break

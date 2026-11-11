@@ -300,6 +300,8 @@ public final class Fisher {
                 out.state("입질 기다리는 중");
             } else if ("idle".equals(st)) {
                 if (castAt == null || t - castAt > CAST_WAIT) {
+                    // 화면 판독 뒤 Exit · 미니게임으로 바뀌었으면 재입력 · 가득 참 판정을 미룸
+                    if (!"idle".equals(readState())) continue;
                     if (castAt != null) {
                         tries++;
                         if (tries >= cfg.castRetry) {
@@ -693,19 +695,18 @@ public final class Fisher {
             out.state("자동 보정: Fish 터치");
             boolean cast = false;
             for (int i = 0; i < 3 && !cast; i++) {
-                if (i > 0) {
-                    // 다시 누르기 전에 지금 버튼 확인 — 이미 던져졌으면 (Exit) 누르지 않음 (누르면 Exit 가 돼서 낚시가 취소됨)
-                    String bs = Vision.buttonState(grabBox(cfg.fishBtn));
-                    if (!"fish".equals(bs) && !"exit".equals(bs)) {
-                        sleep(1.0);                                  // 던지는 중 · 화면이 바뀌는 중 → 조금 더 보고
-                        bs = Vision.buttonState(grabBox(cfg.fishBtn));
-                    }
-                    if ("exit".equals(bs) || biting()) {
-                        cast = true;
-                        break;
-                    }
-                    if (!"fish".equals(bs)) continue;                // 아직 모름 → 누르지 않고 다음 확인
+                check();
+                // 첫 입력도 이미 던진 상태면 Exit 를 누르지 않음
+                String bs = Vision.buttonState(grabBox(cfg.fishBtn));
+                if (!"fish".equals(bs) && !"exit".equals(bs)) {
+                    sleep(1.0);
+                    bs = Vision.buttonState(grabBox(cfg.fishBtn));
                 }
+                if ("exit".equals(bs) || biting()) {
+                    cast = true;
+                    break;
+                }
+                if (!"fish".equals(bs)) continue;
                 tapRatio(cfg.fishBtn);
                 double end = now() + CAST_WAIT;
                 while (now() < end) {
