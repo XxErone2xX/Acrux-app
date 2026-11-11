@@ -35,10 +35,10 @@ Mac은 기존 데스크톱 화면을 사용합니다. Mac 빌드에는 macOS와 
 - `.github/workflows/apple.yml`은 macOS 통합 앱을 빌드하고 시작을 확인합니다.
 - `.github/workflows/alpha.yml`은 `Crossplatform-test`에서도 Android·Windows 빌드를 확인합니다. 이 브랜치의 결과는 작업 실행의 첨부 파일로 제공하며 릴리스 갱신은 main에서 수행합니다.
 
-검증 코드 커밋은 `741e2ab`입니다. GitHub 실행기에서 Windows 실행 파일과 macOS Intel·Apple Silicon 통합 앱을 빌드하고 실제 시작을 확인했습니다. Android ARM64 APK 빌드와 순수 Java 터치 타임라인 회귀 검사도 통과했습니다. Rust 코어 테스트는 16개 모두 통과했습니다.
+검증 코드 커밋은 `0f47344`입니다. GitHub 실행기에서 Windows 실행 파일과 macOS Intel·Apple Silicon 통합 앱을 빌드하고 실제 시작을 확인했습니다. Android ARM64 APK 빌드와 순수 Java 터치 타임라인 회귀 검사도 통과했습니다. Rust 코어 테스트는 16개 모두 통과했습니다.
 
-- [Android·Windows 검사 및 빌드 파일](https://github.com/XxErone2xX/Acrux-app/actions/runs/42938271657)
-- [Mac 검사 및 통합 앱](https://github.com/XxErone2xX/Acrux-app/actions/runs/42938271616)
+- [Android·Windows 검사 및 빌드 파일](https://github.com/XxErone2xX/Acrux-app/actions/runs/42947345168)
+- [Mac 검사 및 통합 앱](https://github.com/XxErone2xX/Acrux-app/actions/runs/42947345249)
 
 PC의 Python 모드 실행·복구 자동화와 Mac 게임 화면 캡처·입력 연결은 이식 전입니다. Windows·Mac에서 시작 검사를 통과했으며 Roblox 안의 실제 동작은 검증 전입니다.
 
@@ -74,3 +74,9 @@ UI 재현 전 Android 16 (SM-S931N)에서 각 앱을 화면에 띄워 PSS를 세
 내 서버의 포션·아이템 사용, 상인 기능에서 사용하는 딜레이와 이름 일치율은 공통 위치 → 인벤토리에 모았습니다. 이전 화면에만 저장된 인벤토리 좌표는 비어 있는 공통 위치로 옮기며 이미 지정된 공통 좌표를 우선합니다. 일반 모드용 동작 실행 도구와 게임 복구·입장 기능은 공통 기능으로 유지합니다.
 
 PC 런타임 의존성 변경에 따라 Python 런타임 번호를 5로 올렸습니다. 회귀 검사는 `npm run test:desktop` (3개)과 `python -m unittest discover -s tests -v` (5개)이며 Windows·Mac 빌드 검사에 포함했습니다.
+
+최종 제거 코드 `0f47344`에서 화면·설정 회귀 검사 3개, Python 설정·알림·모드 API 검사 5개, Rust 코어 검사 16개를 Windows·Mac 실행기에서 통과했습니다. 두 앱의 빌드와 실제 시작을 확인했으며 Mac 파일은 Intel·Apple Silicon 통합 형식도 검사했습니다. Android 빌드도 통과했습니다.
+
+일반 모드의 바이옴 이벤트는 기존 3인자 형식으로 전달하고 마지막 인자는 고정된 `False`로 처리합니다. 예전 설정·모드의 제거 처리, 이 API 호환 처리와 테스트에만 과거 기능의 식별자가 필요합니다.
+
+화면 검사는 호출을 대체한 브라우저에서 연동 항목의 부재, 공통 설정 저장, 내 서버 포션 목록 편집을 확인했습니다. Linux의 실제 Tauri 앱 시작과 기존 Python 앱의 백그라운드 작업 없는 초기화도 확인했습니다. Roblox 안의 동작과 기존 Python 배포 패키지의 전체 빌드 검증은 남아 있습니다.
