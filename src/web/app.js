@@ -635,7 +635,18 @@ document.addEventListener('click', e => {
 
 // 켜진 매크로 탭 기능 수
 const macroFeatures = () => FEATS.filter(k => featCfg(k).enabled).length;
-let lastBio = null, lastMpop = null, lastMfish = null, lastMitem = null, lastMmerch = null, lastMcraft = null, lastMmatch = null, lastMblood = null;
+let lastBio = null, lastMpop = null, lastMfish = null, lastMitem = null, lastMmerch = null, lastMcraft = null, lastMmatch = null, lastMblood = null, lastDua = null;
+const duaRoute = route => route === 'headless' ? 'Headless' : route === 'screenshot' ? '스크린샷' : '대기';
+function updateDua(st) {
+  lastDua = st || null;
+  $('duaPanel').hidden = !window.acruxDesktopApi || !st;
+  if (!st) return;
+  setText($('duaRoute'), duaRoute(st.route));
+  setText($('duaReason'), st.reason || '대기');
+  setText($('duaHeadless'), String(st.headlessTicks));
+  setText($('duaScreenshots'), String(st.screenshotFrames));
+  setText($('duaTransitions'), String(st.transitions));
+}
 function syncMainTiles() {
   const bOn = !!bio().enabled;
   setTile('biome', bOn);
@@ -646,6 +657,7 @@ function syncMainTiles() {
   setTile('macro', mOn, mOn ? '중지 · F3' : '시작 · F3');
   tile('macro').classList.remove('wait');
   const mText = !mOn ? (n ? `꺼짐 · 기능 ${n}개 켜짐` : '꺼짐')
+    : lastDua && lastDua.running ? `DUA · ${duaRoute(lastDua.route)} · ${lastDua.reason}`
     : lastMpop && lastMpop.running ? (lastMpop.msg || '포션 사용 중')
     : lastMblood && lastMblood.running ? (lastMblood.msg || '블러드 레인 만드는 중')
     : lastMitem && lastMitem.running ? (lastMitem.msg || '아이템 사용 중')
@@ -684,6 +696,7 @@ async function poll() {
     updateBiome(r.biome);
     updateMpop(r.mpop);
     updateMfish(r.mfish);
+    updateDua(r.dua);
     updateMove(r.move);
     lastBio = r.biome; lastMpop = r.mpop; lastMfish = r.mfish; lastMitem = r.mitem; lastMmerch = r.mmerch; lastMcraft = r.mcraft; lastMmatch = r.mmatch;
     lastMblood = r.mblood;
@@ -3052,6 +3065,7 @@ setTimeout(() => document.body.classList.remove('booting'), 4000);   // 켜다�
   I18N.init();
   const s = await api('state');
   config = s.config;
+  updateDua(s.dua);
   await Mods.load(s.mods);               // 모드 화면 · 탭 · 메뉴를 먼저 붙이고 메뉴를 만듦
   buildMenu();
   buildLang($('langBox'), false);

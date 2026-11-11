@@ -21,6 +21,16 @@ export interface Stats {
   full: number;
 }
 
+export interface DuaStatus {
+  supported: boolean;
+  running: boolean;
+  route: "headless" | "screenshot" | null;
+  reason: string;
+  headlessTicks: number;
+  screenshotFrames: number;
+  transitions: number;
+}
+
 export interface Status {
   platform: string;
   version: string;
@@ -37,6 +47,8 @@ export interface Status {
   tuning: Tuning;
   measuringElapsed: number | null;
   measuredSeconds: number | null;
+  dua: DuaStatus;
+  generation: number;
 }
 
 export const status = () => invoke<Status>("status");

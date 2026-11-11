@@ -217,6 +217,13 @@
       <div class="sec" data-sec="mf-base" data-jump>
         <div class="sec-head"><h2>공통 위치</h2>
           <button class="btn ghost" id="mposPopOcr">OCR 테스트</button></div>
+        <div class="card" id="duaPanel" hidden><div class="form">
+          <div class="row"><span>DUA 실행 경로<small>상태와 명령을 우선 사용하고, 화면 확인이 필요할 때 캡처</small></span><b id="duaRoute">대기</b></div>
+          <div class="row"><span>현재 판단</span><span id="duaReason">-</span></div>
+          <div class="row"><span>Headless 처리</span><b id="duaHeadless">0</b></div>
+          <div class="row"><span>스크린샷 처리</span><b id="duaScreenshots">0</b></div>
+          <div class="row"><span>경로 전환</span><b id="duaTransitions">0</b></div>
+        </div></div>
         <p class="hint">여러 기능이 같이 쓰는 위치 · [위치 지정] 후 로블록스 화면에서 클릭 (영역은 드래그)</p>
         <div class="mpos-cards" id="mposBase"></div>
       </div>

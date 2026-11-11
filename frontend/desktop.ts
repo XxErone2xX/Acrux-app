@@ -72,6 +72,9 @@ const persist = () => {
 };
 const modsError = "PC 3.0의 Python 모드는 아직 Tauri에 이식되지 않았습니다.";
 const stopped = ["stopped", "중지됨"];
+const featureKeys = ["mpop", "mfish", "mitem", "mmerch", "mcraft", "mmatch", "mblood"] as const;
+const enabledFeatures = () => featureKeys.filter(key => (config[key] as Bag).enabled === true);
+const desktopStatus = (s: Status) => s.dua.running ? ["flux", s.dua.reason] : stopped;
 const tuningKeys = {
   bite_max: "biteSeconds",
   lead_ms: "leadMs",
@@ -95,15 +98,29 @@ function reportError(message: string) {
   window.dispatchEvent(new CustomEvent("acrux-desktop-error", { detail: message }));
 }
 
-async function syncFishing() {
-  const current = await status();
-  const shouldRun = config.macro_on && config.mfish.enabled === true;
-  if (current.phase === "calibrating") return;
-  if (shouldRun && current.phase === "idle") {
+let desktopRevision = 0;
+async function syncDesktop(featuresChanged: boolean, toggle: boolean) {
+  const revision = ++desktopRevision;
+  try {
+    const current = await status();
+    if (revision !== desktopRevision) return;
+    if (!config.macro_on) {
+      if (current.dua.running || toggle) await control("stop");
+      return;
+    }
+    if (current.dua.running) {
+      if (featuresChanged) {
+        await control("stop");
+        throw new Error("실행할 기능이 바뀌어 DUA를 중지했습니다. 다시 시작하세요.");
+      }
+      return;
+    }
     await configureDesktop();
-    await control("start");
+    if (revision !== desktopRevision || !config.macro_on) return;
+    await invoke<Status>("desktop_start", { features: enabledFeatures(), generation: current.generation });
+  } catch (error) {
+    if (revision === desktopRevision) throw error;
   }
-  if (!shouldRun && current.phase !== "idle") await control("stop");
 }
 
 async function configureDesktop() {
@@ -204,16 +221,13 @@ async function setConfig(patch: Bag) {
       }
     }
   }
+  const previousFeatures = enabledFeatures().join();
   Object.assign(config, patch);
-  if ("macro_on" in patch || fish) {
-    try { await syncFishing(); } catch (error) {
+  if ("macro_on" in patch || featureKeys.some(key => key in patch)) {
+    try { await syncDesktop(previousFeatures !== enabledFeatures().join(), "macro_on" in patch); } catch (error) {
       config.macro_on = false;
       reportError(String(error));
     }
-  }
-  if (config.macro_on && config.mfish.enabled !== true) {
-    config.macro_on = false;
-    reportError("현재 미리보기에서는 자동 낚시를 켜야 매크로를 시작할 수 있습니다.");
   }
   persist();
   return saved();
@@ -245,7 +259,7 @@ async function request(name: string, payload: Bag) {
       const online = await invoke<{ share: boolean }>("online_status");
       config.online_share = online.share;
       applyStatus(s);
-      return { ...saved(), version: s.version, status: stopped, mods: [], mods_error: modsError };
+      return { ...saved(), version: s.version, status: desktopStatus(s), dua: s.dua, mods: [], mods_error: modsError };
     }
     case "poll": {
       const s = await status();
@@ -265,13 +279,14 @@ async function request(name: string, payload: Bag) {
         msg: s.message,
         measuring: measuring && s.measuringElapsed !== null ? { ...measuring, since: Date.now() / 1000 - s.measuringElapsed } : null,
       };
-      if (s.phase === "idle" && config.macro_on && config.mfish.enabled) config.macro_on = false;
-      const logs = s.message === last ? [] : [{ seq: ++seq, time: Date.now() / 1000, msg: s.message, color: "d" }];
-      last = s.message;
+      if (!s.dua.running && s.phase === "idle" && config.macro_on) config.macro_on = false;
+      const message = s.dua.running ? `DUA · ${s.dua.route ?? "대기"} · ${s.dua.reason} · ${s.message}` : s.message;
+      const logs = message === last ? [] : [{ seq: ++seq, time: Date.now() / 1000, msg: message, color: "d" }];
+      last = message;
       return {
         biome: { current: biome.current, history: biome.history, owner: biome.owner, log: biome.watching },
         online: online.online, online_on: true,
-        seq, logs, status: stopped,
+        seq, logs, status: desktopStatus(s), dua: s.dua,
         roblox: s.gameAvailable, macro_on: config.macro_on, move,
         mfish: { running: s.phase !== "idle", msg: s.message, stats: s.stats },
       };
@@ -319,6 +334,8 @@ async function request(name: string, payload: Bag) {
       await invoke("desktop_arrive");
       return { ok: true };
     case "move_stop":
+      ++desktopRevision;
+      config.macro_on = false;
       measuring = undefined;
       pickingWaypoint = false;
       await invoke("desktop_cancel_pick");
@@ -344,10 +361,13 @@ async function request(name: string, payload: Bag) {
       persist();
       return { [feat]: structuredClone(group), pos };
     }
-    case "mfish_stop":
-      if ((await status()).phase !== "calibrating") await control("stop");
+    case "mfish_stop": {
+      ++desktopRevision;
       config.macro_on = false;
+      const current = await status();
+      if (current.dua.running || current.phase !== "calibrating") await control("stop");
       return {};
+    }
     case "mfish_check":
       return (await status()).calibrated ? { bar: "보정됨" } : { error: "자동 보정을 먼저 실행하세요." };
     case "mpop_stop":

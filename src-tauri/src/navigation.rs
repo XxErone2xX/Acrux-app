@@ -668,6 +668,7 @@ struct Sale {
 pub enum Tick {
     Input(Motion),
     Wait,
+    Observe,
     Done {
         resume: bool,
         message: &'static str,
@@ -720,18 +721,26 @@ impl Job {
         }
     }
 
-    pub fn tick(&mut self, now: f64, frame: &Frame<'_>) -> Tick {
-        self.started = true;
-        let geometry = (frame.width, frame.height);
+    pub fn tick(&mut self, now: f64, geometry: (usize, usize), frame: Option<&Frame<'_>>) -> Tick {
+        if geometry.0 == 0
+            || geometry.1 == 0
+            || frame.is_some_and(|frame| (frame.width, frame.height) != geometry)
+        {
+            return Tick::Failed("화면 크기를 확인할 수 없어 이동 · 판매를 중지했습니다.");
+        }
         if self.geometry.is_some_and(|previous| previous != geometry) {
             return Tick::Failed("화면 크기가 바뀌어 이동 · 판매를 중지했습니다.");
         }
+        self.started = true;
         self.geometry = Some(geometry);
         if self.recording_at.is_some_and(|start| now - start >= 300.0) {
             return Tick::Failed("길 기록 시간이 지나 중지했습니다.");
         }
         if now < self.ready_at {
             return Tick::Wait;
+        }
+        if frame.is_none() && matches!(self.steps.front(), Some(Step::Check(_))) {
+            return Tick::Observe;
         }
         let Some(step) = self.steps.pop_front() else {
             if self.action.record().is_some() || self.action == Task::Measure {
@@ -756,7 +765,9 @@ impl Job {
                 self.ready_at = now + seconds;
                 Tick::Wait
             }
-            Step::Check(check) => self.check(now, frame, check),
+            Step::Check(check) => {
+                self.check(now, frame.expect("visual checks require a frame"), check)
+            }
         }
     }
 
@@ -1011,6 +1022,140 @@ impl Navigation {
 mod tests {
     use super::*;
 
+    fn desktop_navigation() -> Navigation {
+        let movement = DesktopMove {
+            places: ["fish_spot", "sell_spot"]
+                .into_iter()
+                .map(|key| DesktopPlace {
+                    key: key.into(),
+                    points: vec![Waypoint {
+                        pos: Some(Point(0.7, 0.4)),
+                        time: Some(1.0),
+                    }],
+                })
+                .collect(),
+            ..DesktopMove::default()
+        };
+        Navigation::desktop(DesktopSetup {
+            movement,
+            positions: SELL
+                .into_iter()
+                .chain(["chat_pos", "collection_pos", "collection_close"])
+                .map(|key| (key.into(), Some(Point(0.5, 0.5))))
+                .collect(),
+            sell_max: 1,
+            sell_delay: 0.0,
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn a_complete_desktop_movement_runs_without_screenshots() {
+        let nav = desktop_navigation();
+        let mut job = nav.job(Task::Fish, 0.0, true).unwrap();
+        let mut inputs = 0;
+        let mut arrived = false;
+        for second in 0..300 {
+            match job.tick(f64::from(second), (1920, 1080), None) {
+                Tick::Input(_) => inputs += 1,
+                Tick::Wait => {}
+                Tick::Done { resume, sold, .. } => {
+                    assert!(resume);
+                    assert_eq!(sold, None);
+                    arrived = true;
+                    break;
+                }
+                Tick::Observe => panic!("movement unexpectedly requested a screenshot"),
+                Tick::Failed(error) => panic!("movement failed: {error}"),
+            }
+        }
+        assert!(inputs > 0);
+        assert!(arrived);
+    }
+
+    #[test]
+    fn a_sale_keeps_its_visual_check_until_a_screenshot_arrives() {
+        let nav = desktop_navigation();
+        let mut job = nav.job(Task::Sell, 0.0, true).unwrap();
+        let mut observed_at = None;
+        for second in 0..300 {
+            match job.tick(f64::from(second), (100, 100), None) {
+                Tick::Input(_) | Tick::Wait => {}
+                Tick::Observe => {
+                    observed_at = Some(f64::from(second));
+                    break;
+                }
+                _ => panic!("sale finished before inspecting the dialog"),
+            }
+        }
+        let observed_at = observed_at.expect("sale must inspect the dialog");
+        let remaining = job.steps.len();
+        let ready_at = job.ready_at;
+        for second in 0..3 {
+            assert!(matches!(
+                job.tick(observed_at + f64::from(second), (100, 100), None),
+                Tick::Observe
+            ));
+            assert_eq!(job.steps.len(), remaining);
+            assert!(matches!(
+                job.steps.front(),
+                Some(Step::Check(Check::Dialog(0)))
+            ));
+            assert_eq!(job.attempts, 1);
+            assert_eq!(job.sale.as_ref().unwrap().sold, 0);
+            assert_eq!(job.ready_at, ready_at);
+        }
+        let mut pixels = vec![0; 100 * 100 * 4];
+        for y in 48..52 {
+            for x in 46..54 {
+                pixels[(y * 100 + x) * 4 + 2] = 180;
+            }
+        }
+        let frame = Frame::new(&pixels, 100, 100, 400, 4, false).unwrap();
+        let now = observed_at + 3.0;
+        assert!(matches!(
+            job.tick(now, (100, 100), Some(&frame)),
+            Tick::Wait
+        ));
+        assert!(matches!(job.steps.back(), Some(Step::Check(Check::Shop))));
+        assert!(matches!(
+            job.tick(now, (100, 100), None),
+            Tick::Input(Motion::Tap(_, _))
+        ));
+    }
+
+    #[test]
+    fn headless_movement_checks_geometry_even_while_waiting() {
+        let mut job = desktop_navigation().job(Task::Fish, 0.0, false).unwrap();
+        assert!(matches!(job.tick(0.0, (1920, 1080), None), Tick::Input(_)));
+        assert!(job.ready_at > 0.1);
+        assert!(matches!(job.tick(0.1, (1280, 720), None), Tick::Failed(_)));
+
+        let mut job = desktop_navigation().job(Task::Fish, 0.0, false).unwrap();
+        let remaining = job.steps.len();
+        let pixels = vec![0; 32 * 32 * 4];
+        let frame = Frame::new(&pixels, 32, 32, 128, 4, false).unwrap();
+        assert!(matches!(
+            job.tick(0.0, (1920, 1080), Some(&frame)),
+            Tick::Failed(_)
+        ));
+        assert!(matches!(job.tick(0.0, (0, 1080), None), Tick::Failed(_)));
+        assert_eq!(job.steps.len(), remaining);
+        assert!(!job.started);
+    }
+
+    #[test]
+    fn measuring_starts_and_expires_without_screenshots() {
+        let mut job = Job::new(Task::Measure, 0.0, false);
+        assert!(matches!(job.tick(0.0, (1920, 1080), None), Tick::Wait));
+        assert_eq!(job.recording_at, Some(0.0));
+        assert!(matches!(job.tick(299.0, (1920, 1080), None), Tick::Wait));
+        assert!(matches!(
+            job.tick(300.0, (1920, 1080), None),
+            Tick::Failed(_)
+        ));
+    }
+
     #[test]
     fn saved_and_picked_positions_are_kept_on_screen() {
         let mut nav: Navigation = serde_json::from_str(
@@ -1060,7 +1205,10 @@ mod tests {
         let mut job = nav.job(Task::Sell, 0.0, true).unwrap();
         let mut failed = false;
         for step in 0..500 {
-            if matches!(job.tick(step as f64 * 10.0, &frame), Tick::Failed(_)) {
+            if matches!(
+                job.tick(step as f64 * 10.0, (100, 100), Some(&frame)),
+                Tick::Failed(_)
+            ) {
                 failed = true;
                 break;
             }
@@ -1096,10 +1244,13 @@ mod tests {
         let rotated = Frame::new(&pixels, 16, 32, 128, 4, false).unwrap();
         let mut job = nav.job(Task::StickTest, 0.0, false).unwrap();
         assert!(matches!(
-            job.tick(0.0, &first),
+            job.tick(0.0, (32, 32), Some(&first)),
             Tick::Input(Motion::Stick { .. })
         ));
-        assert!(matches!(job.tick(0.9, &rotated), Tick::Failed(_)));
+        assert!(matches!(
+            job.tick(0.9, (16, 32), Some(&rotated)),
+            Tick::Failed(_)
+        ));
     }
     #[test]
     fn trace_roundtrip_preserves_press_release_times_and_old_routes() {

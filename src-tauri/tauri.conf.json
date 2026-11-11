@@ -9,7 +9,7 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [{ "title": "Acrux snipe & popping macro - Made by 얼로니", "url": "desktop/index.html", "width": 1392, "height": 903 }],
+    "windows": [{ "title": "Acrux Macro - Made by 얼로니", "url": "desktop/index.html", "width": 1392, "height": 903 }],
     "security": {
       "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
     }

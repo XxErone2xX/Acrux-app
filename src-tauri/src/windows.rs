@@ -1,8 +1,8 @@
 use crate::{
     fishing::{Phase, Tap},
-    runtime,
+    now, runtime,
     vision::{Frame, Point},
-    GameInput, Motion,
+    DeviceTick, GameInput, Motion,
 };
 use std::{
     ffi::c_void,
@@ -57,8 +57,11 @@ fn worker() {
     let mut surface = None;
     loop {
         let tick = Instant::now();
-        let active = runtime().phase();
-        if active == Phase::Idle {
+        let (phase, active) = {
+            let state = runtime();
+            (state.phase(), state.active())
+        };
+        if !active {
             surface = None;
             hotkey_held = false;
             thread::sleep(Duration::from_millis(100));
@@ -80,6 +83,10 @@ fn worker() {
             unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
         }
         if hwnd != foreground || pid != foreground_pid {
+            if is_game {
+                runtime().no_target();
+                surface = None;
+            }
             foreground = hwnd;
             foreground_pid = pid;
             is_game = pid != 0 && game_process(pid);
@@ -92,22 +99,42 @@ fn worker() {
             thread::sleep(Duration::from_millis(100));
             continue;
         };
-        let source = ScreenDc::new();
-        if surface
-            .as_ref()
-            .is_none_or(|s: &Surface| (s.width, s.height) != (w, h))
-        {
-            surface = Surface::new(source.0, w, h);
+        let geometry = (w as usize, h as usize);
+        let (mut step, mut generation) = {
+            let mut state = runtime();
+            (state.tick(now(), geometry, None), state.generation)
+        };
+        if matches!(step, DeviceTick::Observe) {
+            let source = ScreenDc::new();
+            if surface
+                .as_ref()
+                .is_none_or(|s: &Surface| (s.width, s.height) != (w, h))
+            {
+                surface = Surface::new(source.0, w, h);
+            }
+            let frame = surface.as_mut().and_then(|s| s.capture(source.0, origin));
+            let mut state = runtime();
+            if !state.input_current(generation) {
+                continue;
+            }
+            if !same_client(hwnd, origin, w, h) {
+                state.no_target();
+                continue;
+            }
+            step = match frame {
+                Some(frame) => state.tick(now(), geometry, Some(&frame)),
+                None => {
+                    state.stop("Windows에서 게임 화면을 캡처하지 못했습니다.");
+                    DeviceTick::Wait
+                }
+            };
+            generation = state.generation;
+        } else {
+            // Headless movement and waits never acquire or read a screen surface.
+            surface = None;
         }
-        let tap = surface
-            .as_mut()
-            .and_then(|s| s.capture(source.0, origin))
-            .and_then(|frame| {
-                let mut state = runtime();
-                state.frame(&frame).map(|input| (input, state.generation))
-            });
 
-        if let Some((input, generation)) = tap {
+        if let DeviceTick::Input(input) = step {
             if !runtime().input_current(generation) {
                 continue;
             }
@@ -127,7 +154,7 @@ fn worker() {
                 }
             }
         }
-        let period = if active == Phase::Reeling { 8 } else { 50 };
+        let period = if phase == Phase::Reeling { 8 } else { 50 };
         thread::sleep(Duration::from_millis(period).saturating_sub(tick.elapsed()));
     }
 }
@@ -176,6 +203,13 @@ fn client(hwnd: HWND) -> Option<(POINT, i32, i32)> {
         .then_some((origin, width, height))
 }
 
+fn same_client(hwnd: HWND, origin: POINT, width: i32, height: i32) -> bool {
+    (unsafe { GetForegroundWindow() == hwnd })
+        && client(hwnd).is_some_and(|(current, w, h)| {
+            current.x == origin.x && current.y == origin.y && w == width && h == height
+        })
+}
+
 fn perform(
     hwnd: HWND,
     origin: POINT,
@@ -184,7 +218,7 @@ fn perform(
     input: GameInput,
     generation: i32,
 ) -> Option<bool> {
-    if unsafe { GetForegroundWindow() } != hwnd || !runtime().input_current(generation) {
+    if !same_client(hwnd, origin, width, height) || !runtime().input_current(generation) {
         return None;
     }
     let at = |point: Point, ms| Tap {
@@ -380,7 +414,7 @@ pub fn cancel_pick() {
 }
 
 pub fn pick() -> Result<Point, String> {
-    if runtime().phase().active() {
+    if runtime().active() {
         return Err("실행 중인 작업을 먼저 중지하세요.".into());
     }
     if PICKING

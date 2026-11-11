@@ -12,6 +12,28 @@ const I18N = (() => {
 
   // ---------------------------------------------------------------- 사전: [한국어, English, 日本語]
   const E = [
+    ['DUA 실행 경로', 'DUA execution route', 'DUA実行ルート'],
+    ['상태와 명령을 우선 사용하고, 화면 확인이 필요할 때 캡처', 'Uses state and commands first, captures the screen when needed', '状態とコマンドを優先し、画面の確認が必要なときにキャプチャ'],
+    ['현재 판단', 'Current decision', '現在の判断'],
+    ['Headless 처리', 'Headless steps', 'Headless処理'],
+    ['스크린샷 처리', 'Screenshot frames', 'スクリーンショット処理'],
+    ['경로 전환', 'Route changes', 'ルート変更'],
+    ['스크린샷', 'Screenshot', 'スクリーンショット'],
+    ['실행할 기능이 바뀌어 DUA를 중지했습니다. 다시 시작하세요.', 'DUA stopped because the enabled features changed. Start again.', '実行する機能が変更されたためDUAを停止しました。再度開始してください。'],
+    ['DUA 대기 중', 'DUA idle', 'DUA待機中'],
+    ['이전 실행 요청이 취소됐습니다. 다시 시작하세요.', 'The previous start request was canceled. Start again.', '以前の実行リクエストはキャンセルされました。再度開始してください。'],
+    ['설정과 실행할 작업을 확인합니다.', 'Checking settings and selected tasks.', '設定と実行するタスクを確認しています。'],
+    ['구조화된 이동 명령과 대기를 처리합니다.', 'Processing movement commands and waits.', '移動コマンドと待機を処理しています。'],
+    ['판매 화면의 실제 상태를 확인합니다.', 'Checking the sale screen.', '販売画面の状態を確認しています。'],
+    ['낚시 창의 위치를 화면에서 보정합니다.', 'Calibrating the fishing panel from the screen.', '画面から釣りパネルの位置を調整しています。'],
+    ['던지기 · 입질 · 릴링 · 결과를 화면에서 확인합니다.', 'Checking casting, bites, reeling and results on screen.', '画面でキャスト・アタリ・巻き取り・結果を確認しています。'],
+    ['Roblox가 앞에 오기를 기다립니다.', 'Waiting for Roblox to come to the foreground.', 'Robloxが前面になるのを待っています。'],
+    ['실행할 매크로 기능을 켜 주세요.', 'Enable a macro feature to run.', '実行するマクロ機能を有効にしてください。'],
+    ['실행 중인 DUA를 먼저 중지하세요.', 'Stop the running DUA first.', '実行中のDUAを先に停止してください。'],
+    ['게임 화면 크기를 확인할 수 없어 DUA를 중지했습니다.', 'DUA stopped because the game screen size could not be verified.', 'ゲーム画面のサイズを確認できないためDUAを停止しました。'],
+    ['현재 데스크톱 DUA는 자동 낚시 · 이동 · 판매를 지원합니다. 다른 기능은 이식 전입니다.', 'Desktop DUA currently supports auto fishing, movement and selling. Other features have not been ported yet.', 'デスクトップDUAは現在、自動釣り・移動・販売に対応しています。他の機能は未移植です。'],
+    ['데스크톱 DUA의 게임 캡처 · 입력은 현재 Windows에서 지원합니다.', 'Desktop DUA game capture and input currently require Windows.', 'デスクトップDUAのゲームキャプチャと入力は現在Windowsに対応しています。'],
+    ['Windows에서 게임 화면을 캡처하지 못했습니다.', 'Could not capture the game screen on Windows.', 'Windowsでゲーム画面をキャプチャできませんでした。'],
     ["이 모드는 더 이상 지원하지 않습니다.", "This mod is no longer supported.", "このモッドはサポートされなくなりました。"],
     ["블러드 레인 자동 생성 취소 — 자동 낚시가 멈추지 않음", "Blood Rain auto summon canceled — auto fishing did not stop", "ブラッドレイン自動生成中止 — 自動釣りが止まらない"],
 
