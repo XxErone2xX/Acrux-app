@@ -35,9 +35,12 @@ Mac은 기존 데스크톱 화면을 사용합니다. Mac 빌드에는 macOS와 
 - `.github/workflows/apple.yml`은 macOS 통합 앱을 빌드하고 시작을 확인합니다.
 - `.github/workflows/alpha.yml`은 `Crossplatform-test`에서도 Android·Windows 빌드를 확인합니다. 이 브랜치의 결과는 작업 실행의 첨부 파일로 제공하며 릴리스 갱신은 main에서 수행합니다.
 
-GitHub의 Mac 실행기에서 Intel·Apple Silicon 통합 앱과 iOS 시뮬레이터 앱을 빌드하고 실제 시작을 확인했습니다. iPhone용 무서명 IPA도 생성했습니다. 이전 검증 코드 커밋은 `48a590a`이며 [Apple 검사 결과](https://github.com/XxErone2xX/Acrux-app/actions/runs/42742068421)에서 빌드 파일을 받을 수 있습니다.
+검증 코드 커밋은 `741e2ab`입니다. GitHub 실행기에서 Windows 실행 파일과 macOS Intel·Apple Silicon 통합 앱을 빌드하고 실제 시작을 확인했습니다. Android ARM64 APK 빌드와 순수 Java 터치 타임라인 회귀 검사도 통과했습니다. Rust 코어 테스트는 16개 모두 통과했습니다.
 
-현재 Apple 화면 캡처·게임 입력 연결은 이식 전입니다. iOS는 공유 모바일 화면으로 기동하며 Android 전용 권한·설정 안내가 남아 있습니다. 무서명 IPA는 실기기 설치에 사용할 서명이 추가로 필요합니다.
+- [Android·Windows 검사 및 빌드 파일](https://github.com/XxErone2xX/Acrux-app/actions/runs/42938271657)
+- [Mac 검사 및 통합 앱](https://github.com/XxErone2xX/Acrux-app/actions/runs/42938271616)
+
+PC의 Python 모드 실행·복구 자동화와 Mac 게임 화면 캡처·입력 연결은 이식 전입니다. Windows·Mac에서 시작 검사를 통과했으며 Roblox 안의 실제 동작은 검증 전입니다.
 
 ### Android 메모리 측정
 
@@ -52,7 +55,8 @@ UI 재현 전 Android 16 (SM-S931N)에서 각 앱을 화면에 띄워 PSS를 세
 
 ## 이번 변경 검사
 
-- `npm run build`와 Rust 코어 테스트를 실행합니다.
+- `npm run build`, `cargo test --offline --locked --manifest-path src-tauri/Cargo.toml --lib` (16개), Windows 타깃 코드 검사, Linux 데스크톱 빌드·시작 확인을 통과했습니다.
+- 브라우저에서 PC 3.0 화면 초기화·이전 설정 로드와 모바일 숫자 연속 입력을 검사했습니다. 이 화면 검사는 Tauri 호출을 대체한 상태로 실행했으며, 마지막 입력까지 순서대로 저장 요청이 전달되는지 확인했습니다.
 - Android 타임라인의 기기 없는 회귀 검사는 `javac -d /tmp/acrux-pilot-tests src-tauri/gen/android/app/src/main/java/com/acrux/next/{Pilot,TraceEvent}.java src-tauri/tests/android/PilotReplayTest.java` 다음 `java -cp /tmp/acrux-pilot-tests com.acrux.next.PilotReplayTest`로 실행합니다.
 - ADB 연결이 없어 새 APK의 휴대폰 실행과 Roblox 동작은 검증 전입니다.
 
