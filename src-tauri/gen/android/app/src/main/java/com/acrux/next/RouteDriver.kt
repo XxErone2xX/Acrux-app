@@ -19,6 +19,8 @@ class RouteDriver(private val service: TapService) {
         val center = points.getJSONArray("stick_center")
         val edge = points.getJSONArray("stick_edge")
         val screen = service.screen()
+        Joy.sw = screen[0]
+        Joy.sh = screen[1]
         val cx = center.getDouble(0) * screen[0]
         val cy = center.getDouble(1) * screen[1]
         Joy.at(cx, cy, Math.hypot(edge.getDouble(0) * screen[0] - cx, edge.getDouble(1) * screen[1] - cy))
@@ -84,6 +86,9 @@ class RouteDriver(private val service: TapService) {
     }
 
     fun play(packet: IntArray, done: (Boolean) -> Unit) {
+        val screen = service.screen()
+        Joy.sw = screen[0]
+        Joy.sh = screen[1]
         Joy.at(packet[2].toDouble(), packet[3].toDouble(), Math.hypot((packet[4] - packet[2]).toDouble(), (packet[5] - packet[3]).toDouble()))
         Joy.jx = packet[6].toFloat()
         Joy.jy = packet[7].toFloat()
@@ -96,12 +101,21 @@ class RouteDriver(private val service: TapService) {
         Joy.start()
         playback = Thread({
             var success = true
+            val priority = android.os.Process.getThreadPriority(android.os.Process.myTid())
             try {
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY)
                 Joy.pilot.play(events) {
                     if (!Native.inputCurrent(generation) || !service.gameVisible || Thread.currentThread().isInterrupted) throw IllegalStateException("길 재생 중지")
                 }
-            } catch (_: RuntimeException) { success = false }
+            } catch (error: RuntimeException) {
+                success = false
+                if (Native.inputCurrent(generation)) Native.platformLog(error.message ?: "길 재생 실패", 'r')
+            }
             finally {
+                android.os.Process.setThreadPriority(priority)
+                if (Joy.pilot.cuts > 0 && Native.inputCurrent(generation)) {
+                    Native.platformLog("이동 중 터치가 ${Joy.pilot.cuts}번 끊김 — 다시 눌러서 이어 감 (+${Joy.pilot.lostMs / 1000.0}초)", 'y')
+                }
                 main.post { playback = null; done(success) }
             }
         }, "acrux-route-play").also { it.start() }

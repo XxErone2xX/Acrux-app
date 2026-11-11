@@ -46,6 +46,7 @@ struct Runtime {
     navigation: Navigation,
     job: Option<Job>,
     empty_sales: u8,
+    relocations: u8,
     measured_seconds: Option<f64>,
     generation: i32,
 }
@@ -125,6 +126,7 @@ impl Runtime {
                     self.fishing.calibration = profile.calibration;
                     self.totals = profile.totals;
                     self.navigation = profile.navigation;
+                    self.navigation.fit_positions();
                     if let Err(error) = self.navigation.options.validate() {
                         self.navigation.options = Options::default();
                         self.settings_error = Some(error.into());
@@ -228,6 +230,21 @@ impl Runtime {
                 Err(error) => self.stop(error),
             }
         }
+        if self.navigation.options.use_move && self.fishing.needs_relocation(now()) {
+            self.fishing.stop("낚시 장소로 다시 이동 중");
+            if self.relocations >= 3 {
+                self.stop("낚시 장소 이동 3회 실패 · 길과 위치를 확인하세요.");
+            } else {
+                self.relocations += 1;
+                match self.navigation.job(Task::Fish, now(), true) {
+                    Ok(job) => self.job = Some(job),
+                    Err(error) => match self.fishing.start(now()) {
+                        Ok(()) => self.fishing.message = error,
+                        Err(error) => self.stop(error),
+                    },
+                }
+            }
+        }
         self.record();
         if std::mem::take(&mut self.fishing.calibration_changed) || changed {
             self.settings_error = self.save(self.fishing.tuning).err();
@@ -300,6 +317,7 @@ impl Runtime {
         }
         if action == Action::Start {
             self.empty_sales = 0;
+            self.relocations = 0;
         }
         if action == Action::Start && self.navigation.options.use_move {
             if self.fishing.calibration.is_none() {

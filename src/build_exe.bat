@@ -9,7 +9,7 @@ echo [1/2] 필요한 패키지 설치 중...
 
 echo [2/2] AcruxMacro.exe 만드는 중... (2~4분)
 %PY% -m PyInstaller --noconfirm --onefile --windowed --name AcruxMacro ^
-  --add-data "hook.js;." --add-data "web;web" --hidden-import websocket --hidden-import mss --hidden-import tkinter --collect-submodules winrt --collect-all rapidocr_onnxruntime --collect-binaries onnxruntime app.py || goto :fail
+  --add-data "web;web" --hidden-import websocket --hidden-import mss --hidden-import tkinter --collect-submodules winrt --collect-all rapidocr_onnxruntime --collect-binaries onnxruntime app.py || goto :fail
 
 copy /y dist\AcruxMacro.exe . >nul
 rmdir /s /q build dist 2>nul

@@ -176,6 +176,7 @@ pub struct Fishing {
     phase_at: f64,
     last_scan: f64,
     last_progress: f64,
+    known_at: f64,
     last_cast: f64,
     casts: u32,
     bar_seen: u32,
@@ -199,6 +200,7 @@ impl Default for Fishing {
             phase_at: 0.0,
             last_scan: f64::NEG_INFINITY,
             last_progress: 0.0,
+            known_at: 0.0,
             last_cast: f64::NEG_INFINITY,
             casts: 0,
             bar_seen: 0,
@@ -239,9 +241,14 @@ impl Fishing {
         }
         self.reset_cycle();
         self.last_progress = now;
+        self.known_at = now;
         self.diamond_seen = false;
         self.phase(Phase::Searching, now, "Roblox 화면을 기다리는 중");
         Ok(())
+    }
+
+    pub fn needs_relocation(&self, now: f64) -> bool {
+        self.phase.active() && self.phase != Phase::Calibrating && now - self.known_at >= 30.0
     }
 
     fn reset_cycle(&mut self) {
@@ -267,6 +274,7 @@ impl Fishing {
                 self.reset_cycle();
             }
             self.last_progress = now;
+            self.known_at = now;
             self.phase(
                 Phase::Searching,
                 now,
@@ -363,6 +371,7 @@ impl Fishing {
             } else if now - self.last_scan >= 0.35 {
                 self.last_scan = now;
                 if let Some(window) = self.result_window(frame) {
+                    self.known_at = now;
                     self.result = frame.title(window.at(0.4972, 0.0913)).or(self.result);
                     return Some(Self::tap(frame, frame.result_close(window), 40));
                 }
@@ -372,6 +381,9 @@ impl Fishing {
 
         let area = calibration.bar();
         let bar = self.bar.read(frame, area);
+        if fish.is_some() || bar {
+            self.known_at = now;
+        }
         let diamond = calibration.diamond_moved(frame);
         self.diamond_seen |= diamond;
         self.bar_seen = if bar && (diamond || !self.diamond_seen) {
@@ -618,6 +630,19 @@ mod tests {
 
     fn frame(bytes: &[u8]) -> Frame<'_> {
         Frame::new(bytes, W, H, STRIDE, 4, false).unwrap()
+    }
+
+    #[test]
+    fn missing_fishing_screen_requests_relocation_after_thirty_seconds() {
+        let mut fishing = Fishing::default();
+        fishing.phase = Phase::Searching;
+        fishing.known_at = 10.0;
+        assert!(!fishing.needs_relocation(39.9));
+        assert!(fishing.needs_relocation(40.0));
+        fishing.no_target(50.0);
+        assert!(!fishing.needs_relocation(51.0));
+        fishing.stop("중지됨");
+        assert!(!fishing.needs_relocation(100.0));
     }
 
     #[test]

@@ -78,7 +78,7 @@ class AndroidSetup(private val activity: Activity) : Plugin(activity) {
     ))
 
     @Command
-    fun donate(invoke: Invoke) = open(invoke, Intent(Intent.ACTION_VIEW, Uri.parse("https://ko-fi.com/RG_Acrux")))
+    fun donate(invoke: Invoke) = open(invoke, Intent(Intent.ACTION_VIEW, Uri.parse("https://ko-fi.com/acrux_")))
 
     private fun open(invoke: Invoke, intent: Intent) {
         activity.runOnUiThread {

@@ -26,8 +26,21 @@ android {
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
     }
+    // 알파 서명: CI 가 ACRUX_ALPHA_KEYSTORE 를 줌 (비밀값 키 · 없으면 CI 가 캐시해 둔 디버그 키) → 디버그 · 릴리스 둘 다 같은 키
+    signingConfigs {
+        val ks = System.getenv("ACRUX_ALPHA_KEYSTORE")
+        if (ks != null && file(ks).exists()) {
+            create("alpha") {
+                storeFile = file(ks)
+                storePassword = System.getenv("ACRUX_ALPHA_KEYSTORE_PASS")
+                keyAlias = System.getenv("ACRUX_ALPHA_KEY_ALIAS") ?: "acrux"
+                keyPassword = System.getenv("ACRUX_ALPHA_KEYSTORE_PASS")
+            }
+        }
+    }
     buildTypes {
         getByName("debug") {
+            signingConfigs.findByName("alpha")?.let { signingConfig = it }
             manifestPlaceholders["usesCleartextTraffic"] = "true"
             isDebuggable = true
             isJniDebuggable = true
@@ -40,7 +53,8 @@ android {
             }
         }
         getByName("release") {
-            isMinifyEnabled = true
+            signingConfigs.findByName("alpha")?.let { signingConfig = it }
+            isMinifyEnabled = false   // 알파: 줄이기 끔 (libadb · conscrypt 를 리플렉션으로 씀 → 줄이면 깨질 수 있음)
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 *fileTree(".") {

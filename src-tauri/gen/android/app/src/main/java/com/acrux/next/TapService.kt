@@ -63,6 +63,7 @@ class TapService : AccessibilityService() {
                 Native.noTarget()
                 return@post
             }
+            if (packet[0] == 4) overlay.routePassThrough(packet)
             val coordinatesEnd = if (packet[0] == 4) 8 else packet.lastIndex
             if ((2 until coordinatesEnd step 2).any { packet[it] >= 0 && overlay.contains(packet[it].toFloat(), packet[it + 1].toFloat()) }) {
                 rejected()
@@ -79,7 +80,10 @@ class TapService : AccessibilityService() {
                     stroke(packet[6].toFloat(), packet[7].toFloat(), packet[8].toFloat(), packet[9].toFloat(), ms),
                 ), ::finished)
                 3 -> stick(packet, ms)
-                4 -> routes.play(packet) { success -> if (success) finished() else rejected() }
+                4 -> routes.play(packet) { success ->
+                    overlay.restoreTouch()
+                    if (!Native.inputCurrent(packet.last()) || success) finished() else rejected()
+                }
                 else -> rejected()
             }
         }
@@ -98,8 +102,9 @@ class TapService : AccessibilityService() {
     }
 
     private fun path(x: Float, y: Float, nextX: Float, nextY: Float) = Path().apply {
-        moveTo(x, y)
-        if (x != nextX || y != nextY) lineTo(nextX, nextY)
+        val bounds = screen()
+        moveTo(x.coerceIn(0f, (bounds[0] - 1).toFloat()), y.coerceIn(0f, (bounds[1] - 1).toFloat()))
+        if (x != nextX || y != nextY) lineTo(nextX.coerceIn(0f, (bounds[0] - 1).toFloat()), nextY.coerceIn(0f, (bounds[1] - 1).toFloat()))
     }
 
     private fun stroke(x: Float, y: Float, nextX: Float, nextY: Float, duration: Long, hold: Boolean = false) =
@@ -150,6 +155,7 @@ class TapService : AccessibilityService() {
     }
 
     private fun rejected() {
+        overlay.restoreTouch()
         finished()
         if (Native.inputCurrent(generation)) Native.inputRejected()
     }

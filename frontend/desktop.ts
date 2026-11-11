@@ -15,16 +15,18 @@ interface Config extends Bag {
   mfish: Bag;
   base: Bag;
   move: Movement;
-  guild_ids: string[];
-  channel_ids: string[];
-  names: Record<string, string>;
-  channels: Record<string, { name: string; guild: string; guildId: string | null }>;
 }
 
 function load(): Config {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(key) ?? "{}") ?? {}; } catch {}
   const config: Config = { ...structuredClone(defaults), ...saved, macro_on: false };
+  for (const [key, value] of Object.entries(defaults)) {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      config[key] = { ...structuredClone(value), ...(config[key] as Bag ?? {}) };
+    }
+  }
+  if (!["biome", "macro", "acrux"].includes(String(config.menu_tab))) config.menu_tab = "macro";
   for (const [key, name, feat, count] of [
     ["fish_spot", "낚시 장소", "mfish", 1], ["sell_spot", "물고기 판매 장소", "mfish", 1],
     ["craft_spot", "포션 제작 장소", "mcraft", 2], ["match_spot", "메모리 매치 장소", "mmatch", 1],
@@ -39,6 +41,7 @@ function load(): Config {
 const config = load();
 const saved = () => ({ config: structuredClone(config) });
 const persist = () => localStorage.setItem(key, JSON.stringify({ ...config, macro_on: false }));
+const modsError = "PC 3.0의 Python 모드는 아직 Tauri에 이식되지 않았습니다.";
 const stopped = ["stopped", "중지됨"];
 const tuningKeys = {
   bite_max: "biteSeconds",
@@ -213,7 +216,7 @@ async function request(name: string, payload: Bag) {
       const online = await invoke<{ share: boolean }>("online_status");
       config.online_share = online.share;
       applyStatus(s);
-      return { ...saved(), version: s.version, status: stopped, armed: false };
+      return { ...saved(), version: s.version, status: stopped, armed: false, mods: [], mods_error: modsError };
     }
     case "poll": {
       const s = await status();
@@ -242,9 +245,14 @@ async function request(name: string, payload: Bag) {
         seq, logs, events: [], status: stopped, count: 0, armed: false,
         roblox: s.gameAvailable, macro_on: config.macro_on, move,
         mfish: { running: s.phase !== "idle", msg: s.message, stats: s.stats },
-        names: config.names, channels: config.channels,
       };
     }
+    case "mods_list":
+    case "mods_install":
+    case "mods_toggle":
+    case "mods_remove":
+    case "mods_folder":
+      return { error: modsError };
     case "webhook_test":
       await invoke("biome_test");
       return { queued: true };
@@ -313,28 +321,6 @@ async function request(name: string, payload: Bag) {
       return {};
     case "mfish_check":
       return (await status()).calibrated ? { bar: "보정됨" } : { error: "자동 보정을 먼저 실행하세요." };
-    case "add_target":
-    case "remove_target": {
-      const id = String(payload.id ?? "").trim();
-      const guild = payload.kind === "guild";
-      if (!/^\d+$/.test(id) || (!guild && payload.kind !== "channel")) return { error: "숫자 ID만 입력 가능" };
-      const ids = guild ? config.guild_ids : config.channel_ids;
-      const position = ids.indexOf(id);
-      if (name === "add_target" && position === -1) {
-        ids.push(id);
-        const label = String(payload.name ?? "").trim();
-        if (label && guild) config.names[id] = label;
-        if (label && !guild) config.channels[id] = { name: label, guild: String(payload.guild ?? ""), guildId: payload.guildId ? String(payload.guildId) : null };
-      }
-      if (name === "remove_target" && position >= 0) {
-        ids.splice(position, 1);
-        if (guild) delete config.names[id];
-        else delete config.channels[id];
-      }
-      persist();
-      return saved();
-    }
-    case "prime_recent":
     case "mpop_stop":
       return {};
     default: {

@@ -441,7 +441,7 @@ public class MainActivity extends Activity {
         don.addView(Ui.text(this, "Acrux 가 도움이 됐다면 후원으로 응원해 주세요", 12, Ui.MUTED, false));
         LinearLayout.LayoutParams dl = Ui.wrap();
         dl.topMargin = Ui.dp(this, 10);
-        don.addView(Ui.button(this, "후원하기", Ui.YELLOW, v -> openUrl("https://ko-fi.com/RG_Acrux")), dl);
+        don.addView(Ui.button(this, "후원하기", Ui.YELLOW, v -> openUrl("https://ko-fi.com/acrux_")), dl);
     }
 
     // ---------------------------------------------------------------- 낚시
@@ -932,22 +932,41 @@ public class MainActivity extends Activity {
         return Math.max(lo, Math.min(hi, v));
     }
 
+    /** 숫자 보이기: 3.5 · 3 · 0.3 (쓸데없는 소수 꼬리 없이) */
+    static String numText(double v) {
+        double r = Math.round(v * 10000.0) / 10000.0;
+        if (r == Math.rint(r)) return String.valueOf((long) r);
+        return java.math.BigDecimal.valueOf(r).stripTrailingZeros().toPlainString();
+    }
+
+    /**
+     * 숫자 설정 칸 — 글자를 고치는 즉시 적용 · 저장
+     * (전에는 다른 칸을 눌러 이 칸에서 벗어나야 적용됐음 → 숫자만 고치고 바로 로블록스로 가면 칸에는 새 숫자가 보이는데 실제로는 예전 값으로 돌았음)
+     */
     View num(String title, String sub, double value, Num on) {
         EditText e = new EditText(this);
         e.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        e.setText(value == Math.rint(value) ? String.valueOf((long) value) : String.valueOf(value));
+        e.setText(numText(value));
         e.setTextColor(Ui.FG);
         e.setBackground(Ui.field(this));
         e.setPadding(Ui.dp(this, 10), Ui.dp(this, 6), Ui.dp(this, 10), Ui.dp(this, 6));
         e.setMinWidth(Ui.dp(this, 80));
         e.setGravity(Gravity.CENTER);
-        e.setOnFocusChangeListener((v, has) -> {
-            if (has) return;
-            try {
-                on.set(Double.parseDouble(e.getText().toString().trim()));
-                Hub.save();
-            } catch (NumberFormatException ignored) {
+        e.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
+        e.addTextChangedListener(new android.text.TextWatcher() {
+            public void beforeTextChanged(CharSequence a, int b, int c, int d) {}
+            public void onTextChanged(CharSequence a, int b, int c, int d) {}
+            public void afterTextChanged(android.text.Editable a) {
+                try {
+                    on.set(Double.parseDouble(a.toString().trim().replace(',', '.')));
+                    Hub.save();
+                } catch (NumberFormatException ignored) {              // 쓰는 중 (빈 칸 · "3.") → 예전 값 그대로
+                }
             }
+        });
+        e.setOnEditorActionListener((v, id, ev) -> {
+            if (id == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) e.clearFocus();
+            return false;
         });
         return row(title, sub, null, e);
     }

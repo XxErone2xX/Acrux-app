@@ -38,6 +38,7 @@ const I18N = (() => {
     ['바이옴', 'Biome', 'バイオーム'],
     ['스나이프', 'Snipe', 'スナイプ'],
     ['매크로', 'Macro', 'マクロ'],
+    ['추가 기능', 'Extras', '追加機能'],
     ['곧 추가됩니다', 'Coming soon', '近日追加'],
     // 매크로 탭
     ['매크로 기능 설정', 'Macro feature settings', 'マクロ機能設定'],
@@ -2092,6 +2093,40 @@ const I18N = (() => {
     ['[Prime] 받은 링크가 내 브섭 링크임 — 접속하지 않음', '[Prime] The link received is your private server link — not joining', '[Prime] 受け取ったリンクは自分のプライベートサーバー — 参加しない'],
     ['[Prime] 반응이 없음 — 다른 방식으로 다시 누름', '[Prime] No reaction — pressing again another way', '[Prime] 反応なし — 別の方法でもう一度押す'],
     ['[Prime] 봇 응답에 실패함 — 잠시 뒤 다시 누름', '[Prime] Bot response failed — pressing again shortly', '[Prime] ボットの応答に失敗 — 少ししてからもう一度押す'],
+    // 모드 · 플러그인 · 복구 (V2.6.0)
+    ["복구 · 게임 입장", "Recovery · Game entry", "復旧・ゲーム参加"],
+    ["복구", "Recovery", "復旧"],
+    ["로블록스가 꺼지면 내 서버로 · Play 버튼 위치", "Back to your server if Roblox closes · Play button position", "Robloxが落ちたら自分のサーバーへ・Playボタンの位置"],
+    ["로블록스가 꺼지면 내 서버로", "Back to your server if Roblox closes", "Robloxが落ちたら自分のサーバーへ"],
+    ["모드 · 플러그인", "Mods · Plugins", "モッド・プラグイン"],
+    ["모드", "Mod", "モッド"],
+    ["플러그인", "Plugin", "プラグイン"],
+    ["설치한 모드 · 켜기 · 끄기 · 모드 파일 설치", "Installed mods · on · off · install a mod file", "インストールしたモッド・オン・オフ・モッドファイルのインストール"],
+    ["설치한 모드", "Installed mods", "インストールしたモッド"],
+    ["설치된 모드", "Installed mods", "インストール済みモッド"],
+    ["모드 파일 설치", "Install mod file", "モッドファイルをインストール"],
+    ["입장", "Entry", "参加"],
+    ["복구 · 복귀할 때 이 링크로 접속", "Joins this link when recovering · returning", "復旧・復帰時にこのリンクで参加"],
+    ["설명 · 받는 곳", "About · Where to get them", "説明・入手先"],
+    ["다시 켜서 적용", "Restart to apply", "再起動して適用"],
+    ["설치된 모드 없음 · 위쪽 [모드 파일 설치] 로 .acxm 파일을 고르기", "No mods installed · choose a .acxm file with [Install mod file] above", "モッドなし・上の［モッドファイルをインストール］で .acxm ファイルを選択"],
+    ["Acrux 웹사이트", "Acrux website", "Acruxウェブサイト"],
+    ["모드 · 플러그인 받기 · 올리기 · 질문", "Get · upload mods and plugins · ask questions", "モッド・プラグインの入手・投稿・質問"],
+    ["복구 · 게임 입장 설정 열기", "Open Recovery · Game entry settings", "復旧・ゲーム参加設定を開く"],
+    ["로블록스가 꺼졌을 때 복구 · 내 서버로 복귀할 때도 씀", "Also used for recovery when Roblox closes · returning to your server", "Robloxが落ちたときの復旧・自分のサーバーへの復帰にも使用"],
+    ["로블록스가 갑자기 꺼지면 (또는 모드가 다른 서버에 들어갔다 돌아올 때) 로블록스를 모두 종료하고 이 링크로 다시 접속", "If Roblox suddenly closes (or a mod joined another server and is coming back), closes all Roblox and rejoins with this link", "Robloxが突然落ちたとき（またはモッドが別のサーバーから戻るとき）Robloxをすべて終了し、このリンクで再参加"],
+    ["로블록스가 뜨면 Play ↔ Click to skip 을 번갈아 눌러 게임에 들어감 · 내 서버로 복귀 · 로블록스 꺼짐 복구에 씀", "When Roblox opens, clicks Play ↔ Click to skip alternately to enter the game · used for returning to your server · recovery when Roblox closes", "Robloxが開いたら Play ↔ Click to skip を交互に押してゲームに入る・自分のサーバーへの復帰・Roblox終了時の復旧に使用"],
+    ["모드 = 설정 탭이 생기는 큰 기능 · 플러그인 = 화면 없이 뒤에서 도는 작은 기능 · 바꾼 것은 Acrux 를 다시 켜면 적용", "Mod = a bigger feature with its own settings tab · Plugin = a small feature that runs in the background · changes apply after restarting Acrux", "モッド＝設定タブを持つ大きな機能・プラグイン＝画面なしで裏で動く小さな機能・変更はAcruxの再起動後に適用"],
+    ["<b>모드</b>: 매크로에 없는 기능을 따로 만들어 넣은 것 · 설정 탭과 화면이 생김 (예: 스나이핑)", "<b>Mod</b>: a feature the macro doesn't have, added separately · adds a settings tab and screens (e.g. Sniping)", "<b>モッド</b>：マクロにない機能を別に追加したもの・設定タブと画面が増える（例：スナイピング）"],
+    ["<b>플러그인</b>: 화면 없이 뒤에서 이벤트 (바이옴 변경 · 매크로 켜기 등) 에 반응하는 작은 기능", "<b>Plugin</b>: a small feature that reacts to events (biome change · macro on, etc.) in the background", "<b>プラグイン</b>：画面なしで裏でイベント（バイオーム変更・マクロ開始など）に反応する小さな機能"],
+    ["모드는 Acrux 와 같은 권한으로 도는 프로그램이라, 믿을 수 있는 곳에서 받은 것만 설치", "Mods run with the same permissions as Acrux, so only install ones from sources you trust", "モッドはAcruxと同じ権限で動くので、信頼できる所から入手したものだけをインストール"],
+    ["다시 켜면 작동", "Runs after restart", "再起動後に動作"],
+    ["정말 삭제", "Really delete", "本当に削除"],
+    ["켬 · 다시 켜면 적용", "On · applies after restart", "オン・再起動後に適用"],
+    ["끔 · 다시 켜면 적용", "Off · applies after restart", "オフ・再起動後に適用"],
+    ["삭제함 · 다시 켜면 적용", "Deleted · applies after restart", "削除しました・再起動後に適用"],
+    ["Acrux 를 다시 켜는 중…", "Restarting Acrux…", "Acruxを再起動中…"],
+    ["켜기 · 끄기", "On · off", "オン・オフ"],
   ];
 
   // 같은 글자라도 동작 편집기 안에서는 뜻이 다름 (대기 = 상태 '대기' 가 아니라 동작 '기다리기')
@@ -2674,5 +2709,7 @@ const I18N = (() => {
     get lang() { return lang; },
     onChange: f => listeners.push(f),
     missing: () => [...missing],
+    // 모드가 자기 글자 번역을 더함: [[한국어, English, 日本語], …] (바뀐 글자는 다시 번역)
+    add(rows) { for (const e of rows || []) if (Array.isArray(e) && e[0]) DICT.set(norm(e[0]), e); if (lang !== 'ko') apply(document.body); },
   };
 })();

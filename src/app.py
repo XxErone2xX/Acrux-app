@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Acrux snipe & popping macro — 창 화면은 HTML/CSS 로 그리고, 윈도우 기본 Edge 엔진(앱 모드)으로 띄운다.
-감지 엔진은 watcher_core.py 그대로.
+Acrux macro — 창 화면은 HTML/CSS 로 그리고, 윈도우 기본 Edge 엔진(앱 모드)으로 띄운다.
+스나이핑 (디스코드 링크 감지 · 접속) 은 본체에서 빠지고 모드로 옮겨짐 — 모드 · 플러그인은 mods.py
 
 구조
   - 127.0.0.1 에만 열리는 작은 웹 서버가 화면 파일(web/)과 API(/api/...)를 제공
@@ -22,7 +22,8 @@ from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-import watcher_core as core
+import core
+import mods as modmod
 import macro
 import biome
 import rejoin
@@ -79,25 +80,21 @@ class Bridge:
                 pass
         macro.set_ocr_mode(self.data.get("ocr_engine"))
         self.cfg = core.Config(dict(self.data))
-        self.handler = core.Handler(self.cfg)
-        self.thread = None
         self.seq = 0
         self.logs = deque(maxlen=1000)       # (seq, time, msg, color)
-        self.events = deque(maxlen=300)      # (seq, entry)
+        # 모드 · 플러그인: 이벤트 · 모드가 만든 API 이름 → 모드 ID · 모드가 쓰는 config.json 키 (mods.py)
+        self.hooks = modmod.Hooks(self._on_log)
+        self.mod_apis, self.mod_keys, self.mods = {}, set(), []
         self.crash = None              # 로블록스가 갑자기 꺼졌을 때: {"until": 복귀 실행 시각}
-        self.status = ("stopped", "중지됨")
+        self.status = ("idle", "대기 중")
         self.last_ping = 0.0
 
         core.Bus.on_log = self._on_log
         core.Bus.on_status = self._on_status
-        core.Bus.on_event = self._on_event
-        core.Bus.on_joined = self._on_joined
         # 바이옴 매크로: 로그는 항상 읽고(현재 바이옴 표시), 웹후크는 바이옴 매크로 토글이 켜져 있을 때만 (시작 버튼과 무관)
         self.biome = biome.BiomeWatcher(lambda: self.data.get("biome", {}),
                                         lambda: bool(self.data.get("biome", {}).get("enabled")),
                                         on_change=self._on_biome_change)
-        # 오토 팝핑: Play 버튼 자동 클릭
-        self.pop = popping.Popper(self._pop_cfg, self._on_log, on_end=self._on_pop_end)
         # 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버)
         # 매크로 탭 · 자동 낚시 (제자리 낚시) — 매크로 버튼 + 켜기가 켜져 있는 동안 계속
         self.fisher = fishing.Fisher(self._mfish_cfg, self._on_log,
@@ -144,8 +141,8 @@ class Bridge:
         self.fisher.on_start = self._on_fish_start
         self.play = rejoin.PlayClicker(lambda: self.data.get("play", {}), self._on_log,
                                        on_ingame=self._on_ingame, on_fail=self._on_play_fail)
-        # 매크로 복귀: 로블록스 전부 종료 → 1초 → 내 브섭 링크 → Play
-        # 스나이핑하는 동안은 매크로(자동 낚시 등)가 쉬고, 내 서버로 돌아오면 입장 후 대기 뒤 다시 켜짐
+        # 매크로 복귀 (로블록스가 꺼졌을 때 복구 · 모드가 다른 서버에 들어갔다 돌아올 때): 로블록스 전부 종료 → 1초 → 내 브섭 링크 → Play
+        # 모드 일이 도는 동안은 매크로(자동 낚시 등)가 쉬고, 내 서버로 돌아오면 입장 후 대기 뒤 다시 켜짐
         self.resume_at = 0.0                # 이 시각 전엔 매크로를 다시 켜지 않음 (복귀 직후 게임이 다 뜰 때까지)
         self.ret = rejoin.Returner(self._ret_cfg, self._on_log, self.play,
                                    kill=core.kill_roblox, launch=core.open_link,
@@ -153,16 +150,13 @@ class Bridge:
         self.ret_fails, self.ret_watch = 0, None   # 복귀 Play 실패 횟수 · 복귀 실패 뒤 직접 들어갔는지 보는 로그 감시
         self.ret_cause = None               # "crash": 로블록스가 꺼져서 하는 복구 (끝나면 하던 대로 · 커스텀 매크로는 안 돌림)
         self.crash_warned = None            # 자동 복구를 못 하는 이유를 한 번만 알림
-        # 커스텀 매크로: [스나이핑이 끝나고 매크로 실행] 이 꺼져 있으면 복귀 후 원래 매크로 대신 이것을 실행
-        # custom_hold: 커스텀 매크로 쪽으로 돌아온 뒤 — 원래 매크로는 멈춘 채로 (매크로를 다시 켜거나 토글을 켜면 풀림)
-        self.steps = stepmod.StepRunner(lambda: self.data.get("ret", {}).get("steps", []), self._on_log)
+        # custom_hold: 모드가 원래 매크로를 멈춰 둠 (예: 스나이핑 모드의 커스텀 매크로) — 매크로를 다시 켜면 풀림
         self.custom_hold = False
         self.afk_at = time.time()           # AFK 방지 점프: 마지막으로 점프한 시각
         self.craft_busy = False             # Auto Crafted 알림 확인(OCR)이 도는 중
         # 통계 (Acrux 탭): 이번 실행은 기능마다 센 값 · 올타임은 그만큼씩 더해서 설정 파일에 (바뀐 뒤 1분마다 · 끌 때)
         self.started = time.time()
         self.stat_seen, self.stat_dirty = {}, 0.0
-        core.Bus.busy = self._snipe_busy
         macro.RESET_WHEN_STOPPED[0] = lambda: (self.mpop_wait or self.blood_wait) and bool(self.data.get("macro_on"))
         self.biome.start()                  # 바이옴 변경 콜백이 위 실행기들을 쓰므로 맨 마지막에 시작
         threading.Thread(target=self._macro_loop, daemon=True).start()
@@ -183,54 +177,6 @@ class Bridge:
     def _on_status(self, state, text=""):
         with self.lock:
             self.status = (state, text or state)
-        if state in ("flux", "dom"):   # 디스코드에 붙으면 이름 모르는 항목을 채움
-            threading.Thread(target=self.resolve_names, daemon=True).start()
-
-    def _known(self, i):
-        return bool(self.data.get("names", {}).get(i) or self.data.get("channels", {}).get(i, {}).get("name"))
-
-    def resolve_names(self, ids=None):
-        with self.lock:
-            if ids is None:
-                ids = [i for i in self.data["guild_ids"] + self.data["channel_ids"] if not self._known(i)]
-            gids, cids = set(self.data["guild_ids"]), set(self.data["channel_ids"])
-        if not ids:
-            return
-        res = core.lookup_names(ids)
-        if not res:
-            return
-        with self.lock:
-            names = self.data.setdefault("names", {})
-            chans = self.data.setdefault("channels", {})
-            for i, r in res.items():
-                if r.get("type") == "guild":
-                    names[i] = r.get("name", "") + ("  (서버 ID임)" if i in cids else "")
-                    if i in cids:   # 채널 목록에 서버 ID를 넣은 경우도 보이게
-                        chans[i] = {"name": names[i], "guild": "", "guildId": i}
-                else:
-                    chans[i] = {"name": r.get("name", ""), "guild": r.get("guildName", ""),
-                                "guildId": r.get("guildId")}
-                    if i in gids:
-                        names[i] = f"#{r.get('name', '')}  (채널 ID임)"
-        self._save()
-        self._on_log(f"이름 {len(res)}개를 디스코드에서 가져옴", "d")
-
-    def _on_event(self, e):
-        changed = False
-        with self.lock:
-            self.events.append((self._next(), e))
-            names = self.data.setdefault("names", {})
-            chans = self.data.setdefault("channels", {})
-            if e.get("guildId") and e.get("guildName") and names.get(e["guildId"]) != e["guildName"]:
-                names[e["guildId"]] = e["guildName"]
-                changed = True
-            if e.get("channelId") and e.get("channelName"):
-                info = {"name": e["channelName"], "guild": e.get("guildName", ""), "guildId": e.get("guildId")}
-                if chans.get(e["channelId"]) != info:
-                    chans[e["channelId"]] = info
-                    changed = True
-        if changed:
-            self._save()
 
     def _save(self):
         with self.lock:
@@ -244,8 +190,12 @@ class Bridge:
         except Exception as e:
             self._on_log(f"설정 저장 실패: {e}", "r")
 
-    def running(self):
-        return bool(self.thread and self.thread.is_alive())
+    def _mod_busy(self, kind):
+        """모드 일이 도는 중 (mods.Hooks 의 busy)"""
+        return self.hooks.any("busy", kind)
+
+    def _mod_active(self):
+        return self.hooks.any("active")
 
     # ---------------- API ----------------
     # ---- 기능별 설정 + 매크로 기준 위치 (여러 기능이 같이 쓰는 위치는 base 에 하나만 저장)
@@ -259,13 +209,6 @@ class Bridge:
         b = self.data.get("base", {})
         return dict(self.data.get("mblood", {}), **{k: b.get(k) for k in (*core.BASE_INV_KEYS, "ocr_region")})
 
-    def _pop_cfg(self):
-        """스나이프 탭 오토 팝핑 설정 — '매크로 기준 위치 사용'이 켜져 있으면 인벤토리 위치 · OCR 영역은 기준 위치로"""
-        pop, b = self.data.get("pop", {}), self.data.get("base", {})
-        first, other = (b, pop) if pop.get("use_base") else (pop, b)
-        # 고른 쪽에 비어 있으면 다른 쪽 값을 씀 (통합 위치에만 지정해 두고 연동을 안 켠 경우 등 — 같은 게임 화면 위치)
-        return dict(pop, **{k: first.get(k) or other.get(k) for k in (*core.BASE_INV_KEYS, "ocr_region")})
-
     def _mfish_cfg(self):
         """자동 낚시 설정 + 공통 위치의 알림 영역 · 대화창"""
         b = self.data.get("base", {})
@@ -273,9 +216,10 @@ class Bridge:
 
     def api_state(self, _):
         with self.lock:
-            return {"config": self.data, "running": self.running(), "armed": core.ARMED.is_set(),
-                    "status": list(self.status),
-                    "count": self.handler.count, "version": VERSION}
+            out = {"config": self.data, "status": list(self.status), "version": VERSION}
+        out["mods"] = modmod.listing(self)
+        self.hooks.emit("state", out)
+        return out
 
     # ---------------- 로블록스가 갑자기 꺼짐 (오토 스나이핑 · 매크로 작동 중) ----------------
     # 오토 스나이핑(시작 버튼)이나 매크로(F3)가 켜져 있고, 매크로가 일부러 끈 게 아닌데 로블록스 창이 사라지면:
@@ -308,9 +252,9 @@ class Bridge:
                     seen, gone_since = False, None
                 now = time.time()
                 present = bool(macro.roblox_window_cached(0.5))
-                active = core.ARMED.is_set() or bool(self.data.get("macro_on"))
-                busy = (self.ret.running() or self.play.running() or self.pop.running() or self.mpop.running()
-                        or now < core.EXPECT_CLOSE["until"])
+                active = self._mod_active() or bool(self.data.get("macro_on"))
+                busy = (self.ret.running() or self.play.running() or self.mpop.running()
+                        or now < core.EXPECT_CLOSE["until"] or self._mod_busy("crash"))
                 if present:
                     seen, gone_since = True, None
                     if self.crash:                     # 다시 켜짐 → 알림 취소
@@ -368,13 +312,16 @@ class Bridge:
     def _stat_session(self):
         """이번 실행 기록 (기능마다 켠 뒤부터 센 값)"""
         f, u = dict(self.fisher.stats), dict(self.items.used)
-        return {"snipe_joined": int(self.handler.count),
-                "fish_success": int(f.get("success", 0)), "fish_junk": int(f.get("junk", 0)),
+        out = {"fish_success": int(f.get("success", 0)), "fish_junk": int(f.get("junk", 0)),
                 "fish_fail": int(f.get("fail", 0)), "fish_full": int(f.get("full", 0)),
                 "item_strange": int(u.get("strange", 0)), "item_randomizer": int(u.get("randomizer", 0)),
                 "blood_used": int(self.blood.used),
                 "merch_bought": int(self.merchant.bought), "crafted": int(self.crafter.crafted),
                 "match_played": int(self.matcher.played), "match_ads": int(self.matcher.ads)}
+        for extra in self.hooks.emit("stats"):
+            if isinstance(extra, dict):
+                out.update({str(k): int(v or 0) for k, v in extra.items()})
+        return out
 
     def _stats(self, save=True):
         """이번 실행 · 올타임 — 이번 실행에서 늘어난 만큼 올타임에 더함 (저장은 바뀐 뒤 1분마다)"""
@@ -412,7 +359,7 @@ class Bridge:
         since = int(p.get("since", 0))
         roblox = bool(macro.roblox_window_cached(2.0))     # 창 검색은 잠금 밖에서, 2초 동안 재사용
         stats = self._stats()
-        play, bio, pop, ret = self.play.snapshot(), self.biome.state(), self.pop.snapshot(), self.ret.snapshot()
+        play, bio, ret = self.play.snapshot(), self.biome.state(), self.ret.snapshot()
         mpop, mblood = self.mpop.snapshot(), self.blood.snapshot()
         mfish = self.fisher.snapshot()
         mv = self.mover.snapshot()
@@ -424,24 +371,17 @@ class Bridge:
                     break
                 logs.append({"seq": s, "time": t, "msg": m, "color": c})
             logs.reverse()
-            events = []
-            for s, e in reversed(self.events):
-                if s <= since:
-                    break
-                events.append(dict(e, seq=s))
-            events.reverse()
-            return {"seq": self.seq, "logs": logs, "events": events, "status": list(self.status),
-                    "running": self.running(), "armed": core.ARMED.is_set(),
-                    "play": play, "pop": pop, "ret": ret, "mpop": mpop, "mblood": mblood, "mfish": mfish, "roblox": roblox,
-                    "move": mv, "mitem": self.items.snapshot(), "mmerch": self.merchant.snapshot(), "mcraft": self.crafter.snapshot(), "mmatch": self.matcher.snapshot(), "steps": self.steps.snapshot(), "macro_on": bool(self.data.get("macro_on")), "online": self.online, "online_on": bool(self.ONLINE_URL),
+            out = {"seq": self.seq, "logs": logs, "status": list(self.status),
+                    "play": play, "ret": ret, "mpop": mpop, "mblood": mblood, "mfish": mfish, "roblox": roblox,
+                    "move": mv, "mitem": self.items.snapshot(), "mmerch": self.merchant.snapshot(), "mcraft": self.crafter.snapshot(), "mmatch": self.matcher.snapshot(), "macro_on": bool(self.data.get("macro_on")), "online": self.online, "online_on": bool(self.ONLINE_URL),
                     "crash": {"left": max(0.0, self.crash["until"] - time.time())} if self.crash else None,
-                    "biome": bio, "stats": stats,
-                    "count": self.handler.count, "names": self.data.get("names", {}),
-                    "channels": self.data.get("channels", {})}
+                    "biome": bio, "stats": stats}
+        self.hooks.emit("poll", out, since)
+        return out
 
     def api_set_config(self, p):
         patch = p.get("patch") or {}
-        allowed = set(core.DEFAULT_CONFIG) - {"names", "channels", "guild_ids", "channel_ids", "stats"}   # 통계는 엔진만 씀
+        allowed = (set(core.DEFAULT_CONFIG) | self.mod_keys) - {"names", "channels", "guild_ids", "channel_ids", "stats", "mods"}   # 통계는 엔진만 씀
         with self.lock:
             for k, v in patch.items():
                 if k in allowed:
@@ -449,71 +389,16 @@ class Bridge:
         self._save()
         return {"config": self.data}
 
-    def api_add_target(self, p):
-        kind, i, name = p.get("kind"), str(p.get("id", "")).strip(), (p.get("name") or "").strip()
-        guild, gid = (p.get("guild") or "").strip(), p.get("guildId")
-        key = {"guild": "guild_ids", "channel": "channel_ids"}.get(kind)
-        if not key or not i.isdigit():
-            return {"error": "숫자 ID만 입력 가능"}
-        with self.lock:
-            if i not in self.data[key]:
-                self.data[key].append(i)
-            if name and kind == "guild":
-                self.data.setdefault("names", {})[i] = name
-            elif name:
-                self.data.setdefault("channels", {})[i] = {"name": name, "guild": guild, "guildId": gid}
-        self._save()
-        if not name:
-            if core.CONNECTED.is_set():
-                self.resolve_names([i])     # 감시 중이면 바로 이름 가져옴
-            else:
-                return {"config": self.data, "note": "추가됨 · 디스코드 연결 후 이름을 가져옴"}
-        return {"config": self.data}
-
-    def api_remove_target(self, p):
-        key = {"guild": "guild_ids", "channel": "channel_ids"}.get(p.get("kind"))
-        i = str(p.get("id", ""))
-        with self.lock:
-            if key and i in self.data[key]:
-                self.data[key].remove(i)
-        self._save()
-        return {"config": self.data}
-
-    # ---------------- 오토 팝핑 (Play 버튼) ----------------
-    def _on_joined(self, url, hint=None):
-        """로블록스 실행 직후: 항상 Play 버튼 클릭 시작 (위치가 없으면 로그만 남김)
-        다른 사람 서버로 들어가는 것이라, 그 접속 동안은 바이옴 웹후크를 보내지 않음
-        hint: 링크가 올라온 디스코드 메시지에 적힌 바이옴 — 들어가서 바이옴을 확인할 때 참고"""
-        self.snipe_hint = hint
-        self.pop.stop()
-        self.mpop.stop()
-        self.blood.stop()
-        self.mover.stop()
-        self.fisher.stop()
-        self.items.stop()
-        self.merchant.stop()
-        self.crafter.stop()
-        self.matcher.stop()
-        self.steps.stop()
-        self.ret.stop()
-        self.ret_fails, self.ret_watch, self.ret_cause = 0, None, None
-        self.biome.mute_next_session()
-        self.play.start("서버 접속")
-
-    def _snipe_busy(self):
-        """스나이핑한 서버에서 할 일이 도는 중 (Play 클릭으로 입장 중 · 오토 팝핑 중) → 새 링크를 타면 그 서버를 나가 버림"""
-        return self.pop.running() or (self.play.running() and self.play.reason == "서버 접속")
-
+    # ---------------- 게임 입장 (Play 버튼) · 복귀 ----------------
     def _on_ingame(self, path, reason):
-        if reason == "서버 접속":           # 스나이핑 접속 → 오토 팝핑
-            self.pop.start(log_path=path, hint=getattr(self, "snipe_hint", None))
-        elif reason == "복귀":
+        if reason == "복귀":
             self.ret_fails, self.ret_watch = 0, None
             self._after_return("매크로 복귀 완료 — 내 서버 입장")
+        else:                               # 모드가 다른 서버로 들어감 (예: 스나이핑 모드 → 오토 팝핑)
+            self.hooks.emit("ingame", path, reason)
 
     def _after_return(self, head):
-        """내 서버로 돌아옴: [스나이핑이 끝나고 매크로 실행] 켜짐 → 대기 뒤 원래 매크로 다시 시작
-        꺼짐 → 원래 매크로는 멈춘 채로, 대기 뒤 커스텀 매크로 실행"""
+        """내 서버로 돌아옴: 대기 뒤 원래 매크로 다시 시작 (모드가 대신 할 일이 있으면 모드가 함 · 예: 커스텀 매크로)"""
         r = self.data.get("ret", {})
         wait = float(r.get("start_wait", 7.5))
         self.resume_at = time.time() + wait          # 게임이 다 뜰 때까지 기다렸다가
@@ -523,23 +408,17 @@ class Bridge:
             on = bool(self.data.get("macro_on")) and not self.custom_hold
             self._on_log("자동 복구 완료 — 내 서버 입장" + (f" · {wait:g}초 뒤 매크로 다시 시작" if on else ""), "g")
             return
-        if r.get("after_macro", True):
-            self.custom_hold = False
-            self._on_log(f"{head} · {wait:g}초 뒤 매크로 다시 시작", "g")
+        if self.hooks.any("after_return", head, wait):
             return
-        self.custom_hold = True
-        if self.steps.start("복귀 완료", delay=wait):
-            self._on_log(f"{head} · {wait:g}초 뒤 커스텀 매크로 실행 (스나이핑이 끝나고 매크로 실행: 꺼짐)", "g")
-        else:
-            self._on_log(f"{head} · 커스텀 매크로에 켜진 동작이 없음 — 아무것도 안 함 (스나이핑이 끝나고 매크로 실행: 꺼짐)", "y")
+        self.custom_hold = False
+        self._on_log(f"{head} · {wait:g}초 뒤 매크로 다시 시작", "g")
 
     RET_RETRY = 2                           # 복귀 Play 가 실패했을 때 다시 복귀하는 횟수
 
     def _on_play_fail(self, reason):
-        if reason == "서버 접속":           # 스나이핑한 서버에 못 들어감 → 복귀
-            self.ret_cause = None
-            self.ret.start("접속 실패")
-        elif reason == "복귀":              # 내 서버 입장을 확인 못 함 → 다시 복귀 (몇 번까지) · 그래도 안 되면 매크로는 멈춘 채로
+        if reason != "복귀":               # 모드가 들어가려던 서버에 못 들어감 (예: 스나이핑 → 복귀)
+            self.hooks.emit("play_fail", reason)
+        else:              # 내 서버 입장을 확인 못 함 → 다시 복귀 (몇 번까지) · 그래도 안 되면 매크로는 멈춘 채로
             self.ret_fails += 1
             if self.ret_fails <= self.RET_RETRY:
                 self._on_log(f"매크로 복귀 실패 — 내 서버 입장이 확인되지 않음 · 다시 복귀 ({self.ret_fails}/{self.RET_RETRY})", "y")
@@ -573,15 +452,15 @@ class Bridge:
                     self._after_return("게임 입장 확인")
                 if self.custom_hold and self.data.get("ret", {}).get("after_macro", True):
                     self.custom_hold = False                 # 토글을 다시 켬 → 원래 매크로로
-                busy = self.pop.running() or self.ret.running() or self.play.running() or time.time() < self.resume_at \
-                    or self.ret_watch is not None or self.steps.running()
+                busy = self.ret.running() or self.play.running() or time.time() < self.resume_at \
+                    or self.ret_watch is not None or self._mod_busy("macro")
                 sniping = busy or self.biome.muted() or self.custom_hold
                 if want and sniping and not paused:
                     paused = True
                     if self.custom_hold:
-                        self._on_log("커스텀 매크로 쪽으로 돌아옴 — 원래 매크로는 멈춘 채로 (매크로를 다시 켜면 시작)", "c")
+                        self._on_log("모드가 매크로를 멈춰 둠 (예: 커스텀 매크로) — 매크로를 다시 켜면 시작", "c")
                     else:
-                        self._on_log("스나이핑 중 — 매크로 잠시 멈춤 (내 서버로 돌아오면 다시 시작)", "c")
+                        self._on_log("다른 일 중 (복귀 · 모드) — 매크로 잠시 멈춤 (끝나면 다시 시작)", "c")
                 elif paused and (not want or not sniping):
                     paused = False
                     if want:
@@ -794,6 +673,7 @@ class Bridge:
         else:
             self.matcher.next_at = 0.0          # 켤 때마다 메모리 매치를 한 번 확인
         self._on_log(f"{why} — 매크로 {'켜짐' if on else '꺼짐'}", "y" if not on else "g")
+        self.hooks.emit("macro", bool(on))
 
     def _hotkey_loop(self):
         """F3: 매크로 켜기 · 끄기 (어느 창에 있든) · 매크로 작동 중엔 화면 위에 '건드리지 마세요' 띠
@@ -830,9 +710,7 @@ class Bridge:
 
     def _afk_idle(self):
         """Acrux 가 로블록스에서 아무것도 안 하는 중 (바이옴이 끝나길 기다리는 오토 팝핑은 쉬는 것으로 봄)"""
-        if self.pop.running() and "끝날 때까지 대기" not in (self.pop.snapshot().get("msg") or ""):
-            return False
-        busy = (self.play.running() or self.ret.running() or self.steps.running() or self.mpop.running()
+        busy = (self.play.running() or self.ret.running() or self._mod_busy("afk") or self.mpop.running()
                 or self.blood.running() or self.fisher.running() or self.items.running() or self.merchant.running() or self.crafter.running()
                 or self.matcher.running() or self.mover.running() or self._cal_running() or self.craft_busy
                 or time.time() < self.resume_at)
@@ -848,7 +726,7 @@ class Bridge:
         while True:
             time.sleep(2.0)
             try:
-                if not (core.ARMED.is_set() or self.data.get("macro_on")):
+                if not (self._mod_active() or self.data.get("macro_on")):
                     continue
                 now = time.time()
                 if not self._afk_idle():
@@ -889,13 +767,14 @@ class Bridge:
     def _on_biome_change(self, prev, found, sniping):
         """매크로 탭 · 레어 바이옴 자동 팝핑: 지금 켜져 있는 로블록스(내 서버)에서 레어 바이옴이 시작되면 포션 사용
         스나이핑으로 들어간 다른 사람 서버이거나, 오토 팝핑 · 복귀 · Play 클릭이 도는 중이면 안 함"""
+        self.hooks.emit("biome", prev, found, sniping)
         mp = self.data.get("mpop", {})
         if not self.data.get("macro_on") or not mp.get("enabled") or found not in popping.POP_BIOMES:
             return
         if sniping:
             self._on_log(f"{found} 감지 — 스나이핑 접속이라 내 서버 팝핑 안 함", "d")
             return
-        if self.pop.running() or self.ret.running() or self.play.running():
+        if self.ret.running() or self.play.running() or self._mod_busy("mpop"):
             self._on_log(f"{found} 감지 — 다른 기능이 도는 중이라 내 서버 팝핑 안 함", "y")
             return
         if not (mp.get("biomes_on") or {}).get(found, True):
@@ -998,11 +877,6 @@ class Bridge:
         occ = hist[-1]
         return occ if occ[1] == cur and occ != self.blood_seen else None
 
-    def _on_pop_end(self, stopped):
-        if not stopped:                     # 바이옴 종료·접속 끊김 등으로 끝남 → 복귀 (직접 멈춘 경우 제외)
-            self.ret_cause = None
-            self.ret.start("오토 팝핑 종료")
-
     def api_list_windows(self, _):
         seen, out = set(), []
         for w in macro.list_windows():
@@ -1011,15 +885,6 @@ class Bridge:
                 seen.add(k)
                 out.append({"title": w["title"], "exe": w["exe"]})
         return {"windows": out}
-
-    def api_steps_run(self, _):
-        self.pop.stop()
-        ok = self.steps.start("테스트", delay=2)
-        return {"ok": True} if ok else {"error": "켜진 동작이 없음"}
-
-    def api_steps_stop(self, _):
-        self.steps.stop()
-        return {"ok": True}
 
     def api_steps_info(self, _):
         return {"keys": macro.KEY_NAMES, "types": stepmod.STEP_TYPES}
@@ -1052,7 +917,7 @@ class Bridge:
     def api_ret_test(self, _):
         if not self._ret_cfg().get("ps_link"):
             return {"error": "복귀할 브섭 링크 먼저 입력"}
-        self.pop.stop()
+        self.hooks.emit("stop")
         self.ret_cause = None
         return {"ok": self.ret.start("테스트")} if not self.ret.running() else {"error": "이미 복귀 중"}
 
@@ -1067,75 +932,8 @@ class Bridge:
 
     def api_play_stop(self, _):
         self.play.stop()
-        self.pop.stop()
         self.ret.stop()
-        self.steps.stop()
-        return {"ok": True}
-
-    # 오토 팝핑 (레어 바이옴 포션 사용)
-    def api_pop_pos(self, p):
-        """버튼 위치 지정 — key: inventory_pos / items_pos / search_pos / item_pos / amount_pos / use_pos"""
-        key = str(p.get("key", ""))
-        if key not in dict(popping.POS_KEYS):
-            return {"error": "알 수 없는 항목"}
-        r = self._pick_overlay("--pick-point")
-        if r.get("error"):
-            return r
-        with self.lock:
-            self.data.setdefault("pop", {})[key] = [round(r["x"], 4), round(r["y"], 4)]
-        self._save()
-        return {"pos": self.data["pop"][key]}
-
-    def api_pop_region(self, _):
-        r = self._pick_overlay("--pick-region")
-        if r.get("error"):
-            return r
-        with self.lock:
-            self.data.setdefault("pop", {})["ocr_region"] = r["region"]
-        self._save()
-        return {"region": r["region"]}
-
-    def api_pop_ocr_test(self, p):
-        region = self._pop_cfg().get("ocr_region")
-        if not region:
-            return {"error": "OCR 영역 먼저 지정"}
-        back = macro.foreground()
-        try:
-            text = macro.ocr_region(region, item=True)
-        except ModuleNotFoundError:
-            return {"error": "OCR 패키지가 설치되지 않음 (run.bat 으로 실행 필요)"}
-        except Exception as e:
-            return {"error": f"OCR 오류: {e}"}
-        finally:
-            macro.focus_back(back)
-        name, count = popping.parse_ocr(text)
-        target = str(p.get("name") or "")
-        score = popping.similarity(name, target) if target else None
-        self._on_log(f"OCR 테스트: '{text[:60]}' → 이름 '{name}' · 개수 {count}"
-                     + (f" · '{target}' 일치율 {score:g}%" if target else ""), "d")
-        return {"text": text, "name": name, "count": count, "score": score, "engine": macro.ocr_engine_name()}
-
-    def api_pop_default(self, p):
-        """바이옴 템플릿을 기본값(스크립트의 레어 바이옴 자동 팝핑)으로 되돌림"""
-        b = str(p.get("biome", "")).upper()
-        if b not in core.POP_TEMPLATES:
-            return {"error": "알 수 없는 바이옴"}
-        tpl = json.loads(json.dumps(core.POP_TEMPLATES[b]))
-        with self.lock:
-            self.data.setdefault("pop", {}).setdefault("templates", {})[b] = tpl
-        self._save()
-        return {"template": self.data["pop"]["templates"][b]}
-
-    def api_pop_test(self, p):
-        b = str(p.get("biome", "")).upper()
-        cfg = self.data.get("pop", {})
-        miss = popping.Popper.missing(self._pop_cfg())      # 공통 위치와 연동이면 공통 위치까지 (실제로 쓰는 위치와 같게)
-        if miss:
-            return {"error": "설정 필요: " + ", ".join(miss)}
-        if not [i for i in ((cfg.get("templates") or {}).get(b) or {}).get("items", []) if i.get("name")]:
-            return {"error": "포션 목록이 비어 있음"}
-        self.play.stop()
-        self.pop.start(test_biome=b)
+        self.hooks.emit("stop")
         return {"ok": True}
 
     # ---------------- 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버) ----------------
@@ -2198,7 +1996,7 @@ class Bridge:
         else:
             cmd = [sys.executable, str(Path(__file__).resolve().parent / "macro.py"), flag, str(out)]
         env = dict(os.environ, ACRUX_LANG=str(self.data.get("lang") or "ko"))   # 안내 글자 언어
-        limit = 300 if flag == "--pick-file" else 150
+        limit = 300 if flag in ("--pick-file", "--pick-mod") else 150
         self.fisher.no_focus = True             # 선택 창이 떠 있는 동안 자동 낚시가 로블록스를 앞으로 끌어오지 않게
         try:
             proc = subprocess.Popen(cmd, creationflags=NO_WINDOW, env=env)
@@ -2207,7 +2005,7 @@ class Bridge:
             while proc.poll() is None:
                 waited = time.time() - start
                 # 프로그램 고르기 창은 윈도우 기본 창이라 신호를 안 보냄 → 시간만 봄
-                if flag != "--pick-file" and waited > 6 and not shown.exists():
+                if flag not in ("--pick-file", "--pick-mod") and waited > 6 and not shown.exists():
                     proc.kill()
                     return {"error": "__not_shown__"}
                 if waited > limit:
@@ -2253,87 +2051,92 @@ class Bridge:
             core.log(f"OCR 오류: {type(e).__name__}: {e}", "r")
             return {"error": f"OCR 오류: {e}"}
 
-    # 감지 엔진은 앱이 켜지면 바로 돌기 시작 (정보를 바로 불러오게)
-    def start_engine(self):
+    # 로블록스 꺼짐 감시 (앱이 켜지면 바로)
+    def start_watch(self):
         if not getattr(self, "_crash_thread", None):
             self._crash_thread = threading.Thread(target=self._crash_watch, daemon=True)
             self._crash_thread.start()
-        if self.running():
-            return
-        core.STOP.clear()
-        self.thread = threading.Thread(target=core.run, args=(self.cfg, self.handler), daemon=True)
-        if self.cfg["discord_connect"]:
-            self._on_status("launching", "디스코드 연결 중")
-        self.thread.start()
 
-    # 시작/중지 버튼은 실제 작동(링크 열기 등)만 켜고 끔
-    def pop_missing(self):
-        """오토 팝핑 필수 설정 중 비어 있는 것 (Play / Click to skip 위치 + 버튼 6개 + OCR 영역)"""
-        pl = self.data.get("play", {})
-        miss = [n for k, n in (("pos", "Play 버튼"), ("skip_pos", "Click to skip 버튼")) if not pl.get(k)]
-        return miss + popping.Popper.missing(self._pop_cfg())
+    # ---------------- 모드 · 플러그인 (mods.py) ----------------
+    def api_mods_list(self, _):
+        return {"mods": modmod.listing(self), "folder": str(modmod.MOD_DIR)}
 
-    def api_start(self, _):
-        miss = self.pop_missing()
-        if miss:                                  # 오토 팝핑 설정을 안 하면 매크로를 켜지 않음
-            self._on_log(f"시작 안 됨 — 오토 팝핑 설정 필요: {', '.join(miss)}", "n")
-            return {"error": "오토 팝핑 설정 필요", "missing": miss}
-        if not core.ARMED.is_set():
-            core.ARMED.set()
-            self._on_log("작동 시작", "c")
-            if not self.cfg["discord_connect"]:
-                self._on_log("디스코드 연결이 꺼져 있어서 링크를 감지하지 않음 — 링크 감지 설정 → 디스코드 연결에서 켜주세요", "y")
-        self.start_engine()
-        return {"ok": True}
+    def api_mods_toggle(self, p):
+        mid = str(p.get("id") or "")
+        if mid not in {m.id for m in self.mods}:
+            return {"error": "설치되지 않은 모드"}
+        with self.lock:
+            self.data.setdefault("mods", {})[mid] = {"enabled": bool(p.get("on"))}
+        self._save()
+        return {"mods": modmod.listing(self), "restart": True}
 
-    def api_stop(self, _):
-        if core.ARMED.is_set():
-            core.ARMED.clear()
-            self._on_log("작동 중지 — 감지만 계속", "c")
-        return {"ok": True}
-
-    # ---------------- Prime Snipe [ Beta ] ----------------
-    def api_prime_recent(self, _):
-        """최근에 본 봇 알림(버튼 있는 메시지) · 누른 결과 — 링크 감지 설정 → Prime Snipe 칸"""
-        return self.handler.prime.snapshot()
-
-    def api_prime_test(self, p):
-        """최근 목록의 메시지로 지금 눌러 보기 (링크만 받고 접속은 안 함)"""
-        if not core.CONNECTED.is_set():
-            return {"error": "디스코드에 연결되지 않음"}
-        err = self.handler.prime.test(str(p.get("id") or ""))
-        return {"error": err} if err else {"ok": True}
-
-    def api_prime_ai_test(self, p):
-        """Prime Snipe AI 연결 확인 — 모델 목록 · 추천 모델 · 짧은 질문 한 번 (키는 화면에 입력된 값 · 저장된 값)"""
-        import ai as ai_mod
-        conf = dict((self.data.get("prime") or {}).get("ai") or {})
-        for k in ("provider", "key", "model", "base"):
-            if isinstance(p.get(k), str):
-                conf[k] = p[k].strip()
+    def api_mods_install(self, p):
+        """모드 파일 고르기 → 설치 (path 를 주면 그 파일) · 다시 켜면 적용"""
+        path = str(p.get("path") or "")
+        if not path:
+            r = self._pick_overlay("--pick-mod")
+            if r.get("error") == "취소됨":
+                return {"cancel": True}
+            if r.get("error"):
+                return r
+            path = r.get("path") or ""
+            if not path:
+                return {"cancel": True}
         try:
-            return ai_mod.test(conf)
-        except ai_mod.AIError as e:
-            return {"error": str(e)}
+            info = modmod.install(path)
         except Exception as e:
-            return {"error": f"확인하지 못함 · {e}"}
+            return {"error": f"설치 못 함: {e}"}
+        with self.lock:
+            self.data.setdefault("mods", {})[info["id"]] = {"enabled": True}
+        self._save()
+        name = info.get("name") or info["id"]
+        self._on_log(f"모드 설치: {name} V{info.get('version') or '?'} — Acrux 를 다시 켜면 적용", "g")
+        self.mods = [m for m in self.mods if m.id != info["id"]] + [m for m in modmod.scan() if m.id == info["id"]]
+        return {"ok": True, "name": name, "restart": True, "mods": modmod.listing(self)}
 
-    def api_open_url(self, p):
-        url = str(p.get("url", ""))
-        if core.LINK_RE.fullmatch(url):
-            # 직접 [열기] 를 누른 것: 대기 없이 바로 (링크 여는 방식만 설정을 따름)
-            core.join_server(url, self.data.get("stable_join", True), self.data.get("snipe"), manual=True)
+    def api_mods_remove(self, p):
+        mid = str(p.get("id") or "")
+        try:
+            modmod.remove(mid)
+        except Exception as e:
+            return {"error": str(e)}
+        with self.lock:
+            (self.data.get("mods") or {}).pop(mid, None)
+        self._save()
+        self.mods = [m for m in self.mods if m.id != mid]
+        self._on_log(f"모드 삭제: {mid} — Acrux 를 다시 켜면 적용", "y")
+        return {"ok": True, "restart": True, "mods": modmod.listing(self)}
+
+    def api_mods_folder(self, _):
+        modmod.MOD_DIR.mkdir(parents=True, exist_ok=True)
+        os.startfile(str(modmod.MOD_DIR))
+        return {"ok": True}
+
+    def api_restart(self, _):
+        """Acrux 다시 켜기 (모드 켜기 · 끄기 · 설치 적용) — 새로 띄운 뒤 지금 것은 끔"""
+        exe = Path(sys.executable)
+        cmd = [str(exe)] if exe.name.lower().startswith("acruxhost") else [str(exe), str(Path(__file__).resolve())]
+        try:
+            subprocess.Popen(cmd, cwd=str(Path(__file__).resolve().parent), creationflags=NO_WINDOW, close_fds=True)
+        except Exception as e:
+            return {"error": f"다시 켜지 못함: {e}"}
+
+        def bye():
+            time.sleep(0.4)
+            shutdown()
+            p = getattr(self, "edge_proc", None)
+            if p and p.poll() is None:
+                subprocess.run(["taskkill", "/PID", str(p.pid), "/T", "/F"], capture_output=True, creationflags=NO_WINDOW)
+            os._exit(0)
+        threading.Thread(target=bye, daemon=True).start()
         return {"ok": True}
 
     # 크레딧 링크 (정해진 주소만 열기)
     WEB_LINKS = {
         "discord": "https://discord.gg/cyK26gsjCC",
         "roblox": "https://www.roblox.com/ko/users/11743130211/profile",
-        "donate": "https://ko-fi.com/RG_Acrux",
-        # Prime Snipe AI: API 키 받는 곳
-        "ai_groq": "https://console.groq.com/keys",
-        "ai_gemini": "https://aistudio.google.com/apikey",
-        "ai_openrouter": "https://openrouter.ai/keys",
+        "donate": "https://ko-fi.com/acrux_",
+        "web": "https://acruxmacro.com",
     }
 
     def api_open_web(self, p):
@@ -2374,10 +2177,7 @@ class Bridge:
 
         def bye():
             time.sleep(0.6)                       # 화면이 응답을 받을 시간
-            core.STOP.set()
-            if self.thread:
-                self.thread.join(15)
-            core.close_debug_port(self.cfg)       # 디스코드를 보통 모드로 (디버그 포트 닫기)
+            shutdown()
             p = getattr(self, "edge_proc", None)
             if p and p.poll() is None:
                 subprocess.run(["taskkill", "/PID", str(p.pid), "/T", "/F"], capture_output=True, creationflags=NO_WINDOW)
@@ -2418,6 +2218,8 @@ class Bridge:
             if x.get("draft") or not str(x.get("tag_name", "")).startswith("v"):
                 continue
             notes = self._split_notes(x.get("body"))
+            if not notes["ko"] and not notes["en"]:
+                continue                                    # 설명이 없는 릴리스는 안 보여줌
             entries.append({"version": x["tag_name"][1:], "date": str(x.get("published_at") or "")[:10], **notes})
         entries.sort(key=lambda e: [int(n) if n.isdigit() else 0 for n in e["version"].split(".")], reverse=True)
         out = {"entries": entries, "current": VERSION}
@@ -2476,6 +2278,9 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?")[0].split("#")[0]
         if path == "/":
             path = "/index.html"
+        if path.startswith("/mods/"):            # 모드 화면 파일 (mods.py)
+            got = modmod.serve(path)
+            return self._send(200, got[0], got[1]) if got else self._send(404, {"error": "not found"})
         f = (WEB_DIR / path.lstrip("/")).resolve()
         if WEB_DIR.resolve() not in f.parents or not f.is_file():
             return self._send(404, {"error": "not found"})
@@ -2540,17 +2345,17 @@ def _clean_install_leftovers():
 def main():
     global BRIDGE
     BRIDGE = Bridge()
+    modmod.load_all(BRIDGE)               # 모드 · 플러그인 (데이터 폴더 → mods)
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     port = server.server_address[1]
     threading.Thread(target=server.serve_forever, daemon=True).start()
     url = f"http://127.0.0.1:{port}/#{TOKEN}"
 
     threading.Thread(target=_clean_install_leftovers, daemon=True).start()
-    BRIDGE.start_engine()                 # 앱 켜자마자 디스코드 연결 + 감지
+    BRIDGE.start_watch()                  # 로블록스 꺼짐 감시
     # OCR 엔진은 미리 불러두지 않음 — 글자를 읽어야 할 때만 따로 띄우고, 안 쓰면 꺼짐 (메모리 절약)
     BRIDGE._on_log(f"OCR 엔진: {macro.ocr_engine_name()}", "d")
-    if BRIDGE.data.get("autostart"):      # '바로 작동' 설정이면 시작 버튼까지 눌린 상태로
-        BRIDGE.api_start({})
+    BRIDGE.hooks.emit("ready")
 
     edge = find_edge()
     proc = None
@@ -2594,9 +2399,19 @@ def main():
     shutdown(server)
 
 
+_SHUT = threading.Lock()
+
+
 def shutdown(server=None):
-    """프로그램을 끌 때: 감지 중지 → 디스코드를 보통 모드로 다시 켬 (디버그 포트가 계속 열려 있지 않게)"""
+    """프로그램을 끌 때: 모드에 알림 (스나이핑 모드는 디스코드를 보통 모드로) → 통계 저장"""
+    if not _SHUT.acquire(blocking=False):
+        return
     core.STOP.set()
+    try:
+        if BRIDGE:
+            BRIDGE.hooks.emit("shutdown")
+    except Exception:
+        pass
     try:
         macro._OCR.close()                    # OCR 일꾼도 끔
     except Exception:
@@ -2606,12 +2421,8 @@ def shutdown(server=None):
             BRIDGE.save_stats()               # 통계 (올타임) 마지막 몫
     except Exception:
         pass
-    if BRIDGE and BRIDGE.thread:
-        BRIDGE.thread.join(15)                # 감지 엔진이 완전히 멈춘 뒤에 디스코드를 건드림
     if server:
         server.shutdown()
-    if BRIDGE:
-        core.close_debug_port(BRIDGE.cfg)
 
 
 if __name__ == "__main__":
@@ -2620,6 +2431,9 @@ if __name__ == "__main__":
         sys.exit(0)
     if "--pick-file" in sys.argv:            # 프로그램 고르기 창
         macro.pick_file_to_file(sys.argv[sys.argv.index("--pick-file") + 1])
+        sys.exit(0)
+    if "--pick-mod" in sys.argv:             # 모드 파일 고르기 창
+        macro.pick_file_to_file(sys.argv[sys.argv.index("--pick-mod") + 1], "mod")
         sys.exit(0)
     if "--pick-point" in sys.argv:           # 클릭 위치 지정 창
         macro.pick_region_to_file(sys.argv[sys.argv.index("--pick-point") + 1], "point")

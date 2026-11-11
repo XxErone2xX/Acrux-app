@@ -325,16 +325,22 @@ public final class Fisher {
             } else {
                 if (unknownAt == null) unknownAt = t;
                 out.state("낚시 화면 확인 중");
-                // 30초 동안 낚시 화면이 한 번도 안 보임 → 낚시 장소에 못 간 것 → 다시 이동 (2번까지 · 그래도 안 되면 멈춤)
+                // 30초 동안 낚시 화면이 한 번도 안 보임 → 낚시 장소에 못 간 것 → 다시 이동 (3번까지 · 그래도 안 되면 멈춤)
                 if (onStart != null && t - knownAt > RELOC_AFTER) {
-                    if (relocs >= 2) {
+                    if (relocs >= 3) {
                         out.log("낚시 장소로 다시 가도 낚시 화면이 안 보임 — 자동 낚시 멈춤 (경로 · 위치 확인)", 'r');
                         throw new Stopped();
                     }
                     relocs++;
-                    out.log((int) RELOC_AFTER + "초 동안 낚시 화면이 안 보임 — 낚시 장소로 다시 이동 (" + relocs + "/2)", 'y');
+                    out.log((int) RELOC_AFTER + "초 동안 낚시 화면이 안 보임 — 낚시 장소로 다시 이동 (" + relocs + "/3)", 'y');
                     out.state("낚시 장소로 다시 가는 중");
-                    onStart.run();
+                    try {
+                        onStart.run();
+                    } catch (Stopped e) {
+                        throw e;
+                    } catch (RuntimeException e) {                // 다시 가다가 오류 → 이번 시도로 세고 다음에 또 시도 (바로 멈추지 않음)
+                        out.log("낚시 장소로 다시 가다가 오류: " + e.getMessage(), 'y');
+                    }
                     knownAt = progressAt = now();
                     unknownAt = null;
                     continue;

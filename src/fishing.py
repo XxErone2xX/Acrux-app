@@ -1157,7 +1157,7 @@ class _ReelLog:
         if not on:
             return
         try:
-            import watcher_core as core
+            import core
             path = core.DATA_BASE / "fishing_log.csv"
             if path.exists() and path.stat().st_size > 5_000_000:      # 너무 커지면 새로
                 path.unlink()

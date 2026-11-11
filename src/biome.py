@@ -32,7 +32,7 @@ TARGET_BIOMES = {"WINDY", "SNOWY", "RAINY", "SANDSTORM", "HELL", "STARFALL", "HE
 THUMB_BIOMES = {"WINDY", "SNOWY", "RAINY", "SANDSTORM", "HELL", "STARFALL", "HEAVEN",
                 "CORRUPTION", "NULL", "GLITCHED", "DREAMSPACE", "CYBERSPACE", "SINGULARITY"}
 # 스나이핑 바이옴 — 레어 바이옴(팝핑 후 복귀) 말고 들어가서 바이옴이 끝날 때까지 머무는 바이옴 (Windy · Snowy · Rainy 빼고 전부)
-# popping · watcher_core 가 같이 씀 · 화면(app.js STAY_BIOMES)도 같은 순서
+# popping · core · 스나이핑 모드가 같이 씀 · 화면(app.js STAY_BIOMES)도 같은 순서
 STAY_BIOMES = ("RADIANTFOREST", "SINGULARITY", "LOSTFOREST", "BLOODRAIN", "PUMPKINMOON", "GRAVEYARD",
                "NULL", "CORRUPTION", "HEAVEN", "STARFALL", "HELL", "SANDSTORM")
 # 여러 낱말 바이옴의 보여줄 이름 (키는 띄어쓰기 없이)
@@ -46,7 +46,7 @@ DISCONNECT_MARK = "[FLog::Network] Client:Disconnect"
 
 def _log(msg, color=""):
     try:
-        import watcher_core as core
+        import core
         core.log(msg, color)
     except Exception:
         print(msg)

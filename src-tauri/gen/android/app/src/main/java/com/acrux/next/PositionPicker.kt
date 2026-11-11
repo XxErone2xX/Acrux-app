@@ -30,8 +30,8 @@ class PositionPicker(
     private val pointer = object : View(service) {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val delta = service.resources.displayMetrics.density
-        var xPos = (initial?.first?.times(physical.x) ?: physical.x * .5).toFloat()
-        var yPos = (initial?.second?.times(physical.y) ?: physical.y * .5).toFloat()
+        var xPos = (initial?.first?.coerceIn(0.0, .9999)?.times(physical.x) ?: physical.x * .5).toFloat()
+        var yPos = (initial?.second?.coerceIn(0.0, .9999)?.times(physical.y) ?: physical.y * .5).toFloat()
         private var lastX = 0f
         private var lastY = 0f
 

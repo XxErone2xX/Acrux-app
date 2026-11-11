@@ -6,10 +6,7 @@
   "scripts": {
     "build": "tsc --noEmit && node frontend/build.mjs",
     "tauri": "tauri",
-    "build:macos": "tauri build --target universal-apple-darwin --bundles app --no-sign",
-    "init:ios": "tauri ios init --ci",
-    "build:ios": "tauri ios build --target aarch64 --ci --no-sign",
-    "build:ios:simulator": "tauri ios build --target aarch64-sim --ci --no-sign"
+    "build:macos": "tauri build --target universal-apple-darwin --bundles app --no-sign"
   },
   "dependencies": {
     "@tauri-apps/api": "2.12.4"

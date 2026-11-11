@@ -562,10 +562,34 @@ mobileWindow.acruxMobileBack = () => {
   return true;
 };
 
+let numberSaves = Promise.resolve();
+document.addEventListener("input", event => {
+  const input = event.target as HTMLInputElement;
+  const tuning = input.dataset.tuning as keyof Tuning | undefined;
+  const movement = input.dataset.navigation as keyof NavigationOptions | undefined;
+  if (input.type !== "number" || (!tuning && !movement) || !Number.isFinite(input.valueAsNumber) || !input.validity.valid) return;
+  const value = input.valueAsNumber;
+  numberSaves = numberSaves.then(async () => {
+    busy = true;
+    ++request;
+    try {
+      if (movement) {
+        const options = { ...nav.options, [movement]: value };
+        await invoke("save_navigation", { options });
+        nav = { ...nav, options };
+      } else if (tuning && current) {
+        current = await saveTuning({ ...current.tuning, [tuning]: value });
+      }
+    } catch (error) { message(String(error)); }
+    finally { busy = false; }
+  });
+});
+
 document.addEventListener("change", async event => {
   const input = event.target as HTMLInputElement;
   const key = input.dataset.tuning as keyof Tuning | undefined;
   const movement = input.dataset.navigation as keyof NavigationOptions | undefined;
+  if (input.type === "number" && (key || movement)) return;
   if (busy) return;
   if (input.dataset.biome) {
     busy = true;

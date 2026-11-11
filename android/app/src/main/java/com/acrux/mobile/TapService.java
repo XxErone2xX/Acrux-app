@@ -196,7 +196,8 @@ public class TapService extends AccessibilityService {
     // ---------------------------------------------------------------- 터치
     /** (x, y) 를 ms 동안 누름 (화면 좌표 · 지금 화면 방향 기준) — 기다리지 않음 */
     void tap(int x, int y, int ms) {
-        if (x < 0 || y < 0) return;
+        x = Math.max(0, x);                                     // 화면 밖이면 화면 끝을 누름 (음수 좌표는 안드로이드가 거절)
+        y = Math.max(0, y);
         letThrough(x, y);
         Path p = new Path();
         p.moveTo(x, y);
@@ -207,8 +208,8 @@ public class TapService extends AccessibilityService {
     void swipe(int x0, int y0, int x1, int y1, int ms) {
         letThrough(x0, y0);
         Path p = new Path();
-        p.moveTo(x0, y0);
-        p.lineTo(x1, y1);
+        p.moveTo(Math.max(0, x0), Math.max(0, y0));
+        p.lineTo(Math.max(0, x1), Math.max(0, y1));
         dispatchGesture(new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(p, 0, Math.max(1, ms))).build(), null, null);
     }
 
@@ -238,8 +239,8 @@ public class TapService extends AccessibilityService {
 
     static Path line(float x0, float y0, float x1, float y1) {
         Path p = new Path();
-        p.moveTo(x0, y0);
-        p.lineTo(x1, y1);
+        p.moveTo(Math.max(0, x0), Math.max(0, y0));             // 음수 좌표는 안드로이드가 거절 ('Path bounds must not be negative')
+        p.lineTo(Math.max(0, x1), Math.max(0, y1));
         return p;
     }
 
@@ -297,9 +298,12 @@ public class TapService extends AccessibilityService {
         if (on) passing = false;
     }
 
+    /** 이동하는 동안 계속 통과 (조이스틱을 새로 누를 때마다 창 설정을 바꾸느라 0.04초씩 늦어지지 않게) */
+    volatile boolean passKeep;
+
     void restoreLater() {
         Hub.main.postDelayed(() -> {
-            if (SystemClock.uptimeMillis() >= passUntil) setTouchable(true);
+            if (!passKeep && SystemClock.uptimeMillis() >= passUntil) setTouchable(true);
             else restoreLater();
         }, 200);
     }
@@ -715,7 +719,14 @@ public class TapService extends AccessibilityService {
                     Hub.log("가운데와 가장자리가 너무 가까움 — 다시", 'y');
                     return;
                 }
-                Hub.stick = new double[]{c[0], c[1], r / s[1]};
+                double[] st2 = Hub.fitStick(new double[]{c[0], c[1], r / s[1]}, s[0], s[1]);
+                if (st2[2] * s[1] < r - 1) Hub.log("조이스틱 판이 화면 밖으로 나가서 반지름을 화면 안까지로 줄임 (" + Math.round(r) + " → " + Math.round(st2[2] * s[1]) + "px)", 'y');
+                if (st2[2] * s[1] < 5) {
+                    Hub.log("조이스틱 가운데가 화면 끝에 너무 붙어 있음 — 다시", 'y');
+                    return;
+                }
+                r = st2[2] * s[1];
+                Hub.stick = st2;
                 Hub.save();
                 Hub.log("조이스틱 저장: 가운데 (" + Math.round(c[0] * s[0]) + ", " + Math.round(c[1] * s[1]) + ") · 반지름 " + Math.round(r) + "px", 'g');
                 showRing(Hub.stick, 2500);
@@ -782,6 +793,7 @@ public class TapService extends AccessibilityService {
         }
         int[] s = screen();
         FrameLayout f = new FrameLayout(this);
+        init = Hub.fitPos(init);
         PointerView pv = new PointerView(this, init != null ? (float) (init[0] * s[0]) : s[0] / 2f, init != null ? (float) (init[1] * s[1]) : s[1] / 2f);
         f.addView(pv, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         LinearLayout bar = new LinearLayout(this);
@@ -799,7 +811,7 @@ public class TapService extends AccessibilityService {
         TextView ok = small("확인", Ui.GREEN, v -> {
             int[] loc = new int[2];
             pv.getLocationOnScreen(loc);
-            finish.accept(new double[]{Math.round((pv.px + loc[0]) / s[0] * 10000) / 10000.0, Math.round((pv.py + loc[1]) / s[1] * 10000) / 10000.0});
+            finish.accept(Hub.fitPos(new double[]{Math.round((pv.px + loc[0]) / s[0] * 10000) / 10000.0, Math.round((pv.py + loc[1]) / s[1] * 10000) / 10000.0}));
         });
         TextView no = small("취소", Ui.MUTED, v -> finish.accept(null));
         bar.addView(ok, gap());

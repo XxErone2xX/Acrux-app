@@ -218,13 +218,22 @@ impl Navigation {
             .collect()
     }
 
-    pub fn set_point(&mut self, key: &str, point: Point) -> Result<(), &'static str> {
+    pub fn fit_positions(&mut self) {
+        for point in self.positions.values_mut() {
+            point.0 = point.0.clamp(0.0, 0.9999);
+            point.1 = point.1.clamp(0.0, 0.9999);
+        }
+    }
+
+    pub fn set_point(&mut self, key: &str, mut point: Point) -> Result<(), &'static str> {
         let allowed = BASE.contains(&key)
             || SELL.contains(&key)
             || ["stick_center", "stick_edge", "jump_btn", "talk_btn"].contains(&key);
-        if !allowed || !(0.0..1.0).contains(&point.0) || !(0.0..1.0).contains(&point.1) {
+        if !allowed || !point.0.is_finite() || !point.1.is_finite() {
             return Err("저장할 위치를 확인하세요.");
         }
+        point.0 = point.0.clamp(0.0, 0.9999);
+        point.1 = point.1.clamp(0.0, 0.9999);
         if key == "stick_center" {
             self.positions.remove("stick_edge");
         }
@@ -553,6 +562,9 @@ impl Navigation {
                 });
             }
         }
+        if action == Task::Sell {
+            job.sale_start = steps.clone();
+        }
         job.steps = steps;
         Ok(job)
     }
@@ -625,11 +637,13 @@ impl Motion {
     }
 }
 
+#[derive(Clone)]
 enum Step {
     Input(Motion, f64),
     Wait(f64),
     Check(Check),
 }
+#[derive(Clone, Copy)]
 enum Check {
     Dialog(u8),
     Shop,
@@ -671,6 +685,8 @@ pub struct Job {
     pub recording_at: Option<f64>,
     steps: VecDeque<Step>,
     sale: Option<Sale>,
+    sale_start: VecDeque<Step>,
+    attempts: u8,
     resume: bool,
 }
 
@@ -685,6 +701,8 @@ impl Job {
             recording_at: None,
             steps: VecDeque::new(),
             sale: None,
+            sale_start: VecDeque::new(),
+            attempts: 1,
             resume,
         }
     }
@@ -693,6 +711,8 @@ impl Job {
         match (self.action, self.recording_at) {
             (Task::Measure, Some(_)) => "시간 재는 중 · 도착하면 F6을 누르세요.",
             (_, Some(_)) => "길 기록 중 · 이동 버튼을 누르고 도착하면 저장하세요.",
+            (Task::Sell, _) if self.attempts == 2 => "판매 실패 · 처음부터 다시 이동 중 (2/3)",
+            (Task::Sell, _) if self.attempts == 3 => "판매 실패 · 처음부터 다시 이동 중 (3/3)",
             (Task::Sell, _) => "판매 · 이동 또는 판매 중",
             (Task::StickTest, _) => "조이스틱 테스트 중",
             (Task::JumpTest, _) => "점프 테스트 중",
@@ -754,14 +774,13 @@ impl Job {
                     tap(&mut self.steps, sale.dialog, 0.35);
                     self.steps.push_back(Step::Check(Check::Dialog(tries + 1)));
                 } else {
-                    return Tick::Failed(
-                        "Sell Fish를 찾지 못했습니다. 대화창과 버튼 위치를 확인하세요.",
-                    );
+                    return self
+                        .retry_sale("판매 3회 실패 · 대화창과 Sell Fish 위치를 확인하세요.");
                 }
             }
             Check::Shop => {
                 if frame.sale_color(sale.all, false) < 0.035 {
-                    return Tick::Failed("Sell All을 찾지 못했습니다. 상점 위치를 확인하세요.");
+                    return self.retry_sale("판매 3회 실패 · Sell All과 상점 위치를 확인하세요.");
                 }
                 tap(&mut self.steps, sale.first, 0.5 + sale.delay);
                 self.steps.push_back(Step::Check(Check::Before));
@@ -796,15 +815,14 @@ impl Job {
                 } else if frame.sale_color(sale.all, false) >= 0.035 {
                     self.end_sale();
                 } else {
-                    return Tick::Failed("판매 도중 상점을 찾지 못했습니다.");
+                    return self
+                        .retry_sale("판매 3회 실패 · 판매 장소 길과 상점 위치를 확인하세요.");
                 }
             }
             Check::Closed { before, tries } => {
                 if confirmed(frame, sale.confirm, before) {
                     if tries >= 3 {
-                        return Tick::Failed(
-                            "판매 확인창이 닫히지 않았습니다. 확인 버튼 위치를 확인하세요.",
-                        );
+                        return self.retry_sale("판매 3회 실패 · 확인 버튼 위치를 확인하세요.");
                     }
                     tap(&mut self.steps, sale.confirm, 1.2 + sale.delay);
                     self.steps.push_back(Step::Check(Check::Closed {
@@ -824,10 +842,19 @@ impl Job {
         Tick::Wait
     }
 
+    fn retry_sale(&mut self, error: &'static str) -> Tick {
+        if self.attempts >= 3 {
+            return Tick::Failed(error);
+        }
+        self.attempts += 1;
+        self.steps = self.sale_start.clone();
+        Tick::Wait
+    }
+
     fn end_sale(&mut self) {
         let sale = self.sale.as_mut().unwrap();
         tap(&mut self.steps, sale.close, 0.5 + sale.delay);
-        self.steps.append(&mut sale.back);
+        self.steps.extend(sale.back.iter().cloned());
     }
 }
 
@@ -970,6 +997,59 @@ impl Navigation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn saved_and_picked_positions_are_kept_on_screen() {
+        let mut nav: Navigation = serde_json::from_str(
+            r#"{"positions":{"stick_center":[-0.2,1.5],"jump_btn":[1.2,-1.0]}}"#,
+        )
+        .unwrap();
+        nav.fit_positions();
+        assert_eq!(nav.positions["stick_center"].0, 0.0);
+        assert_eq!(nav.positions["stick_center"].1, 0.9999);
+        nav.set_point("jump_btn", Point(1.0, -0.1)).unwrap();
+        assert_eq!(nav.positions["jump_btn"].0, 0.9999);
+        assert_eq!(nav.positions["jump_btn"].1, 0.0);
+        assert!(nav.set_point("jump_btn", Point(f64::NAN, 0.1)).is_err());
+    }
+
+    #[test]
+    fn failed_sales_restart_the_full_route_and_stop_on_the_third_failure() {
+        let mut nav = Navigation::default();
+        for key in BASE
+            .into_iter()
+            .chain(SELL)
+            .chain(["stick_center", "stick_edge", "talk_btn"])
+        {
+            nav.positions.insert(key.into(), Point(0.2, 0.7));
+        }
+        nav.positions.insert("stick_edge".into(), Point(0.25, 0.7));
+        nav.sell.push(Stride {
+            x: 0,
+            y: -1,
+            ms: 500,
+            jump: false,
+        });
+        nav.fish.push(Stride {
+            x: 0,
+            y: -1,
+            ms: 500,
+            jump: false,
+        });
+        let mut job = nav.job(Task::Sell, 0.0, true).unwrap();
+        let pixels = vec![0; 100 * 100 * 4];
+        let frame = Frame::new(&pixels, 100, 100, 400, 4, false).unwrap();
+        let mut failed = false;
+        for step in 0..500 {
+            if matches!(job.tick(step as f64 * 10.0, &frame), Tick::Failed(_)) {
+                failed = true;
+                break;
+            }
+        }
+        assert!(failed);
+        assert_eq!(job.attempts, 3);
+        assert!(!job.sale_start.is_empty());
+    }
 
     #[test]
     fn sale_confirmation_requires_a_new_green_button() {

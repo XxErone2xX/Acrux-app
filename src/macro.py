@@ -30,7 +30,7 @@ if IS_WIN:
 
 def _log(msg, color=""):
     try:
-        import watcher_core as core
+        import core
         core.log(msg, color)
     except Exception:
         print(msg)
@@ -1513,8 +1513,12 @@ def pick_region_to_file(path, mode="region"):
     Path(path).write_text(_json.dumps(res, ensure_ascii=False), encoding="utf-8")
 
 
-def pick_file_to_file(path):
-    """프로그램 고르기 창 (tkinter) — 고른 경로를 파일로 저장"""
+MOD_PICK = {"ko": ("Acrux 모드 파일 고르기", "Acrux 모드"), "en": ("Choose an Acrux mod file", "Acrux mod"),
+            "ja": ("Acrux モッドファイルを選択", "Acrux モッド")}
+
+
+def pick_file_to_file(path, kind="program"):
+    """프로그램 고르기 창 (tkinter) — 고른 경로를 파일로 저장 · kind="mod": 모드 파일 (.acxm · 예전 .acrux · .zip)"""
     import json as _json
     res = {"error": "취소됨"}
     try:
@@ -1524,8 +1528,12 @@ def pick_file_to_file(path):
         root.withdraw()
         root.attributes("-topmost", True)
         g = _GUIDE.get(_LANG, _GUIDE["ko"])
-        p = filedialog.askopenfilename(title=g["file"], parent=root,
-                                       filetypes=[(g["prog"], "*.exe *.lnk *.bat *.cmd *.ahk *.py *.pyw"), (g["all"], "*.*")])
+        if kind == "mod":
+            t, n = MOD_PICK.get(_LANG, MOD_PICK["ko"])
+            p = filedialog.askopenfilename(title=t, parent=root, filetypes=[(n, "*.acxm *.acrux *.zip"), (g["all"], "*.*")])
+        else:
+            p = filedialog.askopenfilename(title=g["file"], parent=root,
+                                           filetypes=[(g["prog"], "*.exe *.lnk *.bat *.cmd *.ahk *.py *.pyw"), (g["all"], "*.*")])
         root.destroy()
         if p:
             res = {"path": str(Path(p))}
@@ -1536,6 +1544,8 @@ def pick_file_to_file(path):
 
 if __name__ == "__main__" and "--pick-file" in sys.argv:
     pick_file_to_file(sys.argv[sys.argv.index("--pick-file") + 1])
+elif __name__ == "__main__" and "--pick-mod" in sys.argv:
+    pick_file_to_file(sys.argv[sys.argv.index("--pick-mod") + 1], "mod")
 elif __name__ == "__main__" and "--pick-region" in sys.argv:
     pick_region_to_file(sys.argv[sys.argv.index("--pick-region") + 1])
 elif __name__ == "__main__" and "--pick-point" in sys.argv:

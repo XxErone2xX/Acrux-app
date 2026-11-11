@@ -302,6 +302,32 @@ final class Hub {
         return s;
     }
 
+    // ---------------------------------------------------------------- 저장 위치는 항상 화면 안
+    // (화면 밖 좌표를 누르면 안드로이드가 'Path bounds must not be negative' 로 거절해서 매크로가 멈춤
+    //  · 다른 화면 크기 · 방향에서 저장했거나 조이스틱 가장자리를 화면 밖 쪽으로 찍은 경우)
+    /** 저장한 숫자 읽기 — float 로 저장해서 0.3 이 0.30000001192… 로 돌아옴 (설정 칸에 그대로 보였음) → 소수 넷째 자리로 맞춤 */
+    static double num(android.content.SharedPreferences p, String key, double def) {
+        return Math.round(p.getFloat(key, (float) def) * 10000.0) / 10000.0;
+    }
+
+    static double in01(double v) {
+        return Double.isNaN(v) ? 0.5 : Math.max(0, Math.min(0.9999, v));
+    }
+
+    /** 위치 [x, y] (화면 비율) → 화면 안으로 */
+    static double[] fitPos(double[] v) {
+        return v == null || v.length < 2 ? v : new double[]{in01(v[0]), in01(v[1])};
+    }
+
+    /** 조이스틱 [가운데 x, y, 반지름(높이 비율)] → 가운데는 화면 안 · 판이 화면 밖으로 나가지 않게 반지름을 줄임 (w, h: 화면 px · 0 = 모름) */
+    static double[] fitStick(double[] st, int w, int h) {
+        if (st == null || st.length < 3) return st;
+        double cx = in01(st[0]), cy = in01(st[1]), r = Math.max(0, st[2]);
+        if (w > 0 && h > 0) r = Math.min(r, Math.min(Math.min(cx * w, (1 - cx) * w), Math.min(cy * h, (1 - cy) * h)) / h);
+        else r = Math.min(r, Math.min(cy, 1 - cy));
+        return new double[]{cx, cy, r};
+    }
+
     /** 조이스틱 찾기: 지금 화면에서 왼쪽 아래 둥근 조이스틱을 찾아 저장 · 찾은 자리에 원을 잠깐 그려 줌 */
     static void stickFind(CaptureService cap) {
         state = "조이스틱 찾는 중";
@@ -313,7 +339,7 @@ final class Hub {
         if (fd == null)
             throw new RuntimeException("조이스틱을 못 찾음 — 로블록스 설정에서 이동 방식을 '조이스틱'(클래식)으로 바꾸고, 조이스틱이 보일 때 다시 (안 되면 ⚙ → 조이스틱 직접 지정)");
         double sx = (double) w / im.w, sy = (double) h / im.h;
-        stick = new double[]{fd.cx * sx / w, fd.cy * sy / h, fd.r * sy / h};
+        stick = fitStick(new double[]{fd.cx * sx / w, fd.cy * sy / h, fd.r * sy / h}, w, h);
         save();
         log("조이스틱 찾음: 가운데 (" + Math.round(fd.cx * sx) + ", " + Math.round(fd.cy * sy) + ") · 반지름 " + Math.round(fd.r * sy) + "px · 점수 " + Math.round(fd.score), 'g');
         showStick(3000);
@@ -434,28 +460,38 @@ final class Hub {
             log("인벤토리 가득 — 판매 못 함: " + m, 'y');
             return false;
         }
-        try {
-            int sold = sl.run();
-            stat("sells", 1);
-            stat("sold", sold);
-            if (sold > 0) {
-                zeroSells = 0;
+        // 이동이 한 번 빗나가면 (판매 장소에 못 감 → 대화창 · 상점을 못 찾음) 바로 멈추지 않고 처음(리셋)부터 다시 감
+        for (int attempt = 1; ; attempt++) {
+            try {
+                int sold = sl.run();
+                stat("sells", 1);
+                stat("sold", sold);
+                if (sold > 0) {
+                    zeroSells = 0;
+                    return true;
+                }
+                zeroSells++;
+                if (zeroSells >= 2) {
+                    log("판매하러 갔는데 두 번 연속 팔 물고기가 없음 — 낚시 자리 문제로 보고 멈춤", 'y');
+                    return false;
+                }
+                log("판매하러 갔는데 팔 물고기가 없음 — 낚시 자리를 다시 잡고 이어감", 'y');
                 return true;
+            } catch (Fisher.Stopped e) {
+                throw e;
+            } catch (RuntimeException e) {
+                if (attempt >= SELL_TRIES) {
+                    log("판매 실패 " + SELL_TRIES + "번 — 멈춤: " + e.getMessage() + " (판매 장소 길 · 위치 확인)", 'r');
+                    return false;
+                }
+                log("판매 실패 (" + attempt + "/" + SELL_TRIES + "): " + e.getMessage() + " — 처음부터 다시 이동", 'y');
+                state = "판매 장소로 다시 가는 중";
+                changed();
             }
-            zeroSells++;
-            if (zeroSells >= 2) {
-                log("판매하러 갔는데 두 번 연속 팔 물고기가 없음 — 낚시 자리 문제로 보고 멈춤", 'y');
-                return false;
-            }
-            log("판매하러 갔는데 팔 물고기가 없음 — 낚시 자리를 다시 잡고 이어감", 'y');
-            return true;
-        } catch (Fisher.Stopped e) {
-            throw e;
-        } catch (RuntimeException e) {
-            log("판매 실패: " + e.getMessage(), 'r');
-            return false;
         }
     }
+
+    static final int SELL_TRIES = 3;
 
     static void stop() {
         // 길 기록 중에 [멈춤] = [도착] (걸어온 길을 저장) · 저장하는 중에 한 번 더 누르면 그때 멈춤
@@ -508,35 +544,36 @@ final class Hub {
         cfg.closePos = arr(p.getString("close", ""));
         cfg.titlePos = arr(p.getString("title", ""));
         cfg.reelDerived = p.getBoolean("derived", true);
-        cfg.biteMax = p.getFloat("biteMax", (float) cfg.biteMax);
+        cfg.biteMax = num(p, "biteMax", cfg.biteMax);
         cfg.clickMs = p.getInt("clickMs", cfg.clickMs);
-        cfg.leadMs = p.getFloat("leadMs", (float) cfg.leadMs);
-        cfg.targetPct = p.getFloat("targetPct", (float) cfg.targetPct);
+        cfg.leadMs = num(p, "leadMs", cfg.leadMs);
+        cfg.targetPct = num(p, "targetPct", cfg.targetPct);
         cfg.adaptive = p.getBoolean("adaptive", cfg.adaptive);
         cfg.tapAbove = p.getBoolean("tapAbove", true);
         autoUpdate = p.getBoolean("autoUpdate", true);
         useMove = p.getBoolean("useMove", true);
         useSell = p.getBoolean("useSell", true);
         sellMax = p.getInt("sellMax", 100);
-        sellDelay = p.getFloat("sellDelay", 0f);
-        move.resetWait = p.getFloat("m_reset_wait", (float) move.resetWait);
+        sellDelay = num(p, "sellDelay", 0);
+        move.resetWait = num(p, "m_reset_wait", move.resetWait);
         // V0.9.11 기준 장소 걷기가 바뀜 (W+A → A → A+W → 쉼 → D) — 예전 값(m_w_time …)은 안 씀
-        move.waTime = p.getFloat("m2_wa", (float) move.waTime);
-        move.aTime = p.getFloat("m2_a", (float) move.aTime);
-        move.awTime = p.getFloat("m2_aw", (float) move.awTime);
-        move.pauseTime = p.getFloat("m2_pause", (float) move.pauseTime);
-        move.dTime = p.getFloat("m2_d", (float) move.dTime);
+        move.waTime = num(p, "m2_wa", move.waTime);
+        move.aTime = num(p, "m2_a", move.aTime);
+        move.awTime = num(p, "m2_aw", move.awTime);
+        move.pauseTime = num(p, "m2_pause", move.pauseTime);
+        move.dTime = num(p, "m2_d", move.dTime);
         move.tiltSwipes = p.getInt("m3_tilt", move.tiltSwipes);
         move.zoomPinches = p.getInt("m3_zoom", move.zoomPinches);
-        move.margin = p.getFloat("m_margin", (float) move.margin);
+        move.margin = num(p, "m_margin", move.margin);
         stick = arr(p.getString("stick", ""));
         if (stick != null && stick.length != 3) stick = null;
+        stick = fitStick(stick, 0, 0);
         pos.clear();
         for (String kv : p.getString("pos", "").split(";")) {
             int e = kv.indexOf('=');
             if (e <= 0) continue;
             double[] v = arr(kv.substring(e + 1));
-            if (v != null && v.length == 2) pos.put(kv.substring(0, e), v);
+            if (v != null && v.length == 2) pos.put(kv.substring(0, e), fitPos(v));
         }
         fishRoute = Route.load(p.getString("fishRoute", ""));
         sellRoute = Route.load(p.getString("sellRoute", ""));

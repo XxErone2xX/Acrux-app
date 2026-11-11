@@ -106,6 +106,19 @@ public final class Pilot {
         }
     }
 
+    long lastOk;
+
+    /**
+     * 끊긴 시각 (기록 기준 = 터치를 보낸 시각 · 실제 손가락은 보낸 뒤 반 지연만큼 늦게 움직임 → 같은 기준으로 맞춤)
+     *  · 사람이 패드를 누른 때 (그때 안드로이드가 끊음 · 마지막으로 잘 끝난 터치 뒤일 때) − 반 지연
+     *  · 아니면 끊겼다는 답이 온 때 − 지연
+     */
+    long cutAt(long t, long te) {
+        long ud = hand.userDown();
+        if (ud != 0 && ud >= Math.max(lastOk, t) - ovhNanos() && ud <= te) return ud - ovhNanos() / 2;     // (이 터치를 보내기 직전 · 보내는 중에 누른 것만)
+        return Math.max(t, te - ovhNanos());
+    }
+
     void measure(long elapsed, long ms) {
         double o = elapsed / 1e6 - ms;
         if (o >= 0 && o < 40) ovh = ovh * 0.9 + o * 0.1;
@@ -181,25 +194,25 @@ public final class Pilot {
             }
             return true;
         }
-        long ud = hand.userDown();
-        if (ud != 0) {
-            // 사람 손가락이 패드에 닿아 있는 동안은 안드로이드가 대신 누르던 터치를 끊음 → 뗄 때까지 기다렸다가 한 번에 다시 누름
-            if (hs || hj) {
-                log('X', ud - ovhNanos() / 2, 0, 0, false, false);
-                hs = hj = holding = false;
-                hand.forget();
-            }
+        // 사람 손가락이 패드에 닿아 있는 동안은 새로 누르지 않음 (누르자마자 끊김) — 누르던 손가락은 그대로 이어 감
+        //  · 기종에 따라 사람 터치에 Acrux 터치가 끊기기도 하고 안 끊기기도 함 → '끊겼겠지' 하고 잊으면 안 끊긴 기종에서는
+        //    로블록스 쪽 손가락이 눌린 채 남아서 키를 꺼도 계속 걸어감 (V1.4.1 버그) → 이어 가기가 실패했을 때만 끊긴 걸로 봄
+        boolean userOn = hand.userDown() != 0;
+        if (userOn && !hs && !hj) {
             hand.sleepUntil(hand.nanos() + 4 * MS);
             return true;
         }
-        if ((ws && !hs) || (wj && !hj)) {
+        if (!userOn && ((ws && !hs) || (wj && !hj))) {
             // 새 손가락이 필요 → 누르고 있어야 하는 손가락 전부를 새 터치로 다시 시작
             long t = hand.nanos();
-            log('F', t, ws ? dx : 0, ws ? dy : 0, ws, wj);
             boolean ok = hand.fresh(ws ? new double[]{dx, dy} : null, 1, wj, START_MS, true);
             long te = hand.nanos();
+            // 적는 건 결과를 본 뒤 (누르기 전에 이미 끊겼으면 안 누른 것 · 다시 할 때 쓸데없는 짧은 누름이 생기지 않게)
+            long cut = ok ? 0 : cutAt(t, te);
+            if (ok || cut > t) log('F', t, ws ? dx : 0, ws ? dy : 0, ws, wj);
             if (ok) {
                 measure(te - t, START_MS);
+                lastOk = te;
                 hs = ws;
                 hj = wj;
                 fx = dx;
@@ -213,7 +226,7 @@ public final class Pilot {
                     }
                 }
             } else {
-                log('X', Math.max(t, te - ovhNanos()), 0, 0, false, false);
+                if (cut > t) log('X', cut, 0, 0, false, false);
                 hs = hj = false;
                 if (wj) jumpFallbacks++;
                 hand.sleepUntil(te + 15 * MS);
@@ -227,11 +240,13 @@ public final class Pilot {
         if (!ws && !wj) ms = 30;
         boolean ls = hs && !ws, lj = hj && !wj;
         long t = hand.nanos();
-        if (moving) log('M', t, dx, dy, false, false);
         boolean ok = hand.cont(moving ? new double[]{dx, dy} : null, ms, ls, lj);
         long te = hand.nanos();
+        long cut = ok ? 0 : cutAt(t, te);
+        if (moving && (ok || cut > t)) log('M', t, dx, dy, false, false);      // 옮기기 전에 끊겼으면 옮긴 적 없음
         if (ok) {
             measure(te - t, ms);
+            lastOk = te;
             if (ls || lj) log('U', Math.max(t, te - ovhNanos()), 0, 0, ls, lj);
             if (moving) {
                 fx = dx;
@@ -240,7 +255,7 @@ public final class Pilot {
             if (ls) hs = false;
             if (lj) hj = false;
         } else {
-            log('X', Math.max(t, te - ovhNanos()), 0, 0, false, false);
+            log('X', cut, 0, 0, false, false);
             hs = hj = false;
             hand.sleepUntil(te + 10 * MS);
         }
@@ -251,6 +266,17 @@ public final class Pilot {
     // ---------------------------------------------------------------- 다시 하기
     boolean ps, pj, wS, wJ;               // 닿아 있는 손가락 · 닿아 있어야 하는 손가락
     double[] dir;
+    long t0, shift, cutT;                 // 시작 시각 · 끊겨서 밀린 시간 · 끊긴 시각 (0 = 안 끊김)
+    /** 방금 다시 하기에서: 터치가 끊겨서 다시 누른 횟수 · 그 때문에 늘어난 시간 (ms) */
+    public volatile int cuts;
+    public volatile long lostMs;
+    /** 새로 누를 때 가운데 → 끝까지 끄는 동안 덜 걷는 시간 (ms · 끄는 시간의 약 1/3) */
+    static final long RAMP_LOSS_MS = 33;
+    static final long CUT_GIVE_UP = 30_000 * MS;
+
+    long abs(double tms) {
+        return t0 + shift + (long) (tms * MS);
+    }
 
     /** 적어 둔 일을 같은 시각에 그대로 (check: 멈춤 확인 — 멈추면 예외) */
     public void play(List<Route.Ev> evs, Runnable check) {
@@ -276,20 +302,24 @@ public final class Pilot {
             }
             ps = pj = wS = wJ = false;
             dir = null;
-            long t0 = hand.nanos() + 20 * MS;
+            shift = cutT = 0;
+            cuts = 0;
+            lostMs = 0;
+            t0 = hand.nanos() + 20 * MS;
             int n = evs.size();
             for (int i = 0; i < n; i++) {
                 Route.Ev e = evs.get(i), nx = i + 1 < n ? evs.get(i + 1) : null;
-                long at = t0 + (long) (e.t * MS);
                 if (e.k == 'F') {
                     if (!e.a && !e.b) {                                 // 점프를 뺀 길의 빈 누름 → 그 전 손가락만 뗌
-                        alive(at, true, true, check);
+                        alive(e.t, 0, true, true, check);
                         wS = wJ = false;
+                        cutT = 0;
                         continue;
                     }
-                    reach(at, check);
+                    reach(e.t, check);
+                    cutT = 0;
                     double[] v = e.a ? new double[]{e.dx, e.dy} : null;
-                    double d = nx == null ? 1e9 : (t0 + (long) (nx.t * MS) - hand.nanos()) / 1e6;
+                    double d = nx == null ? 1e9 : (abs(nx.t) - hand.nanos()) / 1e6;
                     if (!hand.ready(e.a)) throw new RuntimeException("접근성 권한(Acrux Mobile)이 꺼짐");
                     if (nx != null && endsAll(nx, e.a, e.b) && d < START_MS + 25) {
                         // 누르자마자 떨어진 기록 → 그 시간만큼만 누르고 뗌
@@ -298,32 +328,41 @@ public final class Pilot {
                         ps = pj = wS = wJ = false;
                         i++;
                     } else {
+                        long ts = hand.nanos();
                         boolean ok = hand.fresh(v, 1, e.b, START_MS, true);
                         wS = e.a;
                         wJ = e.b;
                         dir = v;
                         ps = ok && e.a;
                         pj = ok && e.b;
+                        if (!ok) cutT = ts;                             // 못 눌렀음 → 다음 기다림에서 다시 누르고 그만큼 뒤로 밂
                     }
                 } else if (e.k == 'M') {
-                    reach(at, check);
+                    reach(e.t, check);
                     dir = new double[]{e.dx, e.dy};
                     if (!ps) continue;                                  // 끊겨 있으면 다음에 다시 누를 때 새 방향으로
-                    double d = nx == null ? 1e9 : (t0 + (long) (nx.t * MS) - hand.nanos()) / 1e6;
+                    double d = nx == null ? 1e9 : (abs(nx.t) - hand.nanos()) / 1e6;
                     if (nx != null && endsAll(nx, true, pj) && d < MOVE_MS + 25) {
                         hand.cont(dir, Math.max(MIN_MS, Math.round(d)), true, pj);
                         ps = pj = wS = wJ = false;
                         i++;
-                    } else if (!hand.cont(dir, MOVE_MS, false, false)) {
-                        ps = pj = false;
+                    } else {
+                        long ts = hand.nanos();
+                        if (!hand.cont(dir, MOVE_MS, false, false)) {
+                            ps = pj = false;
+                            cutT = Math.max(ts, hand.nanos() - ovhNanos());
+                        }
                     }
                 } else if (e.k == 'U') {
+                    // 뗄 시각까지는 누르고 있어야 함 (끊기면 다시 누름) → 다 기다린 뒤에 '안 눌러도 됨' 으로
+                    alive(e.t, 0, e.a, e.b, check);
                     if (e.a) wS = false;
                     if (e.b) wJ = false;
-                    alive(at, e.a, e.b, check);
+                    if (!wS && !wJ) cutT = 0;
                 } else {
+                    alive(e.t, 0, true, true, check);
                     wS = wJ = false;
-                    alive(at, true, true, check);
+                    cutT = 0;
                 }
             }
         } finally {
@@ -333,6 +372,7 @@ public final class Pilot {
             }
             hand.forget();
             ps = pj = false;
+            lostMs = shift / MS;
             synchronized (lock) {
                 playing = false;
                 lock.notifyAll();
@@ -345,33 +385,46 @@ public final class Pilot {
         return nx.k == 'X' || (nx.k == 'U' && (!s || nx.a) && (!j || nx.b));
     }
 
-    /** at 까지 손가락을 그대로 누르고 있다가 정확히 at 에 돌아옴 (다음 터치를 at 에 보내려고 조금 일찍 끝냄) */
-    void reach(long at, Runnable check) {
-        if (ps || pj) alive(at - ovhNanos() - 2 * MS, false, false, check);
+    /** tms 까지 손가락을 그대로 누르고 있다가 정확히 그 시각에 돌아옴 (다음 터치를 그때 보내려고 조금 일찍 끝냄) */
+    void reach(double tms, Runnable check) {
+        if (ps || pj || wS || wJ) alive(tms, ovhNanos() + 2 * MS, false, false, check);
         while (true) {
             check.run();
-            long now = hand.nanos();
+            long now = hand.nanos(), at = abs(tms);
             if (at - now <= 25 * MS) break;
             hand.sleepUntil(now + 20 * MS);
         }
-        hand.sleepUntil(at);
+        hand.sleepUntil(abs(tms));
     }
 
-    /** 손가락을 to 까지 누르고 있음 · ls / lj = to 에 맞춰 뗄 손가락 */
-    void alive(long to, boolean ls, boolean lj, Runnable check) {
+    /**
+     * 손가락을 tms (− lead) 까지 누르고 있음 · ls / lj = 그때 맞춰 뗄 손가락
+     *  · 누르고 있어야 하는데 끊겼으면 (사람이 화면을 건드림 등) 다시 누르고, 못 누르고 있던 시간만큼 이 뒤의 일을 전부 뒤로 밂
+     *    → 누른 시간의 합이 기록과 같아서 간 거리도 같음 (전에는 끊기면 그 누름의 남은 시간을 통째로 건너뛰어서 길이 크게 어긋났음)
+     */
+    void alive(double tms, long lead, boolean ls, boolean lj, Runnable check) {
         while (true) {
             check.run();
-            long rem = (to - hand.nanos()) / MS;
+            long now = hand.nanos(), to = abs(tms) - lead;
+            long rem = (to - now) / MS;
             if (!ps && !pj) {
-                // 끊겨서 (사람이 화면을 누름 등) 손가락이 없음 → 남은 시간이 넉넉하면 다시 누름
-                if ((wS || wJ) && rem > START_MS + 30 && hand.ready(wS)) {
-                    boolean ok = hand.fresh(wS ? dir : null, 1, wJ, START_MS, true);
-                    ps = ok && wS;
-                    pj = ok && wJ;
-                    if (!ok) hand.sleepUntil(hand.nanos() + 15 * MS);
-                    continue;
+                if (!wS && !wJ) return;
+                if (cutT == 0) cutT = now;
+                if ((to - cutT) / MS <= START_MS + 30) return;          // 거의 다 누른 뒤에 끊김 → 그대로 둠
+                if (now - cutT > CUT_GIVE_UP) throw new RuntimeException("화면이 계속 눌려 있어서 이동을 못 함 — 이동 중에는 화면을 건드리지 마세요");
+                if (!hand.ready(wS)) throw new RuntimeException("접근성 권한(Acrux Mobile)이 꺼짐");
+                if (hand.fresh(wS ? dir : null, 1, wJ, START_MS, true)) {
+                    long full = hand.nanos() - ovhNanos() / 2;          // 다시 끝까지 민 때
+                    long lost = full - cutT - (START_MS - RAMP_LOSS_MS) * MS;
+                    if (lost > 0) shift += lost;
+                    cuts++;
+                    cutT = 0;
+                    ps = wS;
+                    pj = wJ;
+                } else {
+                    hand.sleepUntil(hand.nanos() + 15 * MS);
                 }
-                return;
+                continue;
             }
             boolean a = ls && ps, b = lj && pj;
             if (rem < MIN_MS) {
@@ -394,8 +447,10 @@ public final class Pilot {
                 ms = rem;
                 last = true;
             }
+            long ts = hand.nanos();
             if (!hand.cont(null, ms, last && a, last && b)) {
                 ps = pj = false;
+                cutT = Math.max(ts, hand.nanos() - ovhNanos());
                 continue;
             }
             if (last) {

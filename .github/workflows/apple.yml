@@ -1,4 +1,4 @@
-name: Apple build checks
+name: macOS build checks
 
 on:
   push:
@@ -44,60 +44,4 @@ jobs:
         with:
           name: Acrux-macos-universal
           path: Acrux-macos-universal.zip
-          if-no-files-found: error
-
-  ios:
-    runs-on: macos-15
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-      - name: Install build dependencies
-        run: |
-          rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
-          command -v pod >/dev/null || brew install cocoapods
-          npm ci
-      - name: Initialize Xcode project
-        run: npm run init:ios
-      - name: Build simulator application
-        shell: bash
-        run: |
-          if [ "$(uname -m)" = arm64 ]; then
-            npm run build:ios:simulator
-          else
-            npm run tauri -- ios build --target x86_64 --ci --no-sign
-          fi
-      - name: Check simulator startup
-        shell: bash
-        run: |
-          device=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; print(next(d["udid"] for group in json.load(sys.stdin)["devices"].values() for d in group if d["name"].startswith("iPhone") and d["state"] == "Shutdown"))')
-          if [ "$(uname -m)" = arm64 ]; then
-            app=src-tauri/gen/apple/build/arm64-sim/Acrux.app
-          else
-            app=src-tauri/gen/apple/build/x86_64/Acrux.app
-          fi
-          test -d "$app"
-          xcrun simctl boot "$device"
-          xcrun simctl bootstatus "$device" -b
-          codesign --force --deep --sign - "$app"
-          xcrun simctl install "$device" "$app"
-          xcrun simctl launch "$device" com.acrux.next
-          sleep 5
-          xcrun simctl spawn "$device" launchctl list | grep -F com.acrux.next
-          xcrun simctl io "$device" screenshot Acrux-ios-simulator.png
-          xcrun simctl terminate "$device" com.acrux.next
-          xcrun simctl shutdown "$device"
-          ditto -c -k --keepParent "$app" Acrux-ios-simulator.zip
-      - name: Build unsigned device IPA
-        run: npm run build:ios
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Acrux-ios-builds
-          path: |
-            src-tauri/gen/apple/build/**/*.ipa
-            Acrux-ios-simulator.zip
-            Acrux-ios-simulator.png
           if-no-files-found: error

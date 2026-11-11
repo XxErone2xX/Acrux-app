@@ -51,6 +51,9 @@ small { color: var(--muted); font-weight: 400; }
 .deco > .c.br { bottom: 0; right: 0; border-bottom-width: var(--deco-w); border-right-width: var(--deco-w); }
 
 /* ---------- 메인 ---------- */
+/* 켤 때: 모드 타일 · 탭 · 메뉴가 다 붙은 뒤에 한 번에 보임 (붙는 게 눈에 안 띄게) */
+body.booting #main > .col { opacity: 0; }
+#main > .col { transition: opacity .18s ease-out; }
 #main { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 /* 배경 무늬 (희미하게 · 클릭은 통과) */
 #main::before { content: ""; position: absolute; left: 50%; top: 50%; width: min(92vh, 92vw); aspect-ratio: 1;
@@ -679,7 +682,8 @@ body:not(.in-page) .lang.in-card { display: none; }
 #main .col > .label { margin: 18px 0 2px; position: relative; top: 21px; }   /* 옆 탭 이름(바이옴 · 매크로)과 높이 맞춤 (아래 칸 위치는 그대로) */
 
 /* ---------- 메인 화면 기능별 시작 버튼 (바이옴 매크로 / 오토 스나이핑 / 매크로) ---------- */
-.mains { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+/* 타일 수만큼 한 줄을 똑같이 나눠 채움 (본체 2개 · 모드가 붙이면 3개 이상) */
+.mains { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px; margin-top: 14px; }
 .main-tile { --deco: var(--k); position: relative; isolation: isolate; display: flex; flex-direction: column; background: var(--panel); }
 /* 켜질 때 색이 아래에서 위로 천천히 번지며 들어옴 (그라데이션은 바로 바뀌므로 덮개의 투명도 · 잘라내는 범위로 움직임) */
 .main-tile::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
@@ -937,3 +941,19 @@ table.events td.url.note { color: var(--muted); font-family: inherit; }
 #aiTestNote.ok { color: var(--green); }
 #aiTestNote.warn { color: var(--yellow); }
 .ai-privacy { margin: 0; padding: 8px 14px 10px; font-size: 11.5px; color: var(--muted); }
+
+/* ---- 모드 · 플러그인 (추가 기능 탭) */
+.mod-list { display: grid; gap: 10px; }
+.mod-list > .empty { padding: 18px; color: var(--faint); font-size: 12px; text-align: center; background: var(--panel); }
+.mod-card { padding: 14px 16px; display: grid; gap: 8px; }
+.mod-head { display: flex; align-items: center; gap: 8px; }
+.mod-head b { font-size: 15px; }
+.mod-tag { font-size: 11px; padding: 2px 7px; background: color-mix(in srgb, #e8a33d 22%, transparent); color: #f0b866; }
+.mod-ver { font-size: 12px; color: var(--muted); }
+.mod-head .grow, .mod-foot .grow { flex: 1; }
+.mod-desc { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.mod-foot { display: flex; align-items: center; gap: 10px; }
+.mod-foot small { color: var(--faint); font-size: 11.5px; }
+.mod-st { color: var(--green) !important; }
+.mod-st.err { color: var(--red) !important; }
+.status-mini .st-label { color: var(--faint); margin-right: 2px; }

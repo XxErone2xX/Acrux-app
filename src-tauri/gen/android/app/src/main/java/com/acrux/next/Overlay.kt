@@ -155,9 +155,33 @@ class Overlay(private val service: TapService) {
     fun contains(x: Float, y: Float): Boolean {
         val view = panel ?: return false
         if (picker != null) return true
+        if (params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE != 0) return false
         val origin = IntArray(2)
         view.getLocationOnScreen(origin)
         return x >= origin[0] && x < origin[0] + view.width && y >= origin[1] && y < origin[1] + view.height
+    }
+
+    fun routePassThrough(packet: IntArray) {
+        val view = panel ?: return
+        if (picker != null) return
+        val origin = IntArray(2)
+        view.getLocationOnScreen(origin)
+        val cx = packet[2].toDouble()
+        val cy = packet[3].toDouble()
+        val radius = Math.hypot((packet[4] - packet[2]).toDouble(), (packet[5] - packet[3]).toDouble()) * Joy.PUSH
+        val nearestX = cx.coerceIn(origin[0].toDouble(), (origin[0] + view.width).toDouble())
+        val nearestY = cy.coerceIn(origin[1].toDouble(), (origin[1] + view.height).toDouble())
+        val coversStick = Math.hypot(cx - nearestX, cy - nearestY) <= radius
+        val coversJump = packet[6] >= 0 && contains(packet[6].toFloat(), packet[7].toFloat())
+        if (!coversStick && !coversJump) return
+        params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        panel?.let { wm.updateViewLayout(it, params) }
+    }
+
+    fun restoreTouch() {
+        if (params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE == 0) return
+        params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+        panel?.let { wm.updateViewLayout(it, params) }
     }
 
     private fun operation(operation: Int) {
