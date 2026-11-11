@@ -498,7 +498,7 @@ public class MainActivity extends Activity {
         LinearLayout mv = section(pg, "이동 · 판매");
         mv.addView(Ui.text(this, "시작하면 재설정 → 기준 장소 → 기록한 길로 낚시 장소 · 인벤토리가 가득 차면 판매 장소에서 팔고 돌아옴 · 전부 화면 터치 (조이스틱 · 탭) · 위치 · 길은 Acrux 창 ⚙ 에서",
                 12, Ui.MUTED, false), Ui.fill(this, 4));
-        // 자동 낚시는 이동 · 판매까지 항상 함 (V1.4.12 — 켜고 끄는 스위치 없음) · 설정이 덜 됐으면 [시작] 때 안내
+        // 자동 낚시는 이동 · 판매까지 항상 함 (V1.4.13 — 켜고 끄는 스위치 없음) · 설정이 덜 됐으면 [시작] 때 안내
         mv.addView(Ui.text(this, "자동 낚시는 이동 · 판매 설정을 모두 마쳐야 시작됩니다 · 덜 된 설정은 [시작] 을 누르면 차례로 안내",
                 13, Guide.moveNeeded() ? Ui.YELLOW : Ui.GREEN, true), Ui.fill(this, 8));
 

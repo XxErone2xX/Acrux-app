@@ -19,6 +19,15 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
+      - name: Check fishing regression cases
+        shell: bash
+        run: |
+          mkdir -p /tmp/fishing-tests
+          "$JAVA_HOME_17_X64/bin/javac" -d /tmp/fishing-tests \
+            android/app/src/main/java/com/acrux/mobile/core/{Fisher,Vision,Img,Settings,ReelControl,SellText}.java \
+            tests/java/com/acrux/mobile/core/FishingRegression.java
+          "$JAVA_HOME_17_X64/bin/java" -cp /tmp/fishing-tests com.acrux.mobile.core.FishingRegression
+
       - name: Build APK
         shell: bash
         run: |

@@ -41,6 +41,9 @@ jobs:
           # 버전 고정 (새로 올라온 버전이 몰래 섞여 들어가지 않게) — 올릴 때는 여기서 바꾸고 version.py 의 RUNTIME +1
           pip install pyinstaller==6.22.3 websocket-client==1.9.2 mss==10.2.0 winrt-runtime==3.2.1 winrt-Windows.Media.Ocr==3.2.1 winrt-Windows.Graphics.Imaging==3.2.1 winrt-Windows.Storage.Streams==3.2.1 winrt-Windows.Foundation==3.2.1 winrt-Windows.Foundation.Collections==3.2.1 winrt-Windows.Globalization==3.2.1 rapidocr_onnxruntime==1.4.4 onnxruntime==1.30.0 zstandard==0.25.0
 
+      - name: Check fishing regression cases
+        run: python -m unittest discover -s tests -v
+
       - name: Build runtime (AcruxHost)
         run: pyinstaller --noconfirm --clean --onedir --windowed --name AcruxHost --icon launcher/icon.ico --collect-all rapidocr_onnxruntime --collect-binaries onnxruntime --collect-submodules winrt launcher/host.py
 

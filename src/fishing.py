@@ -2,7 +2,7 @@
 """
 매크로 탭 · 자동 낚시 (제자리 낚시)
 상태 기계: 매번 화면을 보고 지금 상태를 정한 뒤 그 상태에 맞는 행동만 함 → 클릭 하나를 놓치거나 화면이 늦게 바뀌어도 다음 번에 바로잡힘
-  · 대기(파란 Fish)  → Fish 클릭 · 1.5초 안에 안 바뀌면 다시 · cast_retry 번 넘으면 인벤토리 가득
+  · 대기(파란 Fish)  → Fish 클릭 · CAST_WAIT 초 안에 안 바뀌면 다시 · cast_retry 번 넘으면 인벤토리 가득
   · 입질 대기(빨간 Exit) → 기다림 · bite_max 초 넘거나 다른 기능이 자리를 달라 하면 Exit
   · 릴링(릴링 바가 보임) → 릴링 → Fish 버튼이 다시 보일 때까지 결과창 X 를 0.1초마다 (그 사이 제목 색으로 결과 기록)
   · 알 수 없음 3초 이상 → X 한 번 (처음부터 결과창이 떠 있던 경우 등)
@@ -46,6 +46,7 @@ FINISH_GAP = 0.1         # 낚은 뒤 Fish 버튼이 다시 보일 때까지 결
 FINISH_MAX = 10.0        # 그래도 Fish 버튼이 안 보이면 이 시간 뒤 다시 상태 확인부터
 HOLD_MAX = 600          # 다른 기능에 자리를 비켜 주는 최대 시간 (초) — 넘으면 낚시를 이어감
 RELOC_AFTER = 30        # 낚시 화면(Fish · Exit · 미니게임)이 이만큼(초) 안 보이면 낚시 장소로 다시 이동
+CAST_WAIT = 3.0         # 느린 던지기가 Exit 로 바뀌기 전에 다시 눌러 취소하지 않게 기다림 (모바일과 같음)
 FIND_X_AFTER = 2.0       # 낚은 뒤 이 시간 동안 Fish 버튼이 안 보이면 결과창 X 를 화면에서 찾아서 누름 (결과창이 다른 자리에 뜨거나 깨질 때)
 FULL_WORDS = ("cannot fish", "inventory space", "not have enough", "inventory")   # 인벤토리 가득 알림 글자
 POS_KEYS = (("fish_btn", "Fish 버튼"), ("close_pos", "결과창 X"), ("title_pos", "결과창 제목"))
@@ -829,8 +830,11 @@ class Fisher:
                         cast_at, tries = None, 0
                         progress_at = time.time()    # 판매하러 다녀온 시간은 '진행 안 됨'으로 안 셈
                         continue
-                if cast_at is None or now - cast_at > 1.5:
-                    if cast_at is not None:          # 1.5초 지나도 Exit 로 안 바뀜 = 반응 없음
+                if cast_at is None or now - cast_at > CAST_WAIT:
+                    # 알림 OCR 등을 읽는 사이 Exit · 미니게임으로 바뀌었으면 재입력 · 가득 참 판정을 미룸
+                    if self._read_state(sct, rect, cfg) != "idle":
+                        continue
+                    if cast_at is not None:
                         tries += 1
                         if tries >= int(cfg["cast_retry"]):
                             self._inventory_full(stop, tries)

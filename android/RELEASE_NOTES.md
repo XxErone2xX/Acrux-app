@@ -1,16 +1,26 @@
-## Acrux Mobile V1.4.12 업데이트
+## Acrux Mobile V1.4.13 업데이트
 - 자동 낚시는 이동 · 판매 설정을 모두 마쳐야 시작되도록 변경
   - 전에는 설정 없이도 시작돼서 그 자리에서 낚시만 하다가 가득 차면 멈췄음
   - [시작] 을 누르면 남은 설정 (조이스틱 · 기준 장소 · 길 · 판매) 을 차례로 안내
 - [시작] 하면 항상 낚시 장소로 이동한 뒤 낚시 · 가득 차면 판매하고 돌아옴
   - 이동 · 판매를 켜고 끄는 스위치 제거
 
-## Acrux Mobile V1.4.12 Update
+## Acrux Mobile V1.4.13 Update
 - Auto fishing now starts only after the movement · selling setup is finished
   - It used to start without it, fish in place and stop when the inventory was full
   - Tapping [Start] walks you through the missing setup (joystick · base spot · routes · selling) step by step
 - [Start] always walks to the fishing spot first, then sells and comes back when the inventory is full
   - Removed the movement · selling on/off switches
+
+## Acrux Mobile V1.4.12 업데이트
+- 보정의 첫 입력부터 Exit·입질 상태를 확인해 진행 중인 낚시를 취소하지 않도록 수정
+- 재입력·인벤토리 가득 참 판정 직전에 낚시 상태를 다시 확인
+- PC V3.0.2와 던지기 대기·보정 재입력 조건을 맞춤
+
+## Acrux Mobile V1.4.12 Update
+- Check for an existing cast or bite before the first calibration tap to avoid cancelling ongoing fishing
+- Recheck the fishing state before retrying Fish or reporting a full inventory
+- Matched cast waits and calibration retry conditions with PC V3.0.2
 
 ## Acrux Mobile V1.4.11 업데이트
 - 던지는 동작이 느린 폰에서 낚시가 계속 취소되던 문제 수정

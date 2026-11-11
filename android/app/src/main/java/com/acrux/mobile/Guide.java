@@ -130,7 +130,7 @@ final class Guide {
                 .add(new Step("낚시 보정 완료",
                         "다음은 이동 · 판매 설정입니다. 자동 낚시는 낚시 장소로 이동하고, 가득 차면 팔고 돌아오기 때문에 이 설정까지 마쳐야 시작됩니다.\n\nAcrux 창의 [시작] 을 누르면 남은 설정 안내가 이어서 표시됩니다.").at(null, "run")));
 
-        boolean sell = true;                                   // 자동 낚시는 판매까지 항상 (V1.4.12)
+        boolean sell = true;                                   // 자동 낚시는 판매까지 항상 (V1.4.13)
         Tut mv = new Tut("move", "이동 · 판매", Guide::moveNeeded)
                 .add(new Step("이동 · 판매 설정",
                         "스폰 위치가 무작위이기 때문에, 리셋 후 '기준 장소' 에서 기록한 길을 따라 이동합니다."

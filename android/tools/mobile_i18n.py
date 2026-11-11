@@ -581,7 +581,7 @@ E = [
     ['확인창 확인 중 (팔지는 않음)', 'Checking the confirm window (not selling)', '確認ウィンドウを確認中 (売らない)'],
     ['확인창이 안 떠서(물고기 없음?) 확인 Sell 은 계산한 자리', 'no confirm window (no fish?), so the confirm Sell is a calculated spot', '確認ウィンドウが出ず (魚なし?) 確認の Sell は計算した位置'],
     ['상점 닫는 중', 'Closing the shop', 'ショップを閉じ中'], ['상점이 안 닫힘 — 상점 닫기 X 위치를 확인해 주세요', 'shop did not close — check the shop close X position', 'ショップが閉じない — ショップを閉じる X の位置を確認してください'],
-    # V1.4.12: 자동 낚시는 이동 · 판매 설정까지 필요
+    # V1.4.13: 자동 낚시는 이동 · 판매 설정까지 필요
     ["자동 낚시는 이동 · 판매 설정을 모두 마쳐야 시작됨 — {0}", "Auto fishing needs the movement · selling setup finished first — {0}", "自動釣りは移動・販売の設定をすべて終えてから開始 — {0}"],
     ["자동 낚시는 이동 · 판매 설정을 모두 마쳐야 시작됩니다 · 덜 된 설정은 [시작] 을 누르면 차례로 안내",
      "Auto fishing starts only after the movement · selling setup is finished · tap [Start] and the missing steps are shown one by one",
