@@ -826,7 +826,10 @@ public class TapService extends AccessibilityService {
         panel.setPadding(pad, Ui.dp(this, 12), pad, Ui.dp(this, 12));
         panel.setBackground(new Ui.Deco(this, C_BG, C_LINE, 0, true, 0, 0));
         LinearLayout head = hrow();
-        head.addView(Ui.text(this, "Acrux", 15, C_FG, true), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        TextView name = Ui.text(this, "Acrux Mobile", 15, C_FG, true);
+        name.setSingleLine(true);
+        name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        head.addView(name, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         dot = Ui.text(this, "●", 9, C_DIM, false);
         clock = mono("", 11, C_MUT);
         LinearLayout.LayoutParams cp = Ui.wrap();

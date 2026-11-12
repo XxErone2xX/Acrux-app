@@ -1,3 +1,9 @@
+## Acrux Mobile V1.4.25 업데이트
+- 미니 UI 맨 위 이름을 Acrux → Acrux Mobile 로
+
+## Acrux Mobile V1.4.25 Update
+- The mini UI title now says Acrux Mobile instead of Acrux
+
 ## Acrux Mobile V1.4.24 업데이트
 - 길 기록 중 [도착] 버튼이 잘 보이게 [ 꽉 찬 파란 버튼 + 어두운 테두리 · 더 크게 ]
 - 길 기록 [취소] 버튼 추가 [ [도착] 아래 · 걸어온 길을 버리고 멈춤 · 예전에 기록한 길은 그대로 ]
