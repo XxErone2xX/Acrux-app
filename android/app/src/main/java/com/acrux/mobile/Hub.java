@@ -528,6 +528,15 @@ final class Hub {
 
     static final int SELL_TRIES = 3;
 
+    /** 길 기록 [취소] — 걸어온 길을 버리고 멈춤 (기록해 둔 예전 길은 그대로) · [도착] 을 이미 눌렀으면 무시 */
+    static void cancelRecord() {
+        if (!measuring || !mode.startsWith("rec_") || arrived) return;
+        log("길 기록 취소 — 저장 안 함", 'y');
+        stopFlag = true;
+        Thread w = worker;
+        if (w != null) w.interrupt();
+    }
+
     static void stop() {
         // 길 기록 중에 [멈춤] = [도착] (걸어온 길을 저장) · 저장하는 중에 한 번 더 누르면 그때 멈춤
         if (measuring && mode.startsWith("rec_") && !arrived) {

@@ -46,7 +46,8 @@ public class TapService extends AccessibilityService {
      */
     LinearLayout root, hwin, slide, panel;
     WindowManager.LayoutParams lp, hlp;
-    TextView status, runBtn, arriveBtn;
+    TextView status, runBtn, arriveBtn, cancelBtn;
+    LinearLayout recBox;
     /** 손잡이 — 닫힌 창의 것 · 열린 패널 왼쪽의 것 (모양 · 자리는 같음) */
     HandleView handle, handleIn;
     /** 패널이 열려 있나 · 패널 폭 (px) */
@@ -370,15 +371,25 @@ public class TapService extends AccessibilityService {
         hwin = new LinearLayout(this);
         hwin.setOrientation(LinearLayout.HORIZONTAL);
         hwin.setGravity(Gravity.CENTER_VERTICAL);
-        // 길 기록 중 [도착] — 패널이 닫혀 있어도 손잡이 옆에 보임 (걸어가는 동안 패널이 화면을 가리지 않게)
-        arriveBtn = small("도착", Ui.GREEN, v -> {
+        // 길 기록 중 [도착] · [취소] — 패널이 닫혀 있어도 손잡이 옆에 보임 (걸어가는 동안 패널이 화면을 가리지 않게)
+        //  · 잔디 · 하늘 어디서든 보이게 꽉 찬 파란 버튼 + 어두운 테두리 · 취소는 그 아래 작게
+        recBox = new LinearLayout(this);
+        recBox.setOrientation(LinearLayout.VERTICAL);
+        recBox.setGravity(Gravity.CENTER_HORIZONTAL);
+        arriveBtn = solid("도착", C_ACC, 0xFFFFFFFF, 0xFF0B0D10, 16, 22, 12, v -> {
+            if (Hub.arrived) return;
             Hub.arrived = true;
             Hub.log("도착", 'g');
         });
-        arriveBtn.setVisibility(View.GONE);
+        cancelBtn = solid("취소", 0xF516191C, C_RED, C_RED, 12, 14, 6, v -> Hub.cancelRecord());
+        recBox.addView(arriveBtn, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams cp0 = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        cp0.topMargin = Ui.dp(this, 8);
+        recBox.addView(cancelBtn, cp0);
+        recBox.setVisibility(View.GONE);
         LinearLayout.LayoutParams ap = Ui.wrap();
-        ap.rightMargin = Ui.dp(this, 6);
-        hwin.addView(arriveBtn, ap);
+        ap.rightMargin = Ui.dp(this, 8);
+        hwin.addView(recBox, ap);
         handle = new HandleView(this);
         handle.setOnTouchListener(handleTouch());
         hwin.addView(handle, new LinearLayout.LayoutParams(hw, hh));
@@ -660,6 +671,19 @@ public class TapService extends AccessibilityService {
         LinearLayout.LayoutParams g = Ui.wrap();
         g.leftMargin = Ui.dp(this, 6);
         return g;
+    }
+
+    /** 꽉 찬 버튼 (각진 모양 · 테두리) — 게임 화면 위에서도 잘 보이게 · 누르면 살짝 어두워짐 */
+    TextView solid(String s, int fill, int fg, int border, float sp, int padX, int padY, View.OnClickListener on) {
+        TextView b = Ui.text(this, s, sp, fg, true);
+        b.setGravity(Gravity.CENTER);
+        b.setPadding(Ui.dp(this, padX), Ui.dp(this, padY), Ui.dp(this, padX), Ui.dp(this, padY));
+        android.graphics.drawable.StateListDrawable d = new android.graphics.drawable.StateListDrawable();
+        d.addState(new int[]{android.R.attr.state_pressed}, new Ui.Deco(this, (fill & 0x00FFFFFF) | 0xB3000000, border, 0, true, 0, 2));
+        d.addState(new int[0], new Ui.Deco(this, fill, border, 0, true, 0, 2));
+        b.setBackground(d);
+        b.setOnClickListener(on);
+        return b;
     }
 
     TextView small(String s, int color, View.OnClickListener on) {
@@ -1426,7 +1450,7 @@ public class TapService extends AccessibilityService {
             bioSw.set(bio);
         }
         for (Runnable r : live) r.run();
-        arriveBtn.setVisibility(Hub.measuring ? View.VISIBLE : View.GONE);
+        recBox.setVisibility(Hub.measuring ? View.VISIBLE : View.GONE);
         handle.setBar(run ? C_ACC : C_MUT);
         handleIn.setBar(run ? C_ACC : C_MUT);
     }

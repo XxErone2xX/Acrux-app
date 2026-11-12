@@ -1,3 +1,11 @@
+## Acrux Mobile V1.4.24 업데이트
+- 길 기록 중 [도착] 버튼이 잘 보이게 [ 꽉 찬 파란 버튼 + 어두운 테두리 · 더 크게 ]
+- 길 기록 [취소] 버튼 추가 [ [도착] 아래 · 걸어온 길을 버리고 멈춤 · 예전에 기록한 길은 그대로 ]
+
+## Acrux Mobile V1.4.24 Update
+- The [Arrived] button while recording a route is easier to see [ solid blue with a dark border · larger ]
+- Added a [Cancel] button for route recording [ below [Arrived] · discards the walk and stops · the previously recorded route is kept ]
+
 ## Acrux Mobile V1.4.23 업데이트
 - 디스코드 연결 추가 [ 설정 → 디스코드 연결 ]
   - [디스코드 로그인] → 브라우저에서 디스코드로 로그인 → [연결] 을 누르면 끝

@@ -730,6 +730,8 @@ E = [
     ["디스코드 연결됨 — {0}", "Discord linked — {0}", "Discord 連携済み — {0}"],
     ["디스코드 연결 끊음", "Unlinked Discord", "Discord の連携を解除"],
     ["디스코드 연결이 끊김 — 다시 연결하려면 설정 → 디스코드 연결", "Discord link removed — to link again, go to Settings → Discord link", "Discord 連携が解除されました — もう一度連携するには 設定 → Discord 連携"],
+    # V1.4.24: 길 기록 취소
+    ["길 기록 취소 — 저장 안 함", "Route recording canceled — not saved", "道の記録をキャンセル — 保存しません"],
 ]
 
 
