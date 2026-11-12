@@ -411,7 +411,7 @@ Acrux 창의 [시작] 을 누르면 자동 낚시가 시작되며, [정지] 로 
 스폰 위치가 무작위이기 때문에, 리셋 후 '기준 장소' 에서 기록한 길을 따라 이동합니다.\n\n아직 안 한 것만 차례로 안내합니다.	Because the spawn point is random, the macro resets and follows a recorded route from the 'base location'.\n\nOnly the steps you haven't done yet are shown.	スポーン位置がランダムなため、リセット後に「基準地点」から記録した道をたどって移動します。\n\nまだ済んでいない手順だけを順に案内します。
 스폰 위치가 무작위이기 때문에, 리셋 후 '기준 장소' 에서 기록한 길을 따라 이동합니다. 인벤토리가 가득 차면 판매 장소로 이동해 판매한 뒤 돌아옵니다.\n\n아직 안 한 것만 차례로 안내합니다.	Because the spawn point is random, the macro resets and follows a recorded route from the 'base location'. When the inventory is full, it goes to the sell spot, sells and comes back.\n\nOnly the steps you haven't done yet are shown.	スポーン位置がランダムなため、リセット後に「基準地点」から記録した道をたどって移動します。インベントリがいっぱいになると販売場所へ移動して販売し、戻ってきます。\n\nまだ済んでいない手順だけを順に案内します。
 이동 · 판매 설정 완료	Movement · selling setup complete	移動 · 販売の設定完了
-[시작] 을 누르면 기준 장소 → 낚시 장소로 이동한 뒤 낚시를 시작합니다. 인벤토리가 가득 차면 판매하고 돌아옵니다.\n\n[길] → '기준 장소 → 낚시 장소' 로 미리 확인할 수 있습니다.	With [Start], the macro goes from the base location to the fishing spot and starts fishing. When the inventory is full, it sells and comes back.\n\nYou can preview it with [Route] → 'Base → fishing spot'.	[開始] を押すと基準地点 → 釣り場へ移動してから釣りを始めます。インベントリがいっぱいになると販売して戻ります。\n\n[道] → 「基準地点 → 釣り場」で事前に確認できます。
+[시작] 을 누르면 기준 장소 → 낚시 장소로 이동한 뒤 낚시를 시작합니다. 인벤토리가 가득 차면 판매하고 돌아옵니다.\n\n[기준 장소] → '기준 장소 → 낚시 장소' 로 미리 확인할 수 있습니다.	With [Start], the macro goes from the base location to the fishing spot and starts fishing. When the inventory is full, it sells and comes back.\n\nYou can preview it with [Base spot] → 'Base → fishing spot'.	[開始] を押すと基準地点 → 釣り場へ移動してから釣りを始めます。インベントリがいっぱいになると販売して戻ります。\n\n[基準地点] → 「基準地点 → 釣り場」で事前に確認できます。
 설정 안내 — 기능마다 하나씩 (처음 쓸 때 저절로 뜸 · 여기서 다시 보기)	Setup guides — one per feature (shown automatically the first time you use it · replay here)	設定案内 — 機能ごとに 1 つ (初めて使うときに自動表示 · ここで再表示)
 이제 로블록스를 열어 주세요. 다음 안내 (낚시 보정) 가 이어서 표시됩니다.	Now open Roblox. The next guide (fishing calibration) will follow.	Roblox を開いてください。次の案内 (釣りの補正) が続けて表示されます。
 낚시 보정	Fishing calibration	釣りの補正
@@ -431,19 +431,19 @@ Acrux 창 → [조이스틱] → 강조된 '조이스틱 찾기' 를 눌러 주�
 '{0}' 위치	'{0}' position	「{0}」の位置
 [기준 장소] → 강조된 항목을 누르고, 십자 포인터를 해당 버튼 위에 맞춘 뒤 [확인] 을 눌러 주세요.\n\n메뉴 · 재설정 화면을 직접 열어 둔 상태에서 맞추면 더 정확합니다.	[Base spot] → tap the highlighted item, line the crosshair up on that button, then tap [OK].\n\nIt's more accurate with the menu · reset screen opened yourself.	[基準地点] → 強調された項目を押し、十字ポインターをそのボタンに合わせてから [確認] を押してください。\n\nメニュー · リセット画面を自分で開いた状態で合わせるとより正確です。
 낚시 장소 길 기록	Record the fishing spot route	釣り場の道を記録
-[길] → 낚시 장소 '길 기록' 을 눌러 주세요.\n\n기준 장소로 이동한 뒤 WASD 패드가 표시됩니다.\n· W A S D 탭 = 켜기 · 다시 탭 = 끄기 · 모서리 = 대각선 · ■ = 멈춤\n· 점프 탭 = 한 번 · [홀드] = 계속 누름\n\n도착하면 Acrux 창의 [도착] 을 눌러 주세요.	Tap [Routes] → fishing spot 'Record route'.\n\nAfter moving to the base spot, the WASD pad appears.\n· Tap W A S D = on · tap again = off · corners = diagonals · ■ = stop\n· Tap jump = once · [Hold] = keep holding\n\nWhen you arrive, tap [Arrived] in the Acrux window.	[道] → 釣り場の「道を記録」を押してください。\n\n基準地点へ移動したあと WASD パッドが表示されます。\n· W A S D タップ = オン · もう一度 = オフ · 角 = 斜め · ■ = 停止\n· ジャンプをタップ = 一回 · [ホールド] = 押し続ける\n\n到着したら Acrux ウィンドウの [到着] を押してください。
+[낚시] → 낚시 장소 '길 기록' 을 눌러 주세요.\n\n기준 장소로 이동한 뒤 WASD 패드가 표시됩니다.\n· W A S D 탭 = 켜기 · 다시 탭 = 끄기 · 모서리 = 대각선 · ■ = 멈춤\n· 점프 탭 = 한 번 · [홀드] = 계속 누름\n\n도착하면 Acrux 창의 [도착] 을 눌러 주세요.	Tap [Fishing] → fishing spot 'Record route'.\n\nAfter moving to the base spot, the WASD pad appears.\n· Tap W A S D = on · tap again = off · corners = diagonals · ■ = stop\n· Tap jump = once · [Hold] = keep holding\n\nWhen you arrive, tap [Arrived] in the Acrux window.	[釣り] → 釣り場の「道を記録」を押してください。\n\n基準地点へ移動したあと WASD パッドが表示されます。\n· W A S D タップ = オン · もう一度 = オフ · 角 = 斜め · ■ = 停止\n· ジャンプをタップ = 一回 · [ホールド] = 押し続ける\n\n到着したら Acrux ウィンドウの [到着] を押してください。
 이동 설정 완료	Movement setup complete	移動の設定完了
-[시작] 을 누르면 기준 장소 → 낚시 장소로 이동한 뒤 낚시를 시작합니다.\n\n[길] → '기준 장소 → 낚시 장소' 로 미리 확인할 수 있습니다.	[Start] moves from the base spot to the fishing spot and then starts fishing.\n\nYou can check it beforehand with [Routes] → 'Base spot → fishing spot'.	[開始] を押すと基準地点 → 釣り場へ移動してから釣りを始めます。\n\n[道] →「基準地点 → 釣り場」で事前に確認できます。
+[시작] 을 누르면 기준 장소 → 낚시 장소로 이동한 뒤 낚시를 시작합니다.\n\n[기준 장소] → '기준 장소 → 낚시 장소' 로 미리 확인할 수 있습니다.	[Start] moves from the base spot to the fishing spot and then starts fishing.\n\nYou can check it beforehand with [Base spot] → 'Base spot → fishing spot'.	[開始] を押すと基準地点 → 釣り場へ移動してから釣りを始めます。\n\n[基準地点] →「基準地点 → 釣り場」で事前に確認できます。
 판매 설정	Selling setup	販売の設定
 인벤토리가 가득 차면 판매 장소로 이동해 물고기를 판매한 뒤 돌아옵니다.\n\n판매 장소 길 → 대화 버튼 → 판매 자동 보정 순서로 설정합니다. [ 이동 설정이 먼저 필요합니다 ]	When the inventory is full, the macro goes to the sell spot, sells the fish and comes back.\n\nSet up in this order: sell spot route → talk button → sell auto-calibration. [ Movement setup is needed first ]	インベントリがいっぱいになると販売場所へ移動して魚を売り、戻ってきます。\n\n販売場所の道 → 会話ボタン → 販売の自動補正 の順で設定します。[ 先に移動の設定が必要です ]
 판매 장소 길 기록	Record the sell spot route	販売場所の道を記録
-[길] → 물고기 판매 장소 '길 기록' 을 누른 뒤, 기준 장소에서 Captain Flarg 앞까지 WASD 패드로 이동하고 [도착] 을 눌러 주세요.	Tap [Routes] → fish sell spot 'Record route', walk with the WASD pad from the base spot to Captain Flarg, then tap [Arrived].	[道] → 魚の販売場所の「道を記録」を押し、基準地点から Captain Flarg の前まで WASD パッドで移動して [到着] を押してください。
+[낚시] → 물고기 판매 장소 '길 기록' 을 누른 뒤, 기준 장소에서 Captain Flarg 앞까지 WASD 패드로 이동하고 [도착] 을 눌러 주세요.	Tap [Fishing] → fish sell spot 'Record route', walk with the WASD pad from the base spot to Captain Flarg, then tap [Arrived].	[釣り] → 魚の販売場所の「道を記録」を押し、基準地点から Captain Flarg の前まで WASD パッドで移動して [到着] を押してください。
 대화 버튼 위치	Talk button position	会話ボタンの位置
-판매 장소에 선 상태로 [판매] → 강조된 '대화 버튼' 을 누르고, 포인터를 화면의 대화 버튼에 맞춘 뒤 [확인] 을 눌러 주세요.	Standing at the sell spot, tap [Sell] → the highlighted 'Talk button', line the pointer up on the on-screen talk button, then tap [OK].	販売場所に立ったまま [販売] → 強調された「会話ボタン」を押し、ポインターを画面の会話ボタンに合わせてから [確認] を押してください。
+판매 장소에 선 상태로 [낚시] → 강조된 '대화 버튼' 을 누르고, 포인터를 화면의 대화 버튼에 맞춘 뒤 [확인] 을 눌러 주세요.	Standing at the sell spot, tap [Fishing] → the highlighted 'Talk button', line the pointer up on the on-screen talk button, then tap [OK].	販売場所に立ったまま [釣り] → 強調された「会話ボタン」を押し、ポインターを画面の会話ボタンに合わせてから [確認] を押してください。
 판매 자동 보정	Sell auto-calibration	販売の自動補正
-[판매] → '판매 자동 보정' 을 누른 뒤, Captain Flarg 앞에서 대화 버튼을 직접 눌러 주세요. 대화창 · 상점 · 확인창의 위치를 자동으로 찾습니다.\n\n확인창 위치까지 찾으려면 물고기를 가진 상태에서 진행해 주세요.	Tap [Sell] → 'Sell auto-calibration', then tap the talk button yourself in front of Captain Flarg. The dialog, shop and confirm window positions are found automatically.\n\nTo find the confirm window too, do this while you have fish.	[販売] →「販売の自動補正」を押してから、Captain Flarg の前で会話ボタンを自分で押してください。会話ウィンドウ · ショップ · 確認ウィンドウの位置を自動で探します。\n\n確認ウィンドウの位置まで探すには、魚を持った状態で行ってください。
+[낚시] → '판매 자동 보정' 을 누른 뒤, Captain Flarg 앞에서 대화 버튼을 직접 눌러 주세요. 대화창 · 상점 · 확인창의 위치를 자동으로 찾습니다.\n\n확인창 위치까지 찾으려면 물고기를 가진 상태에서 진행해 주세요.	Tap [Fishing] → 'Sell auto-calibration', then tap the talk button yourself in front of Captain Flarg. The dialog, shop and confirm window positions are found automatically.\n\nTo find the confirm window too, do this while you have fish.	[釣り] →「販売の自動補正」を押してから、Captain Flarg の前で会話ボタンを自分で押してください。会話ウィンドウ · ショップ · 確認ウィンドウの位置を自動で探します。\n\n確認ウィンドウの位置まで探すには、魚を持った状態で行ってください。
 판매 테스트	Selling test	販売テスト
-[판매] → '판매 한 번 해 보기' 로 판매가 끝까지 되는지 확인할 수 있습니다. 건너뛰어도 됩니다.	You can check that selling works end to end with [Sell] → 'Try selling once'. You may skip this.	[販売] →「販売を一度試す」で販売が最後までできるか確認できます。スキップしても構いません。
+[낚시] → '판매 한 번 해 보기' 로 판매가 끝까지 되는지 확인할 수 있습니다. 건너뛰어도 됩니다.	You can check that selling works end to end with [Fishing] → 'Try selling once'. You may skip this.	[釣り] →「販売を一度試す」で販売が最後までできるか確認できます。スキップしても構いません。
 판매 설정 완료	Selling setup complete	販売の設定完了
 [시작] 을 누르면 낚시 중 인벤토리가 가득 찼을 때 판매하고 돌아옵니다.	With [Start], the macro sells when the inventory fills up while fishing and then comes back.	[開始] を押すと、釣りの途中でインベントリがいっぱいになった時に販売して戻ってきます。
 남은 튜토리얼 {0}개	{0} tutorials left	残りのチュートリアル {0} 個
@@ -701,15 +701,15 @@ Acrux 창 → [조이스틱] → 강조된 '조이스틱 찾기' 를 눌러 주�
 점프를 쓰지 않는다면 건너뛰어도 됩니다.	You can skip this if you don't jump.	ジャンプを使わない場合はスキップしても大丈夫です。
 [기준 장소] → 강조된 항목을 누르고, 십자 포인터를 해당 버튼 위에 맞춘 뒤 [확인] 을 눌러 주세요.	Tap [Base spot] → the highlighted item, place the crosshair on that button and tap [Check].	[基準地点] → 強調された項目を押し、十字ポインタをそのボタンの上に合わせてから [確認] を押してください。
 메뉴 · 재설정 화면을 직접 열어 둔 상태에서 맞추면 더 정확합니다.	It's more accurate if you open the menu · reset screen yourself first.	メニュー・リセット画面を自分で開いた状態で合わせると、より正確です。
-[길] → 낚시 장소 '길 기록' 을 눌러 주세요.	Tap [Routes] → 'Record route' for the fishing spot.	[道] → 釣り場の「道を記録」を押してください。
+[낚시] → 낚시 장소 '길 기록' 을 눌러 주세요.	Tap [Fishing] → 'Record route' for the fishing spot.	[釣り] → 釣り場の「道を記録」を押してください。
 기준 장소로 이동한 뒤 WASD 패드가 표시됩니다.	After moving to the base spot, the WASD pad appears.	基準地点へ移動したあと、WASD パッドが表示されます。
 · W A S D 탭 = 켜기 · 다시 탭 = 끄기 · 모서리 = 대각선 · ■ = 멈춤	· Tap W A S D = on · tap again = off · corners = diagonal · ■ = stop	· W A S D タップ = オン · もう一度タップ = オフ · 角 = 斜め · ■ = 停止
 · 점프 탭 = 한 번 · [홀드] = 계속 누름	· Tap jump = once · [Hold] = keep holding	· ジャンプをタップ = 1 回 · [ホールド] = 押し続ける
 도착하면 Acrux 창의 [도착] 을 눌러 주세요.	When you arrive, tap [Arrived] in the Acrux window.	到着したら Acrux ウィンドウの [到着] を押してください。
-[판매] → '판매 자동 보정' 을 누른 뒤, Captain Flarg 앞에서 대화 버튼을 직접 눌러 주세요. 대화창 · 상점 · 확인창의 위치를 자동으로 찾습니다.	Tap [Selling] → 'Sell auto-calibration', then tap the talk button yourself in front of Captain Flarg. It finds the dialog, shop and confirm window positions automatically.	[販売] → 「販売の自動補正」を押してから、Captain Flarg の前で会話ボタンを自分で押してください。会話ウィンドウ・ショップ・確認ウィンドウの位置を自動で見つけます。
+[낚시] → '판매 자동 보정' 을 누른 뒤, Captain Flarg 앞에서 대화 버튼을 직접 눌러 주세요. 대화창 · 상점 · 확인창의 위치를 자동으로 찾습니다.	Tap [Fishing] → 'Sell auto-calibration', then tap the talk button yourself in front of Captain Flarg. It finds the dialog, shop and confirm window positions automatically.	[釣り] → 「販売の自動補正」を押してから、Captain Flarg の前で会話ボタンを自分で押してください。会話ウィンドウ・ショップ・確認ウィンドウの位置を自動で見つけます。
 확인창 위치까지 찾으려면 물고기를 가진 상태에서 진행해 주세요.	To find the confirm window too, do this while carrying fish.	確認ウィンドウの位置まで見つけるには、魚を持った状態で行ってください。
 [시작] 을 누르면 기준 장소 → 낚시 장소로 이동한 뒤 낚시를 시작합니다. 인벤토리가 가득 차면 판매하고 돌아옵니다.	Tap [Start] to walk from the base spot to the fishing spot and start fishing. When the inventory is full, it sells and comes back.	[開始] を押すと基準地点 → 釣り場へ移動して釣りを始めます。インベントリがいっぱいになると販売して戻ってきます。
-[길] → '기준 장소 → 낚시 장소' 로 미리 확인할 수 있습니다.	You can test it first with [Routes] → 'Base spot → fishing spot'.	[道] → 「基準地点 → 釣り場」で事前に確認できます。
+[기준 장소] → '기준 장소 → 낚시 장소' 로 미리 확인할 수 있습니다.	You can test it first with [Base spot] → 'Base spot → fishing spot'.	[基準地点] → 「基準地点 → 釣り場」で事前に確認できます。
 [시작] 을 누르면 기준 장소 → 낚시 장소로 이동한 뒤 낚시를 시작합니다.	Tap [Start] to walk from the base spot to the fishing spot and start fishing.	[開始] を押すと基準地点 → 釣り場へ移動して釣りを始めます。
 언어를 고를 수 있습니다	Choose a language	言語を選べます
 [Sell Fish] 버튼을 못 찾음 — 대화 선택지가 보이는 상태에서 다시 해 주세요	Could not find the [Sell Fish] button — try again while the dialog choices are visible	[Sell Fish] ボタンが見つからない — 会話の選択肢が見えている状態でもう一度試してください
@@ -756,3 +756,30 @@ W · A · S · D 0.8초씩	W · A · S · D, 0.8 s each	W · A · S · D 各0.8�
 캡처 꺼짐	Capture off	キャプチャオフ
 판매 장소에 서서	Standing at the sell spot	販売場所に立って
 화면에서 자동으로	Automatically from the screen	画面から自動で
+길 기록 필요	Routes needed	道の記録が必要
+판매 자동 보정 필요	Sell auto-calibration needed	販売の自動補正が必要
+판매 · 상점	Selling · Shop	販売 · ショップ
+VIP 있음	Have VIP	VIP あり
+W + A {0}초	W + A {0} s	W + A {0}秒
+W + A (VIP 있음)	W + A (with VIP)	W + A (VIP あり)
+W + A (VIP 없음)	W + A (no VIP)	W + A (VIP なし)
+VIP 는 걸음이 빨라서 짧게 · 기본 2.5	VIP walks faster, so shorter · default 2.5	VIP は歩くのが速いので短め · 既定 2.5
+화면 잠금 감지를 못 켬: {0}	Couldn't turn on lock screen detection: {0}	画面ロック検出をオンにできません: {0}
+3. [매크로 시작] — 자동 낚시 · 멈출 때는 [매크로 정지]	3. [Start macro] — auto fishing · tap [Stop macro] to stop	3. [マクロ開始] — 自動釣り · 止めるときは [マクロ停止]
+4. Acrux 창은 화면 오른쪽 손잡이를 누르거나 왼쪽으로 밀면 열림 · 시작하면 자동으로 닫힘	4. Tap the handle on the right edge or swipe it left to open the Acrux window · it closes by itself when something starts	4. 画面右端のつまみを押すか左にスワイプすると Acrux ウィンドウが開く · 開始すると自動で閉じる
+5. 이동: [조이스틱] 조이스틱 찾기 → [기준 장소] VIP 여부 · 공통 위치 → 낚시: 낚시 장소 · 판매 장소 길 기록 → 대화 버튼 · 판매 자동 보정	5. Movement: [Joystick] find joystick → [Base spot] VIP or not · common positions → Fishing: record fishing spot · sell spot routes → talk button · sell auto-calibration	5. 移動: [ジョイスティック] ジョイスティック検出 → [基準地点] VIP の有無 · 共通位置 → 釣り: 釣り場 · 販売場所の道を記録 → 会話ボタン · 販売の自動補正
+6. 바이옴 알림: 바이옴 칸 → 무선 디버깅 연결 → 웹후크 입력 → Acrux 창의 바이옴 매크로 줄로 켜고 끄기	6. Biome alerts: Biome tab → connect wireless debugging → enter webhook → turn on · off with the Biome macro row in the Acrux window	6. バイオーム通知: バイオーム欄 → ワイヤレスデバッグ接続 → Webhook 入力 → Acrux ウィンドウのバイオームマクロの行でオン · オフ
+디스코드 연결	Discord link	Discord 連携
+연결하면 디스코드 봇 (/상태 · /통계 · /로그) 으로 이 매크로를 볼 수 있음	Once linked, the Discord bot (/status · /stats · /logs) can show this macro	連携すると Discord ボット (/状態 · /統計 · /ログ) でこのマクロを見られます
+디스코드 로그인	Discord login	Discord ログイン
+연결 끊기	Unlink	連携を解除
+연결됨 — {0}	Linked — {0}	連携済み — {0}
+브라우저에서 [연결] 을 눌러 주세요 · 코드 {0}	Press [Link] in the browser · code {0}	ブラウザで [連携] を押してください · コード {0}
+연결한 동안 보내는 것: 매크로 작동 여부 · 지금 하는 일 · 바이옴 · 통계 · 최근 기록 30줄 (작동 중 15초 · 꺼져 있으면 1분마다) · 화면은 안 보냄 · acruxmacro.com/link 에서도 끊을 수 있음	Sent while linked: whether the macro is running · what it is doing · biome · stats · last 30 log lines (every 15 s while running · every minute when off) · never your screen · you can also unlink at acruxmacro.com/link	連携中に送るもの: マクロの動作状態 · 今していること · バイオーム · 統計 · 最近のログ 30 行 (動作中 15 秒 · オフなら 1 分ごと) · 画面は送りません · acruxmacro.com/link でも解除できます
+서버에 연결할 수 없음	Could not reach the server	サーバーに接続できません
+브라우저를 열 수 없음	Could not open the browser	ブラウザを開けません
+연결 시간이 지남 — 다시 눌러 주세요	The link timed out — press it again	連携の時間が切れました — もう一度押してください
+디스코드 연결 — 브라우저에서 로그인한 뒤 [연결] 을 눌러 주세요 (코드 {0})	Discord link — log in in the browser and press [Link] (code {0})	Discord 連携 — ブラウザでログインして [連携] を押してください (コード {0})
+디스코드 연결됨 — {0}	Discord linked — {0}	Discord 連携済み — {0}
+디스코드 연결 끊음	Unlinked Discord	Discord の連携を解除
+디스코드 연결이 끊김 — 다시 연결하려면 설정 → 디스코드 연결	Discord link removed — to link again, go to Settings → Discord link	Discord 連携が解除されました — もう一度連携するには 設定 → Discord 連携

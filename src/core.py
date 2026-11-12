@@ -29,6 +29,7 @@ DEFAULT_CONFIG = {
     "tutorials_done": [],     # 끝까지 완료한 튜토리얼 ID 목록
     "online_share": True,     # 사용자 수 집계에 참여 ('켜져 있음' 신호만 보냄 · 끄면 숫자만 봄)
     "install_id": "",         # 사용자 수 집계용 무작위 번호 (처음 켤 때 만듦 · 개인 정보 아님)
+    "discord": {},            # 디스코드 연결 (매크로 봇): {"token": 앱 전용 열쇠, "name": 디스코드 이름} — 화면에서 못 바꿈
     "menu_tab": "macro",      # 메인 화면 설정 탭 (biome / macro / acrux · 모드 탭) — 마지막에 본 탭
     "win_size": "",           # 기본 창 크기를 맞춘 적 있는지 (맞춘 크기) — 한 번만 맞춤
     "play": {},               # 게임 입장: Play 버튼 자동 클릭 (복구 · 복귀) (아래 PLAY_DEFAULT)
@@ -532,6 +533,9 @@ def normalize(raw):
     if d.get("ocr_engine") not in ("auto", "rapid", "windows"):
         d["ocr_engine"] = "auto"
     d["online_share"] = bool(d.get("online_share", True))
+    dc = d.get("discord") if isinstance(d.get("discord"), dict) else {}
+    tok = str(dc.get("token") or "")
+    d["discord"] = {"token": tok if re.fullmatch(r"[0-9a-f]{64}", tok) else "", "name": str(dc.get("name") or "")[:40]}
     if not re.fullmatch(r"[0-9a-f]{32}", str(d.get("install_id") or "")):
         d["install_id"] = secrets.token_hex(16)
     ret = dict(d.get("ret") if isinstance(d.get("ret"), dict) else {})   # 모드가 쓰는 다른 키는 그대로 둠

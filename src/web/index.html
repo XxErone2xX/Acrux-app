@@ -434,6 +434,7 @@
     <nav class="side">
       <button class="item deco" data-sec="ac-gen"><b>일반</b><span>언어 · 데이터 폴더 · 버전</span></button>
       <button class="item deco" data-sec="ac-ocr"><b>OCR 감지 방식</b><span>화면 글자 읽는 엔진</span></button>
+      <button class="item deco" data-sec="ac-dc"><b>디스코드 연결</b><span>매크로 봇으로 상태 보기</span></button>
     </nav>
     <div class="content">
       <div class="sec" data-sec="ac-gen">
@@ -445,6 +446,19 @@
           <div class="row"><span>데이터 폴더<small>설정 · 기록 · 템플릿이 저장되는 곳</small></span>
             <button class="btn mini ghost" type="button" id="acFolder">폴더 열기</button></div>
           <div class="row"><span>버전</span><b id="acVer" data-notr>-</b></div>
+        </div>
+      </div>
+      <div class="sec" data-sec="ac-dc">
+        <div class="sec-head"><h2>디스코드 연결</h2></div>
+        <div class="card form">
+          <div class="row"><span>디스코드 계정<small>연결하면 디스코드 봇 (/상태 · /통계 · /로그) 으로 이 매크로를 볼 수 있음</small></span>
+            <b id="dcName" data-notr>-</b></div>
+          <div class="row"><span><span id="dcTitle">디스코드 로그인</span><small id="dcHint">브라우저가 열리면 디스코드로 로그인한 뒤 [연결] 을 누르면 끝</small></span>
+            <button class="btn mini" type="button" id="dcBtn">디스코드 로그인</button></div>
+        </div>
+        <div class="card form">
+          <p class="hint">연결한 동안 보내는 것: 매크로 작동 여부 · 지금 하는 일 · 켜진 기능 · 바이옴 · 통계 · 최근 기록 30줄 (작동 중 15초 · 꺼져 있으면 1분마다)</p>
+          <p class="hint">화면 · 파일 · 웹후크 주소는 보내지 않음 · 연결된 앱은 acruxmacro.com/link 에서도 끊을 수 있음</p>
         </div>
       </div>
       <div class="sec" data-sec="ac-ocr">

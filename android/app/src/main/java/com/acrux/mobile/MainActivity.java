@@ -46,6 +46,7 @@ public class MainActivity extends Activity {
     final Runnable refresh = this::refresh;
     final TextView[][] statCells = new TextView[4][2];
     TextView statRunHead, statAllHead;
+    TextView dcState, dcBtn;
     final Runnable relang = this::recreate;
 
     // ---------------------------------------------------------------- 칸 (탭)
@@ -420,10 +421,10 @@ public class MainActivity extends Activity {
         String[] steps = {
                 "1. 로블록스(Sol's RNG)를 전체 화면 가로로 켜고 낚시 자리로 가서 Fish 버튼이 보이게 하기",
                 "2. 떠 있는 Acrux 창 → [낚시] → 낚시 자동 보정 — Fish 를 한 번 던져 대기 창 · 미니게임 창 · 결과창 위치를 자동으로 맞춤",
-                "3. [시작] — 자동 낚시 · 멈출 때는 [정지]",
-                "4. Acrux 창은 어디든 잡고 끌어서 낚시 창 · 결과창을 가리지 않는 곳으로 옮기기",
-                "5. 이동 · 판매: [조이스틱] 조이스틱 찾기 → [기준 장소] 공통 위치 → [길] 낚시 장소 · 판매 장소 길 기록 → [판매] 대화 버튼 · 판매 자동 보정",
-                "6. 바이옴 알림: 바이옴 칸 → 무선 디버깅 연결 → 웹후크 입력 → Acrux 창의 [바이옴] 버튼으로 켜고 끄기",
+                "3. [매크로 시작] — 자동 낚시 · 멈출 때는 [매크로 정지]",
+                "4. Acrux 창은 화면 오른쪽 손잡이를 누르거나 왼쪽으로 밀면 열림 · 시작하면 자동으로 닫힘",
+                "5. 이동: [조이스틱] 조이스틱 찾기 → [기준 장소] VIP 여부 · 공통 위치 → 낚시: 낚시 장소 · 판매 장소 길 기록 → 대화 버튼 · 판매 자동 보정",
+                "6. 바이옴 알림: 바이옴 칸 → 무선 디버깅 연결 → 웹후크 입력 → Acrux 창의 바이옴 매크로 줄로 켜고 끄기",
         };
         for (String s : steps) how.addView(Ui.text(this, s, 13, Ui.MUTED, false), Ui.fill(this, 6));
         LinearLayout.LayoutParams tl = Ui.wrap();
@@ -505,7 +506,9 @@ public class MainActivity extends Activity {
         LinearLayout base = section(pg, "기준 장소 (초)");
         Mover.Cfg m = Hub.move;
         base.addView(num("리셋 후 대기", "기본 3.5", m.resetWait, v -> m.resetWait = clamp(v, 0.5, 30)), Ui.fill(this, 8));
-        base.addView(num("W + A", "기본 3.5", m.waTime, v -> m.waTime = clamp(v, 0, 30)), Ui.fill(this, 6));
+        base.addView(sw("VIP 있음", m.vip, on -> m.vip = on), Ui.fill(this, 6));
+        base.addView(num("W + A (VIP 있음)", "VIP 는 걸음이 빨라서 짧게 · 기본 2.5", m.waVip, v -> m.waVip = clamp(v, 0, 30)), Ui.fill(this, 6));
+        base.addView(num("W + A (VIP 없음)", "기본 3.5", m.waTime, v -> m.waTime = clamp(v, 0, 30)), Ui.fill(this, 6));
         base.addView(num("A", "기본 3", m.aTime, v -> m.aTime = clamp(v, 0, 30)), Ui.fill(this, 6));
         base.addView(num("A + W", "기본 2", m.awTime, v -> m.awTime = clamp(v, 0, 30)), Ui.fill(this, 6));
         base.addView(num("쉼", "D 누르기 전에 기다림 · 기본 0.5", m.pauseTime, v -> m.pauseTime = clamp(v, 0, 10)), Ui.fill(this, 6));
@@ -852,6 +855,24 @@ public class MainActivity extends Activity {
         updNotes = Ui.text(this, "", 12, Ui.MUTED, false);
         up.addView(updNotes, Ui.fill(this, 4));
 
+        // 디스코드 연결 (매크로 봇) — DiscordLink
+        LinearLayout dc = section(pg, "디스코드 연결");
+        dc.addView(Ui.text(this, "연결하면 디스코드 봇 (/상태 · /통계 · /로그) 으로 이 매크로를 볼 수 있음", 12, Ui.MUTED, false));
+        dcState = Ui.text(this, "", 13, Ui.FG, true);
+        dc.addView(dcState, Ui.fill(this, 10));
+        dcBtn = Ui.button(this, "디스코드 로그인", Ui.ACCENT, v -> {
+            if (DiscordLink.linked()) DiscordLink.logout();
+            else if (DiscordLink.code != null) DiscordLink.cancel();
+            else DiscordLink.login(this);
+            showDiscord();
+        });
+        LinearLayout.LayoutParams dbp = Ui.wrap();
+        dbp.topMargin = Ui.dp(this, 8);
+        dc.addView(dcBtn, dbp);
+        dc.addView(Ui.text(this, "연결한 동안 보내는 것: 매크로 작동 여부 · 지금 하는 일 · 바이옴 · 통계 · 최근 기록 30줄 (작동 중 15초 · 꺼져 있으면 1분마다) · 화면은 안 보냄 · acruxmacro.com/link 에서도 끊을 수 있음",
+                12, Ui.MUTED, false), Ui.fill(this, 6));
+        showDiscord();
+
         LinearLayout win = section(pg, "조작 창");
         win.addView(Ui.text(this, "떠 있는 Acrux 창 · 어디든 잡고 끌면 움직임", 12, Ui.MUTED, false));
         uiBtn2 = Ui.button(this, "UI 끄기", Ui.MUTED, v -> Hub.setUi(!Hub.uiOn()));
@@ -1027,7 +1048,28 @@ public class MainActivity extends Activity {
     }
 
     // ---------------------------------------------------------------- 새로 그리기
+    /** 디스코드 연결 상태 · 버튼 글자 */
+    void showDiscord() {
+        if (dcState == null) return;
+        if (DiscordLink.linked()) {
+            Ui.set(dcState, I18n.f("연결됨 — {0}", DiscordLink.name()));
+            dcState.setTextColor(Ui.GREEN);
+            Ui.set(dcBtn, "연결 끊기");
+        } else if (DiscordLink.code != null) {
+            String c = DiscordLink.code;
+            Ui.set(dcState, I18n.f("브라우저에서 [연결] 을 눌러 주세요 · 코드 {0}", c.substring(0, 4) + "-" + c.substring(4)));
+            dcState.setTextColor(Ui.YELLOW);
+            Ui.set(dcBtn, "취소");
+        } else {
+            String e = DiscordLink.error;
+            Ui.set(dcState, e == null || e.isEmpty() ? "연결 안 됨" : e);
+            dcState.setTextColor(e == null || e.isEmpty() ? Ui.MUTED : Ui.RED);
+            Ui.set(dcBtn, "디스코드 로그인");
+        }
+    }
+
     void refresh() {
+        showDiscord();
         showGuide();
         showBiome();
         Integer on = Online.count;

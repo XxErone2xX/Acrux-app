@@ -80,7 +80,7 @@ public class TapService extends AccessibilityService {
             else if (v != null) v.setForeground(new Ui.Deco(this, 0x334C8DFF, C_ACC, 0, true, 0, 0));
             lit = v;
         }
-        boolean show = Guide.cur != null && !Hub.appVisible && !Hub.running() && picker == null;
+        boolean show = Guide.cur != null && !Hub.appVisible && !Hub.running() && picker == null && !locked();
         if (show) {
             if (guideWin == null) makeGuideWin();
             if (guideWin == null) return;
@@ -150,6 +150,15 @@ public class TapService extends AccessibilityService {
         Hub.listeners.add(refresh);
         Guide.views.add(guideView);
         Biome.resume(this);
+        android.content.IntentFilter f = new android.content.IntentFilter(Intent.ACTION_SCREEN_OFF);
+        f.addAction(Intent.ACTION_SCREEN_ON);
+        f.addAction(Intent.ACTION_USER_PRESENT);
+        try {
+            registerReceiver(screenRx, f);
+            screenRxOn = true;
+        } catch (RuntimeException e) {
+            Hub.log("화면 잠금 감지를 못 켬: " + e, 'y');
+        }
         showPanel();
         Hub.log("접근성 권한 켜짐 · 터치 준비됨", 'g');
         Hub.changed();
@@ -177,6 +186,13 @@ public class TapService extends AccessibilityService {
         if (instance == this) instance = null;
         Hub.listeners.remove(refresh);
         Guide.views.remove(guideView);
+        if (screenRxOn) {
+            screenRxOn = false;
+            try {
+                unregisterReceiver(screenRx);
+            } catch (RuntimeException ignored) {
+            }
+        }
         removeView(guideWin);
         guideWin = null;
         Hub.stop();
@@ -590,12 +606,29 @@ public class TapService extends AccessibilityService {
     void updateVisible() {
         Hub.main.post(() -> {
             if (root == null || hwin == null) return;
-            boolean on = Hub.prefs().getBoolean("panelOn", true) && !(Hub.appVisible && Hub.prefs().getBoolean("hideOnApp", true));
+            boolean on = Hub.prefs().getBoolean("panelOn", true) && !(Hub.appVisible && Hub.prefs().getBoolean("hideOnApp", true)) && !locked();
             if (!on) setDrawer(false);
             hwin.setVisibility(on ? View.VISIBLE : View.GONE);
             hwin.post(TapService.this::updateRect);
         });
     }
+
+    /** 화면이 꺼졌거나 잠금 화면이면 true — 그동안 Acrux 창 · 안내 창을 숨김 (잠금 화면 위에 안 뜨게) */
+    boolean locked() {
+        android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+        android.app.KeyguardManager km = (android.app.KeyguardManager) getSystemService(KEYGUARD_SERVICE);
+        return (pm != null && !pm.isInteractive()) || (km != null && km.isKeyguardLocked());
+    }
+
+    /** 화면 꺼짐 · 켜짐 · 잠금 해제 때 다시 확인 */
+    final android.content.BroadcastReceiver screenRx = new android.content.BroadcastReceiver() {
+        @Override
+        public void onReceive(Context c, Intent i) {
+            updateVisible();
+            Hub.main.post(TapService.this::applyGuide);
+        }
+    };
+    boolean screenRxOn;
 
     /** 언어를 바꿨을 때: 창을 지금 언어로 다시 만듦 (열려 있었으면 다시 엶) */
     void rebuildPanel() {
@@ -678,19 +711,17 @@ public class TapService extends AccessibilityService {
     }
 
     // ---- 미니 UI — 홈 (매크로 시작 · 바이옴 매크로 · 기능 목록 · 낚시 통계는 앱에서만) + 기능마다 설정 페이지 (‹ 로 돌아감)
-    //  · 위 줄 (Acrux · 상태 · 실행 시간) 과 아래 기록 두 줄은 어느 페이지에서나 그대로
+    //  · 위 줄 (Acrux · 상태 · 실행 시간) 은 어느 페이지에서나 그대로
     //  · 기능 = PAGES 에 한 줄 + 설정 페이지 하나 (새 기능도 같은 방식으로 추가) · 안내의 분류 이름 = 페이지 id
     static final int C_BG = 0xF516191C, C_P2 = 0xFF1C2024, C_LINE = 0xFF262B30, C_FG = 0xFFE6E8EA, C_MUT = 0xFF8A939B,
             C_DIM = 0xFF5B636B, C_ACC = 0xFF4C8DFF, C_RED = 0xFFFF5A4E, C_WARN = 0xFFFFB020;
 
     /** 페이지: id · 위 페이지 · 이름 */
     static final String[][] PAGES = {
-            {"fish", "home", "낚시"},
-            {"move", "home", "이동 · 판매"},
+            {"fish", "home", "낚시"},                            // 낚시 보정 + 길 기록 + 판매 (한 기능)
+            {"move", "home", "이동"},
             {"stick", "move", "조이스틱"},
             {"base", "move", "기준 장소"},
-            {"route", "move", "길"},
-            {"sell", "move", "판매"},
     };
 
     static String parentOf(String id) {
@@ -707,36 +738,32 @@ public class TapService extends AccessibilityService {
     String featState(String id) {
         switch (id) {
             case "fish":
-                return Hub.cfg.ready() ? "보정 완료" : "보정 필요";
+                return !Hub.cfg.ready() ? "보정 필요" : routes() < 2 ? "길 기록 필요" : sellState();
             case "move":
-                return moveReady() + " / 4 준비됨";
+                return moveReady() + " / 2 준비됨";
             case "stick":
                 return Hub.stick != null ? "저장됨" : "없음";
             case "base":
                 return count(Mover.BASE_KEYS) + " / " + Mover.BASE_KEYS.length + " 저장됨";
-            case "route":
-                return routes() + " / 2 기록됨";
-            case "sell":
-                return Guide.sellReady() ? "준비됨" : count(Seller.TALK) < Seller.TALK.length ? "대화 버튼 없음" : "자동 보정 필요";
             default:
                 return "";
         }
     }
 
+    static String sellState() {
+        return Guide.sellReady() ? "준비됨" : count(Seller.TALK) < Seller.TALK.length ? "대화 버튼 없음" : "판매 자동 보정 필요";
+    }
+
     boolean featOk(String id) {
         switch (id) {
             case "fish":
-                return Hub.cfg.ready();
+                return Hub.cfg.ready() && routes() == 2 && Guide.sellReady();
             case "move":
-                return moveReady() == 4;
+                return moveReady() == 2;
             case "stick":
                 return Hub.stick != null;
             case "base":
                 return Guide.baseReady();
-            case "route":
-                return routes() == 2;
-            case "sell":
-                return Guide.sellReady();
             default:
                 return true;
         }
@@ -744,7 +771,7 @@ public class TapService extends AccessibilityService {
 
     int moveReady() {
         int n = 0;
-        for (String id : new String[]{"stick", "base", "route", "sell"}) if (featOk(id)) n++;
+        for (String id : new String[]{"stick", "base"}) if (featOk(id)) n++;
         return n;
     }
 
@@ -761,7 +788,6 @@ public class TapService extends AccessibilityService {
     String page = "home";
     LinearLayout pageBox;
     TextView dot, clock, bioState;
-    TextView[] logLine = new TextView[2];
     Toggle bioSw;
     /** 지금 페이지에서 상태가 바뀌면 다시 쓸 것들 */
     final List<Runnable> live = new ArrayList<>();
@@ -770,10 +796,10 @@ public class TapService extends AccessibilityService {
     int runCol;
     final Runnable tick = this::refresh;
 
-    /** 패널 안 (위 줄 · 페이지 · 기록) */
+    /** 패널 안 (위 줄 · 페이지) */
     void buildPanel() {
         int pad = Ui.dp(this, 14);
-        panel.setPadding(pad, Ui.dp(this, 12), pad, Ui.dp(this, 10));
+        panel.setPadding(pad, Ui.dp(this, 12), pad, Ui.dp(this, 12));
         panel.setBackground(new Ui.Deco(this, C_BG, C_LINE, 0, true, 0, 0));
         LinearLayout head = hrow();
         head.addView(Ui.text(this, "Acrux", 15, C_FG, true), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
@@ -789,17 +815,6 @@ public class TapService extends AccessibilityService {
         LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         pp.topMargin = Ui.dp(this, 8);
         panel.addView(pageBox, pp);
-        panel.addView(hair(), hairLp());
-        LinearLayout logs = new LinearLayout(this);
-        logs.setOrientation(LinearLayout.VERTICAL);
-        logs.setPadding(0, Ui.dp(this, 6), 0, 0);
-        for (int i = 0; i < logLine.length; i++) {
-            logLine[i] = mono("", 9.5f, C_DIM);
-            logLine[i].setSingleLine(true);
-            logLine[i].setEllipsize(android.text.TextUtils.TruncateAt.END);
-            logs.addView(logLine[i], mw());
-        }
-        panel.addView(logs, mw());
         showPage(page);
     }
 
@@ -876,22 +891,35 @@ public class TapService extends AccessibilityService {
             case "base":
                 pageBase(m);
                 break;
-            case "route":
-                pageRoute(m);
-                break;
-            case "sell":
-                pageSell(m);
-                break;
             default:                                            // 묶음 페이지 = 아래 기능 목록
                 for (String[] p : PAGES) if (p[1].equals(id)) featRow(m, p[0]);
                 break;
         }
     }
 
+    /** 낚시 = 보정 + 길 기록 (낚시 장소 · 판매 장소) + 판매 — 자동 낚시 하나에 다 쓰임 */
     void pageFish(LinearLayout m) {
         m.addView(section("낚시 보정"), mw());
         info(m, () -> Hub.cfg.ready() ? "보정 완료" : "보정 필요 — 낚시 자리에서 Fish 버튼이 보일 때", () -> Hub.cfg.ready());
         act(m, "act:cal", "낚시 자동 보정", "Fish 를 한 번 던져 창 위치를 맞춤", true, v -> toggle("cal"));
+        for (boolean sell : new boolean[]{false, true}) {
+            m.addView(section((sell ? "물고기 판매 장소" : "낚시 장소") + " 길"), mw());
+            info(m, () -> {
+                com.acrux.mobile.core.Route r = sell ? Hub.sellRoute : Hub.fishRoute;
+                return r.isEmpty() ? "기록 없음" : "기록됨 · " + fmt(r.seconds()) + "초 · " + r.parts() + "조각 · 점프 " + r.jumps() + "번";
+            }, () -> !(sell ? Hub.sellRoute : Hub.fishRoute).isEmpty());
+            act(m, sell ? "act:rec_sell" : "act:rec_fish", "길 기록", "기준 장소로 간 뒤 WASD 패드로 걸어감 → [도착]", true, v -> toggle(sell ? "rec_sell" : "rec_fish"));
+        }
+        m.addView(section("판매 · 대화"), mw());
+        for (String[] k : Seller.TALK) pos(m, k[0], k[1], "판매 장소에 서서");
+        m.addView(section("판매 · 상점"), mw());
+        act(m, "act:sellcal", "판매 자동 보정", "NPC 앞에서 시작 → 대화 버튼은 직접", true, v -> toggle("sellcal"));
+        info(m, () -> "판매 위치 " + count(Seller.KEYS) + " / " + Seller.KEYS.length + " 저장됨", () -> count(Seller.KEYS) == Seller.KEYS.length);
+        for (String[][] k : new String[][][]{{{"first_fish_pos", "첫 번째 물고기 칸"}}, {{"shop_close_pos", "상점 닫기 X"}}}) {
+            pos(m, k[0][0], k[0][1], "직접 지정 · 상점을 연 채로");
+        }
+        m.addView(section("테스트"), mw());
+        act(m, "act:sell", "판매 한 번 해 보기", null, false, v -> toggle("sell"));
     }
 
     void pageStick(LinearLayout m) {
@@ -911,37 +939,35 @@ public class TapService extends AccessibilityService {
     }
 
     void pageBase(LinearLayout m) {
+        // VIP 가 있으면 걸음이 빨라서 W + A 를 짧게 누름 (기본 = VIP 있음 · 2.5초 · 없으면 3.5초)
+        LinearLayout vr = reg("vip", hrow());
+        vr.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 8));
+        vr.setBackground(press());
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.addView(Ui.text(this, "VIP 있음", 12.5f, C_FG, false), Ui.wrap());
+        TextView vs = Ui.text(this, "", 10, C_DIM, false);
+        col.addView(vs, Ui.wrap());
+        vr.addView(col, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        Toggle vt = new Toggle(this);
+        vr.addView(vt, new LinearLayout.LayoutParams(Ui.dp(this, 28), Ui.dp(this, 14)));
+        vr.setOnClickListener(v -> {
+            Hub.move.vip = !Hub.move.vip;
+            Hub.save();
+            Hub.changed();
+        });
+        live.add(() -> {
+            vt.set(Hub.move.vip);
+            Ui.set(vs, "W + A " + fmt(Hub.move.wa()) + "초");
+        });
+        m.addView(vr, mw());
+        m.addView(hair(), hairLp());
         m.addView(section("공통 위치 (기준 장소 맞추기)"), mw());
         for (String[] k : Mover.BASE_KEYS) pos(m, k[0], k[1], null);
         m.addView(section("테스트"), mw());
         act(m, "act:base", "기준 장소로", null, false, v -> toggle("base"));
-    }
-
-    void pageRoute(LinearLayout m) {
-        for (boolean sell : new boolean[]{false, true}) {
-            m.addView(section((sell ? "물고기 판매 장소" : "낚시 장소") + " 길"), mw());
-            info(m, () -> {
-                com.acrux.mobile.core.Route r = sell ? Hub.sellRoute : Hub.fishRoute;
-                return r.isEmpty() ? "기록 없음" : "기록됨 · " + fmt(r.seconds()) + "초 · " + r.parts() + "조각 · 점프 " + r.jumps() + "번";
-            }, () -> !(sell ? Hub.sellRoute : Hub.fishRoute).isEmpty());
-            act(m, sell ? "act:rec_sell" : "act:rec_fish", "길 기록", "기준 장소로 간 뒤 WASD 패드로 걸어감 → [도착]", true, v -> toggle(sell ? "rec_sell" : "rec_fish"));
-        }
-        m.addView(section("테스트"), mw());
         act(m, "act:fish", "기준 장소 → 낚시 장소", null, false, v -> toggle("fish"));
         act(m, "act:sellgo", "기준 장소 → 판매 장소", null, false, v -> toggle("sellgo"));
-    }
-
-    void pageSell(LinearLayout m) {
-        m.addView(section("대화"), mw());
-        for (String[] k : Seller.TALK) pos(m, k[0], k[1], "판매 장소에 서서");
-        m.addView(section("상점"), mw());
-        act(m, "act:sellcal", "판매 자동 보정", "NPC 앞에서 시작 → 대화 버튼은 직접", true, v -> toggle("sellcal"));
-        info(m, () -> "판매 위치 " + count(Seller.KEYS) + " / " + Seller.KEYS.length + " 저장됨", () -> count(Seller.KEYS) == Seller.KEYS.length);
-        for (String[][] k : new String[][][]{{{"first_fish_pos", "첫 번째 물고기 칸"}}, {{"shop_close_pos", "상점 닫기 X"}}}) {
-            pos(m, k[0][0], k[0][1], "직접 지정 · 상점을 연 채로");
-        }
-        m.addView(section("테스트"), mw());
-        act(m, "act:sell", "판매 한 번 해 보기", null, false, v -> toggle("sell"));
     }
 
     // ---- 줄 만들기
@@ -1400,12 +1426,6 @@ public class TapService extends AccessibilityService {
             bioSw.set(bio);
         }
         for (Runnable r : live) r.run();
-        List<String> l = Hub.recentLogsShown(logLine.length);
-        for (int i = 0; i < logLine.length; i++) {
-            int k = i - (logLine.length - l.size());
-            String t = k >= 0 ? l.get(k) : "";
-            if (!t.contentEquals(logLine[i].getText())) logLine[i].setText(t);
-        }
         arriveBtn.setVisibility(Hub.measuring ? View.VISIBLE : View.GONE);
         handle.setBar(run ? C_ACC : C_MUT);
         handleIn.setBar(run ? C_ACC : C_MUT);

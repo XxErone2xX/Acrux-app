@@ -2260,6 +2260,7 @@ function fillAcrux() {
   I18N.onChange(l => { sel.value = l; });
   $('acVer').textContent = $('verText').textContent;
   $('acOnline').checked = config.online_share !== false;
+  refreshDiscord();
 }
 $('acOcr').addEventListener('change', e => {
   config.ocr_engine = e.target.value;
@@ -2273,6 +2274,43 @@ function updateOnline(n) {
   $('nowActive').classList.toggle('live', n != null);
 }
 $('acOnline').addEventListener('change', e => { config.online_share = e.target.checked; queueSave({ online_share: e.target.checked }); });
+// 디스코드 연결 (매크로 봇) — 연결 · 기다리는 중 (코드) · 연결됨 (이름 · 끊기)
+let dcState = { linked: false, name: '', code: null, error: '' }, dcTimer = 0;
+function drawDiscord() {
+  const d = dcState, btn = $('dcBtn');
+  setText($('dcName'), d.linked ? d.name || '-' : '-');
+  if (d.linked) {
+    setText($('dcTitle'), '연결 끊기');
+    setText($('dcHint'), '끊으면 봇에서 이 매크로가 사라짐');
+    setText(btn, '연결 끊기');
+  } else if (d.code) {
+    setText($('dcTitle'), '연결 기다리는 중');
+    setText($('dcHint'), `브라우저에서 [연결] 을 눌러 주세요 · 코드 ${d.code.slice(0, 4)}-${d.code.slice(4)}`);
+    setText(btn, '취소');
+  } else {
+    setText($('dcTitle'), '디스코드 로그인');
+    setText($('dcHint'), d.error || '브라우저가 열리면 디스코드로 로그인한 뒤 [연결] 을 누르면 끝');
+    setText(btn, '디스코드 로그인');
+  }
+  btn.classList.toggle('ghost', d.linked || !!d.code);
+}
+async function refreshDiscord() {
+  clearTimeout(dcTimer);
+  try { dcState = await api('discord_state'); } catch { }
+  drawDiscord();
+  if (dcState.code) dcTimer = setTimeout(refreshDiscord, 2000);   // 연결될 때까지 2초마다
+}
+$('dcBtn').addEventListener('click', async () => {
+  try {
+    if (dcState.linked) await api('discord_logout');
+    else if (dcState.code) await api('discord_cancel');
+    else {
+      const r = await api('discord_login');
+      if (r.error) toast(r.error);
+    }
+  } catch { toast('디스코드 연결 실패'); }
+  refreshDiscord();
+});
 $('acFolder').addEventListener('click', async () => {
   try { await api('open_folder'); } catch { toast('폴더를 열 수 없음'); }
 });

@@ -61,6 +61,7 @@ final class Hub {
             loadLang();
             load();
             Online.start();
+            DiscordLink.start();
         }
     }
 
@@ -590,6 +591,8 @@ final class Hub {
         move.resetWait = num(p, "m_reset_wait", move.resetWait);
         // V0.9.11 기준 장소 걷기가 바뀜 (W+A → A → A+W → 쉼 → D) — 예전 값(m_w_time …)은 안 씀
         move.waTime = num(p, "m2_wa", move.waTime);
+        move.vip = p.getBoolean("vip", true);
+        move.waVip = num(p, "m2_wa_vip", move.waVip);
         move.aTime = num(p, "m2_a", move.aTime);
         move.awTime = num(p, "m2_aw", move.awTime);
         move.pauseTime = num(p, "m2_pause", move.pauseTime);
@@ -628,7 +631,7 @@ final class Hub {
                 .putBoolean("autoUpdate", autoUpdate)
                 .putInt("sellMax", sellMax).putFloat("sellDelay", (float) sellDelay)
                 .putFloat("m_reset_wait", (float) move.resetWait)
-                .putFloat("m2_wa", (float) move.waTime).putFloat("m2_a", (float) move.aTime).putFloat("m2_aw", (float) move.awTime)
+                .putFloat("m2_wa", (float) move.waTime).putBoolean("vip", move.vip).putFloat("m2_wa_vip", (float) move.waVip).putFloat("m2_a", (float) move.aTime).putFloat("m2_aw", (float) move.awTime)
                 .putFloat("m2_pause", (float) move.pauseTime).putFloat("m2_d", (float) move.dTime)
                 .putFloat("m_margin", (float) move.margin).putInt("m3_tilt", move.tiltSwipes).putInt("m3_zoom", move.zoomPinches)
                 .putString("pos", ps.toString())

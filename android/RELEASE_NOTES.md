@@ -1,3 +1,39 @@
+## Acrux Mobile V1.4.23 업데이트
+- 디스코드 연결 추가 [ 설정 → 디스코드 연결 ]
+  - [디스코드 로그인] → 브라우저에서 디스코드로 로그인 → [연결] 을 누르면 끝
+  - 연결하면 디스코드 매크로 봇으로 이 매크로를 볼 수 있음: /상태 [ 작동 여부 · 지금 하는 일 · 바이옴 ] · /통계 · /로그
+  - 연결한 동안만 상태를 보냄 [ 작동 중 15초 · 꺼져 있으면 1분마다 · 화면은 안 보냄 ]
+  - 연결 끊기: 같은 곳에서 [연결 끊기] · 또는 acruxmacro.com/link
+
+## Acrux Mobile V1.4.23 Update
+- Added Discord link [ Settings → Discord link ]
+  - [Discord login] → log in with Discord in the browser → press [Link] and you're done
+  - Once linked, the Discord macro bot can show this macro: /status [ running · what it's doing · biome ] · /stats · /logs
+  - Status is sent only while linked [ every 15 s while running · every minute when off · never your screen ]
+  - To unlink: [Unlink] in the same place · or acruxmacro.com/link
+
+## Acrux Mobile V1.4.22 업데이트
+- 미니 UI 정리
+  - 맨 아래 기록 칸 뺌
+  - 판매를 낚시와 합침 [ 한 기능 ] · 길 기록도 낚시 안으로 [ 기록하는 부분만 · 길 테스트는 이동 → 기준 장소 ]
+  - 기능 목록: 낚시 [ 보정 · 길 기록 · 판매 ] · 이동 [ 조이스틱 · 기준 장소 ]
+- 화면이 꺼졌거나 잠금 화면일 때는 Acrux 창 · 안내 창을 숨김 [ 잠금을 풀면 다시 보임 ]
+- 기준 장소 W + A 시간을 VIP 여부에 따라 다르게 [ 기본 = VIP 있음 ]
+  - VIP 있음 = 2.5초 · VIP 없음 = 3.5초 [ 지금까지와 같음 ]
+  - 이동 → 기준 장소 맨 위에서 켜고 끔 · 앱 설정에서 두 시간 다 바꿀 수 있음
+- 설정 안내 · 사용법 글을 새 메뉴에 맞게 고침
+
+## Acrux Mobile V1.4.22 Update
+- Mini UI cleanup
+  - Removed the log lines at the bottom
+  - Selling is merged into Fishing [ one feature ] · route recording moved into Fishing too [ recording only · route tests are in Movement → Base spot ]
+  - Feature list: Fishing [ calibration · routes · selling ] · Movement [ joystick · base spot ]
+- The Acrux window and guide window are hidden while the screen is off or locked [ they come back after unlocking ]
+- Base spot W + A time now depends on VIP [ default = have VIP ]
+  - With VIP = 2.5 s · without VIP = 3.5 s [ same as before ]
+  - Toggle it at the top of Movement → Base spot · both times can be changed in the app settings
+- Updated the setup guide and how-to text for the new menu
+
 ## Acrux Mobile V1.4.21 업데이트
 - 미니 UI 새로 디자인 [ 기능이 늘어나도 그대로 쓸 수 있게 ]
   - 홈: 위에 Acrux · 상태 [ 도는 중이면 실행 시간 ] → 큰 [매크로 시작] 버튼 → 그 밑에 작게 바이옴 매크로 켜기 · 끄기 → 기능 목록

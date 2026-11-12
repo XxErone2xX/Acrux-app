@@ -151,7 +151,7 @@ class Bridge:
         self.crash_warned = None            # 자동 복구를 못 하는 이유를 한 번만 알림
         # mod_hold: 모드가 원래 매크로를 멈춰 둠 (모드가 대신 할 일을 하는 동안) — 매크로를 다시 켜거나 모드가 풀면 다시 시작
         self.mod_hold = False
-        self.locked_keys = {"stats", "mods"}  # 화면(set_config)에서 못 바꾸는 키 — 엔진 · 모드만 씀
+        self.locked_keys = {"stats", "mods", "discord"}  # 화면(set_config)에서 못 바꾸는 키 — 엔진 · 모드만 씀
         self.afk_at = time.time()           # AFK 방지 점프: 마지막으로 점프한 시각
         self.craft_busy = False             # Auto Crafted 알림 확인(OCR)이 도는 중
         # 통계 (Acrux 탭): 이번 실행은 기능마다 센 값 · 올타임은 그만큼씩 더해서 설정 파일에 (바뀐 뒤 1분마다 · 끌 때)
@@ -164,6 +164,11 @@ class Bridge:
         threading.Thread(target=self._afk_loop, daemon=True).start()
         self.online = None                  # 지금 Acrux 를 켜 둔 사람 수 (서버에서 받음 · 모르면 None)
         threading.Thread(target=self._online_loop, daemon=True).start()
+        # 디스코드 연결 (매크로 봇): 연결 기다리는 중인 코드 · 상태를 바로 보내라는 신호 · 매크로를 켠 시각
+        self.dc = {"code": None, "poll": None, "until": 0.0, "err": ""}
+        self.dc_wake = threading.Event()
+        self.macro_since = time.time() if self.data.get("macro_on") else 0.0
+        threading.Thread(target=self._dc_loop, daemon=True).start()
 
     # 엔진 콜백 (작업 스레드에서 옴)
     def _next(self):
@@ -650,6 +655,153 @@ class Bridge:
                     self.online = None
             time.sleep(60)
 
+    # ---------------- 디스코드 연결 (매크로 봇 /상태 · /통계 · /로그) ----------------
+    # 설정 → Acrux → 디스코드 연결: 브라우저로 acruxmacro.com/link 를 열어 디스코드로 로그인 → [연결] → 앱 전용 열쇠를 받아 둠
+    # 연결된 동안만 15초 (매크로 작동 중) · 60초 (꺼짐) 마다 상태를 보냄:
+    #   매크로 작동 여부 · 지금 하는 일 · 켜진 기능 · 바이옴 · 통계 · 최근 기록 30줄 (주소는 지움 · 화면 · 파일은 안 보냄)
+    DC_FEATS = (("mfish", "자동 낚시"), ("mpop", "레어 바이옴 팝핑"), ("mblood", "블러드 레인"), ("mitem", "오토 아이템"),
+                ("mmerch", "상인 구매"), ("mcraft", "포션 제작"), ("mmatch", "메모리 매치"))
+    DC_URL_RE = re.compile(r"https?://\S+")
+
+    def _dc_req(self, path, body=None, token=None):
+        """acruxmacro.com/api 호출 → (상태 번호, JSON)"""
+        import urllib.request
+        import urllib.error
+        h = {"Content-Type": "application/json", "User-Agent": f"Acrux/{VERSION}"}
+        if token:
+            h["Authorization"] = "Bearer " + token
+        req = urllib.request.Request(self.ONLINE_URL.rstrip("/") + path, headers=h, method="GET" if body is None else "POST",
+                                     data=None if body is None else json.dumps(body).encode("utf-8"))
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return r.status, json.loads(r.read(65536).decode("utf-8") or "{}")
+        except urllib.error.HTTPError as e:
+            try:
+                return e.code, json.loads(e.read(4096).decode("utf-8") or "{}")
+            except Exception:
+                return e.code, {}
+
+    def api_discord_state(self, _):
+        dc = self.data.get("discord") or {}
+        return {"linked": bool(dc.get("token")), "name": dc.get("name") or "",
+                "code": self.dc["code"] if time.time() < self.dc["until"] else None, "error": self.dc["err"]}
+
+    def api_discord_login(self, _):
+        """연결 시작: 코드를 받아 브라우저로 연결 페이지를 엶 → 뒤에서 2초마다 연결됐는지 확인 (10분까지)"""
+        if self.dc["poll"] and time.time() < self.dc["until"]:
+            return {"ok": True, "code": self.dc["code"]}
+        try:
+            st, r = self._dc_req("/link/start", {"platform": "pc"})
+        except Exception:
+            st, r = 0, {}
+        if st != 200 or not r.get("code"):
+            self.dc["err"] = "서버에 연결할 수 없음"
+            return {"error": self.dc["err"]}
+        poll = r["poll"]
+        self.dc.update(code=r["code"], poll=poll, until=time.time() + float(r.get("expires", 600)), err="")
+        import webbrowser
+        webbrowser.open(r["url"])
+        self._on_log(f"디스코드 연결 — 브라우저에서 로그인한 뒤 [연결] 을 눌러 주세요 (코드 {r['code'][:4]}-{r['code'][4:]})", "c")
+
+        def wait():
+            while self.dc["poll"] == poll and time.time() < self.dc["until"]:
+                time.sleep(2)
+                try:
+                    st2, res = self._dc_req("/link/poll", {"poll": poll})
+                except Exception:
+                    continue
+                if res.get("status") == "ok" and res.get("token"):
+                    name = str((res.get("user") or {}).get("name") or "")[:40]
+                    with self.lock:
+                        self.data["discord"] = {"token": res["token"], "name": name}
+                    self._save()
+                    self.dc.update(code=None, poll=None, err="")
+                    self._on_log(f"디스코드 연결됨 — {name}", "g")
+                    self.dc_wake.set()
+                    return
+                if res.get("status") == "expired" or st2 == 400:
+                    break
+            if self.dc["poll"] == poll:
+                self.dc.update(code=None, poll=None, err="연결 시간이 지남 — 다시 눌러 주세요")
+        threading.Thread(target=wait, daemon=True).start()
+        return {"ok": True, "code": r["code"]}
+
+    def api_discord_cancel(self, _):
+        self.dc.update(code=None, poll=None, err="")
+        return {"ok": True}
+
+    def api_discord_logout(self, _):
+        token = (self.data.get("discord") or {}).get("token")
+        with self.lock:
+            self.data["discord"] = {"token": "", "name": ""}
+        self._save()
+        if token:
+            threading.Thread(target=lambda: self._dc_try("/macro/unlink", {}, token), daemon=True).start()
+        self._on_log("디스코드 연결 끊음", "y")
+        return {"ok": True}
+
+    def _dc_try(self, path, body, token):
+        try:
+            return self._dc_req(path, body, token)
+        except Exception:
+            return 0, {}
+
+    def _dc_state(self):
+        """봇에 보낼 지금 상태"""
+        mon = bool(self.data.get("macro_on"))
+        busy = [(self.mpop.snapshot(), "포션 사용 중"), (self.blood.snapshot(), "블러드 레인 만드는 중"),
+                (self.items.snapshot(), "아이템 사용 중"), (self.merchant.snapshot(), "상인 구매 중"),
+                (self.crafter.snapshot(), "포션 제작 중"), (self.matcher.snapshot(), "메모리 매치 중"),
+                (self.fisher.snapshot(), "낚시 중")]
+        action = "꺼짐"
+        if mon:
+            action = next(((s.get("msg") or d) for s, d in busy
+                           if s.get("running") and (d != "상인 구매 중" or s.get("job") == "buy")), None)
+            if not action:
+                action = "다른 서버 접속 중이라 대기" if self.biome.state().get("away") else "작동 중"
+        feats = [n for k, n in self.DC_FEATS if (self.data.get(k) or {}).get("enabled")]
+        if (self.data.get("biome") or {}).get("enabled"):
+            feats.insert(0, "바이옴 알림")
+        cur = self.biome.state().get("current")
+        st = self._stats()
+        with self.lock:
+            logs = list(self.logs)[-30:]
+        return {"v": VERSION, "running": mon, "action": str(action)[:160],
+                "started": int(self.macro_since * 1000) if mon and self.macro_since else None,
+                "biome": biome.show_name(cur) if cur else None, "features": feats,
+                "stats": {"session": st["session"], "all": st["all"]},
+                "logs": [[time.strftime("%H:%M:%S", time.localtime(t)), self.DC_URL_RE.sub("[링크]", str(m))[:200]]
+                         for _, t, m, _ in logs]}
+
+    def _dc_loop(self):
+        """연결돼 있으면 서버가 알려준 간격마다 (작동 중 15초 · 꺼짐 60초) 상태를 보냄 · 매크로를 켜고 끌 때는 바로"""
+        time.sleep(5)
+        wait = 5
+        while True:
+            self.dc_wake.wait(wait)
+            self.dc_wake.clear()
+            token = (self.data.get("discord") or {}).get("token")
+            if not token:
+                wait = 30
+                continue
+            try:
+                st, r = self._dc_req("/macro/state", self._dc_state(), token)
+            except Exception:
+                wait = 60
+                continue
+            if st == 401:                       # 사이트에서 연결을 끊었음
+                with self.lock:
+                    if (self.data.get("discord") or {}).get("token") == token:
+                        self.data["discord"] = {"token": "", "name": ""}
+                self._save()
+                self._on_log("디스코드 연결이 끊김 — 다시 연결하려면 설정 → Acrux → 디스코드 연결", "y")
+                wait = 30
+                continue
+            try:
+                wait = min(300, max(10, int(r.get("next", 60))))
+            except (TypeError, ValueError):
+                wait = 60
+
     def _set_macro(self, on, why="F3"):
         """매크로 버튼 켜기 · 끄기 (F3 · 화면 버튼과 같음)"""
         self.fish_block, self.fish_fails, self.zero_sells, self.fish_backoff = None, 0, 0, 0
@@ -671,6 +823,8 @@ class Bridge:
         else:
             self.matcher.next_at = 0.0          # 켤 때마다 메모리 매치를 한 번 확인
         self._on_log(f"{why} — 매크로 {'켜짐' if on else '꺼짐'}", "y" if not on else "g")
+        self.macro_since = time.time() if on else 0.0
+        self.dc_wake.set()                  # 디스코드 봇에 바로 알림
         self.hooks.emit("macro", bool(on))
 
     def _hotkey_loop(self):

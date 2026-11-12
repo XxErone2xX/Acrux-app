@@ -1553,6 +1553,23 @@ const I18N = (() => {
     ["삭제함 · 다시 켜면 적용", "Deleted · applies after restart", "削除しました・再起動後に適用"],
     ["Acrux 를 다시 켜는 중…", "Restarting Acrux…", "Acruxを再起動中…"],
     ["켜기 · 끄기", "On · off", "オン・オフ"],
+    // V3.0.5: 디스코드 연결 (매크로 봇)
+    ['디스코드 연결', 'Discord link', 'Discord 連携'],
+    ['매크로 봇으로 상태 보기', 'See your macro with the bot', 'ボットでマクロを確認'],
+    ['디스코드 계정', 'Discord account', 'Discord アカウント'],
+    ['연결하면 디스코드 봇 (/상태 · /통계 · /로그) 으로 이 매크로를 볼 수 있음', 'Once linked, the Discord bot (/status · /stats · /logs) can show this macro', '連携すると Discord ボット (/状態 · /統計 · /ログ) でこのマクロを見られます'],
+    ['디스코드 로그인', 'Discord login', 'Discord ログイン'],
+    ['브라우저가 열리면 디스코드로 로그인한 뒤 [연결] 을 누르면 끝', 'When the browser opens, log in with Discord and press [Link]', 'ブラウザが開いたら Discord でログインして [連携] を押すだけ'],
+    ['연결 끊기', 'Unlink', '連携を解除'],
+    ['끊으면 봇에서 이 매크로가 사라짐', 'The bot stops showing this macro', 'ボットにこのマクロが表示されなくなります'],
+    ['연결 기다리는 중', 'Waiting for link', '連携待ち'],
+    ['연결한 동안 보내는 것: 매크로 작동 여부 · 지금 하는 일 · 켜진 기능 · 바이옴 · 통계 · 최근 기록 30줄 (작동 중 15초 · 꺼져 있으면 1분마다)', 'Sent while linked: whether the macro is running · what it is doing · enabled features · biome · stats · last 30 log lines (every 15 s while running · every minute when off)', '連携中に送るもの: マクロの動作状態 · 今していること · オンの機能 · バイオーム · 統計 · 最近のログ 30 行 (動作中 15 秒 · オフなら 1 分ごと)'],
+    ['화면 · 파일 · 웹후크 주소는 보내지 않음 · 연결된 앱은 acruxmacro.com/link 에서도 끊을 수 있음', 'Never sends your screen, files or webhook URLs · you can also unlink apps at acruxmacro.com/link', '画面 · ファイル · Webhook の URL は送りません · acruxmacro.com/link でも連携を解除できます'],
+    ['서버에 연결할 수 없음', 'Could not reach the server', 'サーバーに接続できません'],
+    ['연결 시간이 지남 — 다시 눌러 주세요', 'The link timed out — press it again', '連携の時間が切れました — もう一度押してください'],
+    ['디스코드 연결 실패', 'Discord link failed', 'Discord 連携に失敗'],
+    ['디스코드 연결 끊음', 'Unlinked Discord', 'Discord の連携を解除'],
+    ['디스코드 연결이 끊김 — 다시 연결하려면 설정 → Acrux → 디스코드 연결', 'Discord link removed — to link again, go to Settings → Acrux → Discord link', 'Discord 連携が解除されました — もう一度連携するには 設定 → Acrux → Discord 連携'],
   ];
 
   // 같은 글자라도 동작 편집기 안에서는 뜻이 다름 (대기 = 상태 '대기' 가 아니라 동작 '기다리기')
@@ -1564,6 +1581,10 @@ const I18N = (() => {
   // 'A, B' 목록 묶음은 하나씩 (통째로 번역하면 끝 낱말만 보고 잘못 고를 수 있음: '아이템 사용, 상인 구매' → '… 구매')
   const trList = s => s.split(', ').map(x => tr(x, 1)).join(', ');
   const R = [
+    // V3.0.5: 디스코드 연결
+    [/^브라우저에서 \[연결\] 을 눌러 주세요 · 코드 ([A-Z0-9]{4}-[A-Z0-9]{4})$/, 'Press [Link] in the browser · code $1', 'ブラウザで [連携] を押してください · コード $1'],
+    [/^디스코드 연결 — 브라우저에서 로그인한 뒤 \[연결\] 을 눌러 주세요 \(코드 ([A-Z0-9]{4}-[A-Z0-9]{4})\)$/, 'Discord link — log in in the browser and press [Link] (code $1)', 'Discord 連携 — ブラウザでログインして [連携] を押してください (コード $1)'],
+    [/^디스코드 연결됨 — (.+)$/, (g, r) => `Discord linked — ${r[1]}`, (g, r) => `Discord 連携済み — ${r[1]}`],
     // V2.3: 준비 상태 · ▾ · 통계
     [/^설정 (\d+)개 필요$/, '$1 setting(s) needed', '設定$1個が必要'],
     [/^필요: (.+) 외 (\d+)개$/, 'Needed: $1 and $2 more', '必要: $1 他$2個'],

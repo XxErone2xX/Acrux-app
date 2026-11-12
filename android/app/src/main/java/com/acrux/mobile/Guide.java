@@ -148,25 +148,25 @@ final class Guide {
                     .at("base", "pos:" + k[0]).need(() -> has(k[0])));
         }
         mv.add(new Step("낚시 장소 길 기록",
-                "[길] → 낚시 장소 '길 기록' 을 눌러 주세요.\n\n기준 장소로 이동한 뒤 WASD 패드가 표시됩니다.\n· W A S D 탭 = 켜기 · 다시 탭 = 끄기 · 모서리 = 대각선 · ■ = 멈춤\n· 점프 탭 = 한 번 · [홀드] = 계속 누름\n\n도착하면 Acrux 창의 [도착] 을 눌러 주세요.")
-                .at("route", "act:rec_fish").need(() -> !Hub.fishRoute.isEmpty()));
+                "[낚시] → 낚시 장소 '길 기록' 을 눌러 주세요.\n\n기준 장소로 이동한 뒤 WASD 패드가 표시됩니다.\n· W A S D 탭 = 켜기 · 다시 탭 = 끄기 · 모서리 = 대각선 · ■ = 멈춤\n· 점프 탭 = 한 번 · [홀드] = 계속 누름\n\n도착하면 Acrux 창의 [도착] 을 눌러 주세요.")
+                .at("fish", "act:rec_fish").need(() -> !Hub.fishRoute.isEmpty()));
         if (sell) {
             mv.add(new Step("판매 장소 길 기록",
-                            "[길] → 물고기 판매 장소 '길 기록' 을 누른 뒤, 기준 장소에서 Captain Flarg 앞까지 WASD 패드로 이동하고 [도착] 을 눌러 주세요.")
-                            .at("route", "act:rec_sell").need(() -> !Hub.sellRoute.isEmpty()))
+                            "[낚시] → 물고기 판매 장소 '길 기록' 을 누른 뒤, 기준 장소에서 Captain Flarg 앞까지 WASD 패드로 이동하고 [도착] 을 눌러 주세요.")
+                            .at("fish", "act:rec_sell").need(() -> !Hub.sellRoute.isEmpty()))
                     .add(new Step("대화 버튼 위치",
-                            "판매 장소에 선 상태로 [판매] → 강조된 '대화 버튼' 을 누르고, 포인터를 화면의 대화 버튼에 맞춘 뒤 [확인] 을 눌러 주세요.")
-                            .at("sell", "pos:talk_btn").need(() -> has("talk_btn")))
+                            "판매 장소에 선 상태로 [낚시] → 강조된 '대화 버튼' 을 누르고, 포인터를 화면의 대화 버튼에 맞춘 뒤 [확인] 을 눌러 주세요.")
+                            .at("fish", "pos:talk_btn").need(() -> has("talk_btn")))
                     .add(new Step("판매 자동 보정",
-                            "[판매] → '판매 자동 보정' 을 누른 뒤, Captain Flarg 앞에서 대화 버튼을 직접 눌러 주세요. 대화창 · 상점 · 확인창의 위치를 자동으로 찾습니다.\n\n확인창 위치까지 찾으려면 물고기를 가진 상태에서 진행해 주세요.")
-                            .at("sell", "act:sellcal").need(Guide::sellReady))
+                            "[낚시] → '판매 자동 보정' 을 누른 뒤, Captain Flarg 앞에서 대화 버튼을 직접 눌러 주세요. 대화창 · 상점 · 확인창의 위치를 자동으로 찾습니다.\n\n확인창 위치까지 찾으려면 물고기를 가진 상태에서 진행해 주세요.")
+                            .at("fish", "act:sellcal").need(Guide::sellReady))
                     .add(new Step("판매 테스트",
-                            "[판매] → '판매 한 번 해 보기' 로 판매가 끝까지 되는지 확인할 수 있습니다. 건너뛰어도 됩니다.")
-                            .at("sell", "act:sell").opt());
+                            "[낚시] → '판매 한 번 해 보기' 로 판매가 끝까지 되는지 확인할 수 있습니다. 건너뛰어도 됩니다.")
+                            .at("fish", "act:sell").opt());
         }
         mv.add(new Step("이동 · 판매 설정 완료",
                 "[시작] 을 누르면 기준 장소 → 낚시 장소로 이동한 뒤 낚시를 시작합니다." + (sell ? " 인벤토리가 가득 차면 판매하고 돌아옵니다." : "")
-                        + "\n\n[길] → '기준 장소 → 낚시 장소' 로 미리 확인할 수 있습니다."));
+                        + "\n\n[기준 장소] → '기준 장소 → 낚시 장소' 로 미리 확인할 수 있습니다."));
         l.add(mv);
         return l;
     }

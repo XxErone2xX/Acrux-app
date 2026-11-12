@@ -9,7 +9,7 @@ import java.util.function.BooleanSupplier;
  * 이동 — 화면 터치만 씀 (루팅 · Shizuku 없음)
  *   1. 기준 장소 (스폰이 랜덤이라 어디서 시작하든 같은 곳으로 모음):
  *      재설정 (로블록스 메뉴 → 캐릭터 재설정 → 재설정 확인 · 탭) → 최대 줌 아웃 (두 손가락) → 도감 열고 닫기 (화면 맞추기)
- *      → 조이스틱 W+A 3.5초 → A 3초 → A+W 2초 → 0.5초 쉼 → D 1초
+ *      → 조이스틱 W+A 2.5초 (VIP 없으면 3.5초) → A 3초 → A+W 2초 → 0.5초 쉼 → D 1초
  *      → 내려다보기 (화면을 아래로 끌기)
  *   2. 기준 장소 → 목적지: 플레이어가 조이스틱으로 직접 걸어간 길(Route) 을 그대로 다시 걸음
  *      길 기록: 기준 장소에 도착하면 '지금부터 기록' → 화면에서 조이스틱 손잡이를 매 프레임 읽음 → [도착]
@@ -25,6 +25,14 @@ public final class Mover {
         public double resetWait = 3.5, waTime = 3.5, aTime = 3.0, awTime = 2.0, pauseTime = 0.5, dTime = 1.0, margin = 0.3;
         /** 내려다보기: 화면을 아래로 끄는 횟수 · 줌 아웃: 두 손가락 오므리는 횟수 */
         public int tiltSwipes = 3, zoomPinches = 4;
+        /** VIP 가 있으면 걸음이 빨라서 W + A 를 짧게 (기본 = VIP 있음) */
+        public boolean vip = true;
+        public double waVip = 2.5;
+
+        /** 이번에 W + A 를 누를 시간 (VIP 있음 = waVip · 없음 = waTime) */
+        public double wa() {
+            return vip ? waVip : waTime;
+        }
     }
 
     /** 공통 위치 (화면 비율 · ⚙ 에서 한 번 지정) */
@@ -264,7 +272,7 @@ public final class Mover {
         out.state("기준 장소로 이동 · 카메라 정렬 (도감)");
         alignCamera();
         out.state("기준 장소로 이동 · 걷기 (W+A → A → A+W → 쉼 → D)");
-        hold(new String[]{"w", "a"}, cfg.waTime);
+        hold(new String[]{"w", "a"}, cfg.wa());
         hold(new String[]{"a"}, cfg.aTime);
         hold(new String[]{"a", "w"}, cfg.awTime);
         sleep(cfg.pauseTime);
