@@ -7,6 +7,87 @@ const ts = require('typescript');
 
 async function flush() { for (let i = 0; i < 24; i++) await Promise.resolve(); }
 
+function mobile(options = {}) {
+  const calls = [], listeners = new Map(), elements = new Map();
+  const stats = { success: 0, junk: 0, fail: 0, full: 0 };
+  const current = {
+    platform: 'android', version: '0.1.0', phase: 'idle', message: '대기 중', calibrated: false,
+    captureReady: true, inputReady: true, gameAvailable: false, generation: 7, stats, totals: stats,
+    tuning: { biteSeconds: 60, leadMs: 0, targetPercent: 0, adaptive: true, tapAbove: true },
+    dua: { supported: true, background: false, running: false, route: null, reason: 'DUA 대기 중', headlessTicks: 0, screenshotFrames: 0, transitions: 0 },
+  };
+  const element = id => {
+    if (!elements.has(id)) elements.set(id, {
+      style: {}, dataset: {}, classList: { toggle() {} }, children: [],
+      addEventListener() {}, querySelectorAll: () => [], setAttribute() {},
+      scrollTo() {}, scrollTop: 0, showModal() { this.open = true; }, close() { this.open = false; },
+    });
+    return elements.get(id);
+  };
+  const invoke = async (name, payload) => {
+    calls.push([name, structuredClone(payload)]);
+    if (name === 'status') return structuredClone(current);
+    if (name === 'dua_start') {
+      const staleReply = structuredClone(current);
+      Object.assign(staleReply.dua, { running: true, route: 'headless' });
+      if (options.startWait) await options.startWait;
+      if (options.staleStartReply) return staleReply;
+      if (payload.generation !== current.generation) throw new Error('이전 실행 요청이 취소됐습니다.');
+      current.generation++;
+      Object.assign(current.dua, { running: true, route: 'headless', reason: 'Roblox가 앞에 오기를 기다립니다.' });
+      return structuredClone(current);
+    }
+    if (name === 'dua_stop') {
+      current.generation++;
+      current.phase = 'idle';
+      Object.assign(current.dua, { running: false, route: null, reason: '중지됨' });
+      return structuredClone(current);
+    }
+    if (name === 'save_tuning') {
+      current.tuning = payload.tuning;
+      const reply = structuredClone(current);
+      if (options.saveWait) await options.saveWait;
+      return reply;
+    }
+    if (name === 'biome_transport') return { connection: 'off', testOutput: '', testUntil: 0 };
+    if (name === 'online_status') return { online: null, share: true };
+    if (name === 'android_setup') return;
+    throw new Error(`Unexpected mobile command ${name}`);
+  };
+  const compile = source => ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
+  }).outputText;
+  const engine = { exports: {}, require: name => {
+    assert.equal(name, '@tauri-apps/api/core');
+    return { invoke };
+  } };
+  vm.runInNewContext(compile(fs.readFileSync(path.join(__dirname, 'engine.ts'), 'utf8')), engine);
+  const modules = {
+    './engine': engine.exports,
+    './biome': { defaultBiome: {}, biomeStatus: async () => ({ settings: {}, logs: [] }) },
+    '@tauri-apps/api/core': { invoke },
+  };
+  for (const name of ['pc', 'mobile']) modules[`../android/app/src/main/assets/i18n/${name}.tsv?raw`] = fs.readFileSync(path.join(__dirname, `../android/app/src/main/assets/i18n/${name}.tsv`), 'utf8');
+  const context = {
+    exports: {}, require: name => { assert.ok(name in modules, `Unexpected mobile module ${name}`); return modules[name]; },
+    document: { hidden: true, documentElement: {}, getElementById: element, querySelectorAll: () => [],
+      addEventListener: (name, fn) => listeners.set(name, fn) },
+    window: { setInterval() {}, setTimeout: () => 1 }, navigator: { language: 'ko' },
+    localStorage: { getItem: () => null, setItem() {} }, setTimeout: () => 1, clearTimeout() {},
+  };
+  const source = fs.readFileSync(path.join(__dirname, 'main.ts'), 'utf8');
+  vm.runInNewContext(compile(source + '\nglobalThis.mobileUi = {'
+    + ' changeMacro, perform, applyStatus, home, move, guideSteps, applyNavigation,'
+    + ' get current() { return current; }, get saves() { return numberSaves; },'
+    + ' setCurrent(value) { current = value; applyStatus(); },'
+    + ' setNavigation(value) { nav = value; }, getNavigation() { return nav; },'
+    + ' setLanguage(value) { overlay.lang = value; },'
+    + ' setBusy(value) { busy = value; } };'), context);
+  context.document.hidden = false;
+  context.mobileUi.setCurrent(structuredClone(current));
+  return { ui: context.mobileUi, current, calls, element, listeners, document: context.document };
+}
+
 function desktop(saved, options = {}) {
   const preferencesKey = 'acrux.desktop.preferences';
   const storage = new Map([[preferencesKey, JSON.stringify(saved)]]);
@@ -656,6 +737,108 @@ test('private session uses app controls while the legacy Python UI retains short
   assert.equal(context.ui.shortcutText('F3 / F6 / F7'), 'F3 / F6 / F7');
   context.ui.updateMove({ running: true, msg: measureText });
   assert.equal(movement.textContent, measureText);
+});
+
+test('mobile main start uses DUA with automatic calibration and can wait for Roblox without claiming background input', async () => {
+  const app = mobile();
+  assert.match(app.ui.home(), /data-action="macro-toggle"/);
+  assert.equal(app.current.dua.background, false);
+  assert.equal(app.current.gameAvailable, false);
+  assert.equal(app.element('macro-toggle').disabled, false);
+  app.ui.setBusy(true);
+  await app.ui.perform('macro-toggle');
+  assert.deepEqual({ ...app.calls.find(([name]) => name === 'dua_start')[1] }, { features: ['mfish'], generation: 7 });
+  assert.equal(app.ui.current.dua.running, true);
+  assert.equal(app.element('macro-toggle').textContent, '정지');
+  assert.match(app.element('dua-guard').textContent, /Roblox 화면에서만 터치 · 다른 앱에서는 대기/);
+  assert.match(app.element('cal-state').textContent, /시작하면 자동으로 보정/);
+  assert.equal(app.calls.some(([name]) => name === 'control' || name === 'desktop_start'), false);
+  await app.ui.perform('macro-toggle');
+  assert.equal(app.ui.current.dua.running, false);
+  assert.equal(app.calls.filter(([name]) => name === 'dua_stop').length, 1);
+});
+
+test('mobile start requires capture and input readiness while stop remains available in a DUA idle handoff', async () => {
+  const app = mobile();
+  for (const field of ['captureReady', 'inputReady']) {
+    app.ui.setCurrent({ ...structuredClone(app.current), [field]: false });
+    assert.equal(app.element('macro-toggle').disabled, true);
+    await app.ui.changeMacro();
+  }
+  assert.equal(app.calls.some(([name]) => name === 'dua_start'), false);
+  const running = structuredClone(app.current);
+  running.dua.running = true;
+  running.captureReady = running.inputReady = false;
+  app.ui.setCurrent(running);
+  assert.equal(app.element('macro-toggle').disabled, false);
+  await app.ui.changeMacro();
+  assert.equal(app.calls.filter(([name]) => name === 'dua_stop').length, 1);
+});
+
+test('mobile stop preempts a pending start and ignores both stale success and generation rejection', async () => {
+  for (const staleStartReply of [false, true]) {
+    let release;
+    const startWait = new Promise(resolve => { release = resolve; });
+    const app = mobile({ startWait, staleStartReply });
+    const starting = app.ui.perform('macro-toggle');
+    assert.equal(app.element('macro-toggle').textContent, '정지');
+    await app.ui.perform('macro-toggle');
+    release();
+    await starting;
+    await flush();
+    assert.equal(app.ui.current.dua.running, false);
+    assert.equal(app.ui.current.generation, 8);
+    assert.equal(app.element('macro-toggle').textContent, '시작');
+    assert.equal(app.calls.filter(([name]) => name === 'dua_start').length, 1);
+    assert.equal(app.calls.filter(([name]) => name === 'dua_stop').length, 1);
+  }
+});
+
+test('mobile tuning saves cannot block stop or restore stale running state after stop', async () => {
+  let release;
+  const app = mobile({ saveWait: new Promise(resolve => { release = resolve; }) });
+  await app.ui.changeMacro();
+  app.listeners.get('input')({ target: { disabled: false, dataset: { tuning: 'leadMs' }, type: 'number', valueAsNumber: 45, validity: { valid: true } } });
+  await flush();
+  await app.ui.perform('macro-toggle');
+  assert.equal(app.ui.current.dua.running, false);
+  release();
+  await app.ui.saves;
+  assert.equal(app.ui.current.dua.running, false);
+  assert.equal(app.current.tuning.leadMs, 45);
+});
+
+test('mobile DUA renders real route counters and foreground guard and keeps timed navigation disabled with data intact', async () => {
+  const app = mobile();
+  const observed = structuredClone(app.current);
+  Object.assign(observed.dua, { running: true, route: 'screenshot', reason: '실제 화면 확인', headlessTicks: 17, screenshotFrames: 9, transitions: 4 });
+  observed.gameAvailable = true;
+  app.ui.setCurrent(observed);
+  assert.equal(app.element('dua-state').textContent, '실행 중 · 스크린샷');
+  assert.equal(app.element('dua-reason').textContent, '실제 화면 확인');
+  assert.equal(app.element('dua-counts').textContent, 'Headless 17 · 스크린샷 9 · 경로 전환 4');
+  assert.match(app.element('dua-guard').textContent, /✓ Roblox 입력 가능/);
+  for (const lang of ['en', 'ja']) {
+    app.ui.setLanguage(lang);
+    app.ui.applyStatus();
+    for (const id of ['dua-state', 'dua-counts', 'dua-guard', 'cal-state']) assert.doesNotMatch(app.element(id).textContent, /[가-힣]/);
+    assert.match(app.element('dua-counts').textContent, /17.*9.*4/);
+  }
+  app.ui.setLanguage('ko');
+  const nav = structuredClone(app.ui.getNavigation());
+  Object.assign(nav.options, { useMove: true, useSell: true, wa: 8.3 });
+  Object.assign(nav, { fish: 3, sell: 2, positions: { stick_edge: [0.1, 0.2] } });
+  app.ui.setNavigation(nav);
+  const before = JSON.stringify(app.ui.getNavigation());
+  const html = app.ui.move();
+  const controls = [...html.matchAll(/<input\b[^>]*data-navigation=[^>]*>/g)].map(match => match[0]);
+  assert.equal(controls.length > 10, true);
+  assert.equal(controls.every(control => /\bdisabled\b/.test(control)), true);
+  assert.match(html, /지도 기반 이동과 판매는 준비 중/);
+  for (const event of ['input', 'change']) await app.listeners.get(event)({ target: { disabled: true, dataset: { navigation: 'useMove' }, type: 'checkbox', checked: false } });
+  assert.equal(JSON.stringify(app.ui.getNavigation()), before);
+  assert.equal(app.calls.some(([name]) => name === 'save_navigation' || name === 'navigation_task'), false);
+  for (const id of ['move', 'sell']) assert.match(app.ui.guideSteps[id][0].body, /준비 중/);
 });
 
 test('Discord bridge keeps the four public contracts and never stores account credentials in UI preferences', async () => {

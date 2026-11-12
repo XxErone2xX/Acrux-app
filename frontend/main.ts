@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { control, saveTuning, status, type Status, type Stats, type Tuning } from "./engine";
+import { duaStart, duaStop, saveTuning, status, type Status, type Stats, type Tuning } from "./engine";
 import mobileDictionary from "../android/app/src/main/assets/i18n/mobile.tsv?raw";
 import desktopDictionary from "../android/app/src/main/assets/i18n/pc.tsv?raw";
 
@@ -74,6 +74,8 @@ let online: { online: number | null; share: boolean } = { online: null, share: t
 let busy = false;
 let request = 0;
 let toastTimer = 0;
+let macroPending: "start" | "stop" | null = null;
+let macroRevision = 0;
 interface DiscordState { linked: boolean; name: string; code: string | null; error: string }
 let discord: DiscordState = { linked: false, name: "", code: null, error: "" };
 let discordBusy = false;
@@ -89,8 +91,8 @@ function message(text: string) {
   toastTimer = window.setTimeout(() => { toast.hidden = true; }, 3000);
 }
 
-function button(title: string, action: string, color = "muted", id = "") {
-  return `<button type="button" class="button ${color}" data-action="${action}" ${id ? `id="${id}"` : ""}>${tr(title)}</button>`;
+function button(title: string, action: string, color = "muted", id = "", disabled = false) {
+  return `<button type="button" class="button ${color}" data-action="${action}" ${id ? `id="${id}"` : ""} ${disabled ? "disabled" : ""}>${tr(title)}</button>`;
 }
 
 function card(id: string, title: string, body: string) {
@@ -127,20 +129,24 @@ function home() {
     row("① 접근성 권한", "Acrux가 로블록스 화면을 대신 터치함 · 설정 → 접근성 → 설치된 앱 → Acrux Mobile", button("켜기", "accessibility", "accent", "access-button"), "access-state")
     + `<button class="tip" data-action="appInfo">${tr("안드로이드 13 이상에서 '제한된 설정'이라며 켜지지 않으면: 설정 → 앱 → Acrux Mobile → 오른쪽 위 ⋮ → '제한된 설정 허용' 후 다시 켜기")}</button>`
     + row("② 화면 캡처", "매크로가 화면을 보고 상태를 판단함 · 녹화 · 저장은 하지 않음 · '전체 화면' 공유를 고르기", button("시작", "capture", "accent", "capture-button"), "capture-state")
-    + text("③ 이동 · 판매: 로블록스 설정 → 이동 방식을 '조이스틱' (클래식) 으로", 12, "warning"))
+    + text("Roblox 화면에서만 터치 · 다른 앱에서는 대기", 12, "warning"))
   + card("state", "상태",
     '<p id="run-state" class="readout"></p><p id="cal-state" class="muted readout"></p>'
+    + `<div class="buttons">${button("시작", "macro-toggle", "accent", "macro-toggle")}</div>`
     + `<div class="buttons">${button("보정 초기화", "reset:calibration", "danger")}</div>`)
+  + card("dua", "DUA 실행 경로",
+    '<p id="dua-state" class="readout"></p><p id="dua-reason" class="muted readout"></p><p id="dua-counts" class="muted readout"></p><p id="dua-guard" class="warning readout"></p>'
+    + text("상태와 명령을 우선 사용하고, 화면 확인이 필요할 때 캡처", 12))
   + card("how", "사용법",
     [
       "1. 로블록스(Sol's RNG)를 전체 화면 가로로 켜고 낚시 자리로 가서 Fish 버튼이 보이게 하기",
-      "2. 떠 있는 Acrux 창 ⚙ → [낚시] → 낚시 자동 보정 — Fish 를 한 번 던져 대기 창 · 미니게임 창 · 결과창 위치를 자동으로 맞춤",
-      "3. [시작] — 자동 낚시 · 멈출 때는 [정지]",
+      "2. [시작] — 저장된 보정이 없으면 자동 보정한 뒤 낚시를 시작함",
+      "3. Roblox가 앞에 있을 때만 터치 · 다른 앱에서는 대기 · 잠기면 정지",
       "4. Acrux 창은 어디든 잡고 끌어서 낚시 창 · 결과창을 가리지 않는 곳으로 옮기기",
-      "5. 이동 · 판매: ⚙ → [조이스틱] 조이스틱 찾기 → [기준 장소] 공통 위치 → [길] 낚시 장소 · 판매 장소 길 기록 → [판매] 대화 버튼 · 판매 자동 보정",
+      "5. 멈출 때는 앱 또는 떠 있는 Acrux 창의 [정지] · 이동과 판매는 준비 중",
       "6. 바이옴 알림: 바이옴 칸 → 무선 디버깅 연결 → 웹후크 입력 → Acrux 창의 [바이옴] 버튼으로 켜고 끄기",
     ].map(step => text(step)).join("")
-    + `<strong class="guide-heading">${tr("설정 안내 — 기능별로 하나씩 따라 하기 (PC 튜토리얼과 같음)")}</strong><div class="guide-buttons">${Object.entries(guideNames).map(([id, name]) => button(name, "guide:" + id, "accent")).join("")}</div>`)
+    + `<strong class="guide-heading">${tr("설정 안내 — 기능별로 하나씩 따라 하기 (PC 튜토리얼과 같음)")}</strong><div class="guide-buttons">${Object.entries(guideNames).map(([id, name]) => button(name, "guide:" + id, "accent", "", id === "move" || id === "sell")).join("")}</div>`)
   + card("donate", "후원", text("Acrux 가 도움이 됐다면 후원으로 응원해 주세요", 12)
     + `<div class="buttons">${button("후원하기", "donate", "gold")}</div>`);
 }
@@ -180,14 +186,15 @@ const savedPlaces = [
   ["confirm_sell_pos", "확인 Sell (판매)"], ["shop_close_pos", "상점 닫기 X (판매)"],
 ];
 function navigationField(key: keyof NavigationOptions, name: string, desc: string, min: number, max: number, step: number) {
-  return row(name, desc, `<input type="number" data-navigation="${key}" aria-label="${tr(name)}" value="${nav.options[key]}" min="${min}" max="${max}" step="${step}">`);
+  return row(name, desc, `<input type="number" data-navigation="${key}" aria-label="${tr(name)}" value="${nav.options[key]}" min="${min}" max="${max}" step="${step}" disabled>`);
 }
 function move() {
   return card("movement", "이동 · 판매",
-    text("시작하면 재설정 → 기준 장소 → 기록한 길로 낚시 장소 · 인벤토리가 가득 차면 판매 장소에서 팔고 돌아옴 · 전부 화면 터치 (조이스틱 · 탭) · 위치 · 길은 Acrux 창 ⚙ 에서", 12)
-    + toggle("시작할 때 낚시 장소로 이동", 'data-navigation="useMove"', nav.options.useMove)
-    + toggle("가득 차면 판매하러 가기", 'data-navigation="useSell"', nav.options.useSell))
-  + card("base", "기준 장소 (초)", baseFields.map(args => navigationField(...args)).join(""))
+    text("지도 기반 이동과 판매는 준비 중입니다. 직접 낚시 자리를 맞춰 주세요. 가득 차면 정지합니다.", 12, "warning")
+    + toggle("시작할 때 낚시 장소로 이동", 'data-navigation="useMove"', nav.options.useMove, true)
+    + toggle("가득 차면 판매하러 가기", 'data-navigation="useSell"', nav.options.useSell, true))
+  + card("base", "저장된 이전 이동 설정", text("이전 위치 · 길 · 시간 설정은 보존하며 실행하지 않습니다.", 12)
+    + baseFields.map(args => navigationField(...args)).join(""))
   + card("sell", "판매", navigationField("sellMax", "판매 최대 종류", "한 번에 파는 최대 종류 수 · 기본 100", 1, 500, 1)
     + navigationField("sellDelay", "판매 클릭 추가 대기 (초)", "렉이 있으면 늘림 · 기본 0", 0, 5, .1))
   + card("places", "저장된 위치 · 길", '<pre id="saved-places"></pre>'
@@ -309,6 +316,54 @@ function setText(id: string, value: string) {
   if (target && target.textContent !== value) target.textContent = value;
 }
 
+function macroActive() {
+  return macroPending === "start" || !!current?.dua.running || !!current && current.phase !== "idle";
+}
+
+function applyDua() {
+  const d = current?.dua;
+  const active = macroActive();
+  setText("macro-toggle", t(macroPending === "stop" ? "정지 중…" : active ? "정지" : "시작"));
+  const button = document.getElementById("macro-toggle") as HTMLButtonElement | null;
+  if (button) {
+    button.disabled = macroPending === "stop" || !active && (!d?.supported || !current?.captureReady || !current?.inputReady);
+    button.classList.toggle("danger", active);
+    button.classList.toggle("accent", !active);
+  }
+  setText("dua-state", t(macroPending === "start" ? "시작 중…" : macroPending === "stop" ? "정지 중…" : d?.running ? "실행 중" : "중지됨")
+    + " · " + t(d?.route === "headless" ? "Headless" : d?.route === "screenshot" ? "스크린샷" : "대기"));
+  setText("dua-reason", t(d?.reason ?? "DUA 대기 중"));
+  setText("dua-counts", t("Headless {0} · 스크린샷 {1} · 경로 전환 {2}")
+    .replace("{0}", String(d?.headlessTicks ?? 0)).replace("{1}", String(d?.screenshotFrames ?? 0)).replace("{2}", String(d?.transitions ?? 0)));
+  setText("dua-guard", current?.platform === "android"
+    ? t("Roblox 화면에서만 터치 · 다른 앱에서는 대기") + "\n" + t(current.gameAvailable ? "✓ Roblox 입력 가능" : "Roblox가 앞에 오기를 기다립니다.") : "");
+}
+
+async function changeMacro() {
+  if (macroPending === "stop") return;
+  const stopping = macroActive();
+  if (!stopping && (!current?.dua.supported || !current.captureReady || !current.inputReady)) {
+    message("화면 캡처와 입력을 먼저 준비하세요.");
+    return;
+  }
+  const revision = ++macroRevision;
+  ++request;
+  macroPending = stopping ? "stop" : "start";
+  applyDua();
+  try {
+    const next = stopping ? await duaStop() : await duaStart(current!.generation);
+    if (revision === macroRevision) { current = next; ++request; }
+  } catch (error) {
+    if (revision === macroRevision) message(String(error));
+  } finally {
+    if (revision === macroRevision) {
+      macroPending = null;
+      applyStatus();
+      void refresh();
+    }
+  }
+}
+
 function applyDiscord() {
   setText("discord-name", discord.linked ? discord.name || "-" : "-");
   const code = discord.code && discord.code.length === 8 ? discord.code.slice(0, 4) + "-" + discord.code.slice(4) : discord.code;
@@ -386,8 +441,8 @@ function applyStatus() {
   setText("run-state", t(s?.message === "대기 중" || !s ? "대기" : s.message) + "\n"
     + t("성공 {0} · 쓰레기 {1} · 실패 {2}").replace("{0}", String(session.success)).replace("{1}", String(session.junk)).replace("{2}", String(session.fail))
     + "  (" + t("이번 실행") + ")");
-  setText("cal-state", `${t("대기 창")}: ${t(s?.calibrated ? "있음" : "없음")}  ·  ${t("미니게임 창")}: ${t(s?.calibrated ? "대기 창으로 계산" : "없음")}  ·  ${t("결과창")}: ${t("없음")}`
-    + (s?.calibrated ? "" : "\n→ " + t("로블록스에서 ⚙ → [낚시] → 낚시 자동 보정을 해야 함")));
+  setText("cal-state", t(s?.calibrated ? "낚시 보정 저장됨" : "시작하면 자동으로 보정한 뒤 낚시합니다."));
+  applyDua();
   statsText("run", session);
   statsText("total", s?.totals ?? zero);
   if (page === "fish") applyNavigation();
@@ -423,8 +478,7 @@ async function refresh() {
     biome = await biomeStatus();
     transport = await invoke<typeof transport>("biome_transport");
     online = await invoke<typeof online>("online_status");
-    const nextNavigation = page === "fish" || guide?.id === "move" || guide?.id === "sell"
-      ? await invoke<NavigationState>("navigation_status") : undefined;
+    const nextNavigation = page === "fish" ? await invoke<NavigationState>("navigation_status") : undefined;
     if (ticket !== request) return;
     const initial = !current;
     current = next;
@@ -449,11 +503,9 @@ async function refresh() {
 interface Step {
   title: string;
   body: string;
-  check?: "inputReady" | "captureReady" | "calibrated" | "movement";
+  check?: "inputReady" | "captureReady" | "calibrated";
   action?: "accessibility" | "capture";
   optional?: boolean;
-  position?: string;
-  route?: "fish" | "sell";
 }
 
 const guideSteps: Record<GuideId, Step[]> = {
@@ -461,43 +513,25 @@ const guideSteps: Record<GuideId, Step[]> = {
     { title: "Acrux Mobile 에 오신 걸 환영합니다.", body: "이 매크로는 Sol's RNG 전용 매크로이며, 다양한 모바일 기능을 지원합니다.\n\n시작하기 전에, 매크로가 작동할 때 필요한 필수 권한 두 개를 켜야 합니다." },
     { title: "접근성 권한 켜기", body: "매크로가 로블록스 화면을 터치하는 데 필요한 권한입니다.\n\n설정 → 접근성 → 설치된 앱 → Acrux Mobile → 켜기\n\n'제한된 설정' 으로 켜지지 않는다면, 설정 → 앱 → Acrux Mobile → 오른쪽 위 ⋮ → '제한된 설정 허용' 후 다시 켜 주세요.", check: "inputReady", action: "accessibility" },
     { title: "화면 캡처 시작", body: "매크로가 화면을 보고 낚시 상태와 버튼을 찾는 데 필요합니다. 화면은 녹화되거나 저장되지 않습니다.\n\n공유 창이 뜨면 '전체 화면' 을 선택해 주세요.", check: "captureReady", action: "capture" },
-    { title: "로블록스 준비", body: "· 로블록스 (Sol's RNG) 를 가로 전체 화면으로 실행합니다.\n· 로블록스 설정 → 이동 방식을 '조이스틱' (클래식) 으로 바꿉니다.\n\n로블록스 위에는 작은 Acrux 창이 표시되며, 끌어서 옮길 수 있습니다. 이 안내도 그 옆에 이어서 표시됩니다." },
+    { title: "로블록스 준비", body: "로블록스 (Sol's RNG) 를 가로 전체 화면으로 열고 Fish 버튼이 보이는 낚시 자리를 직접 맞춰 주세요.\n\n다른 앱에서는 터치하지 않고 기다리며, 화면이 잠기면 정지합니다." },
     { title: "준비 완료", body: "이제 로블록스를 열어 주세요. 다음 안내 (낚시 보정) 가 이어서 표시됩니다." },
   ],
   fish: [
-    { title: "낚시 보정", body: "낚시 창 · 미니게임 창 · 결과창의 위치를 이 기기 화면에 맞춥니다. 처음 한 번만 하면 됩니다." },
+    { title: "낚시 보정", body: "[시작] 을 누르면 저장된 보정이 없을 때 자동으로 보정한 뒤 낚시합니다. 수동 보정은 Acrux 창 ⚙ → [낚시] 에서 할 수 있습니다." },
     { title: "낚시 자리로 이동", body: "로블록스에서 낚시 자리로 이동해 Fish 버튼이 보이게 해 주세요.\n\nAcrux 창이 낚시 창을 가린다면 위쪽 구석으로 옮겨 주세요." },
-    { title: "낚시 자동 보정", body: "Acrux 창 ⚙ → [낚시] → 강조된 '낚시 자동 보정' 을 누르고 끝날 때까지 기다려 주세요. Fish 를 한 번 던져 창 위치를 자동으로 맞춥니다.\n\n보정하는 동안에는 이 안내가 잠시 숨겨집니다.", check: "calibrated" },
-    { title: "낚시 보정 완료", body: "Acrux 창의 [시작] 을 누르면 자동 낚시가 시작되며, [정지] 로 멈출 수 있습니다.\n\n가득 찼을 때 판매까지 하려면 앱의 낚시 칸 → 이동 · 판매에서 켜 주세요." },
+    { title: "낚시 자동 보정", body: "로블록스 위 Acrux 창의 [시작] 을 누르세요. 저장된 보정이 없으면 Fish 를 한 번 던져 보정하고 낚시를 이어갑니다.\n\n진행 상태와 중지 버튼은 Acrux 창에서 확인하세요.", check: "calibrated" },
+    { title: "낚시 보정 완료", body: "자동 낚시는 [정지] 로 멈출 수 있습니다. 인벤토리가 가득 차면 정지합니다.\n\n지도 기반 이동과 판매는 준비 중입니다." },
   ],
   move: [
-    { title: "이동 설정", body: "스폰 위치가 무작위이기 때문에, 리셋 후 '기준 장소' 에서 기록한 길을 따라 이동합니다.\n\n조이스틱 → 기준 장소 위치 → 낚시 장소 길 순서로 설정합니다." },
-    { title: "조이스틱 찾기", body: "Acrux 창 ⚙ → [조이스틱] → 강조된 '조이스틱 찾기' 를 눌러 주세요.\n\n로블록스 이동 방식이 '조이스틱' 이어야 합니다. 자동으로 찾지 못하면 '조이스틱 직접 지정' 을 사용할 수 있습니다.", check: "movement", position: "stick_edge" },
-    { title: "점프 버튼 위치", body: "길 기록에서 점프를 쓰려면 설정해 주세요. 위치를 정할 때는 십자 포인터가 표시되며, 화면을 끌면 그만큼 움직이고 [확인] 으로 저장됩니다.\n\n점프를 쓰지 않는다면 건너뛰어도 됩니다.", check: "movement", position: "jump_btn", optional: true },
-    ...savedPlaces.slice(1, 6).map(([position, name]) => ({
-      title: "'" + name + "' 위치",
-      position,
-      body: "⚙ → [기준 장소] → 강조된 항목을 누르고, 십자 포인터를 해당 버튼 위에 맞춘 뒤 [확인] 을 눌러 주세요.\n\n메뉴 · 재설정 화면을 직접 열어 둔 상태에서 맞추면 더 정확합니다.",
-      check: "movement" as const,
-    })),
-    { title: "낚시 장소 길 기록", body: "⚙ → [길] → 낚시 장소 '길 기록' 을 눌러 주세요.\n\n기준 장소로 이동한 뒤 WASD 패드가 표시됩니다.\n· W A S D 탭 = 켜기 · 다시 탭 = 끄기 · 모서리 = 대각선 · ■ = 멈춤\n· 점프 탭 = 한 번 · [홀드] = 계속 누름\n\n도착하면 Acrux 창의 [도착] 을 눌러 주세요.", check: "movement", route: "fish" },
-    { title: "이동 설정 완료", body: "[시작] 을 누르면 기준 장소 → 낚시 장소로 이동한 뒤 낚시를 시작합니다.\n\n⚙ → [길] → '기준 장소 → 낚시 장소' 로 미리 확인할 수 있습니다." },
+    { title: "이동 설정", body: "지도 기반 이동과 판매는 준비 중입니다. 직접 낚시 자리를 맞춰 주세요. 가득 차면 정지합니다." },
   ],
   sell: [
-    { title: "판매 설정", body: "인벤토리가 가득 차면 판매 장소로 이동해 물고기를 판매한 뒤 돌아옵니다.\n\n판매 장소 길 → 대화 버튼 → 판매 자동 보정 순서로 설정합니다. [ 이동 설정이 먼저 필요합니다 ]" },
-    { title: "판매 장소 길 기록", body: "⚙ → [길] → 물고기 판매 장소 '길 기록' 을 누른 뒤, 기준 장소에서 Captain Flarg 앞까지 WASD 패드로 이동하고 [도착] 을 눌러 주세요.", check: "movement", route: "sell" },
-    { title: "대화 버튼 위치", body: "판매 장소에 선 상태로 ⚙ → [판매] → 강조된 '대화 버튼' 을 누르고, 포인터를 화면의 대화 버튼에 맞춘 뒤 [확인] 을 눌러 주세요.", check: "movement", position: "talk_btn" },
-    { title: "판매 자동 보정", body: "⚙ → [판매] → '판매 자동 보정' 을 누른 뒤, Captain Flarg 앞에서 대화 버튼을 직접 눌러 주세요. 대화창 · 상점 · 확인창의 위치를 자동으로 찾습니다.\n\n확인창 위치까지 찾으려면 물고기를 가진 상태에서 진행해 주세요.", check: "movement" },
-    { title: "판매 테스트", body: "⚙ → [판매] → '판매 한 번 해 보기' 로 판매가 끝까지 되는지 확인할 수 있습니다. 건너뛰어도 됩니다.", optional: true },
-    { title: "판매 설정 완료", body: "[시작] 을 누르면 낚시 중 인벤토리가 가득 찼을 때 판매하고 돌아옵니다." },
+    { title: "판매 설정", body: "지도 기반 이동과 판매는 준비 중입니다. 직접 낚시 자리를 맞춰 주세요. 가득 차면 정지합니다." },
   ],
 };
 let guide: { id: GuideId; index: number; wasReady: boolean } | null = null;
 
 function ready(step: Step) {
-  if (step.position) return !!nav.positions[step.position];
-  if (step.route) return nav[step.route] > 0;
-  if (step.check === "movement") return savedPlaces.slice(8).every(([key]) => nav.positions[key]);
   return !step.check || !!current?.[step.check];
 }
 
@@ -525,7 +559,6 @@ function renderGuide() {
     <h2 id="guide-title">${tr(step.title)}</h2><p class="guide-body readout">${tr(step.body)}</p>
     ${step.check === "calibrated" ? text("로블록스 화면의 Acrux 창에서 해 주세요", 13, "warning") : ""}
     ${step.action ? `<div class="buttons guide-action">${button(step.action === "capture" ? "시작" : "설정", step.action, "accent")}<strong id="guide-action-state"></strong></div>` : ""}
-    ${step.check === "movement" ? text("Roblox 화면의 Acrux 조작 창에서 설정하세요.", 12, "warning") : ""}
     <div class="guide-controls">
       ${guide.index === 0 ? button("나중에", "guide-close") : button("이전", "guide-prev")}
       ${step.optional ? button("이 단계 건너뛰기", "guide-skip") : ""}
@@ -580,6 +613,7 @@ async function perform(action: string) {
   if (name === "guide-close") return closeGuide();
   if (name === "unsupported") return message(unsupported);
   if (name === "discord-link") return changeDiscord();
+  if (name === "macro-toggle") return changeMacro();
 
   if (busy) return;
   busy = true;
@@ -590,7 +624,7 @@ async function perform(action: string) {
       if (name === "lang") overlay.lang = arg as Language;
       if (name === "toggle-ui") overlay.visible = !overlay.visible;
       await syncOverlay(name === "reset-overlay");
-      if (!overlay.visible && current?.phase !== "idle") current = await control("stop");
+      if (!overlay.visible && macroActive()) await changeMacro();
       pageMemory.set(page, element("scroll").scrollTop);
       render();
       if (name === "reset-overlay") message("조작 창 위치를 왼쪽 위로 되돌림");
@@ -641,19 +675,16 @@ let numberSaves = Promise.resolve();
 document.addEventListener("input", event => {
   const input = event.target as HTMLInputElement;
   const tuning = input.dataset.tuning as keyof Tuning | undefined;
-  const movement = input.dataset.navigation as keyof NavigationOptions | undefined;
-  if (input.type !== "number" || (!tuning && !movement) || !Number.isFinite(input.valueAsNumber) || !input.validity.valid) return;
+  if (input.disabled || input.type !== "number" || !tuning || !Number.isFinite(input.valueAsNumber) || !input.validity.valid) return;
   const value = input.valueAsNumber;
   numberSaves = numberSaves.then(async () => {
     busy = true;
     ++request;
     try {
-      if (movement) {
-        const options = { ...nav.options, [movement]: value };
-        await invoke("save_navigation", { options });
-        nav = { ...nav, options };
-      } else if (tuning && current) {
-        current = await saveTuning({ ...current.tuning, [tuning]: value });
+      if (current) {
+        const revision = macroRevision;
+        const next = await saveTuning({ ...current.tuning, [tuning]: value });
+        if (revision === macroRevision) current = next;
       }
     } catch (error) { message(String(error)); }
     finally { busy = false; }
@@ -663,8 +694,7 @@ document.addEventListener("input", event => {
 document.addEventListener("change", async event => {
   const input = event.target as HTMLInputElement;
   const key = input.dataset.tuning as keyof Tuning | undefined;
-  const movement = input.dataset.navigation as keyof NavigationOptions | undefined;
-  if (input.type === "number" && (key || movement)) return;
+  if (input.disabled || input.dataset.navigation || input.type === "number" && key) return;
   if (busy) return;
   if (input.dataset.biome) {
     busy = true;
@@ -677,25 +707,6 @@ document.addEventListener("change", async event => {
       await setup("biome", { action: "refresh" });
     } catch (error) { message(String(error)); }
     finally { busy = false; void refresh(); }
-  } else if (movement) {
-    busy = true;
-    ++request;
-    try {
-      const value = input.type === "checkbox" ? input.checked : input.valueAsNumber;
-      if (input.type === "number" && (!Number.isFinite(value) || !input.validity.valid)) return;
-      const options = { ...nav.options, [movement]: value };
-      await invoke("save_navigation", { options });
-      nav = { ...nav, options };
-      if (value && movement === "useMove" && !nav.fish) startGuide("move");
-      if (value && movement === "useSell" && !nav.sell) startGuide(nav.fish ? "sell" : "move");
-    } catch (error) {
-      message(String(error));
-    } finally {
-      busy = false;
-      if (input.type === "checkbox") input.checked = !!nav.options[movement];
-      else input.value = String(nav.options[movement]);
-      void refresh();
-    }
   } else if (key && current) {
     const value = input.type === "checkbox" ? input.checked : input.valueAsNumber;
     if (input.type === "number" && (!Number.isFinite(value) || !input.validity.valid)) {
@@ -705,7 +716,9 @@ document.addEventListener("change", async event => {
     busy = true;
     ++request;
     try {
-      current = await saveTuning({ ...current.tuning, [key]: value });
+      const revision = macroRevision;
+      const next = await saveTuning({ ...current.tuning, [key]: value });
+      if (revision === macroRevision) current = next;
     } catch (error) {
       if (input.type === "checkbox") input.checked = !!current.tuning[key];
       else input.value = String(current.tuning[key]);

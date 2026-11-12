@@ -17,13 +17,14 @@ import android.view.accessibility.AccessibilityEvent
 class TapService : AccessibilityService() {
     @Volatile var gameVisible = false
         private set
-    @Volatile var gesturePending = false
-        private set
+    private val agentInput = AgentTransport.Input()
+    val gesturePending: Boolean get() = agentInput.busy()
     private val main = Handler(Looper.getMainLooper())
     private lateinit var overlay: Overlay
     lateinit var routes: RouteDriver
         private set
-    private var generation = 0
+    private var lastForeground: Boolean? = null
+    private var inputTimeout: Runnable? = null
     @Volatile private var screenOff = false
     private var blocked = false
     private var screenReceiverRegistered = false
@@ -76,15 +77,16 @@ class TapService : AccessibilityService() {
                 Native.control(0)
                 routes.stop()
             }
+            foreground(false)
             overlay.update(false, false, reset)
             return
         }
         blocked = false
         val root = rootInActiveWindow
-        val foreground = try { root?.packageName?.toString() } finally { root?.recycle() }
-        gameVisible = foreground == GAME_PACKAGE
-        if (!gameVisible) Native.noTarget()
-        overlay.update(gameVisible, foreground == packageName, reset)
+        val app = try { root?.packageName?.toString() } finally { root?.recycle() }
+        gameVisible = app == GAME_PACKAGE
+        foreground(gameVisible)
+        overlay.update(gameVisible, app == packageName, reset)
     }
 
     private fun unlocked(): Boolean = !screenOff
@@ -93,44 +95,81 @@ class TapService : AccessibilityService() {
 
     fun canInput(): Boolean = gameVisible && unlocked()
 
+    private fun foreground(visible: Boolean) {
+        if (lastForeground == visible) return
+        lastForeground = visible
+        Native.agentForeground(visible)
+        CaptureService.wake()
+    }
+
     fun input(packet: IntArray) {
-        gesturePending = true
-        main.post {
-            generation = packet.last()
-            if (!Native.inputCurrent(generation)) {
-                finished()
-                return@post
-            }
-            updateWindow()
-            if (!gameVisible || current !== this) {
-                gesturePending = false
-                Native.noTarget()
-                return@post
-            }
-            if (packet[0] == 4) overlay.routePassThrough(packet)
-            val coordinatesEnd = if (packet[0] == 4) 8 else packet.lastIndex
-            if ((2 until coordinatesEnd step 2).any { packet[it] >= 0 && overlay.contains(packet[it].toFloat(), packet[it + 1].toFloat()) }) {
-                rejected()
-                return@post
-            }
-            val ms = packet[1].toLong()
-            val x = packet[2].toFloat()
-            val y = packet[3].toFloat()
-            when (packet[0]) {
-                0 -> send(listOf(stroke(x, y, x, y, ms)), ::finished)
-                1 -> send(listOf(stroke(x, y, packet[4].toFloat(), packet[5].toFloat(), ms)), ::finished)
-                2 -> send(listOf(
-                    stroke(x, y, packet[4].toFloat(), packet[5].toFloat(), ms),
-                    stroke(packet[6].toFloat(), packet[7].toFloat(), packet[8].toFloat(), packet[9].toFloat(), ms),
-                ), ::finished)
-                3 -> stick(packet, ms)
-                4 -> routes.play(packet) { success ->
-                    overlay.restoreTouch()
-                    if (!Native.inputCurrent(packet.last()) || success) finished() else rejected()
-                }
-                else -> rejected()
-            }
+        if (!AgentTransport.tap(packet)) {
+            if (packet.size >= 9) Native.agentInputResult(packet[8], packet[1], false)
+            CaptureService.wake()
+            return
         }
+        val generation = packet[8]
+        val inputId = packet[1]
+        if (!agentInput.begin(generation, inputId)) {
+            if (!agentInput.current(generation, inputId)) Native.agentInputResult(generation, inputId, false)
+            return
+        }
+        val width = packet[2]; val height = packet[3]
+        val duration = packet[5].toLong()
+        val x = packet[6].toFloat(); val y = packet[7].toFloat()
+        main.post {
+            if (!agentInput.current(generation, inputId)) return@post
+            updateWindow()
+            val geometry = screen()
+            if (!Native.inputCurrent(generation) || !canInput() || current !== this
+                || !AgentTransport.viewport(packet, geometry[0], geometry[1]) || overlay.contains(x, y)) {
+                complete(generation, inputId, false)
+                return@post
+            }
+            try {
+                val path = Path().apply { moveTo(x, y) }
+                inputTimeout = Runnable { complete(generation, inputId, false) }.also { main.postDelayed(it, duration + 1500) }
+                val first = minOf(duration, 50L)
+                val stroke = GestureDescription.StrokeDescription(path, 0L, first, first < duration)
+                dispatchTap(stroke, duration - first, x, y, width, height, generation, inputId, true)
+            } catch (_: RuntimeException) { complete(generation, inputId, false) }
+        }
+    }
+
+    private fun dispatchTap(stroke: GestureDescription.StrokeDescription, left: Long, x: Float, y: Float,
+                            width: Int, height: Int, generation: Int, inputId: Int, success: Boolean) {
+        if (!agentInput.current(generation, inputId)) return
+        try {
+            val gesture = GestureDescription.Builder().addStroke(stroke).build()
+            if (!dispatchGesture(gesture, object : GestureResultCallback() {
+                override fun onCompleted(description: GestureDescription) {
+                    if (!agentInput.current(generation, inputId)) return
+                    val geometry = screen()
+                    val keep = current === this@TapService && Native.inputCurrent(generation) && canInput()
+                        && geometry[0] == width && geometry[1] == height
+                    if (left == 0L || current !== this@TapService) {
+                        complete(generation, inputId, success && keep)
+                        return
+                    }
+                    try {
+                        // A canceled long tap only lifts its existing finger; it never starts another tap.
+                        val ms = if (keep) minOf(left, 50L) else 1L
+                        val path = Path().apply { moveTo(x, y) }
+                        val next = stroke.continueStroke(path, 0L, ms, keep && ms < left)
+                        dispatchTap(next, if (keep) left - ms else 0L, x, y, width, height, generation, inputId, success && keep)
+                    } catch (_: RuntimeException) { complete(generation, inputId, false) }
+                }
+                override fun onCancelled(description: GestureDescription) = complete(generation, inputId, false)
+            }, main)) complete(generation, inputId, false)
+        } catch (_: RuntimeException) { complete(generation, inputId, false) }
+    }
+
+    private fun complete(generation: Int, inputId: Int, success: Boolean) {
+        if (!agentInput.finish(generation, inputId)) return
+        inputTimeout?.let(main::removeCallbacks)
+        inputTimeout = null
+        Native.agentInputResult(generation, inputId, success)
+        CaptureService.wake()
     }
 
     fun safePoint(x: Float, y: Float) = canInput() && !overlay.contains(x, y)
@@ -145,65 +184,6 @@ class TapService : AccessibilityService() {
         if (view.isAttachedToWindow) getSystemService(android.view.WindowManager::class.java).removeView(view)
     }
 
-    private fun path(x: Float, y: Float, nextX: Float, nextY: Float) = Path().apply {
-        val bounds = screen()
-        moveTo(x.coerceIn(0f, (bounds[0] - 1).toFloat()), y.coerceIn(0f, (bounds[1] - 1).toFloat()))
-        if (x != nextX || y != nextY) lineTo(nextX.coerceIn(0f, (bounds[0] - 1).toFloat()), nextY.coerceIn(0f, (bounds[1] - 1).toFloat()))
-    }
-
-    private fun stroke(x: Float, y: Float, nextX: Float, nextY: Float, duration: Long, hold: Boolean = false) =
-        GestureDescription.StrokeDescription(path(x, y, nextX, nextY), 0L, duration, hold)
-
-    private fun stick(packet: IntArray, ms: Long) {
-        val x = packet[4].toFloat()
-        val y = packet[5].toFloat()
-        val jumping = packet[6] >= 0
-        val first = minOf(ms, if (jumping) 150L else 90L)
-        val start = stroke(packet[2].toFloat(), packet[3].toFloat(), x, y, first, first < ms)
-        val strokes = if (jumping) {
-            val jx = packet[6].toFloat()
-            val jy = packet[7].toFloat()
-            listOf(start, stroke(jx, jy, jx, jy, first))
-        } else listOf(start)
-        send(strokes) {
-            if (first == ms) finished()
-            else holdStick(start, x, y, ms - first)
-        }
-    }
-
-    private fun holdStick(previous: GestureDescription.StrokeDescription, x: Float, y: Float, left: Long) {
-        val keep = canInput() && Native.inputCurrent(generation) && current === this
-        val ms = if (keep) minOf(left, 120L) else 1L
-        val next = previous.continueStroke(path(x, y, x, y), 0L, ms, keep && ms < left)
-        send(listOf(next)) {
-            if (!keep || left <= ms) finished()
-            else holdStick(next, x, y, left - ms)
-        }
-    }
-
-    private fun send(strokes: List<GestureDescription.StrokeDescription>, done: () -> Unit) {
-        try {
-            val builder = GestureDescription.Builder()
-            strokes.forEach(builder::addStroke)
-            if (!dispatchGesture(builder.build(), object : GestureResultCallback() {
-                override fun onCompleted(description: GestureDescription) = done()
-                override fun onCancelled(description: GestureDescription) = rejected()
-            }, main)) rejected()
-        } catch (error: RuntimeException) {
-            rejected()
-        }
-    }
-
-    private fun finished() {
-        gesturePending = false
-    }
-
-    private fun rejected() {
-        overlay.restoreTouch()
-        finished()
-        if (Native.inputCurrent(generation)) Native.inputRejected()
-    }
-
     override fun onInterrupt() {
         Native.control(0)
         routes.stop()
@@ -215,10 +195,13 @@ class TapService : AccessibilityService() {
             screenReceiverRegistered = false
         }
         if (current === this) {
+            foreground(false)
             current = null
             Native.accessibility(false)
         }
         if (::routes.isInitialized) routes.stop()
+        inputTimeout?.let(main::removeCallbacks)
+        inputTimeout = null
         main.removeCallbacks(update)
         if (::overlay.isInitialized) overlay.remove()
         super.onDestroy()

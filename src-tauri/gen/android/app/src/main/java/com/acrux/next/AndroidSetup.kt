@@ -150,5 +150,9 @@ object Native {
     @JvmStatic external fun generation(): Int
     @JvmStatic external fun clearRoute(sell: Boolean): String?
     @JvmStatic external fun control(operation: Int): String?
-    @JvmStatic external fun frame(buffer: ByteBuffer, width: Int, height: Int, rowStride: Int, pixelStride: Int): IntArray?
+    @JvmStatic external fun agentTick(width: Int, height: Int): IntArray
+    @JvmStatic external fun agentObserve(buffer: ByteBuffer, fullWidth: Int, fullHeight: Int, rowStride: Int, pixelStride: Int,
+        roiX: Int, roiY: Int, roiWidth: Int, roiHeight: Int, generation: Int, observationId: Int): IntArray?
+    @JvmStatic external fun agentForeground(visible: Boolean)
+    @JvmStatic external fun agentInputResult(generation: Int, inputId: Int, success: Boolean)
 }

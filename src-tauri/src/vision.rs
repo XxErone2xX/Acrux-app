@@ -156,6 +156,10 @@ impl<'a> Frame<'a> {
         self.region == Region::full(self.width, self.height)
     }
 
+    pub fn coverage(&self) -> Region {
+        self.region
+    }
+
     fn contains_bounds(&self, (left, top, right, bottom): (usize, usize, usize, usize)) -> bool {
         left < right
             && top < bottom

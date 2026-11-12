@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
+import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -38,7 +39,8 @@ class Overlay(private val service: TapService) {
     private val params = WindowManager.LayoutParams(
         WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
         WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+            or WindowManager.LayoutParams.FLAG_SECURE,
         PixelFormat.TRANSLUCENT,
     ).apply { gravity = Gravity.TOP or Gravity.START }
 
@@ -84,7 +86,13 @@ class Overlay(private val service: TapService) {
 
     fun refresh() {
         val phase = Native.overlayPhase()
-        status?.setTextIfChanged(t(if (Native.captureReady()) Native.message().let { if (it == "대기 중") "대기" else it } else "화면 캡처 꺼짐 · 앱에서 시작"))
+        status?.apply {
+            val message = t(if (Native.captureReady()) Native.message().let { if (it == "대기 중") "대기" else it } else "화면 캡처 꺼짐 · 앱에서 시작")
+            if (text.toString() != message) {
+                Log.i("AcruxDUA", message)
+                text = message
+            }
+        }
         biome?.apply {
             val state = JSONObject(Native.biomeStatus())
             val enabled = state.getJSONObject("settings").optBoolean("enabled")
@@ -258,18 +266,18 @@ class Overlay(private val service: TapService) {
             val count = data.optInt(if (sell) "sell" else "fish")
             item(if (count > 0) "✓ " + count + " " + t("조각 저장됨") else "· " + t("길 없음"))
             val row = LinearLayout(service)
-            row.addView(button("길 기록", ACCENT) { task(if (sell) "recordSell" else "recordFish") })
+            row.addView(button("길 기록", MUTED) {}.apply { isEnabled = false; alpha = 0.6f })
             row.addView(button("지우기", MUTED) {
                 feedback(Native.clearRoute(sell))
                 showMenu(category)
-            }, rowParams().apply { leftMargin = dp(4) })
+            }.apply { isEnabled = false; alpha = 0.6f }, rowParams().apply { leftMargin = dp(4) })
             body.addView(row, rowParams(4))
         }
         when (category) {
             0 -> {
                 heading("낚시")
                 item("낚시 자동 보정") { closeMenu(); operation(1) }
-                item("보정 · 테스트 · 길 기록 중에는 [정지] 로 멈춤")
+                item("DUA가 낚시를 제어합니다. 이동과 판매는 준비 중입니다.")
             }
             1 -> {
                 heading("조이스틱 (W · A · S · D)")
@@ -281,21 +289,22 @@ class Overlay(private val service: TapService) {
                 heading("점프")
                 position("jump_btn", "점프 버튼 (오른쪽 아래)")
                 heading("테스트")
-                item("조이스틱 테스트 (W · A · S · D 0.8초씩)") { task("stickTest") }
-                item("점프 테스트 (제자리 → 걸으면서)") { task("jumpTest") }
+                item("조이스틱 테스트 · 준비 중")
+                item("점프 테스트 · 준비 중")
             }
             2 -> {
                 heading("공통 위치 (기준 장소 맞추기)")
                 BASE.forEach { (key, label) -> position(key, label) }
                 heading("테스트")
-                item("기준 장소로") { task("base") }
+                item("기준 장소로 이동 · 준비 중")
             }
             3 -> {
                 route(false)
                 route(true)
+                item("저장한 길은 보존됩니다. 새 지도 기반 이동은 준비 중입니다.")
                 heading("테스트")
-                item("기준 장소 → 낚시 장소") { task("fish") }
-                item("기준 장소 → 판매 장소") { task("shop") }
+                item("낚시 장소로 이동 · 준비 중")
+                item("판매 장소로 이동 · 준비 중")
             }
             4 -> {
                 heading("대화")
@@ -303,11 +312,11 @@ class Overlay(private val service: TapService) {
                 position("dialog_pos", "대화창")
                 position("sell_fish_pos", "Sell Fish 버튼")
                 heading("상점")
-                item("판매 자동 보정 (NPC 앞에서 시작 → 대화 버튼은 직접)") { feedback("현재는 아래 판매 위치를 직접 지정하세요.") }
+                item("판매 자동 보정 · 준비 중")
                 item("  판매 위치 " + SELL.count { points.has(it.first) } + " / 6 저장됨")
                 SELL.drop(2).forEach { (key, label) -> position(key, label) }
                 heading("테스트")
-                item("판매 한 번 해 보기") { task("sell") }
+                item("판매 테스트 · 준비 중")
             }
         }
         val scroller = ScrollView(service).apply { addView(body) }

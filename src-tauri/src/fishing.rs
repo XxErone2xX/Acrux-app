@@ -112,8 +112,14 @@ impl Calibration {
         }
     }
 
-    fn moved(self, frame: &Frame<'_>) -> bool {
-        (frame.width as f64 / frame.height as f64 / self.aspect - 1.0).abs() > 0.04
+    fn centered(self) -> bool {
+        ((self.panel.0 + self.panel.2) / 2.0 - 0.5).abs() <= 0.15
+    }
+
+    fn moved(self, (width, height): (usize, usize)) -> bool {
+        !self.centered()
+            || height == 0
+            || (width as f64 / height as f64 / self.aspect - 1.0).abs() > 0.04
     }
 
     fn diamond_moved(self, frame: &Frame<'_>) -> bool {
@@ -266,10 +272,7 @@ impl Fishing {
         let calibration = self.calibration;
         let full = self.phase == Phase::Calibrating
             || calibration.is_none()
-            || calibration.is_some_and(|c| {
-                geometry.1 == 0
-                    || (geometry.0 as f64 / geometry.1 as f64 / c.aspect - 1.0).abs() > 0.04
-            })
+            || calibration.is_some_and(|c| c.moved(geometry))
             || (self.phase == Phase::Searching && now - self.last_full_observed >= 4.0)
             || (self.phase == Phase::Result
                 && (self.result_rect.is_none() || now - self.last_full_observed >= 3.0));
@@ -324,6 +327,7 @@ impl Fishing {
             return Err("낚시 자동 보정을 먼저 실행하세요.");
         }
         self.reset_cycle();
+        self.last_full_observed = f64::NEG_INFINITY;
         self.last_progress = now;
         self.known_at = now;
         self.diamond_seen = false;
@@ -372,7 +376,9 @@ impl Fishing {
     fn find_panel(&mut self, frame: &Frame<'_>) -> Option<Calibration> {
         self.window
             .find(frame, |rect, ratio| {
-                (1.6..=5.5).contains(&ratio) && frame.button(rect.at(0.2494, 0.8264)).is_some()
+                (1.6..=5.5).contains(&ratio)
+                    && ((rect.0 + rect.2) / 2.0 - 0.5).abs() <= 0.15
+                    && frame.button(rect.at(0.2494, 0.8264)).is_some()
             })
             .map(|rect| Calibration::from_panel(rect, frame))
     }
@@ -431,25 +437,40 @@ impl Fishing {
             return None;
         }
         let fish = frame.button(calibration.fish());
-        if calibration.moved(frame) || (self.phase == Phase::Searching && fish.is_none()) {
+        let geometry = (frame.width, frame.height);
+        if calibration.moved(geometry) || (self.phase == Phase::Searching && fish.is_none()) {
             if now - self.last_scan >= 1.5 {
                 self.last_scan = now;
                 if let Some(updated) = self.find_panel(frame) {
+                    if !calibration.centered() {
+                        self.reset_cycle();
+                        self.last_observed = now;
+                        self.phase(Phase::Searching, now, "낚시 창을 다시 확인했습니다.");
+                    }
                     calibration = updated;
                     self.calibration = Some(updated);
                     self.calibration_changed = true;
                 }
             }
-            if calibration.moved(frame) {
+            if calibration.moved(geometry) {
                 self.phase(
                     Phase::Searching,
                     now,
-                    "화면 비율이 바뀌었습니다. 낚시 창을 다시 찾는 중",
+                    "낚시 창 위치나 화면 비율이 달라져 다시 찾는 중",
                 );
                 return None;
             }
         }
         let fish = frame.button(calibration.fish());
+        let recovered_result =
+            if self.phase == Phase::Searching && fish.is_none() && frame.is_full() {
+                self.result_window(frame)
+            } else {
+                None
+            };
+        if recovered_result.is_some() {
+            self.phase(Phase::Result, now, "낚시 결과창 닫는 중");
+        }
 
         if self.phase == Phase::Result {
             if fish.is_some() {
@@ -465,9 +486,9 @@ impl Fishing {
             }
             if now - self.phase_at >= 10.0 {
                 self.stop("낚시 결과창을 닫지 못했습니다.");
-            } else if now - self.last_scan >= 0.35 {
+            } else if recovered_result.is_some() || now - self.last_scan >= 0.35 {
                 self.last_scan = now;
-                if let Some(window) = self.result_window(frame) {
+                if let Some(window) = recovered_result.or_else(|| self.result_window(frame)) {
                     self.known_at = now;
                     self.result_rect = Some(window);
                     self.result = frame.title(window.at(0.4972, 0.0913)).or(self.result);
@@ -480,7 +501,7 @@ impl Fishing {
         }
 
         let area = calibration.bar();
-        let bar = self.bar.read(frame, area);
+        let bar = fish.is_none() && self.bar.read(frame, area);
         if fish.is_some() || bar {
             self.known_at = now;
         }
@@ -807,6 +828,140 @@ mod tests {
         assert_eq!(engine.stats.full, 1);
     }
 
+    fn competing_fishing_panels(include_fish: bool) -> Vec<u8> {
+        let mut bytes = vec![0; STRIDE * H];
+        // A larger red leaderboard rectangle can satisfy the old Exit heuristic.
+        window(&mut bytes, 328, 40, 454, 110);
+        for y in 94..102 {
+            for x in 354..365 {
+                put(&mut bytes, x, y, [230, 30, 30]);
+            }
+        }
+        if include_fish {
+            window(&mut bytes, 160, 150, 320, 203);
+            for y in 191..198 {
+                for x in 196..205 {
+                    put(&mut bytes, x, y, [20, 75, 205]);
+                }
+            }
+        }
+        bytes
+    }
+
+    #[test]
+    fn calibration_ignores_a_larger_leaderboard_beside_the_fishing_panel() {
+        let bytes = competing_fishing_panels(true);
+        let frame = frame(&bytes);
+        let largest = WindowFinder::default()
+            .find(&frame, |rect, ratio| {
+                (1.6..=5.5).contains(&ratio) && frame.button(rect.at(0.2494, 0.8264)).is_some()
+            })
+            .unwrap();
+        assert!(
+            largest.0 > 0.65,
+            "the fixture must reproduce the old false match"
+        );
+        let mut engine = Fishing::default();
+        engine.calibrate(0.0).unwrap();
+        assert!(engine.frame(0.1, &frame).is_none());
+        let calibration = engine.calibration.unwrap();
+        assert!(calibration.centered());
+        assert_eq!(frame.position(calibration.fish()), (199, 193));
+        assert!(frame.button(calibration.fish()) == Some(Button::Fish));
+    }
+
+    #[test]
+    fn saved_offcenter_calibration_cannot_input_and_reacquires_the_real_panel() {
+        let bytes = competing_fishing_panels(false);
+        let frame = frame(&bytes);
+        let mut engine = Fishing::default();
+        engine.calibration = Some(Calibration::from_panel(
+            Rect(
+                328.0 / W as f64,
+                40.0 / H as f64,
+                454.0 / W as f64,
+                110.0 / H as f64,
+            ),
+            &frame,
+        ));
+        engine.tuning.bite_seconds = 1.0;
+        engine.start(0.0).unwrap();
+        engine.last_full_observed = 0.0;
+        assert!(engine.observation(0.1, (W, H)).region.is_none());
+        assert!(engine.frame(0.1, &frame).is_none());
+        assert!(engine.frame(1.2, &frame).is_none());
+        assert!(engine.phase == Phase::Searching);
+        assert_eq!(engine.stats.full, 0);
+
+        let bytes = competing_fishing_panels(true);
+        let tap = engine.frame(1.7, &self::frame(&bytes)).unwrap();
+        assert_eq!((tap.x, tap.y), (199, 193));
+        assert!(engine.calibration.unwrap().centered());
+        assert!(engine.calibration_changed);
+        assert_eq!(engine.casts, 1);
+    }
+
+    #[test]
+    fn exit_over_a_colored_world_cannot_trigger_reeling_but_a_real_bar_still_can() {
+        let mut bytes = vec![0; STRIDE * H];
+        let calibration = Calibration::from_panel(Rect(0.25, 0.35, 0.75, 0.67), &frame(&bytes));
+        let area = calibration.bar();
+        let (x0, y0, x1, y1) = (
+            (area.0 * W as f64) as usize,
+            (area.1 * H as f64) as usize,
+            (area.2 * W as f64) as usize,
+            (area.3 * H as f64) as usize,
+        );
+        let width = x1 - x0;
+        for y in y0..y1 {
+            for x in x0..x0 + width / 5 {
+                put(&mut bytes, x, y, [25, 160, 180]);
+            }
+            for x in x0 + width * 2 / 5..x0 + width * 3 / 5 {
+                put(&mut bytes, x, y, [110, 190, 55]);
+            }
+        }
+        for y in y0 - 8..y0 - 2 {
+            for x in x0 + width / 5 - 1..x0 + width / 5 + 2 {
+                put(&mut bytes, x, y, [248; 3]);
+            }
+        }
+        let (button_x, button_y) = frame(&bytes).position(calibration.fish());
+        for y in button_y - 3..button_y + 4 {
+            for x in button_x - 4..button_x + 5 {
+                put(&mut bytes, x, y, [230, 30, 30]);
+            }
+        }
+        let waiting = frame(&bytes);
+        assert!(waiting.button(calibration.fish()) == Some(Button::Exit));
+        assert!(
+            Bar::default().read(&waiting, area),
+            "the background must reproduce a false bar"
+        );
+        let mut engine = Fishing::default();
+        engine.calibration = Some(calibration);
+        engine.tuning.adaptive = true;
+        engine.tuning.tap_above = true;
+        engine.start(0.0).unwrap();
+        for index in 1..=30 {
+            assert!(engine.frame(f64::from(index) * 0.05, &waiting).is_none());
+            assert!(engine.phase == Phase::Waiting);
+        }
+        assert_eq!(engine.observation(1.5, (W, H)).due_at, 1.6);
+
+        for y in button_y - 3..button_y + 4 {
+            for x in button_x - 4..button_x + 5 {
+                put(&mut bytes, x, y, [0; 3]);
+            }
+        }
+        let reeling = frame(&bytes);
+        assert!(reeling.button(calibration.fish()).is_none());
+        assert!(engine.frame(1.6, &reeling).is_none());
+        assert!(engine.frame(1.7, &reeling).is_none());
+        assert!(engine.frame(1.8, &reeling).is_some());
+        assert!(engine.phase == Phase::Reeling);
+    }
+
     #[test]
     fn slow_cast_and_an_existing_exit_are_not_cancelled() {
         let mut bytes = vec![0; STRIDE * H];
@@ -888,6 +1043,51 @@ mod tests {
             }
         }
         assert!(Fishing::default().result_window(&frame(&bytes)).is_none());
+    }
+
+    #[test]
+    fn searching_recovers_a_verified_result_through_the_existing_close_path() {
+        let mut bytes = vec![65; STRIDE * H];
+        let calibration = Calibration::from_panel(Rect(0.25, 0.5, 0.75, 0.8), &frame(&bytes));
+        window(&mut bytes, 185, 70, 290, 214);
+        for y in 79..84 {
+            for x in 225..249 {
+                put(&mut bytes, x, y, [186; 3]);
+            }
+        }
+        let mut engine = Fishing::default();
+        engine.calibration = Some(calibration);
+        engine.last_full_observed = 0.0;
+        engine.start(0.0).unwrap();
+        assert!(engine.observation(0.1, (W, H)).region.is_none());
+        assert!(engine.frame(0.1, &frame(&bytes)).is_none());
+        assert!(
+            engine.phase == Phase::Searching,
+            "a title without X cannot recover a result"
+        );
+        for i in 0..7 {
+            for x in [265 + i, 271 - i] {
+                put(&mut bytes, x, 86 + i, [235; 3]);
+            }
+        }
+        let tap = engine.frame(0.4, &frame(&bytes)).unwrap();
+        assert_eq!((tap.x, tap.y), (268, 89));
+        assert!(engine.phase == Phase::Result);
+        assert!(engine.result == Some(Catch::Junk));
+        assert_eq!(engine.stats.junk, 0);
+
+        let mut idle = vec![0; STRIDE * H];
+        let (x, y) = frame(&idle).position(calibration.fish());
+        for yy in y - 3..y + 4 {
+            for xx in x - 4..x + 5 {
+                put(&mut idle, xx, yy, [20, 75, 205]);
+            }
+        }
+        assert!(engine.frame(0.8, &frame(&idle)).is_none());
+        assert!(engine.phase == Phase::Searching);
+        assert_eq!(engine.stats.junk, 1);
+        assert!(engine.frame(1.1, &frame(&idle)).is_some());
+        assert_eq!(engine.stats.junk, 1);
     }
 
     #[test]

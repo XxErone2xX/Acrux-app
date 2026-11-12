@@ -1,7 +1,7 @@
 use crate::{
     runtime,
     vision::{Frame, Point},
-    Action, GameInput, Motion, Place, Task,
+    Action, Place, Task,
 };
 use jni::{
     objects::{JByteBuffer, JClass, JObject, JString},
@@ -63,7 +63,7 @@ extern "system" fn Java_com_acrux_next_Native_accessibility(_: JNIEnv, _: JClass
 
 #[no_mangle]
 extern "system" fn Java_com_acrux_next_Native_active(_: JNIEnv, _: JClass) -> jboolean {
-    runtime().phase().active().into()
+    runtime().active().into()
 }
 
 #[no_mangle]
@@ -77,7 +77,9 @@ extern "system" fn Java_com_acrux_next_Native_inputCurrent(
 
 #[no_mangle]
 extern "system" fn Java_com_acrux_next_Native_overlayPhase(_: JNIEnv, _: JClass) -> jint {
-    match runtime().phase() {
+    let state = runtime();
+    match state.phase() {
+        crate::Phase::Idle if state.dua.running => 2,
         crate::Phase::Idle => 0,
         crate::Phase::Calibrating => 1,
         crate::Phase::Recording => 3,
@@ -119,7 +121,12 @@ extern "system" fn Java_com_acrux_next_Native_message(env: JNIEnv, _: JClass) ->
 
 #[no_mangle]
 extern "system" fn Java_com_acrux_next_Native_noTarget(_: JNIEnv, _: JClass) {
-    runtime().no_target();
+    let mut state = runtime();
+    if state.dua.running {
+        crate::phone::foreground(&mut state, false, crate::now());
+    } else {
+        state.no_target();
+    }
 }
 
 #[no_mangle]
@@ -226,8 +233,47 @@ extern "system" fn Java_com_acrux_next_Native_clearRoute(
     reply(&env, result)
 }
 
+fn agent_array(env: &JNIEnv, values: Vec<i32>) -> jintArray {
+    let reserved =
+        (values.first() == Some(&2) && values.len() == 9).then(|| (values[8], values[1]));
+    let result = env.new_int_array(values.len() as i32).and_then(|array| {
+        env.set_int_array_region(&array, 0, &values)?;
+        Ok(array.into_raw())
+    });
+    match result {
+        Ok(array) => array,
+        Err(_) => {
+            if let Some((generation, input_id)) = reserved {
+                crate::phone::ack(&mut runtime(), generation, input_id, false, crate::now());
+            }
+            std::ptr::null_mut()
+        }
+    }
+}
+
+fn invalid_observation(generation: i32, observation_id: i32) -> jintArray {
+    crate::phone::reject_observation(&mut runtime(), generation, observation_id);
+    std::ptr::null_mut()
+}
+
 #[no_mangle]
-extern "system" fn Java_com_acrux_next_Native_frame(
+extern "system" fn Java_com_acrux_next_Native_agentTick(
+    env: JNIEnv,
+    _: JClass,
+    width: jint,
+    height: jint,
+) -> jintArray {
+    let values = crate::phone::tick(
+        &mut runtime(),
+        width.max(0) as usize,
+        height.max(0) as usize,
+        crate::now(),
+    );
+    agent_array(&env, values)
+}
+
+#[no_mangle]
+extern "system" fn Java_com_acrux_next_Native_agentObserve(
     env: JNIEnv,
     _: JClass,
     buffer: JByteBuffer,
@@ -235,131 +281,89 @@ extern "system" fn Java_com_acrux_next_Native_frame(
     height: jint,
     row_stride: jint,
     pixel_stride: jint,
+    x: jint,
+    y: jint,
+    crop_width: jint,
+    crop_height: jint,
+    generation: jint,
+    observation_id: jint,
 ) -> jintArray {
     if width <= 0
         || height <= 0
-        || width >= 32768
-        || height >= 32768
+        || width > 16384
+        || height > 16384
         || row_stride <= 0
-        || pixel_stride <= 0
+        || pixel_stride < 3
+        || x < 0
+        || y < 0
+        || crop_width <= 0
+        || crop_height <= 0
     {
-        return std::ptr::null_mut();
+        return invalid_observation(generation, observation_id);
     }
     let Ok(pointer) = env.get_direct_buffer_address(&buffer) else {
-        return std::ptr::null_mut();
+        return invalid_observation(generation, observation_id);
     };
     let Ok(capacity) = env.get_direct_buffer_capacity(&buffer) else {
-        return std::ptr::null_mut();
+        return invalid_observation(generation, observation_id);
     };
-    // The caller owns the Image and keeps its plane open until this synchronous call returns.
+    if capacity > isize::MAX as usize {
+        return invalid_observation(generation, observation_id);
+    }
+    // Kotlin keeps the Image or packed ROI buffer alive throughout this call.
+    // bytes[0] is the ROI origin; cropped rows use their own packed row stride.
     let bytes = unsafe { std::slice::from_raw_parts(pointer, capacity) };
-    let Some(frame) = Frame::new(
+    let region = crate::vision::Region {
+        x: x as usize,
+        y: y as usize,
+        width: crop_width as usize,
+        height: crop_height as usize,
+    };
+    let Some(frame) = Frame::region(
         bytes,
         width as usize,
         height as usize,
         row_stride as usize,
         pixel_stride as usize,
         false,
+        region,
     ) else {
-        return std::ptr::null_mut();
+        return invalid_observation(generation, observation_id);
     };
-    let (input, generation) = {
-        let mut state = runtime();
-        let Some(input) = state.frame(&frame) else {
-            return std::ptr::null_mut();
-        };
-        (input, state.generation)
-    };
-    let px = |point| {
-        let (x, y) = frame.position(point);
-        [x as i32, y as i32]
-    };
-    let [w, h] = [frame.width as f64, frame.height as f64];
-    let mut values = match input {
-        GameInput::Tap(tap) => vec![
-            0,
-            tap.duration.as_millis() as i32,
-            tap.x as i32,
-            tap.y as i32,
-        ],
-        GameInput::Motion(motion) => match motion {
-            Motion::Trace {
-                center,
-                edge,
-                jump,
-                events,
-            } => {
-                let [cx, cy] = px(center);
-                let [ex, ey] = px(edge);
-                let [jx, jy] = jump.map_or([-1, -1], px);
-                let mut packet = vec![
-                    4,
-                    events.last().map_or(0, |event| event.t.ceil() as i32),
-                    cx,
-                    cy,
-                    ex,
-                    ey,
-                    jx,
-                    jy,
-                ];
-                for event in events {
-                    packet.extend([
-                        event.k as i32,
-                        (event.t * 10.0).round() as i32,
-                        (event.dx * 1000.0).round() as i32,
-                        (event.dy * 1000.0).round() as i32,
-                        i32::from(event.a) | (i32::from(event.b) << 1),
-                    ]);
-                }
-                packet
-            }
-            Motion::Tap(point, ms) => {
-                let [x, y] = px(point);
-                vec![0, ms as i32, x, y]
-            }
-            Motion::Keys(..) | Motion::Click { .. } | Motion::Tilt { .. } => {
-                return std::ptr::null_mut()
-            }
-            Motion::Swipe => {
-                let [x, y0] = px(Point(0.62, 0.22));
-                let [_, y1] = px(Point(0.62, 0.80));
-                vec![1, 250, x, y0, x, y1]
-            }
-            Motion::Pinch => {
-                let [x, a] = px(Point(0.55, 0.20));
-                let [_, b] = px(Point(0.55, 0.80));
-                let [_, c] = px(Point(0.55, 0.47));
-                let [_, d] = px(Point(0.55, 0.53));
-                vec![2, 300, x, a, x, c, x, b, x, d]
-            }
-            Motion::Stick {
-                center,
-                edge,
-                x,
-                y,
-                jump,
-                ms,
-            } => {
-                let radius = ((edge.0 - center.0) * w).hypot((edge.1 - center.1) * h);
-                let gain = radius * 1.35 / f64::from(x).hypot(f64::from(y)).max(1.0);
-                let [x0, y0] = px(center);
-                let [x1, y1] = px(Point(
-                    center.0 + f64::from(x) * gain / w,
-                    center.1 + f64::from(y) * gain / h,
-                ));
-                let [jx, jy] = jump.map_or([-1, -1], px);
-                vec![3, ms as i32, x0, y0, x1, y1, jx, jy]
-            }
-        },
-    };
-    values.push(generation);
-    let Ok(array) = env.new_int_array(values.len() as i32) else {
-        return std::ptr::null_mut();
-    };
-    if env.set_int_array_region(&array, 0, &values).is_err() {
-        return std::ptr::null_mut();
-    }
-    array.into_raw()
+    let result = crate::phone::observe(
+        &mut runtime(),
+        &frame,
+        generation,
+        observation_id,
+        crate::now(),
+    );
+    result.map_or(std::ptr::null_mut(), |values| agent_array(&env, values))
+}
+
+#[no_mangle]
+extern "system" fn Java_com_acrux_next_Native_agentForeground(
+    _: JNIEnv,
+    _: JClass,
+    visible: jboolean,
+) {
+    crate::phone::foreground(&mut runtime(), visible != 0, crate::now());
+}
+
+#[no_mangle]
+extern "system" fn Java_com_acrux_next_Native_agentInputResult(
+    _: JNIEnv,
+    _: JClass,
+    generation: jint,
+    input_id: jint,
+    success: jboolean,
+) {
+    crate::phone::ack(
+        &mut runtime(),
+        generation,
+        input_id,
+        success != 0,
+        crate::now(),
+    );
 }
 
 #[no_mangle]

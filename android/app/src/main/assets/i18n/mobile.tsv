@@ -1,4 +1,52 @@
 # 모바일 전용 번역 — android/tools/mobile_i18n.py 에서 만듦 (거기서 고칠 것)
+DUA 실행 경로	DUA execution route	DUA実行ルート
+DUA 대기 중	DUA idle	DUA待機中
+Headless	Headless	Headless
+스크린샷	Screenshot	スクリーンショット
+시작 중…	Starting…	開始中…
+정지 중…	Stopping…	停止中…
+Headless {0} · 스크린샷 {1} · 경로 전환 {2}	Headless {0} · screenshot {1} · route changes {2}	Headless {0} · スクリーンショット {1} · ルート変更 {2}
+상태와 명령을 우선 사용하고, 화면 확인이 필요할 때 캡처	Uses state and commands first, captures the screen when needed	状態とコマンドを優先し、画面の確認が必要なときにキャプチャ
+Roblox 화면에서만 터치 · 다른 앱에서는 대기	Touches only the Roblox screen · waits in other apps	Robloxの画面のみタッチ · 他のアプリでは待機
+✓ Roblox 입력 가능	✓ Roblox input ready	✓ Robloxに入力可能
+Roblox가 앞에 오기를 기다립니다.	Waiting for Roblox to be in front.	Robloxが前面に表示されるまで待機します。
+화면 캡처와 입력을 먼저 준비하세요.	Prepare screen capture and input first.	先に画面キャプチャと入力を準備してください。
+낚시 보정 저장됨	Fishing calibration saved	釣りのキャリブレーション保存済み
+시작하면 자동으로 보정한 뒤 낚시합니다.	Starting calibrates automatically, then fishes.	開始すると自動でキャリブレーションしてから釣りをします。
+2. [시작] — 저장된 보정이 없으면 자동 보정한 뒤 낚시를 시작함	2. [Start] — calibrates automatically if no calibration is saved, then fishes	2. [開始] — 保存済みのキャリブレーションがなければ自動で調整してから釣りを開始
+3. Roblox가 앞에 있을 때만 터치 · 다른 앱에서는 대기 · 잠기면 정지	3. Touches only while Roblox is in front · waits in other apps · stops when locked	3. Robloxが前面のときだけタッチ · 他のアプリでは待機 · ロック時は停止
+5. 멈출 때는 앱 또는 떠 있는 Acrux 창의 [정지] · 이동과 판매는 준비 중	5. Use [Stop] in the app or floating Acrux window · movement and selling are in development	5. アプリかフローティングAcruxウィンドウの[停止]で止める · 移動と売却は準備中
+지도 기반 이동과 판매는 준비 중입니다. 직접 낚시 자리를 맞춰 주세요. 가득 차면 정지합니다.	Map navigation and selling are in development. Move to a fishing spot yourself. Stops when full.	マップによる移動と売却は準備中です。釣り場は自分で調整してください。満杯で停止します。
+저장된 이전 이동 설정	Saved previous movement settings	保存済みの従来の移動設定
+이전 위치 · 길 · 시간 설정은 보존하며 실행하지 않습니다.	Previous positions, routes and timings are kept and are not executed.	従来の位置・道・時間設定は保存したまま実行しません。
+로블록스 (Sol's RNG) 를 가로 전체 화면으로 열고 Fish 버튼이 보이는 낚시 자리를 직접 맞춰 주세요.\n\n다른 앱에서는 터치하지 않고 기다리며, 화면이 잠기면 정지합니다.	Open Roblox (Sol's RNG) in landscape full screen and move to a fishing spot where Fish is visible.\n\nWaits without touching other apps and stops when the screen locks.	Roblox (Sol's RNG) を横向きの全画面で開き、Fishボタンが見える釣り場に自分で移動してください。\n\n他のアプリではタッチせず待機し、画面がロックされると停止します。
+[시작] 을 누르면 저장된 보정이 없을 때 자동으로 보정한 뒤 낚시합니다. 수동 보정은 Acrux 창 ⚙ → [낚시] 에서 할 수 있습니다.	Press [Start] to calibrate automatically if needed, then fish. Manual calibration is available in Acrux ⚙ → [Fishing].	[開始]を押すと保存済みのキャリブレーションがない場合は自動で調整してから釣りをします。手動調整はAcruxの⚙ → [釣り]から行えます。
+로블록스 위 Acrux 창의 [시작] 을 누르세요. 저장된 보정이 없으면 Fish 를 한 번 던져 보정하고 낚시를 이어갑니다.\n\n진행 상태와 중지 버튼은 Acrux 창에서 확인하세요.	Press [Start] in Acrux over Roblox. If no calibration is saved, it casts once to calibrate and continues fishing.\n\nCheck progress and the Stop button in Acrux.	Roblox上のAcruxウィンドウで[開始]を押してください。保存済みのキャリブレーションがなければ一度キャストして調整し、そのまま釣りを続けます。\n\n進行状況と停止ボタンはAcruxウィンドウで確認してください。
+자동 낚시는 [정지] 로 멈출 수 있습니다. 인벤토리가 가득 차면 정지합니다.\n\n지도 기반 이동과 판매는 준비 중입니다.	Stop auto fishing with [Stop]. It stops when the inventory is full.\n\nMap navigation and selling are in development.	自動釣りは[停止]で止められます。インベントリが満杯になると停止します。\n\nマップによる移動と売却は準備中です。
+설정과 실행할 작업을 확인합니다.	Checking settings and selected tasks.	設定と実行するタスクを確認しています。
+다음 관측 시각까지 기다립니다.	Waiting until the next observation.	次の観測時刻まで待機します。
+낚시 패널의 버튼과 테두리를 찾습니다.	Finding the fishing panel buttons and borders.	釣りパネルのボタンと枠を探します。
+Fish 입력 뒤 Exit 전환을 확인합니다.	Checking for Exit after pressing Fish.	Fishを押した後のExitへの切り替えを確認します。
+낚시 패널에서 미니게임 등장을 확인합니다.	Checking the fishing panel for the minigame.	釣りパネルでミニゲームの出現を確認します。
+바와 마커, 목표 구간만 추적합니다.	Tracking only the bar, marker and target zone.	バー、マーカー、目標範囲だけを追跡します。
+결과 제목과 실제 닫기 표시를 확인합니다.	Checking the result title and close marker.	結果のタイトルと閉じる印を確認します。
+낚시 패널을 다시 확인합니다.	Checking the fishing panel again.	釣りパネルを再確認します。
+낚시 창을 다시 확인했습니다.	The fishing window was checked again.	釣りウィンドウを再確認しました。
+낚시 창 위치나 화면 비율이 달라져 다시 찾는 중	Finding the fishing window again after its position or the screen aspect ratio changed	釣りウィンドウの位置や画面の縦横比が変わったため再検出中
+화면 관측을 기다립니다.	Waiting for a screen observation.	画面の観測を待ちます。
+DUA가 낚시를 제어합니다. 이동과 판매는 준비 중입니다.	DUA controls fishing. Movement and selling are in development.	DUAが釣りを制御します。移動と売却は準備中です。
+조이스틱 테스트 · 준비 중	Joystick test · in development	ジョイスティックテスト · 準備中
+점프 테스트 · 준비 중	Jump test · in development	ジャンプテスト · 準備中
+기준 장소로 이동 · 준비 중	Travel to base spot · in development	基準地点への移動 · 準備中
+저장한 길은 보존됩니다. 새 지도 기반 이동은 준비 중입니다.	Saved routes are kept. New map navigation is in development.	保存済みの道は保持されます。新しいマップによる移動は準備中です。
+낚시 장소로 이동 · 준비 중	Travel to fishing spot · in development	釣り場への移動 · 準備中
+판매 장소로 이동 · 준비 중	Travel to selling spot · in development	売却地点への移動 · 準備中
+판매 자동 보정 · 준비 중	Sell calibration · in development	売却の自動調整 · 準備中
+판매 테스트 · 준비 중	Sell test · in development	売却テスト · 準備中
+화면 관측 계획이 올바르지 않습니다.	The screen observation plan is invalid.	画面観測の計画が正しくありません。
+화면 관측 영역이 올바르지 않습니다.	The screen observation region is invalid.	画面観測の範囲が正しくありません。
+화면 관측 데이터가 올바르지 않습니다.	The screen observation data is invalid.	画面観測のデータが正しくありません。
+화면 관측 실패	Screen observation failed	画面観測に失敗
 이전 길 기록을 정리 중입니다. 잠깐 뒤 다시 시작하세요.	The previous recording is still closing. Please try again shortly.	前の道の記録を終了処理中です。少し待ってから再度開始してください。
 확인	Check	確認
 켜기	Turn on	オンにする

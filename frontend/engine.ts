@@ -64,4 +64,6 @@ export interface Status {
 
 export const status = () => invoke<Status>("status");
 export const control = (action: Action) => invoke<Status>("control", { action });
+export const duaStart = (generation: number) => invoke<Status>("dua_start", { features: ["mfish"], generation });
+export const duaStop = () => invoke<Status>("dua_stop");
 export const saveTuning = (tuning: Tuning) => invoke<Status>("save_tuning", { tuning });

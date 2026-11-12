@@ -8,6 +8,7 @@ mod linux;
 mod navigation;
 mod online;
 pub mod pathfinding;
+mod phone;
 pub mod travel;
 mod vision;
 
@@ -58,6 +59,7 @@ struct Runtime {
     generation: i32,
     dua: DuaStatus,
     resume_after_calibration: bool,
+    phone: phone::State,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -84,7 +86,7 @@ struct DuaStatus {
 impl Default for DuaStatus {
     fn default() -> Self {
         Self {
-            supported: cfg!(target_os = "linux"),
+            supported: cfg!(any(target_os = "linux", target_os = "android")),
             running: false,
             route: None,
             reason: "DUA 대기 중",
@@ -223,7 +225,11 @@ impl Runtime {
             session: background_status(),
             capture_ready: self.capture,
             input_ready: self.input,
-            game_available: game_available(),
+            game_available: if cfg!(target_os = "android") {
+                self.phone.foreground
+            } else {
+                game_available()
+            },
             calibrated: self.fishing.calibration.is_some(),
             positions: self.fishing.calibration.map(Calibration::positions),
             phase: self.phase(),
@@ -250,7 +256,12 @@ impl Runtime {
                     self.totals = profile.totals;
                     self.navigation = profile.navigation;
                     self.navigation.fit_positions();
-                    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+                    #[cfg(any(
+                        target_os = "windows",
+                        target_os = "linux",
+                        target_os = "macos",
+                        target_os = "android"
+                    ))]
                     {
                         // Retain saved positions, but never resume retired timed
                         // travel when upgrading to the private game runtime.
@@ -327,14 +338,6 @@ impl Runtime {
             })
             .and_then(|_| fs::rename(&temporary, path))
             .map_err(|error| format!("설정을 저장하지 못했습니다. {error}"))
-    }
-
-    #[cfg(target_os = "android")]
-    fn frame(&mut self, frame: &vision::Frame<'_>) -> Option<GameInput> {
-        match self.tick(now(), (frame.width, frame.height), Some(frame)) {
-            DeviceTick::Input(input) => Some(input),
-            DeviceTick::Wait | DeviceTick::Observe(_) => None,
-        }
     }
 
     fn tick(
@@ -524,20 +527,37 @@ impl Runtime {
     }
 
     fn start_desktop(&mut self, features: &[String], at: f64) -> Result<(), &'static str> {
+        self.start_dua_with_foreground(features, at, false)
+    }
+
+    fn start_dua(&mut self, features: &[String], at: f64) -> Result<(), &'static str> {
+        self.start_dua_with_foreground(features, at, cfg!(target_os = "android"))
+    }
+
+    fn start_dua_with_foreground(
+        &mut self,
+        features: &[String],
+        at: f64,
+        foreground_required: bool,
+    ) -> Result<(), &'static str> {
         if features.is_empty() {
             return Err("실행할 매크로 기능을 켜 주세요.");
         }
         if features.iter().any(|feature| feature != "mfish") {
-            return Err("현재 데스크톱 DUA는 자동 낚시만 지원합니다. 이동과 판매를 포함한 다른 기능은 준비 중입니다.");
+            return Err("현재 DUA는 자동 낚시만 지원합니다. 이동과 판매를 포함한 다른 기능은 준비 중입니다.");
         }
         if self.active() {
             return Err("실행 중인 작업을 먼저 중지하세요.");
         }
-        if !self.dua.background {
+        if !foreground_required && !self.dua.background {
             return Err("사용자 입력과 분리된 백그라운드 게임을 먼저 열어 주세요.");
         }
         if !self.capture || !self.input {
             return Err("화면 캡처와 입력을 먼저 준비하세요.");
+        }
+        if foreground_required {
+            self.navigation.options.use_move = false;
+            self.navigation.options.use_sell = false;
         }
         // Construct the first job before committing the session so invalid routes cannot half-start.
         let job = if self.navigation.options.use_move {
@@ -552,11 +572,15 @@ impl Runtime {
             ..DuaStatus::default()
         };
         self.generation = self.generation.wrapping_add(1);
+        self.phone.cancel();
         self.empty_sales = 0;
         self.relocations = 0;
         self.route(Route::Headless, "설정과 실행할 작업을 확인합니다.", false);
         self.job = job;
-        if self.job.is_none() {
+        if foreground_required && !self.phone.foreground {
+            self.fishing.stop("Roblox가 앞에 오기를 기다립니다.");
+            self.route(Route::Headless, "Roblox가 앞에 오기를 기다립니다.", false);
+        } else if self.job.is_none() {
             if let Err(error) = self.begin_fishing(at) {
                 self.stop(error);
                 return Err(error);
@@ -601,6 +625,7 @@ impl Runtime {
 
     fn finish_tool(&mut self, message: &'static str) {
         self.generation = self.generation.wrapping_add(1);
+        self.phone.cancel();
         self.job = None;
         self.fishing.stop(message);
     }
@@ -685,10 +710,10 @@ impl Runtime {
             self.stop("중지됨");
             return Ok(());
         }
-        #[cfg(any(target_os = "windows", target_os = "linux"))]
+        #[cfg(any(target_os = "windows", target_os = "linux", target_os = "android"))]
         if action == Action::Start {
             return self
-                .start_desktop(&["mfish".into()], now())
+                .start_dua(&["mfish".into()], now())
                 .map_err(str::to_owned);
         }
         if self.dua.running {
@@ -696,6 +721,10 @@ impl Runtime {
         }
         if !self.capture || !self.input {
             return Err("화면 캡처와 입력을 먼저 준비하세요.".into());
+        }
+        #[cfg(target_os = "android")]
+        if !self.phone.foreground {
+            return Err("Roblox에서 낚시 창을 연 뒤 보정하세요.".into());
         }
         if self.job.is_some() {
             return Err("실행 중인 작업을 먼저 중지하세요.".into());
@@ -712,7 +741,12 @@ impl Runtime {
             return Ok(());
         }
         match action {
-            Action::Calibrate => self.fishing.calibrate(now()),
+            Action::Calibrate => {
+                self.fishing.calibrate(now())?;
+                self.generation = self.generation.wrapping_add(1);
+                self.phone.cancel();
+                Ok(())
+            }
             Action::Start => self.fishing.start(now()),
             Action::Stop => unreachable!(),
         }
@@ -736,6 +770,9 @@ impl Runtime {
     }
 
     fn task(&mut self, task: Task) -> Result<(), &'static str> {
+        if cfg!(target_os = "android") {
+            return Err("시간 기반 이동과 판매는 사용할 수 없습니다. 지도 관측 연결이 필요합니다.");
+        }
         if !self.capture || !self.input {
             return Err("화면 캡처와 입력을 먼저 준비하세요.");
         }
@@ -791,6 +828,29 @@ fn control(action: Action) -> Result<Status, String> {
     }
     state.control(action)?;
     Ok(state.status())
+}
+
+#[tauri::command]
+fn dua_start(features: Vec<String>, generation: i32) -> Result<Status, String> {
+    if !cfg!(any(target_os = "linux", target_os = "android")) {
+        return Err("이 운영체제의 DUA 입력 연결은 아직 준비되지 않았습니다.".into());
+    }
+    let mut state = runtime();
+    if generation != state.generation {
+        return Err("이전 실행 요청이 취소됐습니다. 다시 시작하세요.".into());
+    }
+    #[cfg(target_os = "linux")]
+    validate_desktop_entry(&state)?;
+    state.start_dua(&features, now())?;
+    Ok(state.status())
+}
+
+#[tauri::command]
+fn dua_stop() -> Status {
+    let mut state = runtime();
+    state.stop("중지됨");
+    state.record();
+    state.status()
 }
 
 #[tauri::command]
@@ -906,6 +966,13 @@ fn save_navigation(options: Options) -> Result<(), String> {
         return Err("실행 중인 작업을 먼저 중지하세요.".into());
     }
     let options = options.validate()?;
+    #[cfg(target_os = "android")]
+    let options = {
+        let mut options = options;
+        options.use_move = false;
+        options.use_sell = false;
+        options
+    };
     state.edit_navigation(|nav| {
         nav.options = options;
         Ok(())
@@ -1196,6 +1263,8 @@ pub fn run() {
             discord_cancel,
             discord_logout,
             control,
+            dua_start,
+            dua_stop,
             desktop_start,
             desktop_snapshot,
             desktop_session_start,

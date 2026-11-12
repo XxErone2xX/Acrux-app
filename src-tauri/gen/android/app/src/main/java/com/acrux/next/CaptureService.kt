@@ -10,6 +10,7 @@ import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
+import android.media.Image
 import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
@@ -20,6 +21,7 @@ import android.os.SystemClock
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.Display
+import java.nio.ByteBuffer
 
 class CaptureService : Service() {
     private lateinit var worker: HandlerThread
@@ -28,8 +30,24 @@ class CaptureService : Service() {
     private var projection: MediaProjection? = null
     private var display: VirtualDisplay? = null
     private var reader: ImageReader? = null
+    private var readerGeneration = 0
     private var closing = false
-    private var previousFrame = 0L
+    private var latest: Image? = null
+    private var latestAt = 0L
+    private var latestGeneration = 0
+    private var consumedTimestamp = Long.MIN_VALUE
+    private var packed: ByteBuffer? = null
+    private var scheduledAt = Long.MAX_VALUE
+    private var nextTickAt = 0L
+    private var pendingObservation: IntArray? = null
+    private var observationAt = 0L
+    private var agentRunning = false
+    private val pump = object : Runnable {
+        override fun run() = synchronized(lock) {
+            scheduledAt = Long.MAX_VALUE
+            if (!closing) runAgent()
+        }
+    }
     private val health = CaptureHealth()
     private var sampledAt = 0L
     private val watch = object : Runnable {
@@ -115,7 +133,8 @@ class CaptureService : Service() {
                 projection = active
                 active.registerCallback(projectionCallback, handler)
                 val metrics = metrics()
-                val output = output(metrics.widthPixels, metrics.heightPixels)
+                readerGeneration = Native.generation()
+                val output = output(metrics.widthPixels, metrics.heightPixels, readerGeneration)
                 reader = output
                 display = checkNotNull(active.createVirtualDisplay(
                     "Acrux", output.width, output.height, metrics.densityDpi,
@@ -124,6 +143,8 @@ class CaptureService : Service() {
                 Native.capture(true)
                 health.reset(SystemClock.uptimeMillis())
                 handler.post(watch)
+                current = this
+                schedule(0)
                 TapService.refresh()
             }
             if (Build.VERSION.SDK_INT < 34) {
@@ -141,30 +162,42 @@ class CaptureService : Service() {
         getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY).getRealMetrics(it)
     }
 
-    private fun output(width: Int, height: Int): ImageReader =
-        ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2).also { output ->
+    private fun output(width: Int, height: Int, generation: Int): ImageReader =
+        ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 3).also { output ->
             output.setOnImageAvailableListener({ source ->
                 synchronized(lock) {
-                    if (!closing && source === reader) read(source)
+                    if (!closing && source === reader) receive(source, generation)
                 }
             }, handler)
         }
 
-    private fun resize(width: Int, height: Int) = synchronized(lock) {
+    private fun resize(width: Int, height: Int, generation: Int = Native.generation()) = synchronized(lock) {
         val virtualDisplay = display ?: return@synchronized
-        if (closing || width < 1 || height < 1 || (reader?.width == width && reader?.height == height)) {
+        val sameSize = reader?.width == width && reader?.height == height
+        if (closing || width < 1 || height < 1 || (sameSize && readerGeneration == generation)) {
             return@synchronized
         }
         val previous = reader
+        dropImage()
+        pendingObservation = null
+        packed = null
+        nextTickAt = 0L
+        consumedTimestamp = Long.MIN_VALUE
         try {
-            val next = output(width, height)
+            // A callback can be delayed across stop/restart. Drain the old queue,
+            // then change producer surface instead of relabelling its buffered
+            // images with the generation at callback time. Image timestamp
+            // timebases are producer-defined, so uptime is not a safe boundary.
+            previous?.acquireLatestImage()?.close()
+            val next = output(width, height, generation)
             reader = next
+            readerGeneration = generation
             try {
-                virtualDisplay.resize(width, height, metrics().densityDpi)
+                if (!sameSize) virtualDisplay.resize(width, height, metrics().densityDpi)
                 virtualDisplay.surface = next.surface
-                previousFrame = 0L
                 sampledAt = 0L
                 health.reset(SystemClock.uptimeMillis())
+                schedule(0)
             } finally {
                 previous?.close()
             }
@@ -174,34 +207,172 @@ class CaptureService : Service() {
         }
     }
 
-    private fun read(source: ImageReader) {
-        source.acquireLatestImage()?.use { image ->
-            val now = SystemClock.uptimeMillis()
-            health.frame(now)
-            if (!Native.active()) return
-            val tapper = TapService.current
-            if (tapper?.canInput() != true) {
-                Native.noTarget()
+    private fun dropImage() {
+        latest?.close()
+        latest = null
+        latestGeneration = 0
+    }
+
+    private fun schedule(delay: Long) {
+        if (closing) return
+        val now = SystemClock.uptimeMillis()
+        var at = now + delay.coerceIn(0, 1000)
+        if (latest != null) at = minOf(at, latestAt + AgentTransport.FRAME_TTL_MS)
+        if (at >= scheduledAt) return
+        handler.removeCallbacks(pump)
+        scheduledAt = at
+        handler.postAtTime(pump, at)
+    }
+
+    private fun receive(source: ImageReader, frameGeneration: Int) {
+        val image = source.acquireLatestImage() ?: return
+        val generation = Native.generation()
+        if (frameGeneration != generation) {
+            image.close()
+            resize(source.width, source.height, generation)
+            return
+        }
+        val now = SystemClock.uptimeMillis()
+        health.frame(now)
+        val visible = TapService.current?.canInput() == true
+        if (!agentRunning || !visible || image.timestamp <= consumedTimestamp) {
+            if (!visible) {
+                dropImage()
+                packed = null
+            }
+            image.close()
+            return
+        }
+        if (now - sampledAt >= 1000) {
+            sampledAt = now
+            val plane = image.planes[0]
+            health.sample(now, CaptureHealth.isBlack(plane.buffer, image.width, image.height, plane.rowStride, plane.pixelStride))
+        }
+        dropImage()
+        latest = image
+        latestAt = now
+        latestGeneration = frameGeneration
+        // This callback only retains the newest image. The single pump owns JNI work.
+        if (pendingObservation != null && now >= observationAt || now >= nextTickAt) schedule(0)
+        else schedule((nextTickAt - now).coerceAtLeast(1))
+    }
+
+    private fun runAgent() {
+        val now = SystemClock.uptimeMillis()
+        val generation = Native.generation()
+        reader?.let { source ->
+            if (readerGeneration != generation) {
+                resize(source.width, source.height, generation)
+            }
+        }
+        if (latest != null && !AgentTransport.fresh(latestAt, now, latestGeneration, generation)) dropImage()
+        agentRunning = Native.active()
+        if (!agentRunning) {
+            pendingObservation = null
+            packed = null
+            nextTickAt = 0L
+            dropImage()
+            schedule(100)
+            return
+        }
+        val source = reader ?: return
+        val tapper = TapService.current
+        if (tapper?.canInput() != true) { dropImage(); packed = null }
+        try {
+            var observation = pendingObservation
+            if (observation != null && (!Native.inputCurrent(observation[1]) || tapper?.canInput() != true)) {
+                pendingObservation = null
+                observation = null
+                dropImage()
+                nextTickAt = now
+            }
+            if (observation == null) {
+                if (now < nextTickAt) { schedule(nextTickAt - now); return }
+                val plan = Native.agentTick(source.width, source.height)
+                if (plan.size < 3) throw IllegalArgumentException("화면 관측 계획이 올바르지 않습니다.")
+                when (plan[0]) {
+                    0 -> {
+                        nextTickAt = now + plan[2].toLong().coerceIn(1, 1000)
+                        schedule(nextTickAt - now)
+                        return
+                    }
+                    1 -> {
+                        if (plan.size != 8 || !AgentTransport.region(source.width, source.height, plan[3], plan[4], plan[5], plan[6])) {
+                            throw IllegalArgumentException("화면 관측 영역이 올바르지 않습니다.")
+                        }
+                        pendingObservation = plan
+                        observationAt = now + plan[2].toLong().coerceIn(0, 1000)
+                        observation = plan
+                    }
+                    2 -> { dispatch(plan); nextTickAt = 0; schedule(16); return }
+                    else -> throw IllegalArgumentException("화면 관측 계획이 올바르지 않습니다.")
+                }
+            }
+            val request = observation ?: return
+            if (now < observationAt) { schedule(observationAt - now); return }
+            if (tapper?.gesturePending == true) { schedule(16); return }
+            val image = latest
+            if (image == null) { schedule(16); return }
+            if (!AgentTransport.fresh(latestAt, now, latestGeneration, request[1])) {
+                dropImage()
+                schedule(16)
                 return
             }
-            val plane = image.planes[0]
-            if (now - sampledAt >= 1000) {
-                sampledAt = now
-                health.sample(now, CaptureHealth.isBlack(plane.buffer, image.width, image.height, plane.rowStride, plane.pixelStride))
-            }
-            if (tapper.gesturePending) return
-            // A display can produce more frames than the reel loop consumes.
-            if (image.timestamp - previousFrame < 8_000_000L) return
-            previousFrame = image.timestamp
-            val tap = Native.frame(plane.buffer, image.width, image.height, plane.rowStride, plane.pixelStride)
-            if (tap != null) tapper.input(tap)
+            latest = null
+            pendingObservation = null
+            nextTickAt = 0L
+            try {
+                if (image.width != source.width || image.height != source.height || !Native.inputCurrent(request[1]) || tapper?.canInput() != true) return
+                val plane = image.planes[0]
+                if (!plane.buffer.isDirect) throw IllegalArgumentException("화면 관측 데이터가 올바르지 않습니다.")
+                val x = request[3]; val y = request[4]; val width = request[5]; val height = request[6]
+                consumedTimestamp = image.timestamp
+                val full = x == 0 && y == 0 && width == image.width && height == image.height
+                val buffer: ByteBuffer
+                val row: Int
+                val pixel: Int
+                if (full) {
+                    // Keep the Image open for this synchronous JNI call; no full-frame copy.
+                    buffer = plane.buffer.duplicate().apply { position(0) }
+                    row = plane.rowStride
+                    pixel = plane.pixelStride
+                } else {
+                    val size = AgentTransport.copySize(image.width, image.height, x, y, width, height)
+                    buffer = packed?.takeIf { it.capacity() >= size } ?: ByteBuffer.allocateDirect(size).also { packed = it }
+                    AgentTransport.copy(plane.buffer, image.width, image.height, plane.rowStride, plane.pixelStride, x, y, width, height, buffer)
+                    row = width * 4
+                    pixel = 4
+                }
+                val input = Native.agentObserve(buffer, image.width, image.height, row, pixel, x, y, width, height, request[1], request[7])
+                if (input != null) dispatch(input)
+            } finally { image.close(); schedule(1) }
+        } catch (error: RuntimeException) {
+            pendingObservation = null
+            dropImage()
+            Native.platformLog(error.message ?: "화면 관측 실패", 'r')
+            Native.control(0)
+            schedule(100)
         }
+    }
+
+    private fun dispatch(packet: IntArray) {
+        val tapper = TapService.current
+        if (tapper == null) {
+            if (packet.size >= 9) Native.agentInputResult(packet[8], packet[1], false)
+        } else tapper.input(packet)
     }
 
     override fun onDestroy() {
         synchronized(lock) {
             closing = true
-            if (::handler.isInitialized) handler.removeCallbacks(watch)
+            if (current === this) current = null
+            dropImage()
+            pendingObservation = null
+            packed = null
+            if (::handler.isInitialized) {
+                handler.removeCallbacks(watch)
+                handler.removeCallbacks(pump)
+            }
             Native.capture(false)
             display?.release()
             display = null
@@ -219,7 +390,19 @@ class CaptureService : Service() {
         super.onDestroy()
     }
 
-    private companion object {
+    companion object {
+        @Volatile private var current: CaptureService? = null
+        fun wake() {
+            val service = current ?: return
+            service.handler.post {
+                synchronized(service.lock) {
+                    if (!service.closing) {
+                        service.nextTickAt = 0L
+                        service.schedule(0)
+                    }
+                }
+            }
+        }
         const val RESULT_OK = -1
         const val CHANNEL = "acrux-capture"
         const val STOP = "com.acrux.next.STOP_CAPTURE"
