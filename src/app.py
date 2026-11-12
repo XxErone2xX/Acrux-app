@@ -2244,8 +2244,16 @@ class Bridge:
             return {"error": "웹사이트에 연결할 수 없음"}
         keep = ("id", "title", "author", "staff", "created", "file_size", "file_sha", "downloads", "likes",
                 "mod_id", "mod_name", "mod_ver", "mod_type", "mod_desc")
-        posts = [{k: x.get(k) for k in keep} for x in (r.get("posts") or [])
-                 if x.get("file_size") and x.get("mod_id") and re.fullmatch(r"[0-9a-f]{64}", str(x.get("file_sha") or ""))]
+        posts = []
+        for x in r.get("posts") or []:
+            if not x.get("file_size"):
+                continue                        # 모드 파일 없는 글 (질문 · 이야기)
+            m = {k: x.get(k) for k in keep}
+            # 사이트가 모드 ID 를 안 주면 (예전 사이트) 파일 이름 '<ID>-<버전>.acxm' 에서
+            if not m.get("mod_id"):
+                fm = re.match(r"([a-z][a-z0-9_]{1,30})-", str(x.get("file_name") or ""))
+                m["mod_id"] = fm.group(1) if fm else ""
+            posts.append(m)
         return {"posts": posts, "page": r.get("page", page), "pages": r.get("pages", 1),
                 "installed": {m.id: str(m.info.get("version") or "") for m in modmod.scan()}}
 
@@ -2254,8 +2262,16 @@ class Bridge:
         import hashlib
         import tempfile
         pid, want = int(p.get("id") or 0), str(p.get("sha") or "")
-        if pid <= 0 or not re.fullmatch(r"[0-9a-f]{64}", want):
+        if pid <= 0:
             return {"error": "잘못된 모드"}
+        if not re.fullmatch(r"[0-9a-f]{64}", want):     # 목록에 해시가 없으면 (예전 사이트) 글에서 가져옴
+            try:
+                post = self._store_get(f"/forum/post?id={pid}").get("post") or {}
+            except Exception:
+                return {"error": "웹사이트에 연결할 수 없음"}
+            want = str(post.get("file_sha") or "")
+            if not re.fullmatch(r"[0-9a-f]{64}", want):
+                return {"error": "잘못된 모드"}
         try:
             data = self._store_get(f"/forum/file?id={pid}", binary=True)
         except Exception as e:
