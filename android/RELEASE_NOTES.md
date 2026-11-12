@@ -1,3 +1,11 @@
+## Acrux Mobile V1.4.26 업데이트
+- 디스코드 연결을 홈 맨 위에 크게 [ 디스코드 색 칸 ]
+  - 연결 안 했으면 [연결하기] 를 누르면 바로 브라우저가 열림 · 연결했으면 이름이 보이고 누르면 설정 → 디스코드 연결 칸으로
+
+## Acrux Mobile V1.4.26 Update
+- Discord link is now big at the top of Home [ a Discord-colored card ]
+  - Not linked: press [Link] and the browser opens right away · linked: shows your name, press it to go to Settings → Discord link
+
 ## Acrux Mobile V1.4.25 업데이트
 - 미니 UI 맨 위 이름을 Acrux → Acrux Mobile 로
 

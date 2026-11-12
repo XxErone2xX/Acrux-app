@@ -88,11 +88,11 @@ const MENU = [
   { key: 'mfeat', tab: 'macro', icon: 'bolt', color: 'var(--yellow)', title: '매크로 설정', desc: '공통 위치 · 기능마다 켜기 · 설정 · 위치 · 이동' },
   // 복구 · 게임 입장: 로블록스가 꺼졌을 때 내 서버로 · Play 버튼 (모드가 다른 서버에 들어갈 때도 씀)
   { key: 'recover', tab: 'macro', icon: 'undo', color: 'var(--green)', title: '복구 · 게임 입장', desc: '로블록스가 꺼지면 내 서버로 · Play 버튼 위치' },
-  { key: 'acrux', tab: 'acrux', icon: 'gear', color: '#7c6cf6', title: 'Acrux 설정', desc: '언어 · OCR 감지 방식 · 데이터 폴더',
+  { key: 'acrux', tab: 'acrux', icon: 'gear', color: '#7c6cf6', title: 'Acrux 설정', desc: '언어 · 디스코드 연결 · OCR 감지 방식 · 데이터 폴더',
     grad: 'linear-gradient(135deg, #8fa0ff, #6c7bff 50%, #8b5cf6)' },
   { key: 'updates', tab: 'acrux', icon: 'notes', color: 'var(--green)', title: '업데이트 로그', desc: '지금까지 바뀐 점 · 맨 위가 최신' },
   { key: 'mstats', tab: 'acrux', icon: 'chart', color: 'var(--cyan)', title: '통계', desc: '이번 실행 · 올타임 기록' },
-  { key: 'mods', tab: 'extra', icon: 'bolt', color: '#e8a33d', title: '모드 · 플러그인', desc: '설치한 모드 · 켜기 · 끄기 · 모드 파일 설치',
+  { key: 'mods', tab: 'extra', icon: 'bolt', color: '#e8a33d', title: '모드 · 플러그인', desc: '모드 받기 · 설치한 모드 · 켜기 · 끄기 · 모드 파일 설치',
     grad: 'linear-gradient(135deg, #f7c548, #e8a33d 55%, #b4651c)' },
 ];
 // 설정 탭 — 끝없이 돌아감 (바이옴 → (모드 탭) → 매크로 → 추가 기능 → Acrux → 바이옴 …)
@@ -376,6 +376,7 @@ async function openPage(key) {
   if (key === 'log') scrollLog(true);
   if (key === 'mfeat') { renderMpop(); syncFeatItems(); }   // 플레이어 이름 · 버튼 위치가 바뀌었을 수 있음
   if (key === 'acrux') refreshOcrInfo();
+  if (key === 'mods') Store.open();          // 모드 받기 목록 (처음 한 번)
   if (key === 'updates') loadChangelog();
   if (key === 'mstats') renderStats(true);
   shell.getAnimations().forEach(x => x.cancel());
@@ -632,6 +633,14 @@ document.addEventListener('click', e => {
   if (current) { closePage().then(() => { if (m && curTab !== m.tab) { setTab(m.tab); setTimeout(go, 380); } else go(); }); }
   else if (m && curTab !== m.tab) { setTab(m.tab); setTimeout(go, 380); } else go();
 });
+
+// 설정 화면의 한 칸 바로 열기 (예: Acrux → 디스코드 연결) — 다른 탭이면 그 탭으로 넘긴 뒤
+function openSec(key, sec) {
+  const m = MENU.find(x => x.key === key);
+  const go = () => openPage(key).then(() => { const pg = document.getElementById('page-' + key); if (pg) selectSection(pg, sec); });
+  if (current) return;
+  if (m && curTab !== m.tab) { setTab(m.tab); setTimeout(go, 380); } else go();
+}
 
 // 켜진 매크로 탭 기능 수
 const macroFeatures = () => FEATS.filter(k => featCfg(k).enabled).length;
@@ -2293,6 +2302,14 @@ function drawDiscord() {
     setText(btn, '디스코드 로그인');
   }
   btn.classList.toggle('ghost', d.linked || !!d.code);
+  // 메인 화면 줄
+  const bar = $('dcBar');
+  bar.classList.toggle('linked', d.linked);
+  bar.classList.toggle('waiting', !d.linked && !!d.code);
+  setText($('dcBarSub'), d.linked ? `연결됨 — ${d.name || '-'}`
+    : d.code ? `브라우저에서 [연결] 을 눌러 주세요 · 코드 ${d.code.slice(0, 4)}-${d.code.slice(4)}`
+    : d.error || '디스코드 봇으로 매크로 상태 · 통계 · 기록 보기');
+  setText($('dcBarGo'), d.linked ? '설정 ›' : d.code ? '기다리는 중' : '연결하기');
 }
 async function refreshDiscord() {
   clearTimeout(dcTimer);
@@ -2300,6 +2317,18 @@ async function refreshDiscord() {
   drawDiscord();
   if (dcState.code) dcTimer = setTimeout(refreshDiscord, 2000);   // 연결될 때까지 2초마다
 }
+// 메인 화면 줄: 안 했으면 바로 연결 시작 · 했으면 (또는 기다리는 중이면) Acrux → 디스코드 연결 칸으로
+$('dcBar').addEventListener('click', async () => {
+  if (!dcState.linked && !dcState.code) {
+    try {
+      const r = await api('discord_login');
+      if (r.error) toast(r.error);
+    } catch { toast('디스코드 연결 실패'); }
+    refreshDiscord();
+    return;
+  }
+  openSec('acrux', 'ac-dc');
+});
 $('dcBtn').addEventListener('click', async () => {
   try {
     if (dcState.linked) await api('discord_logout');
@@ -3102,6 +3131,66 @@ $('modInstall').addEventListener('click', async e => {
     toast(`${r.name} 설치함 · 다시 켜면 적용`);
   } finally { b.disabled = false; }
 });
+// 모드 받기 — 웹사이트 모드 게시판 (승인된 글의 모드 파일) → [설치] = 받아서 해시 확인 후 설치
+const Store = (() => {
+  let page = 1, pages = 1, q = '', loaded = false, busy = false, posts = [], installed = {};
+  const kb = n => (n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
+  function draw() {
+    const box = $('storeList');
+    if (!posts.length) { box.innerHTML = `<div class="empty">${q ? '검색 결과 없음' : '아직 올라온 모드 없음'}</div>`; $('storePages').innerHTML = ''; return; }
+    box.innerHTML = posts.map(m => {
+      const have = installed[m.mod_id];
+      const st = have === undefined ? '설치' : have === m.mod_ver ? '다시 설치' : '업데이트';
+      return `<div class="card mod-card">
+        <div class="mod-head"><b data-notr>${esc(m.mod_name || m.title)}</b><span class="mod-tag">${m.mod_type === 'mod' ? '모드' : '플러그인'}</span>
+          <span class="mod-ver" data-notr>V${esc(m.mod_ver || '?')}</span><span class="grow"></span>
+          ${have !== undefined ? `<span class="store-done">${have === m.mod_ver ? '설치됨' : '새 버전 있음'}</span>` : ''}
+          <button class="btn mini${have === m.mod_ver ? ' ghost' : ''}" type="button" data-store-get="${m.id}">${st}</button></div>
+        <p class="mod-desc" data-notr>${esc(m.mod_desc || m.title || '')}</p>
+        <div class="mod-foot"><small data-notr>${esc('by ' + (m.author || '?'))}</small><span class="grow"></span>
+          <small class="store-meta" data-notr>${kb(m.file_size || 0)} · ↓ ${(m.downloads || 0).toLocaleString()}</small>
+          <button class="btn ghost mini" type="button" data-store-web="${m.id}">글 보기</button></div>
+      </div>`;
+    }).join('');
+    $('storePages').innerHTML = pages > 1 ? `<button class="btn ghost mini" type="button" data-store-page="-1"${page <= 1 ? ' disabled' : ''}>‹</button>
+      <span data-notr>${page} / ${pages}</span><button class="btn ghost mini" type="button" data-store-page="1"${page >= pages ? ' disabled' : ''}>›</button>` : '';
+  }
+  async function load(p = page) {
+    if (busy) return;
+    busy = true;
+    $('storeList').innerHTML = '<div class="empty">불러오는 중…</div>';
+    try {
+      const r = await api('mods_store', { page: p, q }, 30000);
+      if (r.error) { $('storeList').innerHTML = `<div class="empty">${esc(r.error)}</div>`; return; }
+      posts = r.posts || []; installed = r.installed || {}; page = r.page || p; pages = r.pages || 1; loaded = true;
+      draw();
+    } catch { $('storeList').innerHTML = '<div class="empty">웹사이트에 연결할 수 없음</div>'; }
+    finally { busy = false; }
+  }
+  document.addEventListener('click', async e => {
+    const g = e.target.closest('[data-store-get]'), pg = e.target.closest('[data-store-page]'), w = e.target.closest('[data-store-web]');
+    if (w) { api('open_mod_post', { id: +w.dataset.storeWeb }); return; }
+    if (pg) { load(page + +pg.dataset.storePage); return; }
+    if (!g) return;
+    const m = posts.find(x => String(x.id) === g.dataset.storeGet);
+    if (!m) return;
+    g.disabled = true; setText(g, '받는 중…');
+    try {
+      const r = await api('mods_get', { id: m.id, sha: m.file_sha, mod_id: m.mod_id }, 120000);
+      if (r.error) { toast(r.error); return; }
+      installed[r.mods?.find(x => x.name === r.name)?.id || m.mod_id] = m.mod_ver;
+      modsChanged = true; renderModList(r.mods || []);
+      toast(`${r.name} 설치함 · 다시 켜면 적용`);
+    } catch { toast('설치 실패'); }
+    finally { draw(); }
+  });
+  $('storeGo').addEventListener('click', () => { q = $('storeQ').value.trim(); page = 1; load(1); });
+  $('storeQ').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('storeGo').click(); } });
+  $('storeReload').addEventListener('click', () => load(page));
+  return { open: () => { if (!loaded) load(1); } };
+})();
+document.addEventListener('click', e => { if (e.target.closest('#page-mods .side [data-sec="mod-store"]')) Store.open(); });
+
 $('modFolder').addEventListener('click', () => api('mods_folder'));
 $('modRestart').addEventListener('click', async () => {
   $('modRestart').disabled = true;

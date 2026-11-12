@@ -732,6 +732,11 @@ E = [
     ["디스코드 연결이 끊김 — 다시 연결하려면 설정 → 디스코드 연결", "Discord link removed — to link again, go to Settings → Discord link", "Discord 連携が解除されました — もう一度連携するには 設定 → Discord 連携"],
     # V1.4.24: 길 기록 취소
     ["길 기록 취소 — 저장 안 함", "Route recording canceled — not saved", "道の記録をキャンセル — 保存しません"],
+    # V1.4.26: 홈 디스코드 연결 칸
+    ["디스코드 봇으로 매크로 상태 · 통계 · 기록 보기", "See your macro status, stats and log with the Discord bot", "Discord ボットでマクロの状態・統計・ログを見る"],
+    ["연결하기", "Link", "連携する"],
+    ["설정 ›", "Settings ›", "設定 ›"],
+    ["기다리는 중", "Waiting", "待機中"],
 ]
 
 

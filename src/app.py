@@ -2209,6 +2209,10 @@ class Bridge:
             info = modmod.install(path)
         except Exception as e:
             return {"error": f"설치 못 함: {e}"}
+        return self._mod_installed(info)
+
+    def _mod_installed(self, info):
+        """설치 끝난 모드를 켜 두고 목록에 넣음 (다시 켜면 적용)"""
         with self.lock:
             self.data.setdefault("mods", {})[info["id"]] = {"enabled": True}
         self._save()
@@ -2216,6 +2220,62 @@ class Bridge:
         self._on_log(f"모드 설치: {name} V{info.get('version') or '?'} — Acrux 를 다시 켜면 적용", "g")
         self.mods = [m for m in self.mods if m.id != info["id"]] + [m for m in modmod.scan() if m.id == info["id"]]
         return {"ok": True, "name": name, "restart": True, "mods": modmod.listing(self)}
+
+    # 웹사이트 (acruxmacro.com 커뮤니티 → 모드 게시판) 에서 받기 — 운영자가 승인한 글의 모드 파일만 보임
+    STORE_MAX = 6 * 1024 * 1024
+
+    def _store_get(self, path, binary=False):
+        import urllib.request
+        req = urllib.request.Request(self.ONLINE_URL.rstrip("/") + path, headers={"User-Agent": f"Acrux/{VERSION}"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            data = r.read(self.STORE_MAX + 1)
+        if len(data) > self.STORE_MAX:
+            raise ValueError("파일이 너무 큼")
+        return data if binary else json.loads(data.decode("utf-8") or "{}")
+
+    def api_mods_store(self, p):
+        """웹사이트 모드 목록 (모드 파일이 있는 글만 · 쪽 · 검색)"""
+        import urllib.parse
+        page = max(1, min(500, int(p.get("page") or 1)))
+        q = str(p.get("q") or "")[:40]
+        try:
+            r = self._store_get(f"/forum/list?board=mods&page={page}" + (f"&q={urllib.parse.quote(q)}" if q else ""))
+        except Exception:
+            return {"error": "웹사이트에 연결할 수 없음"}
+        keep = ("id", "title", "author", "staff", "created", "file_size", "file_sha", "downloads", "likes",
+                "mod_id", "mod_name", "mod_ver", "mod_type", "mod_desc")
+        posts = [{k: x.get(k) for k in keep} for x in (r.get("posts") or [])
+                 if x.get("file_size") and x.get("mod_id") and re.fullmatch(r"[0-9a-f]{64}", str(x.get("file_sha") or ""))]
+        return {"posts": posts, "page": r.get("page", page), "pages": r.get("pages", 1),
+                "installed": {m.id: str(m.info.get("version") or "") for m in modmod.scan()}}
+
+    def api_mods_get(self, p):
+        """웹사이트 모드 받아서 설치 — 받은 파일의 해시가 글에 적힌 것과 같을 때만"""
+        import hashlib
+        import tempfile
+        pid, want = int(p.get("id") or 0), str(p.get("sha") or "")
+        if pid <= 0 or not re.fullmatch(r"[0-9a-f]{64}", want):
+            return {"error": "잘못된 모드"}
+        try:
+            data = self._store_get(f"/forum/file?id={pid}", binary=True)
+        except Exception as e:
+            return {"error": f"받지 못함: {e}"}
+        if hashlib.sha256(data).hexdigest() != want:
+            return {"error": "받은 파일이 웹사이트에 올라온 것과 다름 — 다시 시도해 주세요"}
+        tmp = Path(tempfile.gettempdir()) / f"acrux_mod_{pid}.acxm"
+        try:
+            tmp.write_bytes(data)
+            info = modmod.install(tmp)
+        except Exception as e:
+            return {"error": f"설치 못 함: {e}"}
+        finally:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+        if p.get("mod_id") and info.get("id") != p.get("mod_id"):
+            self._on_log(f"모드 ID 가 글과 다름: {info.get('id')} (글: {p.get('mod_id')})", "y")
+        return self._mod_installed(info)
 
     def api_mods_remove(self, p):
         mid = str(p.get("id") or "")
@@ -2261,6 +2321,15 @@ class Bridge:
         "donate": "https://ko-fi.com/acrux_",
         "web": "https://acruxmacro.com",
     }
+
+    def api_open_mod_post(self, p):
+        """웹사이트 모드 글 열기 (글 번호만 받음)"""
+        pid = int(p.get("id") or 0)
+        if pid <= 0:
+            return {"error": "잘못된 글"}
+        import webbrowser
+        webbrowser.open(f"https://acruxmacro.com/mods/#post/{pid}")
+        return {"ok": True}
 
     def api_open_web(self, p):
         url = self.WEB_LINKS.get(str(p.get("site", "")))

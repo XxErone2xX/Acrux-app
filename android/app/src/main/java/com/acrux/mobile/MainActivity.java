@@ -46,7 +46,8 @@ public class MainActivity extends Activity {
     final Runnable refresh = this::refresh;
     final TextView[][] statCells = new TextView[4][2];
     TextView statRunHead, statAllHead;
-    TextView dcState, dcBtn;
+    TextView dcState, dcBtn, dcHomeSub, dcHomeGo;
+    LinearLayout dcHome;
     final Runnable relang = this::recreate;
 
     // ---------------------------------------------------------------- 칸 (탭)
@@ -370,6 +371,28 @@ public class MainActivity extends Activity {
             cb.setOnClickListener(v -> show(3, true));
             pg.body.addView(cb, Ui.fill(this, 8));
         }
+        // 디스코드 연결 (매크로 봇) — 잘 보이게 홈 맨 위에 · 안 했으면 [연결하기] (바로 연결 시작) · 했으면 이름 (누르면 설정 칸)
+        dcHome = new LinearLayout(this);
+        dcHome.setOrientation(LinearLayout.HORIZONTAL);
+        dcHome.setGravity(Gravity.CENTER_VERTICAL);
+        dcHome.setPadding(Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 12), Ui.dp(this, 10));
+        LinearLayout dcCol = new LinearLayout(this);
+        dcCol.setOrientation(LinearLayout.VERTICAL);
+        dcCol.addView(Ui.text(this, "디스코드 연결", 14, Ui.FG, true), Ui.wrap());
+        dcHomeSub = Ui.text(this, "디스코드 봇으로 매크로 상태 · 통계 · 기록 보기", 12, Ui.MUTED, false);
+        dcCol.addView(dcHomeSub, Ui.wrap());
+        dcHome.addView(dcCol, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        dcHomeGo = Ui.text(this, "연결하기", 13, 0xFFFFFFFF, true);
+        dcHomeGo.setPadding(Ui.dp(this, 12), Ui.dp(this, 6), Ui.dp(this, 12), Ui.dp(this, 6));
+        LinearLayout.LayoutParams gp = Ui.wrap();
+        gp.leftMargin = Ui.dp(this, 10);
+        dcHome.addView(dcHomeGo, gp);
+        dcHome.setOnClickListener(v -> {
+            if (!DiscordLink.linked() && DiscordLink.code == null) DiscordLink.login(this);
+            else show(4, true);
+            showDiscord();
+        });
+        pg.body.addView(dcHome, Ui.fill(this, 8));
         pg.body.addView(new View(this), new LinearLayout.LayoutParams(1, Ui.dp(this, 8)));
 
         LinearLayout lang = section(pg, "언어");
@@ -1049,7 +1072,21 @@ public class MainActivity extends Activity {
 
     // ---------------------------------------------------------------- 새로 그리기
     /** 디스코드 연결 상태 · 버튼 글자 */
+    static final int DISCORD = 0xFF5865F2;
+
     void showDiscord() {
+        if (dcHome != null) {
+            boolean on = DiscordLink.linked(), wait = !on && DiscordLink.code != null;
+            String e = DiscordLink.error;
+            if (on) Ui.set(dcHomeSub, I18n.f("연결됨 — {0}", DiscordLink.name()));
+            else if (wait) Ui.set(dcHomeSub, I18n.f("브라우저에서 [연결] 을 눌러 주세요 · 코드 {0}", DiscordLink.code.substring(0, 4) + "-" + DiscordLink.code.substring(4)));
+            else Ui.set(dcHomeSub, e == null || e.isEmpty() ? "디스코드 봇으로 매크로 상태 · 통계 · 기록 보기" : e);
+            dcHomeSub.setTextColor(on ? Ui.GREEN : wait ? Ui.YELLOW : e != null && !e.isEmpty() ? Ui.RED : Ui.MUTED);
+            Ui.set(dcHomeGo, on ? "설정 ›" : wait ? "기다리는 중" : "연결하기");
+            dcHomeGo.setTextColor(on ? Ui.MUTED : 0xFFFFFFFF);
+            dcHomeGo.setBackground(on ? null : new Ui.Deco(this, wait ? 0x665865F2 : DISCORD, 0, 0, false, 0, 0));
+            dcHome.setBackground(new Ui.Deco(this, on ? Ui.PANEL : 0x2E5865F2, on ? Ui.LINE : DISCORD, 0, true, 0, 0));
+        }
         if (dcState == null) return;
         if (DiscordLink.linked()) {
             Ui.set(dcState, I18n.f("연결됨 — {0}", DiscordLink.name()));

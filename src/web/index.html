@@ -45,6 +45,13 @@
       </div>
     </div>
 
+    <!-- 디스코드 연결 (매크로 봇) — 안 했으면 [연결하기] · 했으면 이름 · 누르면 Acrux → 디스코드 연결 -->
+    <button class="dc-bar deco" type="button" id="dcBar">
+      <span class="dc-ico" aria-hidden="true"></span>
+      <span class="dc-txt"><b>디스코드 연결</b><small id="dcBarSub">디스코드 봇으로 매크로 상태 · 통계 · 기록 보기</small></span>
+      <span class="dc-go" id="dcBarGo">연결하기</span>
+    </button>
+
     <!-- 설정 탭: 바이옴 / (모드 탭) / 매크로 / 추가 기능 / Acrux (가운데 큰 글씨가 지금 탭 · 탭 이름 클릭이나 ← → 키로 넘김) -->
     <div class="label">설정</div>
     <div class="tabs" id="tabs">
@@ -402,10 +409,19 @@
   </div>
   <div class="body">
     <nav class="side">
+      <button class="item deco" data-sec="mod-store"><b>모드 받기</b><span>웹사이트 모드 바로 설치</span></button>
       <button class="item deco" data-sec="mod-list"><b>설치된 모드</b><span>켜기 · 끄기 · 삭제</span></button>
       <button class="item deco" data-sec="mod-help"><b>모드 · 플러그인</b><span>설명 · 받는 곳</span></button>
     </nav>
     <div class="content">
+      <div class="sec" data-sec="mod-store">
+        <div class="sec-head"><h2>모드 받기</h2><button class="btn mini ghost" type="button" id="storeReload">새로 고침</button></div>
+        <p class="hint">acruxmacro.com 커뮤니티 → 모드 게시판에 올라온 것 (운영자가 확인한 것만) · 모드는 Acrux 와 같은 권한으로 돌아서 믿을 수 있는 것만 설치</p>
+        <div class="store-search"><input type="search" id="storeQ" placeholder="모드 이름 · 글 검색" maxlength="40">
+          <button class="btn mini" type="button" id="storeGo">검색</button></div>
+        <div class="mod-list" id="storeList"><div class="empty">불러오는 중…</div></div>
+        <div class="store-pages" id="storePages"></div>
+      </div>
       <div class="sec" data-sec="mod-list">
         <div class="sec-head"><h2>설치된 모드</h2><button class="btn mini" type="button" id="modRestart" hidden>다시 켜서 적용</button></div>
         <p class="hint">모드 = 설정 탭이 생기는 큰 기능 · 플러그인 = 화면 없이 뒤에서 도는 작은 기능 · 바꾼 것은 Acrux 를 다시 켜면 적용</p>

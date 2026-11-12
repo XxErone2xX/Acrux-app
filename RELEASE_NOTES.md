@@ -1,13 +1,15 @@
-## Acrux macro V3.0.5 업데이트
-- 디스코드 연결 추가 [ 설정 → Acrux → 디스코드 연결 ]
-  - [디스코드 로그인] → 브라우저에서 디스코드로 로그인 → [연결] 을 누르면 끝
-  - 연결하면 디스코드 매크로 봇으로 이 매크로를 볼 수 있음: /상태 [ 작동 여부 · 지금 하는 일 · 켜진 기능 · 바이옴 ] · /통계 · /로그
-  - 연결한 동안만 상태를 보냄 [ 작동 중 15초 · 꺼져 있으면 1분마다 · 화면 · 파일 · 웹후크 주소는 안 보냄 ]
-  - 연결 끊기: 같은 곳에서 [연결 끊기] · 또는 acruxmacro.com/link
+## Acrux macro V3.0.7 업데이트
+- 매크로 안에서 웹사이트 모드 받기 [ 추가 기능 → 모드 · 플러그인 → 모드 받기 ]
+  - acruxmacro.com 모드 게시판에 올라온 모드를 목록으로 보고 [설치] 한 번으로 설치 [ 운영자가 확인한 글만 ]
+  - 이미 설치한 모드는 설치됨 · 새 버전이 올라오면 [업데이트] 로 표시
+  - 받은 파일이 웹사이트에 올라온 것과 같은지 확인한 뒤에만 설치 · 검색 · 쪽 넘기기 · [글 보기]
+  - 설치 후 Acrux 를 다시 켜면 적용
+- 디스코드 연결을 메인 화면에 크게 [ 시작 버튼 아래 디스코드 색 줄 · V3.0.6 ]
 
-## Acrux macro V3.0.5 Update
-- Added Discord link [ Settings → Acrux → Discord link ]
-  - [Discord login] → log in with Discord in the browser → press [Link] and you're done
-  - Once linked, the Discord macro bot can show this macro: /status [ running · what it's doing · enabled features · biome ] · /stats · /logs
-  - Status is sent only while linked [ every 15 s while running · every minute when off · never your screen, files or webhook URLs ]
-  - To unlink: [Unlink] in the same place · or acruxmacro.com/link
+## Acrux macro V3.0.7 Update
+- Get website mods inside the macro [ Extra → Mods · Plugins → Get mods ]
+  - Browse mods from the acruxmacro.com Mods board and install with one [Install] click [ only posts checked by staff ]
+  - Installed mods show as Installed · when a new version is posted it shows [Update]
+  - Installs only after checking the file matches the one on the website · search · pages · [View post]
+  - Restart Acrux after installing to apply
+- Discord link is now big on the main screen [ a Discord-colored bar under the start buttons · V3.0.6 ]

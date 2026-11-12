@@ -796,3 +796,32 @@ body:not(.in-page) .lang.in-card { display: none; }
 .mod-st { color: var(--green) !important; }
 .mod-st.err { color: var(--red) !important; }
 .status-mini .st-label { color: var(--faint); margin-right: 2px; }
+
+/* ---------- 메인 화면 디스코드 연결 줄 (매크로 봇) — 디스코드 색 · 연결하면 초록 점 + 이름 ---------- */
+.dc-bar { --dc: #5865f2; --deco: var(--dc); display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 10px; padding: 9px 14px;
+  background: color-mix(in srgb, var(--dc) 14%, var(--panel)); border: 1px solid color-mix(in srgb, var(--dc) 70%, transparent);
+  color: var(--fg); cursor: pointer; text-align: left; transition: background .2s ease, border-color .2s ease; }
+.dc-bar:hover { background: color-mix(in srgb, var(--dc) 24%, var(--panel)); border-color: var(--dc); }
+.dc-bar:active { transform: scale(.995); }
+.dc-ico { flex: none; width: 22px; height: 22px; background: var(--dc);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20.3 4.4A19.6 19.6 0 0 0 15.4 3l-.6 1.3a18.2 18.2 0 0 0-5.5 0L8.6 3a19.5 19.5 0 0 0-4.9 1.5C.6 9.1-.3 13.6.1 18a19.7 19.7 0 0 0 6 3l1.3-2.1a12.8 12.8 0 0 1-2-1l.5-.4a14 14 0 0 0 12.1 0l.5.4c-.6.4-1.3.7-2 1l1.3 2.1a19.6 19.6 0 0 0 6-3c.5-5.1-.8-9.6-3.5-13.6ZM8 15.3c-1.2 0-2.2-1.1-2.2-2.4S6.8 10.5 8 10.5s2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Zm8 0c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Z'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M20.3 4.4A19.6 19.6 0 0 0 15.4 3l-.6 1.3a18.2 18.2 0 0 0-5.5 0L8.6 3a19.5 19.5 0 0 0-4.9 1.5C.6 9.1-.3 13.6.1 18a19.7 19.7 0 0 0 6 3l1.3-2.1a12.8 12.8 0 0 1-2-1l.5-.4a14 14 0 0 0 12.1 0l.5.4c-.6.4-1.3.7-2 1l1.3 2.1a19.6 19.6 0 0 0 6-3c.5-5.1-.8-9.6-3.5-13.6ZM8 15.3c-1.2 0-2.2-1.1-2.2-2.4S6.8 10.5 8 10.5s2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Zm8 0c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Z'/%3E%3C/svg%3E") center / contain no-repeat; }
+.dc-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.dc-txt b { font-size: 13px; }
+.dc-txt small { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dc-go { flex: none; font-size: 12px; font-weight: 700; padding: 5px 12px; background: var(--dc); color: #fff; }
+.dc-bar.linked { background: var(--panel); border-color: var(--line); }
+.dc-bar.linked .dc-txt small { color: color-mix(in srgb, var(--green, #23a55a) 75%, white); }
+.dc-bar.linked .dc-txt small::before { content: "● "; }
+.dc-bar.linked .dc-go { background: none; color: var(--muted); padding: 5px 4px; }
+.dc-bar.waiting .dc-txt small { color: var(--yellow); }
+.dc-bar.linked { --deco: var(--line); }
+
+/* ---------- 모드 받기 (웹사이트 모드 게시판) ---------- */
+.store-search { display: flex; gap: 8px; margin: 4px 0 10px; align-items: stretch; }
+.store-search .btn { height: auto; padding: 0 16px; }
+.store-search input { flex: 1; min-width: 0; }
+.store-pages { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.store-pages:empty { display: none; }
+.mod-card .store-meta { color: var(--faint); font-size: 11.5px; }
+.mod-card .store-done { color: var(--green); font-size: 12px; }

@@ -1553,8 +1553,37 @@ const I18N = (() => {
     ["삭제함 · 다시 켜면 적용", "Deleted · applies after restart", "削除しました・再起動後に適用"],
     ["Acrux 를 다시 켜는 중…", "Restarting Acrux…", "Acruxを再起動中…"],
     ["켜기 · 끄기", "On · off", "オン・オフ"],
+    // V3.0.7: 모드 받기
+    ['모드 받기 · 설치한 모드 · 켜기 · 끄기 · 모드 파일 설치', 'Get mods · Installed mods · On / off · Install mod file', 'MOD を入手 · インストール済み MOD · オン / オフ · MOD ファイルをインストール'],
+    ['모드 받기', 'Get mods', 'MOD を入手'],
+    ['웹사이트 모드 바로 설치', 'Install mods from the website', 'Web サイトの MOD をすぐインストール'],
+    ['새로 고침', 'Refresh', '更新'],
+    ['acruxmacro.com 커뮤니티 → 모드 게시판에 올라온 것 (운영자가 확인한 것만) · 모드는 Acrux 와 같은 권한으로 돌아서 믿을 수 있는 것만 설치', 'From the acruxmacro.com community → Mods board (only ones checked by staff) · mods run with the same permissions as Acrux, so install only ones you trust', 'acruxmacro.com コミュニティ → MOD 掲示板に投稿されたもの (運営が確認したものだけ) · MOD は Acrux と同じ権限で動くので、信頼できるものだけインストール'],
+    ['모드 이름 · 글 검색', 'Search mod name · posts', 'MOD 名 · 投稿を検索'],
+    ['검색', 'Search', '検索'],
+    ['불러오는 중…', 'Loading…', '読み込み中…'],
+    ['검색 결과 없음', 'No results', '検索結果なし'],
+    ['아직 올라온 모드 없음', 'No mods uploaded yet', 'まだ MOD がありません'],
+    ['설치', 'Install', 'インストール'],
+    ['다시 설치', 'Reinstall', '再インストール'],
+    ['업데이트', 'Update', 'アップデート'],
+    ['설치됨', 'Installed', 'インストール済み'],
+    ['새 버전 있음', 'New version', '新しいバージョンあり'],
+    ['글 보기', 'View post', '投稿を見る'],
+    ['받는 중…', 'Downloading…', 'ダウンロード中…'],
+    ['설치 실패', 'Install failed', 'インストール失敗'],
+    ['웹사이트에 연결할 수 없음', 'Could not reach the website', 'Web サイトに接続できません'],
+    ['잘못된 모드', 'Invalid mod', '無効な MOD'],
+    ['잘못된 글', 'Invalid post', '無効な投稿'],
+    ['받은 파일이 웹사이트에 올라온 것과 다름 — 다시 시도해 주세요', 'The downloaded file does not match the one on the website — please try again', 'ダウンロードしたファイルが Web サイトのものと違います — もう一度お試しください'],
+    ['파일이 너무 큼', 'File is too large', 'ファイルが大きすぎます'],
     // V3.0.5: 디스코드 연결 (매크로 봇)
     ['디스코드 연결', 'Discord link', 'Discord 連携'],
+    ['언어 · 디스코드 연결 · OCR 감지 방식 · 데이터 폴더', 'Language · Discord link · OCR method · Data folder', '言語・Discord 連携・OCR検知方式・データフォルダ'],
+    ['디스코드 봇으로 매크로 상태 · 통계 · 기록 보기', 'See your macro status, stats and log with the Discord bot', 'Discord ボットでマクロの状態・統計・ログを見る'],
+    ['연결하기', 'Link', '連携する'],
+    ['설정 ›', 'Settings ›', '設定 ›'],
+    ['기다리는 중', 'Waiting', '待機中'],
     ['매크로 봇으로 상태 보기', 'See your macro with the bot', 'ボットでマクロを確認'],
     ['디스코드 계정', 'Discord account', 'Discord アカウント'],
     ['연결하면 디스코드 봇 (/상태 · /통계 · /로그) 으로 이 매크로를 볼 수 있음', 'Once linked, the Discord bot (/status · /stats · /logs) can show this macro', '連携すると Discord ボット (/状態 · /統計 · /ログ) でこのマクロを見られます'],
@@ -1581,9 +1610,13 @@ const I18N = (() => {
   // 'A, B' 목록 묶음은 하나씩 (통째로 번역하면 끝 낱말만 보고 잘못 고를 수 있음: '아이템 사용, 상인 구매' → '… 구매')
   const trList = s => s.split(', ').map(x => tr(x, 1)).join(', ');
   const R = [
+    // V3.0.7: 모드 받기
+    [/^받지 못함: (.+)$/, 'Download failed: $1', 'ダウンロード失敗: $1'],
+    [/^모드 ID 가 글과 다름: (.+) \(글: (.+)\)$/, 'Mod ID differs from the post: $1 (post: $2)', 'MOD ID が投稿と違います: $1 (投稿: $2)'],
     // V3.0.5: 디스코드 연결
     [/^브라우저에서 \[연결\] 을 눌러 주세요 · 코드 ([A-Z0-9]{4}-[A-Z0-9]{4})$/, 'Press [Link] in the browser · code $1', 'ブラウザで [連携] を押してください · コード $1'],
     [/^디스코드 연결 — 브라우저에서 로그인한 뒤 \[연결\] 을 눌러 주세요 \(코드 ([A-Z0-9]{4}-[A-Z0-9]{4})\)$/, 'Discord link — log in in the browser and press [Link] (code $1)', 'Discord 連携 — ブラウザでログインして [連携] を押してください (コード $1)'],
+    [/^연결됨 — (.+)$/, (g, r) => `Linked — ${r[1]}`, (g, r) => `連携済み — ${r[1]}`],
     [/^디스코드 연결됨 — (.+)$/, (g, r) => `Discord linked — ${r[1]}`, (g, r) => `Discord 連携済み — ${r[1]}`],
     // V2.3: 준비 상태 · ▾ · 통계
     [/^설정 (\d+)개 필요$/, '$1 setting(s) needed', '設定$1個が必要'],
