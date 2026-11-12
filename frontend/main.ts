@@ -14,7 +14,7 @@ type GuideId = "ready" | "fish" | "move" | "sell";
 
 const translations = new Map<string, string[]>();
 for (const dictionary of [desktopDictionary, mobileDictionary]) {
-  for (const line of dictionary.split("\n")) {
+  for (const line of dictionary.split(/\r?\n/)) {
     if (!line || line.startsWith("#")) continue;
     const [ko, ...other] = line.split("\t");
     translations.set(ko, other.map(value => value.replaceAll("\\n", "\n")));

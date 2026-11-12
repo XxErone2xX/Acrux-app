@@ -750,18 +750,29 @@ test('Discord account labels, pending code and backend errors translate without 
   const body = { nodeType: 1, querySelectorAll: () => [], matches: () => false, closest: () => null, hasAttribute: () => false };
   const context = { document: { body, documentElement: {}, createTreeWalker: () => ({ nextNode: () => false }) }, NodeFilter: { SHOW_TEXT: 4 } };
   vm.runInNewContext(source + '\nglobalThis.translations = I18N;', context);
-  const mobile = new Map(fs.readFileSync(path.join(__dirname, '../android/app/src/main/assets/i18n/pc.tsv'), 'utf8')
-    .trim().split('\n').map(line => { const [ko, ...other] = line.split('\t'); return [ko, other]; }));
-  for (const lang of ['en', 'ja']) {
-    context.translations.set(lang);
-    const login = context.translations.t('디스코드 로그인');
-    assert.equal(login, lang === 'en' ? 'Discord login' : 'Discord ログイン');
-    assert.equal(context.translations.t('브라우저에서 [연결] 을 눌러 주세요 · 코드 ABCD-1234').includes('ABCD-1234'), true);
-    assert.equal(context.translations.t('디스코드 연결됨 — 계정이름').endsWith('계정이름'), true);
-    const error = context.translations.t('연결 시간이 지났습니다. 다시 연결해 주세요.');
-    assert.doesNotMatch(error, /[가-힣]/);
-    assert.equal(mobile.get('디스코드 로그인')[lang === 'en' ? 0 : 1], login);
-    assert.equal(mobile.get('브라우저에서 [연결] 을 눌러 주세요 · 코드 {0}')[lang === 'en' ? 0 : 1].includes('{0}'), true);
+  const main = fs.readFileSync(path.join(__dirname, 'main.ts'), 'utf8');
+  const parser = ts.transpileModule(main.slice(main.indexOf('const translations ='), main.indexOf('function restore<'))
+    + '\nglobalThis.mobileTranslations = translations;', {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const dictionaries = ['pc', 'mobile'].map(name => fs.readFileSync(path.join(__dirname, `../android/app/src/main/assets/i18n/${name}.tsv`), 'utf8'));
+  for (const ending of ['\n', '\r\n']) {
+    const [desktopDictionary, mobileDictionary] = dictionaries.map(dictionary => dictionary.replace(/\r?\n/g, ending));
+    const mobileContext = { desktopDictionary, mobileDictionary: mobileDictionary + ending + ' 공백 \t English \\nline \t 日本語 ' + ending };
+    vm.runInNewContext(parser, mobileContext);
+    const mobile = mobileContext.mobileTranslations;
+    assert.deepEqual([...mobile.get(' 공백 ')], [' English \nline ', ' 日本語 ']);
+    for (const lang of ['en', 'ja']) {
+      context.translations.set(lang);
+      const login = context.translations.t('디스코드 로그인');
+      assert.equal(login, lang === 'en' ? 'Discord login' : 'Discord ログイン');
+      assert.equal(context.translations.t('브라우저에서 [연결] 을 눌러 주세요 · 코드 ABCD-1234').includes('ABCD-1234'), true);
+      assert.equal(context.translations.t('디스코드 연결됨 — 계정이름').endsWith('계정이름'), true);
+      const error = context.translations.t('연결 시간이 지났습니다. 다시 연결해 주세요.');
+      assert.doesNotMatch(error, /[가-힣]/);
+      assert.equal(mobile.get('디스코드 로그인')[lang === 'en' ? 0 : 1], login);
+      assert.equal(mobile.get('브라우저에서 [연결] 을 눌러 주세요 · 코드 {0}')[lang === 'en' ? 0 : 1].includes('{0}'), true);
+    }
   }
 });
 
