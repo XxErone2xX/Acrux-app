@@ -1,3 +1,23 @@
+## Acrux Mobile V1.4.19 업데이트
+- 조작 창을 오른쪽에서 나오는 패널로 바꿈
+  - 닫혀 있을 때는 화면 오른쪽 가운데에 손잡이만 보임 [ 게임 화면을 거의 안 가림 ]
+  - 손잡이를 누르거나 왼쪽으로 밀면 위아래로 꽉 찬 패널이 나옴 · 다시 누르거나 패널을 오른쪽으로 밀면 닫힘
+  - ⚙ 메뉴는 패널 안에서 펼쳐짐 [ 남은 높이를 다 써서 한 번에 더 많이 보임 ]
+  - 보정 · 매크로 · 테스트를 시작하면 패널이 자동으로 닫힘 [ 화면 캡처에 안 찍힘 ]
+  - 손잡이 색: 파랑 = 대기 · 초록 = 도는 중 · 길 기록 중 [도착] 은 손잡이 옆에 보임
+  - 설정 안내가 패널을 가리키면, 닫혀 있을 때는 손잡이를 먼저 강조함
+- 설정의 '조작 창 위치 되돌리기' 는 뺌 [ 자리가 고정이라 필요 없음 ]
+
+## Acrux Mobile V1.4.19 Update
+- The control window is now a panel that slides out from the right
+  - When closed, only a handle shows at the middle of the right edge [ it barely covers the game ]
+  - Tap the handle or swipe left to open a full-height panel · tap again or swipe the panel right to close it
+  - The ⚙ menu opens inside the panel [ it uses the remaining height, so more fits at once ]
+  - The panel closes by itself when calibration, the macro or a test starts [ so it's not in the screen capture ]
+  - Handle color: blue = idle · green = running · while recording a route, [Arrived] shows next to the handle
+  - When the setup guide points into the panel while it's closed, the handle is highlighted first
+- Removed 'Reset control window position' from settings [ the position is fixed now ]
+
 ## Acrux Mobile V1.4.18 업데이트
 - 릴링 미리 누르기 값 조정 [ PC V3.0.4 와 같음 ]
   - 구간 끝에서 미리 누르는 여유: 바 폭의 6% → 4% [ 물고기 · 기기에 맞춰 0 ~ 1.6배로 자동 조절되는 건 그대로 ]

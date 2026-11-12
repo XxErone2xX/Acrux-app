@@ -39,9 +39,13 @@ public class TapService extends AccessibilityService {
     static volatile TapService instance;
 
     WindowManager wm;
-    LinearLayout panel, menu, body;
+    /** root = 떠 있는 창 (오른쪽 끝) · slide = [도착] + 손잡이 + 패널 (열고 닫을 때 같이 미끄러짐) · panel = 오른쪽에서 나오는 세로 패널 */
+    LinearLayout root, slide, panel, menu, body;
     WindowManager.LayoutParams lp;
-    TextView status, bioBtn, runBtn, gearBtn, arriveBtn;
+    TextView status, bioBtn, runBtn, gearBtn, arriveBtn, handle;
+    /** 패널이 열려 있나 · 패널 폭 (px) */
+    boolean open;
+    int drawerW;
     int bioCol;
     View picker;
     final Runnable refresh = this::refresh;
@@ -64,7 +68,7 @@ public class TapService extends AccessibilityService {
         boolean menuOpen = menu != null;
         String cat = Hub.prefs().getString("menuCat", "stick");
         String tg = Guide.cur == null ? null : Guide.target(menuOpen, cat);
-        View v = tg == null ? null : targets.get(tg);
+        View v = tg == null ? null : open ? targets.get(tg) : handle;   // 패널이 닫혀 있으면 먼저 손잡이를 강조
         if (v != null && !v.isAttachedToWindow()) v = null;
         if (v != lit) {
             if (lit != null) lit.setForeground(null);
@@ -82,7 +86,7 @@ public class TapService extends AccessibilityService {
         }
     }
 
-    /** 안내 카드 창 (오른쪽 위 · 위쪽 줄을 잡고 끌어서 옮김 · 카드 밖은 게임이 그대로 눌림) */
+    /** 안내 카드 창 (열린 패널 왼쪽 위 · 위쪽 줄을 잡고 끌어서 옮김 · 카드 밖은 게임이 그대로 눌림) */
     void makeGuideWin() {
         int[] sc = screen();
         int w = Math.min(Ui.dp(this, 330), sc[0] / 2);
@@ -95,8 +99,9 @@ public class TapService extends AccessibilityService {
                         | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT);
         guideLp.gravity = Gravity.TOP | Gravity.START;
-        guideLp.x = Hub.prefs().getInt("guideX", sc[0] - w - Ui.dp(this, 12));
-        guideLp.y = Hub.prefs().getInt("guideY", Ui.dp(this, 12));
+        // 패널이 오른쪽에서 나오니까 기본 자리는 열린 패널의 왼쪽 (예전 자리 'guideX' 는 패널과 겹쳐서 새 이름으로)
+        guideLp.x = Hub.prefs().getInt("guideX2", Math.max(0, sc[0] - w - drawerW - Ui.dp(this, 26 + 12)));
+        guideLp.y = Hub.prefs().getInt("guideY2", Ui.dp(this, 12));
         View drag = fcard.card.findViewWithTag("head");
         float[] st = new float[4];
         View.OnTouchListener mover = (v, e) -> {
@@ -116,7 +121,7 @@ public class TapService extends AccessibilityService {
                     }
                     return true;
                 case MotionEvent.ACTION_UP:
-                    Hub.prefs().edit().putInt("guideX", guideLp.x).putInt("guideY", guideLp.y).apply();
+                    Hub.prefs().edit().putInt("guideX2", guideLp.x).putInt("guideY2", guideLp.y).apply();
                     return true;
                 default:
                     return true;
@@ -172,7 +177,8 @@ public class TapService extends AccessibilityService {
         Hub.stop();
         removeView(picker);
         picker = null;
-        removeView(panel);
+        removeView(root);
+        root = null;
         panel = null;
         Hub.changed();
     }
@@ -251,7 +257,7 @@ public class TapService extends AccessibilityService {
     volatile boolean passing;
 
     void updateRect() {
-        View p = panel;
+        View p = root;
         if (p == null || p.getVisibility() != View.VISIBLE || !p.isAttachedToWindow()) {
             rect = null;
             return;
@@ -288,11 +294,11 @@ public class TapService extends AccessibilityService {
     }
 
     void setTouchable(boolean on) {
-        if (panel == null || lp == null) return;
+        if (root == null || lp == null) return;
         if (on) lp.flags &= ~WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
         else lp.flags |= WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
         try {
-            wm.updateViewLayout(panel, lp);
+            wm.updateViewLayout(root, lp);
         } catch (RuntimeException ignored) {
         }
         if (on) passing = false;
@@ -318,12 +324,75 @@ public class TapService extends AccessibilityService {
         return ix > r[2] / 4 && iy > r[3] / 4;
     }
 
+    /**
+     * 떠 있는 조작 창 — 화면 오른쪽 가운데의 손잡이 · 누르거나 왼쪽으로 밀면 오른쪽에서 위아래로 꽉 찬 패널이 나옴
+     *  · 닫힘: 손잡이만 (게임 화면을 거의 안 가림) · 열림: 손잡이 + 패널 (⚙ 메뉴도 패널 안에서 펼쳐짐)
+     *  · 손잡이를 다시 누르거나 · 패널을 오른쪽으로 밀면 닫힘 · 매크로 · 보정 · 테스트를 시작하면 자동으로 닫힘 (화면 캡처에 안 찍히게)
+     *  · 손잡이 글자 색: 파랑 = 대기 · 초록 = 도는 중
+     */
     void showPanel() {
-        if (panel != null) return;
+        if (root != null) return;
         wm = (WindowManager) getSystemService(WINDOW_SERVICE);
-        panel = new DragPanel(this);
+        int[] sc = screen();
+        drawerW = Math.max(Ui.dp(this, 200), Math.min(Ui.dp(this, 280), sc[0] * 45 / 100));
+        root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.HORIZONTAL);
+        root.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
+        slide = new LinearLayout(this);
+        slide.setOrientation(LinearLayout.HORIZONTAL);
+        slide.setGravity(Gravity.CENTER_VERTICAL);
+        root.addView(slide, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.MATCH_PARENT));
+
+        // 길 기록 중 [도착] — 패널이 닫혀 있어도 손잡이 옆에 보임 (걸어가는 동안 패널이 화면을 가리지 않게)
+        arriveBtn = small("도착", Ui.GREEN, v -> {
+            Hub.arrived = true;
+            Hub.log("도착", 'g');
+        });
+        arriveBtn.setVisibility(View.GONE);
+        LinearLayout.LayoutParams ap = Ui.wrap();
+        ap.rightMargin = Ui.dp(this, 6);
+        slide.addView(arriveBtn, ap);
+
+        handle = Ui.text(this, "‹", 20, Ui.ACCENT, true);
+        handle.setGravity(Gravity.CENTER);
+        handle.setBackground(new Ui.Deco(this, 0xF22B2D31, Ui.LINE, Ui.WHITE, true, 10, 2));
+        handle.setOnTouchListener(new View.OnTouchListener() {
+            final int slop = android.view.ViewConfiguration.get(TapService.this).getScaledTouchSlop();
+            float hx, hy;
+            boolean moved;
+
+            @Override
+            public boolean onTouch(View v, MotionEvent e) {
+                switch (e.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        hx = e.getRawX();
+                        hy = e.getRawY();
+                        moved = false;
+                        return true;
+                    case MotionEvent.ACTION_MOVE: {
+                        float dx = e.getRawX() - hx, dy = e.getRawY() - hy;
+                        if (!moved && Math.abs(dx) > slop * 2 && Math.abs(dx) > Math.abs(dy)) {
+                            moved = true;
+                            setDrawer(dx < 0);                          // 왼쪽으로 밀면 열림 · 오른쪽으로 밀면 닫힘
+                        }
+                        return true;
+                    }
+                    case MotionEvent.ACTION_UP:
+                        if (!moved) {
+                            v.performClick();
+                            setDrawer(!open);
+                        }
+                        return true;
+                    default:
+                        return true;
+                }
+            }
+        });
+        slide.addView(handle, new LinearLayout.LayoutParams(Ui.dp(this, 26), Ui.dp(this, 88)));
+
+        panel = new SwipePanel(this);
         panel.setOrientation(LinearLayout.VERTICAL);
-        int pad = Ui.dp(this, 10);
+        int pad = Ui.dp(this, 12);
         panel.setPadding(pad, pad, pad, pad);
         // 얇은 테두리 + 네 모서리 ㄱ (앱의 카드와 같음)
         panel.setBackground(new Ui.Deco(this, 0xF22B2D31, Ui.LINE, Ui.WHITE, true, 10, 2));
@@ -338,8 +407,7 @@ public class TapService extends AccessibilityService {
         body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
         status = Ui.text(this, "대기", 11, Ui.MUTED, false);
-        status.setMaxWidth(Ui.dp(this, 240));            // 긴 이유는 줄바꿈
-        status.setMaxWidth(Ui.dp(this, 170));
+        status.setMaxWidth(drawerW - pad * 2);            // 긴 이유는 줄바꿈
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         // 바이옴 매크로 켜기 · 끄기 (꺼짐 = 회색 · 켜짐 + 감시 중 = 초록 · 켜짐 + 연결 안 됨 = 노랑) — 낚시 자동 보정은 ⚙ → 낚시
@@ -350,11 +418,6 @@ public class TapService extends AccessibilityService {
         row.addView(bioBtn, Ui.wrap());
         row.addView(runBtn, gap());
         row.addView(gearBtn, gap());
-        arriveBtn = small("도착", Ui.GREEN, v -> {
-            Hub.arrived = true;
-            Hub.log("도착", 'g');
-        });
-        arriveBtn.setVisibility(View.GONE);
         panel.addView(head, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         LinearLayout.LayoutParams sp = Ui.wrap();
         sp.topMargin = Ui.dp(this, 2);
@@ -362,84 +425,100 @@ public class TapService extends AccessibilityService {
         LinearLayout.LayoutParams rp = Ui.wrap();
         rp.topMargin = Ui.dp(this, 8);
         body.addView(row, rp);
-        LinearLayout.LayoutParams ap = Ui.wrap();
-        ap.topMargin = Ui.dp(this, 6);
-        body.addView(arriveBtn, ap);
         panel.addView(body, Ui.wrap());
+        panel.setVisibility(View.GONE);
+        slide.addView(panel, new LinearLayout.LayoutParams(drawerW, LinearLayout.LayoutParams.MATCH_PARENT));
+        open = false;
 
         lp = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT);
-        lp.gravity = Gravity.TOP | Gravity.START;
-        lp.x = Hub.prefs().getInt("panelX", Ui.dp(this, 12));
-        lp.y = Hub.prefs().getInt("panelY", Ui.dp(this, 12));
+        lp.gravity = Gravity.END | Gravity.CENTER_VERTICAL;
+        lp.x = 0;
+        lp.y = 0;
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        }
         applyAlphaTo();
-        panel.getViewTreeObserver().addOnGlobalLayoutListener(this::updateRect);
+        root.getViewTreeObserver().addOnGlobalLayoutListener(this::updateRect);
         try {
-            wm.addView(panel, lp);
+            wm.addView(root, lp);
         } catch (RuntimeException e) {
             Hub.log("조작 창을 띄우지 못함: " + e, 'r');
+            root = null;
             panel = null;
         }
         updateVisible();
         refresh();
     }
 
-    /** 어디를 잡고 끌어도 창이 움직임 (짧게 누르면 그대로 버튼 · ⚙ 메뉴 안에서 위아래로 밀면 메뉴 스크롤) */
-    final class DragPanel extends LinearLayout {
+    /**
+     * 패널 열기 · 닫기 (0.18초 동안 오른쪽에서 미끄러짐)
+     * 열 때: 창을 위아래로 꽉 차게 키운 뒤 손잡이 + 패널을 패널 폭만큼 오른쪽에 두었다가 제자리로
+     * 닫을 때: 오른쪽으로 밀어낸 뒤 패널을 숨기고 창을 손잡이 크기로 줄임 (닫힌 동안 게임 화면을 거의 안 가림)
+     */
+    void setDrawer(boolean o) {
+        if (root == null || panel == null || o == open) return;
+        open = o;
+        slide.animate().cancel();
+        handle.setText(o ? "›" : "‹");
+        if (o) {
+            panel.setVisibility(View.VISIBLE);
+            lp.height = WindowManager.LayoutParams.MATCH_PARENT;
+            try {
+                wm.updateViewLayout(root, lp);
+            } catch (RuntimeException ignored) {
+            }
+            slide.setTranslationX(drawerW);
+            slide.animate().translationX(0).setDuration(180).withEndAction(this::updateRect).start();
+        } else {
+            closeMenu();
+            slide.animate().translationX(drawerW).setDuration(160).withEndAction(() -> {
+                if (open || root == null) return;
+                panel.setVisibility(View.GONE);
+                slide.setTranslationX(0);
+                lp.height = WindowManager.LayoutParams.WRAP_CONTENT;
+                try {
+                    wm.updateViewLayout(root, lp);
+                } catch (RuntimeException ignored) {
+                }
+                updateRect();
+            }).start();
+        }
+        Hub.main.post(this::applyGuide);
+    }
+
+    /** 패널: 오른쪽으로 밀면 닫힘 (짧게 누르면 그대로 버튼 · ⚙ 메뉴 안에서 위아래로 밀면 메뉴 스크롤) */
+    final class SwipePanel extends LinearLayout {
         final int slop = android.view.ViewConfiguration.get(getContext()).getScaledTouchSlop();
         float sx, sy;
-        int ox, oy;
-        boolean dragging, inMenu;
+        boolean swiping;
 
-        DragPanel(Context c) {
+        SwipePanel(Context c) {
             super(c);
         }
 
-        void begin(MotionEvent e) {
-            sx = e.getRawX();
-            sy = e.getRawY();
-            ox = lp.x;
-            oy = lp.y;
-            dragging = false;
-            View m = menu != null ? (View) menu.getTag() : null;
-            inMenu = false;
-            if (m != null) {
-                int[] at = new int[2];
-                m.getLocationOnScreen(at);
-                inMenu = sx >= at[0] && sx <= at[0] + m.getWidth() && sy >= at[1] && sy <= at[1] + m.getHeight();
-            }
-        }
-
-        boolean far(MotionEvent e) {
+        boolean right(MotionEvent e) {
             float dx = e.getRawX() - sx, dy = e.getRawY() - sy;
-            if (Math.hypot(dx, dy) <= slop) return false;
-            return !inMenu || Math.abs(dx) > Math.abs(dy) * 1.5f;
-        }
-
-        void move(MotionEvent e) {
-            lp.x = ox + Math.round(e.getRawX() - sx);
-            lp.y = oy + Math.round(e.getRawY() - sy);
-            try {
-                wm.updateViewLayout(this, lp);
-            } catch (RuntimeException ignored) {
-            }
-            post(TapService.this::updateRect);
+            return dx > slop * 3 && dx > Math.abs(dy) * 1.5f;
         }
 
         @Override
         public boolean onInterceptTouchEvent(MotionEvent e) {
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
-                    begin(e);
+                    sx = e.getRawX();
+                    sy = e.getRawY();
+                    swiping = false;
                     return false;
                 case MotionEvent.ACTION_MOVE:
-                    if (!dragging && far(e)) dragging = true;
-                    return dragging;
+                    if (!swiping && right(e)) swiping = true;
+                    return swiping;
                 default:
-                    return dragging;
+                    return swiping;
             }
         }
 
@@ -447,18 +526,18 @@ public class TapService extends AccessibilityService {
         public boolean onTouchEvent(MotionEvent e) {
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
-                    begin(e);
+                    sx = e.getRawX();
+                    sy = e.getRawY();
+                    swiping = false;
                     return true;
                 case MotionEvent.ACTION_MOVE:
-                    if (!dragging && far(e)) dragging = true;
-                    if (dragging) move(e);
-                    return true;
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    if (dragging) Hub.prefs().edit().putInt("panelX", lp.x).putInt("panelY", lp.y).apply();
-                    dragging = false;
+                    if (!swiping && right(e)) {
+                        swiping = true;
+                        setDrawer(false);
+                    }
                     return true;
                 default:
+                    swiping = false;
                     return true;
             }
         }
@@ -467,35 +546,26 @@ public class TapService extends AccessibilityService {
     /** 보이기 · 숨기기: 앱의 [UI 끄기] 로 꺼져 있거나, Acrux 앱을 보고 있고 '앱을 볼 때 숨기기' 가 켜져 있으면 숨김 */
     void updateVisible() {
         Hub.main.post(() -> {
-            if (panel == null) return;
+            if (root == null) return;
             boolean on = Hub.prefs().getBoolean("panelOn", true) && !(Hub.appVisible && Hub.prefs().getBoolean("hideOnApp", true));
-            panel.setVisibility(on ? View.VISIBLE : View.GONE);
-            if (!on) closeMenu();
-            panel.post(TapService.this::updateRect);
+            root.setVisibility(on ? View.VISIBLE : View.GONE);
+            if (!on) setDrawer(false);
+            root.post(TapService.this::updateRect);
         });
     }
 
-    /** 언어를 바꿨을 때: 창을 지금 언어로 다시 만듦 (자리는 그대로) */
+    /** 언어를 바꿨을 때: 창을 지금 언어로 다시 만듦 (열려 있었으면 다시 엶) */
     void rebuildPanel() {
         Hub.main.post(() -> {
-            if (panel == null) return;
+            if (root == null) return;
+            boolean was = open;
             closeMenu();
-            removeView(panel);
+            removeView(root);
+            root = null;
             panel = null;
+            open = false;
             showPanel();
-        });
-    }
-
-    void resetPanelPos() {
-        Hub.prefs().edit().putInt("panelX", Ui.dp(this, 12)).putInt("panelY", Ui.dp(this, 12)).apply();
-        Hub.main.post(() -> {
-            if (panel == null || lp == null) return;
-            lp.x = Ui.dp(this, 12);
-            lp.y = Ui.dp(this, 12);
-            try {
-                wm.updateViewLayout(panel, lp);
-            } catch (RuntimeException ignored) {
-            }
+            if (was) setDrawer(true);
         });
     }
 
@@ -504,7 +574,7 @@ public class TapService extends AccessibilityService {
     }
 
     void applyAlphaTo() {
-        if (panel != null) panel.setAlpha(Hub.prefs().getInt("panelAlpha", 90) / 100f);
+        if (root != null) root.setAlpha(Hub.prefs().getInt("panelAlpha", 90) / 100f);
     }
 
     LinearLayout.LayoutParams gap() {
@@ -533,10 +603,10 @@ public class TapService extends AccessibilityService {
             Hub.stop();
             return;
         }
-        // ⚙ 메뉴에서 시작했으면 메뉴를 먼저 닫고 창 크기가 줄어든 뒤에 시작 (열린 메뉴가 낚시 창을 가린다고 잘못 알리거나 화면 캡처에 찍히지 않게)
-        if (menu != null) {
-            closeMenu();
-            Hub.main.postDelayed(() -> startMode(m), 150);
+        // 패널이 열려 있으면 먼저 닫고 창이 손잡이 크기로 줄어든 뒤에 시작 (열린 패널이 화면 캡처에 찍히거나 낚시 창을 가린다고 잘못 알리지 않게)
+        if (open) {
+            setDrawer(false);
+            Hub.main.postDelayed(() -> startMode(m), 260);
             return;
         }
         startMode(m);
@@ -580,6 +650,7 @@ public class TapService extends AccessibilityService {
             closeMenu();
             return;
         }
+        setDrawer(true);                                         // 메뉴는 패널 안에서 펼쳐짐 (안내 중 다시 열 때도)
         menu = new LinearLayout(this);
         menu.setOrientation(LinearLayout.VERTICAL);
         HorizontalScrollView hs = new HorizontalScrollView(this);
@@ -602,9 +673,10 @@ public class TapService extends AccessibilityService {
         ScrollView sv = new ScrollView(this);
         sv.addView(catBody);
         menu.addView(hs);
-        menu.addView(sv, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.min(Ui.dp(this, 260), screen()[1] * 2 / 3 - Ui.dp(this, 40))));
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(Ui.dp(this, 250), LinearLayout.LayoutParams.WRAP_CONTENT);
-        p.topMargin = Ui.dp(this, 6);
+        // 패널 남은 높이를 메뉴가 다 씀 (위아래로 꽉 찬 패널 · 길면 스크롤)
+        menu.addView(sv, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
+        p.topMargin = Ui.dp(this, 8);
         panel.addView(menu, p);
         menu.setTag(menu);
         showCat(Hub.prefs().getString("menuCat", "fish"));
@@ -689,7 +761,7 @@ public class TapService extends AccessibilityService {
     }
 
     void closeMenu() {
-        if (menu == null) return;
+        if (menu == null || panel == null) return;
         panel.removeView((View) menu.getTag());
         menu = null;
         catBody = null;
@@ -790,6 +862,7 @@ public class TapService extends AccessibilityService {
      *  · [확인] 으로 저장 · [취소] · 처음 자리 = 저장된 자리 (없으면 화면 가운데) · 화면 비율로 넘김 · 취소하면 null
      */
     void pick(String name, double[] init, java.util.function.Consumer<double[]> done) {
+        setDrawer(false);                                        // 패널이 그 자리 게임 화면을 가리지 않게
         closeMenu();
         if (picker != null) {
             done.accept(null);
@@ -935,7 +1008,7 @@ public class TapService extends AccessibilityService {
     }
 
     void refresh() {
-        if (panel == null) return;
+        if (root == null || panel == null) return;
         boolean run = Hub.running();
         String mode = Hub.mode;
         Ui.set(status, CaptureService.active == null ? "화면 캡처 꺼짐 · 앱에서 시작" : Hub.state);
@@ -948,6 +1021,7 @@ public class TapService extends AccessibilityService {
         }
         Ui.set(runBtn, run ? "정지" : "시작");            // 보정 · 테스트 · 기록 중에도 [정지] 로 멈춤
         arriveBtn.setVisibility(Hub.measuring ? View.VISIBLE : View.GONE);
+        handle.setTextColor(run ? Ui.GREEN : Ui.ACCENT);
     }
 
     static String fmt(double v) {

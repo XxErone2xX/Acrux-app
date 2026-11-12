@@ -884,15 +884,6 @@ public class MainActivity extends Activity {
             public void onStopTrackingTouch(SeekBar s) {}
         });
         win.addView(alpha, Ui.fill(this, 4));
-        TextView home = Ui.button(this, "조작 창 위치 되돌리기", Ui.MUTED, v -> {
-            TapService t = TapService.instance;
-            if (t != null) t.resetPanelPos();
-            else Hub.prefs().edit().remove("panelX").remove("panelY").apply();
-            Hub.log("조작 창 위치를 왼쪽 위로 되돌림", 'd');
-        });
-        LinearLayout.LayoutParams hp = Ui.wrap();
-        hp.topMargin = Ui.dp(this, 8);
-        win.addView(home, hp);
 
         LinearLayout info = section(pg, "정보");
         info.addView(Ui.text(this, "사용자 수 집계: 켜져 있다는 신호만 보냄 (무작위 번호 · 개인 정보 없음)", 12, Ui.MUTED, false), Ui.fill(this, 8));

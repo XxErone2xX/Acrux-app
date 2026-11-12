@@ -664,6 +664,11 @@ E = [
     # V1.4.17: 판매 템플릿 4개로 맞춤
     ["첫 번째 물고기 칸 자리를 고쳐서 저장함 ({0}, {1})", "Fixed and saved the first fish slot position ({0}, {1})", "最初の魚の枠の位置を直して保存 ({0}, {1})"],
     ["첫 번째 물고기 칸을 눌러도 골라진 게 안 보임 — 물고기가 있는지 확인해 주세요", "The first fish slot does not look selected after tapping — please check that you have fish", "最初の魚の枠を押しても選ばれていないように見える — 魚を持っているか確認してください"],
+    # V1.4.19: 오른쪽에서 나오는 조작 창
+    ["로블록스 화면 오른쪽 가운데에 Acrux 손잡이가 표시됩니다. 누르거나 왼쪽으로 밀면 오른쪽에서 Acrux 창이 나오고, 이 안내도 그 옆에 이어서 표시됩니다.",
+     "An Acrux handle appears at the middle of the right edge of the Roblox screen. Tap it or swipe left and the Acrux window slides out from the right; this guide continues next to it.",
+     "Roblox 画面の右端中央に Acrux のつまみが表示されます。押すか左にスワイプすると右から Acrux ウィンドウが出てきて、この案内もその横に続けて表示されます。"],
+    ["보정이나 매크로를 시작하면 Acrux 창은 자동으로 닫힙니다.", "The Acrux window closes by itself when you start calibration or the macro.", "補正やマクロを始めると Acrux ウィンドウは自動で閉じます。"],
 ]
 
 
