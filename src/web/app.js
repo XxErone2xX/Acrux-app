@@ -1352,7 +1352,7 @@ const MERCH_NAME = { Jester: '제스터', Mari: '마리' };
 const MMERCH_SET = [['check_sec', '채팅 확인 간격', '초', 15, 10, 5], ['teleport_wait', '순간이동 후 대기', '초', 3, 0.5, 0.5]];
 const MMERCH_SHOP = ['first_slot', 'second_slot', 'item_region', 'max_pos', 'purchase_pos', 'close_pos'];
 function renderMmerch() {
-  const m = mmerch(), buy = (m.buy ||= {});
+  const m = mmerch(), buy = (m.buy ||= {});      // 그리기용 (고칠 때는 매번 지금 객체를 씀 — 자동 보정 뒤 객체가 바뀌어도 그대로)
   $('mmerchForm').innerHTML = onRow('mmerch', '매크로가 켜져 있는 동안 채팅을 확인 · 상인이 오면 고른 아이템 구매') + readyRow('mmerch') + `
     <div class="row"><span>이번 실행 구매 횟수</span><b id="mmerchBought">-</b></div>`;
   syncReady('mmerch');
@@ -1374,15 +1374,15 @@ function renderMmerch() {
     </div>`).join('');
   $('mmerchSet').querySelectorAll('[data-mmerch-set]').forEach(i => i.addEventListener('input', () => {
     const n = parseFloat(i.value);
-    if (Number.isFinite(n) && n >= +i.min) { m[i.dataset.mmerchSet] = n; saveMmerch(); }
+    if (Number.isFinite(n) && n >= +i.min) { mmerch()[i.dataset.mmerchSet] = n; saveMmerch(); }
   }));
   $('mmerchSet').querySelectorAll('[data-mmerch-buy]').forEach(b => b.addEventListener('click', async () => {
     const r = await api('mmerch_buy_test', { name: b.dataset.mmerchBuy });
     toast(r.error || '구매 테스트 시작 · 정지: F7');
   }));
   $('mmerchItems').querySelectorAll('[data-mmerch-item]').forEach(i => i.addEventListener('change', () => {
-    const k = i.dataset.mmerchItem;
-    if (i.checked) buy[k] = 1; else delete buy[k];
+    const k = i.dataset.mmerchItem, cur = (mmerch().buy ||= {});
+    if (i.checked) cur[k] = 1; else delete cur[k];
     saveMmerch(); syncMerchPick(); syncReady('mmerch'); Tutorial.refresh();
   }));
   syncMerchPick();
@@ -1640,7 +1640,7 @@ const MPOS_CUSTOM = {
         <span class="switch"><input type="checkbox" data-merch-cal ${m.auto_cal !== false ? 'checked' : ''}><i></i></span></label>` +
       autoRow('지금 자동 보정', '상인이 와 있을 때 누른 뒤 상인 앞에서 E · 사지는 않음', merchcalBusy, '자동 보정', 'data-merch-auto');
     el.querySelector('[data-merch-cal]').addEventListener('change', e => {
-      m.auto_cal = e.target.checked; saveMmerch();
+      mmerch().auto_cal = e.target.checked; saveMmerch();
       setTimeout(() => syncAllReady(), 230);
     });
     el.querySelector('[data-merch-auto]').addEventListener('click', async () => {
@@ -1648,8 +1648,10 @@ const MPOS_CUSTOM = {
       merchcalBusy = true; rerenderMove();
       toast('상인 앞에서 E 를 눌러 주세요');
       try {
+        await flushSave();                       // 고른 아이템을 먼저 보냄
         const r = await api('mmerch_autocal');
-        if (r.mmerch) { Object.assign(mmerch(), r.mmerch); mposChanged('mmerch'); }
+        // 위치만 받음 (살 아이템 · 켜기 등은 화면 쪽이 원본 — 보정하는 동안 고른 것이 예전 값으로 덮이지 않게)
+        if (r.mmerch) { const { buy, enabled, ...pos } = r.mmerch; Object.assign(mmerch(), pos); mposChanged('mmerch'); }
         toast(r.error || '상인 자동 보정 완료');
       } catch (err) { toast('상인 자동 보정 실패: ' + err.message); }
       finally { merchcalBusy = false; rerenderMove(); }

@@ -215,11 +215,12 @@ public class MainActivity extends Activity {
         root.addView(content, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         buildHome(page("home", "홈"));
-        Page fishPg = page("fish", "낚시");              // 낚시 · 이동 · 판매 한 칸 (기능이 늘어도 칸이 너무 많아지지 않게)
+        buildBase(page("move", "이동"));               // 기준 장소 = 낚시 말고 다른 기능도 같이 씀 → 낚시 앞에 따로
+        Page fishPg = page("fish", "낚시");              // 낚시 · 판매 · 길 한 칸
         buildFishing(fishPg);
         buildMove(fishPg);
         buildBiome(page("biome", "바이옴"));
-        buildLog(page("log", "기록"));
+        buildLog(page("log", "로그"));
         buildSettings(page("settings", "설정"));
 
         for (int i = 0; i < pages.size(); i++) {
@@ -231,7 +232,6 @@ public class MainActivity extends Activity {
             content.addView(pg.root, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         }
         String last = Hub.prefs().getString("tab", "home");
-        if (last.equals("move")) last = "fish";            // 예전 '이동 · 판매' 칸 → 낚시 칸
         int start = 0;
         for (int i = 0; i < pages.size(); i++) if (pages.get(i).key.equals(last)) start = i;
         show(start, false);
@@ -300,6 +300,11 @@ public class MainActivity extends Activity {
         for (int i = 0; i < pg.jumps.size(); i++) Ui.chipOn(this, pg.jumps.get(i), i == at);
     }
 
+    /** 열쇠로 칸 찾아 열기 (칸 순서가 바뀌어도 그대로) */
+    void show(String key) {
+        for (int i = 0; i < pages.size(); i++) if (pages.get(i).key.equals(key)) show(i, true);
+    }
+
     void show(int i, boolean save) {
         if (i < 0 || i >= pages.size() || i == current) return;
         current = i;
@@ -358,17 +363,17 @@ public class MainActivity extends Activity {
         updBanner.setPadding(Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 14), Ui.dp(this, 10));
         updBanner.setBackground(new Ui.Deco(this, 0x29F0B232, Ui.YELLOW, 0, true, 0, 0));
         updBanner.setOnClickListener(v -> {
-            show(4, true);
+            show("settings");
             if (Updater.newVer != null) Updater.download(this);
         });
         updBanner.setVisibility(View.GONE);
         pg.body.addView(updBanner, Ui.fill(this, 0));
-        // 지난번에 앱이 꺼졌으면 (크래시 기록이 있으면) 알림 → 기록 칸
+        // 지난번에 앱이 꺼졌으면 (크래시 기록이 있으면) 알림 → 로그 칸
         if (Crash.read() != null) {
-            TextView cb = Ui.text(this, "지난번에 앱이 꺼짐 — 기록 칸의 크래시 기록을 복사해서 보내 주세요", 13, Ui.RED, true);
+            TextView cb = Ui.text(this, "지난번에 앱이 꺼짐 — 로그 칸의 크래시 기록을 복사해서 보내 주세요", 13, Ui.RED, true);
             cb.setPadding(Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 14), Ui.dp(this, 10));
             cb.setBackground(new Ui.Deco(this, 0x29F23F43, Ui.RED, 0, true, 0, 0));
-            cb.setOnClickListener(v -> show(3, true));
+            cb.setOnClickListener(v -> show("log"));
             pg.body.addView(cb, Ui.fill(this, 8));
         }
         // 디스코드 연결 (매크로 봇) — 잘 보이게 홈 맨 위에 · 안 했으면 [연결하기] (바로 연결 시작) · 했으면 이름 (누르면 설정 칸)
@@ -389,7 +394,7 @@ public class MainActivity extends Activity {
         dcHome.addView(dcHomeGo, dgp);
         dcHome.setOnClickListener(v -> {
             if (!DiscordLink.linked() && DiscordLink.code == null) DiscordLink.login(this);
-            else show(4, true);
+            else show("settings");
             showDiscord();
         });
         pg.body.addView(dcHome, Ui.fill(this, 8));
@@ -443,7 +448,7 @@ public class MainActivity extends Activity {
         LinearLayout how = section(pg, "사용법");
         String[] steps = {
                 "1. 로블록스(Sol's RNG)를 전체 화면 가로로 켜고 낚시 자리로 가서 Fish 버튼이 보이게 하기",
-                "2. 떠 있는 Acrux 창 → [낚시] → 낚시 자동 보정 — Fish 를 한 번 던져 대기 창 · 미니게임 창 · 결과창 위치를 자동으로 맞춤",
+                "2. 떠 있는 Acrux 창 → [낚시] → [낚시 보정] → 낚시 자동 보정 — Fish 를 한 번 던져 대기 창 · 미니게임 창 · 결과창 위치를 자동으로 맞춤",
                 "3. [매크로 시작] — 자동 낚시 · 멈출 때는 [매크로 정지]",
                 "4. Acrux 창은 화면 오른쪽 손잡이를 누르거나 왼쪽으로 밀면 열림 · 시작하면 자동으로 닫힘",
                 "5. 이동: [조이스틱] 조이스틱 찾기 → [기준 장소] VIP 여부 · 공통 위치 → 낚시: 낚시 장소 · 판매 장소 길 기록 → 대화 버튼 · 판매 자동 보정",
@@ -518,13 +523,11 @@ public class MainActivity extends Activity {
     }
 
     // ---------------------------------------------------------------- 이동 · 판매
-    void buildMove(Page pg) {
-        LinearLayout mv = section(pg, "이동 · 판매");
-        mv.addView(Ui.text(this, "시작하면 재설정 → 기준 장소 → 기록한 길로 낚시 장소 · 인벤토리가 가득 차면 판매 장소에서 팔고 돌아옴 · 전부 화면 터치 (조이스틱 · 탭) · 위치 · 길은 Acrux 창에서",
+    /** 이동 칸: 기준 장소 (리셋 → 정해진 걸음으로 늘 같은 자리) — 낚시 말고 다른 기능도 여기서 시작 */
+    void buildBase(Page pg) {
+        LinearLayout mv = section(pg, "이동");
+        mv.addView(Ui.text(this, "조이스틱 · 기준 장소 위치는 Acrux 창 → [이동] 에서 지정 · 낚시 말고 다른 기능도 같이 씀",
                 12, Ui.MUTED, false), Ui.fill(this, 4));
-        // 자동 낚시는 이동 · 판매까지 항상 함 (V1.4.13 — 켜고 끄는 스위치 없음) · 설정이 덜 됐으면 [시작] 때 안내
-        mv.addView(Ui.text(this, "자동 낚시는 이동 · 판매 설정을 모두 마쳐야 시작됩니다 · 덜 된 설정은 [시작] 을 누르면 차례로 안내",
-                13, Guide.moveNeeded() ? Ui.YELLOW : Ui.GREEN, true), Ui.fill(this, 8));
 
         LinearLayout base = section(pg, "기준 장소 (초)");
         Mover.Cfg m = Hub.move;
@@ -539,6 +542,15 @@ public class MainActivity extends Activity {
         base.addView(num("내려다보기 (번)", "화면을 아래로 끄는 횟수 · 기본 3", m.tiltSwipes, v -> m.tiltSwipes = (int) clamp(v, 0, 10)), Ui.fill(this, 6));
         base.addView(num("줌 아웃 (번)", "두 손가락 오므리는 횟수 · 기본 4", m.zoomPinches, v -> m.zoomPinches = (int) clamp(v, 0, 10)), Ui.fill(this, 6));
         base.addView(num("도착 뒤 여유", "길을 다 걸은 뒤 기다림 · 기본 0.3", m.margin, v -> m.margin = clamp(v, 0, 5)), Ui.fill(this, 6));
+    }
+
+    void buildMove(Page pg) {
+        LinearLayout mv = section(pg, "이동 · 판매");
+        mv.addView(Ui.text(this, "시작하면 재설정 → 기준 장소 → 기록한 길로 낚시 장소 · 인벤토리가 가득 차면 판매 장소에서 팔고 돌아옴 · 전부 화면 터치 (조이스틱 · 탭) · 위치 · 길은 Acrux 창에서",
+                12, Ui.MUTED, false), Ui.fill(this, 4));
+        // 자동 낚시는 이동 · 판매까지 항상 함 (V1.4.13 — 켜고 끄는 스위치 없음) · 설정이 덜 됐으면 [시작] 때 안내
+        mv.addView(Ui.text(this, "자동 낚시는 이동 · 판매 설정을 모두 마쳐야 시작됩니다 · 덜 된 설정은 [시작] 을 누르면 차례로 안내",
+                13, Guide.moveNeeded() ? Ui.YELLOW : Ui.GREEN, true), Ui.fill(this, 8));
 
         LinearLayout sell = section(pg, "판매");
         sell.addView(num("판매 최대 종류", "한 번에 파는 최대 종류 수 · 기본 100", Hub.sellMax, v -> Hub.sellMax = (int) clamp(v, 1, 500)), Ui.fill(this, 8));
@@ -616,10 +628,10 @@ public class MainActivity extends Activity {
 
         LinearLayout t = section(pg, "바이옴 로그 테스트");
         t.addView(Ui.text(this, "모바일 로블록스가 바이옴 정보를 로그에 남기는지 확인해요.", 13, Ui.MUTED, false), Ui.fill(this, 6));
-        t.addView(Ui.text(this, "무선 디버깅을 연결한 뒤 [테스트 시작] → 로블록스로 Sol's RNG 에 들어가서 90초 동안 두기 (바이옴이 바뀌는 때면 더 좋아요). 결과는 기록 칸에 떠요.", 13, Ui.FG, false), Ui.fill(this, 6));
+        t.addView(Ui.text(this, "무선 디버깅을 연결한 뒤 [테스트 시작] → 로블록스로 Sol's RNG 에 들어가서 90초 동안 두기 (바이옴이 바뀌는 때면 더 좋아요). 결과는 로그 칸에 떠요.", 13, Ui.FG, false), Ui.fill(this, 6));
         testBtn = Ui.button(this, biomeTesting ? "테스트 중…" : "테스트 시작 (90초)", Ui.ACCENT, v -> biomeTest());
         t.addView(testBtn, Ui.fill(this, 10));
-        t.addView(Ui.text(this, "결과 (기록 칸에도 같이 떠요 · 끝나면 알림)", 12, Ui.MUTED, true), Ui.fill(this, 10));
+        t.addView(Ui.text(this, "결과 (로그 칸에도 같이 떠요 · 끝나면 알림)", 12, Ui.MUTED, true), Ui.fill(this, 10));
         testOut = Ui.text(this, "", 12, Ui.FG, false);
         testOut.setTextIsSelectable(true);
         testOut.setBackgroundColor(Ui.FIELD);
@@ -724,7 +736,7 @@ public class MainActivity extends Activity {
         }, "acrux-adb").start();
     }
 
-    /** 테스트 결과 한 줄 → 기록 칸 + 바이옴 칸 결과 상자 */
+    /** 테스트 결과 한 줄 → 로그 칸 + 바이옴 칸 결과 상자 */
     void say(String msg, char color) {
         Hub.log(msg, color);
         synchronized (testLines) {
@@ -826,7 +838,7 @@ public class MainActivity extends Activity {
     }
 
     void buildLog(Page pg) {
-        LinearLayout lg = section(pg, "기록");
+        LinearLayout lg = section(pg, "로그");
         lg.addView(Ui.text(this, "최근 기록 (최대 300줄)", 12, Ui.MUTED, false));
         logView = Ui.text(this, "", 12, Ui.MUTED, false);
         logView.setTypeface(Typeface.MONOSPACE);

@@ -742,10 +742,13 @@ public class TapService extends AccessibilityService {
 
     /** 페이지: id · 위 페이지 · 이름 */
     static final String[][] PAGES = {
-            {"fish", "home", "낚시"},                            // 낚시 보정 + 길 기록 + 판매 (한 기능)
-            {"move", "home", "이동"},
+            {"move", "home", "이동"},                            // 이동 · 기준 장소 = 낚시 말고 다른 기능도 씀
             {"stick", "move", "조이스틱"},
             {"base", "move", "기준 장소"},
+            {"fish", "home", "낚시"},                            // 낚시 보정 + 길 기록 + 판매 (한 기능)
+            {"fishcal", "fish", "낚시 보정"},
+            {"route", "fish", "길"},
+            {"sell", "fish", "판매"},
     };
 
     static String parentOf(String id) {
@@ -762,7 +765,13 @@ public class TapService extends AccessibilityService {
     String featState(String id) {
         switch (id) {
             case "fish":
-                return !Hub.cfg.ready() ? "보정 필요" : routes() < 2 ? "길 기록 필요" : sellState();
+                return fishReady() + " / 3 준비됨";
+            case "fishcal":
+                return Hub.cfg.ready() ? "보정 완료" : "보정 필요";
+            case "route":
+                return routes() + " / 2 기록됨";
+            case "sell":
+                return sellState();
             case "move":
                 return moveReady() + " / 2 준비됨";
             case "stick":
@@ -781,7 +790,13 @@ public class TapService extends AccessibilityService {
     boolean featOk(String id) {
         switch (id) {
             case "fish":
-                return Hub.cfg.ready() && routes() == 2 && Guide.sellReady();
+                return fishReady() == 3;
+            case "fishcal":
+                return Hub.cfg.ready();
+            case "route":
+                return routes() == 2;
+            case "sell":
+                return Guide.sellReady();
             case "move":
                 return moveReady() == 2;
             case "stick":
@@ -796,6 +811,12 @@ public class TapService extends AccessibilityService {
     int moveReady() {
         int n = 0;
         for (String id : new String[]{"stick", "base"}) if (featOk(id)) n++;
+        return n;
+    }
+
+    int fishReady() {
+        int n = 0;
+        for (String id : new String[]{"fishcal", "route", "sell"}) if (featOk(id)) n++;
         return n;
     }
 
@@ -909,8 +930,14 @@ public class TapService extends AccessibilityService {
         box.addView(hair(), hairLp());
         LinearLayout m = scroll(box);
         switch (id) {
-            case "fish":
-                pageFish(m);
+            case "fishcal":
+                pageFishCal(m);
+                break;
+            case "route":
+                pageRoute(m);
+                break;
+            case "sell":
+                pageSell(m);
                 break;
             case "stick":
                 pageStick(m);
@@ -924,11 +951,14 @@ public class TapService extends AccessibilityService {
         }
     }
 
-    /** 낚시 = 보정 + 길 기록 (낚시 장소 · 판매 장소) + 판매 — 자동 낚시 하나에 다 쓰임 */
-    void pageFish(LinearLayout m) {
+    /** 낚시 = 낚시 보정 · 길 (낚시 장소 · 판매 장소) · 판매 — 자동 낚시 하나에 다 쓰임 */
+    void pageFishCal(LinearLayout m) {
         m.addView(section("낚시 보정"), mw());
         info(m, () -> Hub.cfg.ready() ? "보정 완료" : "보정 필요 — 낚시 자리에서 Fish 버튼이 보일 때", () -> Hub.cfg.ready());
         act(m, "act:cal", "낚시 자동 보정", "Fish 를 한 번 던져 창 위치를 맞춤", true, v -> toggle("cal"));
+    }
+
+    void pageRoute(LinearLayout m) {
         for (boolean sell : new boolean[]{false, true}) {
             m.addView(section((sell ? "물고기 판매 장소" : "낚시 장소") + " 길"), mw());
             info(m, () -> {
@@ -937,9 +967,12 @@ public class TapService extends AccessibilityService {
             }, () -> !(sell ? Hub.sellRoute : Hub.fishRoute).isEmpty());
             act(m, sell ? "act:rec_sell" : "act:rec_fish", "길 기록", "기준 장소로 간 뒤 WASD 패드로 걸어감 → [도착]", true, v -> toggle(sell ? "rec_sell" : "rec_fish"));
         }
-        m.addView(section("판매 · 대화"), mw());
+    }
+
+    void pageSell(LinearLayout m) {
+        m.addView(section("대화"), mw());
         for (String[] k : Seller.TALK) pos(m, k[0], k[1], "판매 장소에 서서");
-        m.addView(section("판매 · 상점"), mw());
+        m.addView(section("상점"), mw());
         act(m, "act:sellcal", "판매 자동 보정", "NPC 앞에서 시작 → 대화 버튼은 직접", true, v -> toggle("sellcal"));
         info(m, () -> "판매 위치 " + count(Seller.KEYS) + " / " + Seller.KEYS.length + " 저장됨", () -> count(Seller.KEYS) == Seller.KEYS.length);
         for (String[][] k : new String[][][]{{{"first_fish_pos", "첫 번째 물고기 칸"}}, {{"shop_close_pos", "상점 닫기 X"}}}) {

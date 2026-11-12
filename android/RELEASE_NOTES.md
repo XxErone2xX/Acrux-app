@@ -1,3 +1,17 @@
+## Acrux Mobile V1.5.2 업데이트
+- 미니 UI: 이동을 위로 · 낚시를 아래로
+- 미니 UI 낚시 안을 다시 나눔: 낚시 보정 · 길 · 판매 [ 이동처럼 들어가서 설정 · 낚시 줄에 "N / 3 준비됨" ]
+- 앱: 기록 칸 → 로그 칸
+- 앱: 기준 장소 설정을 낚시 칸에서 꺼내 낚시 앞의 새 이동 칸으로 [ 다른 기능도 같이 쓰게 ]
+- 설정 안내 문구도 새 위치에 맞춤 [ 예: [낚시] → [길] → '길 기록' ]
+
+## Acrux Mobile V1.5.2 Update
+- Mini UI: Move is now on top · Fishing below it
+- Mini UI Fishing is split into Fishing calibration · Routes · Selling [ open each like Move · the Fishing row shows "N / 3 ready" ]
+- App: the Log tab (was 기록) is now called 로그 in Korean
+- App: base spot settings moved out of the Fishing tab into a new Move tab before Fishing [ so other features can share them ]
+- Setup guide texts updated for the new layout [ e.g. [Fishing] → [Routes] → 'Record route' ]
+
 ## Acrux Mobile V1.5.1 업데이트
 - 디스코드 봇 /로그: 최근 기록을 최대 100줄까지 보냄 [ 기본 50줄 · 예전 30줄 ]
 
