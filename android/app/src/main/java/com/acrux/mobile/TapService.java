@@ -39,10 +39,16 @@ public class TapService extends AccessibilityService {
     static volatile TapService instance;
 
     WindowManager wm;
-    /** root = 떠 있는 창 (오른쪽 끝) · slide = [도착] + 손잡이 + 패널 (열고 닫을 때 같이 미끄러짐) · panel = 오른쪽에서 나오는 세로 패널 */
-    LinearLayout root, slide, panel, menu, body;
-    WindowManager.LayoutParams lp;
-    TextView status, bioBtn, runBtn, gearBtn, arriveBtn, handle;
+    /**
+     * 창 두 개 — 크기를 바꾸면 기기가 크기 변화를 따로 그려서 패널이 위에서부터 늘어나 보였음 → 두 창 다 크기는 고정
+     *  · hwin = 닫힌 동안의 손잡이 (+ 길 기록 중 [도착]) · 오른쪽 가운데 · 작음
+     *  · root = 패널 창 (손잡이 + 패널 · 위아래 꽉 참) · 닫힌 동안은 안 보이고 터치도 통과 · 열고 닫을 땐 안의 slide 만 미끄러짐
+     */
+    LinearLayout root, hwin, slide, panel, menu, body;
+    WindowManager.LayoutParams lp, hlp;
+    TextView status, bioBtn, runBtn, gearBtn, arriveBtn;
+    /** 손잡이 — 닫힌 창의 것 · 열린 패널 왼쪽의 것 (모양 · 자리는 같음) */
+    HandleView handle, handleIn;
     /** 패널이 열려 있나 · 패널 폭 (px) */
     boolean open;
     int drawerW;
@@ -71,8 +77,10 @@ public class TapService extends AccessibilityService {
         View v = tg == null ? null : open ? targets.get(tg) : handle;   // 패널이 닫혀 있으면 먼저 손잡이를 강조
         if (v != null && !v.isAttachedToWindow()) v = null;
         if (v != lit) {
-            if (lit != null) lit.setForeground(null);
-            if (v != null) v.setForeground(new Ui.Deco(this, 0x405865F2, Ui.ACCENT, 0xFFFFFFFF, true, 7, 2));
+            if (lit instanceof HandleView) ((HandleView) lit).setLit(false);
+            else if (lit != null) lit.setForeground(null);
+            if (v instanceof HandleView) ((HandleView) v).setLit(true);           // 손잡이는 사다리꼴 모양 그대로 파랗게
+            else if (v != null) v.setForeground(new Ui.Deco(this, 0x405865F2, Ui.ACCENT, 0xFFFFFFFF, true, 7, 2));
             lit = v;
         }
         boolean show = Guide.cur != null && !Hub.appVisible && !Hub.running() && picker == null;
@@ -178,7 +186,9 @@ public class TapService extends AccessibilityService {
         removeView(picker);
         picker = null;
         removeView(root);
+        removeView(hwin);
         root = null;
+        hwin = null;
         panel = null;
         Hub.changed();
     }
@@ -257,7 +267,7 @@ public class TapService extends AccessibilityService {
     volatile boolean passing;
 
     void updateRect() {
-        View p = root;
+        View p = open ? root : hwin;
         if (p == null || p.getVisibility() != View.VISIBLE || !p.isAttachedToWindow()) {
             rect = null;
             return;
@@ -294,14 +304,20 @@ public class TapService extends AccessibilityService {
     }
 
     void setTouchable(boolean on) {
-        if (root == null || lp == null) return;
-        if (on) lp.flags &= ~WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
-        else lp.flags |= WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
+        if (root == null || lp == null || hwin == null) return;
+        touch(hwin, hlp, on);
+        touch(root, lp, on && open);                     // 패널 창은 열려 있을 때만 터치를 받음
+        if (on) passing = false;
+    }
+
+    void touch(View v, WindowManager.LayoutParams p, boolean on) {
+        int f = on ? p.flags & ~WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE : p.flags | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
+        if (f == p.flags) return;
+        p.flags = f;
         try {
-            wm.updateViewLayout(root, lp);
+            wm.updateViewLayout(v, p);
         } catch (RuntimeException ignored) {
         }
-        if (on) passing = false;
     }
 
     /** 이동하는 동안 계속 통과 (조이스틱을 새로 누를 때마다 창 설정을 바꾸느라 0.04초씩 늦어지지 않게) */
@@ -328,21 +344,19 @@ public class TapService extends AccessibilityService {
      * 떠 있는 조작 창 — 화면 오른쪽 가운데의 손잡이 · 누르거나 왼쪽으로 밀면 오른쪽에서 위아래로 꽉 찬 패널이 나옴
      *  · 닫힘: 손잡이만 (게임 화면을 거의 안 가림) · 열림: 손잡이 + 패널 (⚙ 메뉴도 패널 안에서 펼쳐짐)
      *  · 손잡이를 다시 누르거나 · 패널을 오른쪽으로 밀면 닫힘 · 매크로 · 보정 · 테스트를 시작하면 자동으로 닫힘 (화면 캡처에 안 찍히게)
-     *  · 손잡이 글자 색: 파랑 = 대기 · 초록 = 도는 중
+     *  · 손잡이 = 사다리꼴 (화면 쪽이 넓음) + 끝에 세로선 · 선 색: 파랑 = 대기 · 초록 = 도는 중
      */
     void showPanel() {
         if (root != null) return;
         wm = (WindowManager) getSystemService(WINDOW_SERVICE);
         int[] sc = screen();
         drawerW = Math.max(Ui.dp(this, 200), Math.min(Ui.dp(this, 280), sc[0] * 45 / 100));
-        root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.HORIZONTAL);
-        root.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
-        slide = new LinearLayout(this);
-        slide.setOrientation(LinearLayout.HORIZONTAL);
-        slide.setGravity(Gravity.CENTER_VERTICAL);
-        root.addView(slide, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.MATCH_PARENT));
+        int hw = Ui.dp(this, 22), hh = Ui.dp(this, 92);
 
+        // ---- 닫힌 손잡이 창
+        hwin = new LinearLayout(this);
+        hwin.setOrientation(LinearLayout.HORIZONTAL);
+        hwin.setGravity(Gravity.CENTER_VERTICAL);
         // 길 기록 중 [도착] — 패널이 닫혀 있어도 손잡이 옆에 보임 (걸어가는 동안 패널이 화면을 가리지 않게)
         arriveBtn = small("도착", Ui.GREEN, v -> {
             Hub.arrived = true;
@@ -351,51 +365,34 @@ public class TapService extends AccessibilityService {
         arriveBtn.setVisibility(View.GONE);
         LinearLayout.LayoutParams ap = Ui.wrap();
         ap.rightMargin = Ui.dp(this, 6);
-        slide.addView(arriveBtn, ap);
+        hwin.addView(arriveBtn, ap);
+        handle = new HandleView(this);
+        handle.setOnTouchListener(handleTouch());
+        hwin.addView(handle, new LinearLayout.LayoutParams(hw, hh));
+        hlp = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                PixelFormat.TRANSLUCENT);
+        hlp.gravity = Gravity.END | Gravity.CENTER_VERTICAL;
 
-        handle = Ui.text(this, "‹", 20, Ui.ACCENT, true);
-        handle.setGravity(Gravity.CENTER);
-        handle.setBackground(new Ui.Deco(this, 0xF22B2D31, Ui.LINE, Ui.WHITE, true, 10, 2));
-        handle.setOnTouchListener(new View.OnTouchListener() {
-            final int slop = android.view.ViewConfiguration.get(TapService.this).getScaledTouchSlop();
-            float hx, hy;
-            boolean moved;
-
-            @Override
-            public boolean onTouch(View v, MotionEvent e) {
-                switch (e.getActionMasked()) {
-                    case MotionEvent.ACTION_DOWN:
-                        hx = e.getRawX();
-                        hy = e.getRawY();
-                        moved = false;
-                        return true;
-                    case MotionEvent.ACTION_MOVE: {
-                        float dx = e.getRawX() - hx, dy = e.getRawY() - hy;
-                        if (!moved && Math.abs(dx) > slop * 2 && Math.abs(dx) > Math.abs(dy)) {
-                            moved = true;
-                            setDrawer(dx < 0);                          // 왼쪽으로 밀면 열림 · 오른쪽으로 밀면 닫힘
-                        }
-                        return true;
-                    }
-                    case MotionEvent.ACTION_UP:
-                        if (!moved) {
-                            v.performClick();
-                            setDrawer(!open);
-                        }
-                        return true;
-                    default:
-                        return true;
-                }
-            }
-        });
-        slide.addView(handle, new LinearLayout.LayoutParams(Ui.dp(this, 26), Ui.dp(this, 88)));
+        // ---- 패널 창 (손잡이 + 패널 · 크기 고정 · 닫힌 동안 안 보이고 터치 통과)
+        root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.HORIZONTAL);
+        slide = new LinearLayout(this);
+        slide.setOrientation(LinearLayout.HORIZONTAL);
+        slide.setGravity(Gravity.CENTER_VERTICAL);
+        root.addView(slide, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT));
+        handleIn = new HandleView(this);
+        handleIn.setOnTouchListener(handleTouch());
+        slide.addView(handleIn, new LinearLayout.LayoutParams(hw, hh));
 
         panel = new SwipePanel(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         int pad = Ui.dp(this, 12);
         panel.setPadding(pad, pad, pad, pad);
-        // 얇은 테두리 + 네 모서리 ㄱ (앱의 카드와 같음)
-        panel.setBackground(new Ui.Deco(this, 0xF22B2D31, Ui.LINE, Ui.WHITE, true, 10, 2));
+        // 단색 + 가는 테두리 (ㄱ 장식 없음)
+        panel.setBackground(new Ui.Deco(this, 0xF22B2D31, Ui.LINE, Ui.WHITE, true, 0, 0));
 
         // 제목 줄
         LinearLayout head = new LinearLayout(this);
@@ -426,69 +423,151 @@ public class TapService extends AccessibilityService {
         rp.topMargin = Ui.dp(this, 8);
         body.addView(row, rp);
         panel.addView(body, Ui.wrap());
-        panel.setVisibility(View.GONE);
         slide.addView(panel, new LinearLayout.LayoutParams(drawerW, LinearLayout.LayoutParams.MATCH_PARENT));
         open = false;
+        slide.setTranslationX(drawerW);                    // 닫힘: 패널은 화면 밖 · 손잡이는 닫힌 손잡이와 같은 자리
+        root.setVisibility(View.INVISIBLE);
 
+        // 상태 표시줄 · 내비게이션 바 안쪽으로 (로블록스 전체 화면에선 바가 없어서 위아래 끝까지)
         lp = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
+                hw + drawerW, WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                        | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
                 PixelFormat.TRANSLUCENT);
-        lp.gravity = Gravity.END | Gravity.CENTER_VERTICAL;
-        lp.x = 0;
-        lp.y = 0;
-        if (android.os.Build.VERSION.SDK_INT >= 28) {
-            lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-        }
+        lp.gravity = Gravity.END | Gravity.TOP;
         applyAlphaTo();
+        hwin.getViewTreeObserver().addOnGlobalLayoutListener(this::updateRect);
         root.getViewTreeObserver().addOnGlobalLayoutListener(this::updateRect);
         try {
             wm.addView(root, lp);
+            wm.addView(hwin, hlp);
         } catch (RuntimeException e) {
             Hub.log("조작 창을 띄우지 못함: " + e, 'r');
+            removeView(root);
+            removeView(hwin);
             root = null;
+            hwin = null;
             panel = null;
         }
         updateVisible();
         refresh();
     }
 
+    /** 손잡이 터치: 누르면 열고 닫기 · 왼쪽으로 밀면 열림 · 오른쪽으로 밀면 닫힘 */
+    View.OnTouchListener handleTouch() {
+        return new View.OnTouchListener() {
+            final int slop = android.view.ViewConfiguration.get(TapService.this).getScaledTouchSlop();
+            float hx, hy;
+            boolean moved;
+
+            @Override
+            public boolean onTouch(View v, MotionEvent e) {
+                switch (e.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        hx = e.getRawX();
+                        hy = e.getRawY();
+                        moved = false;
+                        return true;
+                    case MotionEvent.ACTION_MOVE: {
+                        float dx = e.getRawX() - hx, dy = e.getRawY() - hy;
+                        if (!moved && Math.abs(dx) > slop * 2 && Math.abs(dx) > Math.abs(dy)) {
+                            moved = true;
+                            setDrawer(dx < 0);
+                        }
+                        return true;
+                    }
+                    case MotionEvent.ACTION_UP:
+                        if (!moved) {
+                            v.performClick();
+                            setDrawer(!open);
+                        }
+                        return true;
+                    default:
+                        return true;
+                }
+            }
+        };
+    }
+
     /**
-     * 패널 열기 · 닫기 (0.18초 동안 오른쪽에서 미끄러짐)
-     * 열 때: 창을 위아래로 꽉 차게 키운 뒤 손잡이 + 패널을 패널 폭만큼 오른쪽에 두었다가 제자리로
-     * 닫을 때: 오른쪽으로 밀어낸 뒤 패널을 숨기고 창을 손잡이 크기로 줄임 (닫힌 동안 게임 화면을 거의 안 가림)
+     * 패널 열기 · 닫기 — 창 크기는 그대로 · 안의 손잡이 + 패널만 미끄러짐 (열 때 0.22초 감속 · 닫을 때 0.18초 가속)
+     * 열 때: 닫힌 손잡이를 숨기는 순간 패널 창의 손잡이가 같은 자리에 보이고 → 그대로 왼쪽으로
+     * 닫을 때: 오른쪽 끝까지 밀어낸 뒤 패널 창을 숨기고 닫힌 손잡이를 다시 보임
      */
     void setDrawer(boolean o) {
-        if (root == null || panel == null || o == open) return;
+        if (root == null || panel == null || hwin == null || o == open) return;
         open = o;
         slide.animate().cancel();
-        handle.setText(o ? "›" : "‹");
         if (o) {
-            panel.setVisibility(View.VISIBLE);
-            lp.height = WindowManager.LayoutParams.MATCH_PARENT;
-            try {
-                wm.updateViewLayout(root, lp);
-            } catch (RuntimeException ignored) {
-            }
-            slide.setTranslationX(drawerW);
-            slide.animate().translationX(0).setDuration(180).withEndAction(this::updateRect).start();
+            root.setVisibility(View.VISIBLE);
+            touch(root, lp, true);
+            handle.setVisibility(View.INVISIBLE);
+            slide.animate().translationX(0).setDuration(220).setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f))
+                    .withEndAction(this::updateRect).start();
         } else {
             closeMenu();
-            slide.animate().translationX(drawerW).setDuration(160).withEndAction(() -> {
-                if (open || root == null) return;
-                panel.setVisibility(View.GONE);
-                slide.setTranslationX(0);
-                lp.height = WindowManager.LayoutParams.WRAP_CONTENT;
-                try {
-                    wm.updateViewLayout(root, lp);
-                } catch (RuntimeException ignored) {
-                }
-                updateRect();
-            }).start();
+            slide.animate().translationX(drawerW).setDuration(180).setInterpolator(new android.view.animation.AccelerateInterpolator(1.4f))
+                    .withEndAction(() -> {
+                        if (open || root == null) return;
+                        handle.setVisibility(View.VISIBLE);
+                        root.setVisibility(View.INVISIBLE);
+                        touch(root, lp, false);
+                        updateRect();
+                    }).start();
         }
+        updateRect();
         Hub.main.post(this::applyGuide);
+    }
+
+    /** 손잡이 — 사다리꼴 (화면 쪽 오른변이 길고 왼변이 짧음) + 왼쪽 끝 가까이 세로선 하나 (ㄱ 장식 · 화살표 없음) */
+    static final class HandleView extends View {
+        final android.graphics.Paint fill = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG),
+                edge = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG),
+                bar = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        final android.graphics.Path shape = new android.graphics.Path();
+        final float u;
+        int barColor = Ui.ACCENT;
+        boolean lit;
+
+        HandleView(Context c) {
+            super(c);
+            u = c.getResources().getDisplayMetrics().density;
+            edge.setStyle(android.graphics.Paint.Style.STROKE);
+            edge.setStrokeWidth(u);
+            bar.setStrokeWidth(3 * u);
+            bar.setStrokeCap(android.graphics.Paint.Cap.ROUND);
+        }
+
+        void setBar(int c) {
+            if (c == barColor) return;
+            barColor = c;
+            invalidate();
+        }
+
+        void setLit(boolean on) {
+            if (on == lit) return;
+            lit = on;
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(android.graphics.Canvas c) {
+            float w = getWidth(), h = getHeight(), inset = h * 0.16f;
+            shape.reset();
+            shape.moveTo(w, 0);                      // 오른쪽 위 (화면 · 패널 쪽 · 긴 변)
+            shape.lineTo(0, inset);                  // 왼쪽 위 (짧은 변)
+            shape.lineTo(0, h - inset);
+            shape.lineTo(w, h);
+            shape.close();
+            fill.setColor(lit ? 0xF2404794 : 0xF22B2D31);
+            c.drawPath(shape, fill);
+            edge.setColor(lit ? Ui.ACCENT : Ui.LINE);
+            c.drawPath(shape, edge);
+            float x = Math.max(4 * u, w * 0.38f), len = (h - inset * 2) * 0.42f;
+            bar.setColor(lit ? 0xFFFFFFFF : barColor);
+            c.drawLine(x, h / 2 - len / 2, x, h / 2 + len / 2, bar);
+        }
     }
 
     /** 패널: 오른쪽으로 밀면 닫힘 (짧게 누르면 그대로 버튼 · ⚙ 메뉴 안에서 위아래로 밀면 메뉴 스크롤) */
@@ -546,11 +625,11 @@ public class TapService extends AccessibilityService {
     /** 보이기 · 숨기기: 앱의 [UI 끄기] 로 꺼져 있거나, Acrux 앱을 보고 있고 '앱을 볼 때 숨기기' 가 켜져 있으면 숨김 */
     void updateVisible() {
         Hub.main.post(() -> {
-            if (root == null) return;
+            if (root == null || hwin == null) return;
             boolean on = Hub.prefs().getBoolean("panelOn", true) && !(Hub.appVisible && Hub.prefs().getBoolean("hideOnApp", true));
-            root.setVisibility(on ? View.VISIBLE : View.GONE);
             if (!on) setDrawer(false);
-            root.post(TapService.this::updateRect);
+            hwin.setVisibility(on ? View.VISIBLE : View.GONE);
+            hwin.post(TapService.this::updateRect);
         });
     }
 
@@ -561,7 +640,9 @@ public class TapService extends AccessibilityService {
             boolean was = open;
             closeMenu();
             removeView(root);
+            removeView(hwin);
             root = null;
+            hwin = null;
             panel = null;
             open = false;
             showPanel();
@@ -574,7 +655,9 @@ public class TapService extends AccessibilityService {
     }
 
     void applyAlphaTo() {
-        if (root != null) root.setAlpha(Hub.prefs().getInt("panelAlpha", 90) / 100f);
+        float a = Hub.prefs().getInt("panelAlpha", 90) / 100f;
+        if (root != null) root.setAlpha(a);
+        if (hwin != null) hwin.setAlpha(a);
     }
 
     LinearLayout.LayoutParams gap() {
@@ -1021,7 +1104,8 @@ public class TapService extends AccessibilityService {
         }
         Ui.set(runBtn, run ? "정지" : "시작");            // 보정 · 테스트 · 기록 중에도 [정지] 로 멈춤
         arriveBtn.setVisibility(Hub.measuring ? View.VISIBLE : View.GONE);
-        handle.setTextColor(run ? Ui.GREEN : Ui.ACCENT);
+        handle.setBar(run ? Ui.GREEN : Ui.ACCENT);
+        handleIn.setBar(run ? Ui.GREEN : Ui.ACCENT);
     }
 
     static String fmt(double v) {

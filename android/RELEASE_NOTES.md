@@ -1,3 +1,21 @@
+## Acrux Mobile V1.4.20 업데이트
+- 오른쪽 패널 애니메이션 수정
+  - 열고 닫을 때 창 크기를 바꿔서, 기기가 크기 변화를 따로 그리는 동안 패널이 위에서부터 늘어나 보였음 [ 이제 창 크기는 고정하고 안의 패널만 미끄러짐 ]
+  - 열 때는 점점 느려지고 (0.22초) 닫을 때는 점점 빨라짐 (0.18초)
+  - 패널이 상태 표시줄 · 내비게이션 바 밑까지 덮지 않음 [ 로블록스 전체 화면에서는 그대로 위아래 끝까지 ]
+- 손잡이 모양 변경: 네모 → 사다리꼴 [ 화면 쪽이 넓음 ] + 끝에 세로선 하나 · ‹ › 화살표와 ㄱ 장식은 뺌
+  - 세로선 색: 파랑 = 대기 · 초록 = 도는 중 · 설정 안내가 가리키면 손잡이 전체가 파랗게
+- 패널의 ㄱ 장식도 뺌
+
+## Acrux Mobile V1.4.20 Update
+- Fixed the right panel animation
+  - Opening and closing used to resize the window, and the device drew the resize separately, so the panel looked like it grew from the top [ the window size is now fixed and only the panel slides ]
+  - Opening slows down at the end (0.22 s) and closing speeds up (0.18 s)
+  - The panel no longer covers the status bar or navigation bar [ in Roblox full screen it still reaches top to bottom ]
+- New handle shape: square → trapezoid [ wider on the screen side ] + one vertical line at the end · removed the ‹ › arrows and the corner brackets
+  - Line color: blue = idle · green = running · the whole handle turns blue when the setup guide points at it
+- Removed the corner brackets from the panel too
+
 ## Acrux Mobile V1.4.19 업데이트
 - 조작 창을 오른쪽에서 나오는 패널로 바꿈
   - 닫혀 있을 때는 화면 오른쪽 가운데에 손잡이만 보임 [ 게임 화면을 거의 안 가림 ]
