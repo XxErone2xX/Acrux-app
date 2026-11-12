@@ -73,7 +73,7 @@ public class MainActivity extends Activity {
         if (guideDim == null) return;
         boolean on = Guide.cur != null;
         guideDim.setVisibility(on ? View.VISIBLE : View.GONE);
-        if (on) guide.bind(false, null);
+        if (on) guide.bind(null);
     }
     FrameLayout content;
     HorizontalScrollView tabScroll;
@@ -419,10 +419,10 @@ public class MainActivity extends Activity {
         LinearLayout how = section(pg, "사용법");
         String[] steps = {
                 "1. 로블록스(Sol's RNG)를 전체 화면 가로로 켜고 낚시 자리로 가서 Fish 버튼이 보이게 하기",
-                "2. 떠 있는 Acrux 창 ⚙ → [낚시] → 낚시 자동 보정 — Fish 를 한 번 던져 대기 창 · 미니게임 창 · 결과창 위치를 자동으로 맞춤",
+                "2. 떠 있는 Acrux 창 → [낚시] → 낚시 자동 보정 — Fish 를 한 번 던져 대기 창 · 미니게임 창 · 결과창 위치를 자동으로 맞춤",
                 "3. [시작] — 자동 낚시 · 멈출 때는 [정지]",
                 "4. Acrux 창은 어디든 잡고 끌어서 낚시 창 · 결과창을 가리지 않는 곳으로 옮기기",
-                "5. 이동 · 판매: ⚙ → [조이스틱] 조이스틱 찾기 → [기준 장소] 공통 위치 → [길] 낚시 장소 · 판매 장소 길 기록 → [판매] 대화 버튼 · 판매 자동 보정",
+                "5. 이동 · 판매: [조이스틱] 조이스틱 찾기 → [기준 장소] 공통 위치 → [길] 낚시 장소 · 판매 장소 길 기록 → [판매] 대화 버튼 · 판매 자동 보정",
                 "6. 바이옴 알림: 바이옴 칸 → 무선 디버깅 연결 → 웹후크 입력 → Acrux 창의 [바이옴] 버튼으로 켜고 끄기",
         };
         for (String s : steps) how.addView(Ui.text(this, s, 13, Ui.MUTED, false), Ui.fill(this, 6));
@@ -496,7 +496,7 @@ public class MainActivity extends Activity {
     // ---------------------------------------------------------------- 이동 · 판매
     void buildMove(Page pg) {
         LinearLayout mv = section(pg, "이동 · 판매");
-        mv.addView(Ui.text(this, "시작하면 재설정 → 기준 장소 → 기록한 길로 낚시 장소 · 인벤토리가 가득 차면 판매 장소에서 팔고 돌아옴 · 전부 화면 터치 (조이스틱 · 탭) · 위치 · 길은 Acrux 창 ⚙ 에서",
+        mv.addView(Ui.text(this, "시작하면 재설정 → 기준 장소 → 기록한 길로 낚시 장소 · 인벤토리가 가득 차면 판매 장소에서 팔고 돌아옴 · 전부 화면 터치 (조이스틱 · 탭) · 위치 · 길은 Acrux 창에서",
                 12, Ui.MUTED, false), Ui.fill(this, 4));
         // 자동 낚시는 이동 · 판매까지 항상 함 (V1.4.13 — 켜고 끄는 스위치 없음) · 설정이 덜 됐으면 [시작] 때 안내
         mv.addView(Ui.text(this, "자동 낚시는 이동 · 판매 설정을 모두 마쳐야 시작됩니다 · 덜 된 설정은 [시작] 을 누르면 차례로 안내",
@@ -1061,7 +1061,7 @@ public class MainActivity extends Activity {
 
         com.acrux.mobile.core.Settings c = Hub.cfg;
         Ui.set(calState, "대기 창: " + pos(c.panelRegion) + "  ·  미니게임 창: " + (c.reelRegion == null ? "없음" : c.reelDerived ? "대기 창으로 계산" : "있음")
-                + "  ·  결과창: " + pos(c.resultRegion) + (c.ready() ? "" : "\n→ Acrux 창 ⚙ → 낚시 → 낚시 자동 보정을 해야 함"));
+                + "  ·  결과창: " + pos(c.resultRegion) + (c.ready() ? "" : "\n→ Acrux 창 → 낚시 → 낚시 자동 보정을 해야 함"));
         long[] r = Hub.statRun.clone();
         String stats = "\n" + I18n.f("성공 {0} · 쓰레기 {1} · 실패 {2}", r[0], r[1], r[2]) + "  (" + Ui.tr("이번 실행") + ")";
         for (int k = 0; k < 2; k++) {

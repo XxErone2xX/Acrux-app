@@ -102,7 +102,7 @@ public final class Mover {
         List<String> miss = new ArrayList<>();
         if (touch.stickAt() == null) miss.add("조이스틱");
         for (String[] k : BASE_KEYS) if (!base.containsKey(k[0])) miss.add(k[1]);
-        return miss.isEmpty() ? null : "먼저 지정 필요: " + String.join(", ", miss) + " (Acrux 창 → ⚙)";
+        return miss.isEmpty() ? null : "먼저 지정 필요: " + String.join(", ", miss) + " (Acrux 창)";
     }
 
     // ---- 1. 기준 장소
@@ -279,11 +279,11 @@ public final class Mover {
 
     // ---- 2. 기록한 길 따라가기
     public void walk(String name, Route r) {
-        if (r == null || (r.isEmpty() && !r.hasPath())) throw new RuntimeException(name + " 길을 먼저 기록해야 함 (Acrux 창 → ⚙ → " + name + " 길 기록)");
+        if (r == null || (r.isEmpty() && !r.hasPath())) throw new RuntimeException(name + " 길을 먼저 기록해야 함 (Acrux 창 → " + name + " 길 기록)");
         markMoved();
         out.state(name + " 가는 중 (" + Math.round(r.seconds()) + "초)");
         int[] jp = r.jumps() > 0 ? jumpPos() : null;
-        if (r.jumps() > 0 && jp == null) out.log("점프 버튼 위치가 없어서 길의 점프는 건너뜀 (Acrux 창 → ⚙ → 점프 버튼)", 'y');
+        if (r.jumps() > 0 && jp == null) out.log("점프 버튼 위치가 없어서 길의 점프는 건너뜀 (Acrux 창 → 점프 버튼)", 'y');
         if (r.isEmpty() && r.hasPath()) {                     // 시간대로 걸을 조각이 없을 때만 화면 보면서 따라가기
             follow(name, r, jp);
             sleep(cfg.margin);
@@ -301,7 +301,7 @@ public final class Mover {
         }
         if (!oldWarned) {
             oldWarned = true;
-            out.log("예전 방식으로 기록한 길 — 다시 기록하면 간 거리가 기록과 똑같아짐 (⚙ → 길)", 'y');
+            out.log("예전 방식으로 기록한 길 — 다시 기록하면 간 거리가 기록과 똑같아짐 (길)", 'y');
         }
         // V0.10.13 전에 기록한 길은 '뗌' 이 없음 → 점프는 전부 톡 누르기로
         boolean legacy = true;
@@ -457,7 +457,7 @@ public final class Mover {
      *  · 위치 길: 프레임마다 화면으로 캐릭터 위치를 잼 (다시 걸을 때 어긋남을 고치는 데 씀)
      */
     public Route recordPad(String name, Pad pad, BooleanSupplier arrived) {
-        if (touch.stickAt() == null) throw new RuntimeException("먼저 조이스틱 찾기 (Acrux 창 → ⚙ → 조이스틱 찾기)");
+        if (touch.stickAt() == null) throw new RuntimeException("먼저 조이스틱 찾기 (Acrux 창 → 조이스틱 찾기)");
         goBase();
         int[] jp = jumpPos();
         out.state(name + " 길 기록 중 — WASD 패드로 걸어가서 도착하면 [도착]");
@@ -534,7 +534,7 @@ public final class Mover {
     /** 점프 테스트: 제자리 점프 → 앞으로 걸으면서 점프 → 걸으면서 1.5초 꾹 누르기 */
     public void jumpTest() {
         int[] jp = jumpPos();
-        if (jp == null) throw new RuntimeException("먼저 지정 필요: 점프 버튼 (Acrux 창 → ⚙)");
+        if (jp == null) throw new RuntimeException("먼저 지정 필요: 점프 버튼 (Acrux 창)");
         out.log("점프 테스트: 점프 버튼 (" + jp[0] + ", " + jp[1] + ") — 초록 점이 버튼 위에 뜨는지 보세요", 'c');
         try {
             out.state("점프 테스트 — 제자리");
@@ -574,7 +574,7 @@ public final class Mover {
      */
     public Route record(String name, BooleanSupplier arrived) {
         double[] st = touch.stickAt();
-        if (st == null) throw new RuntimeException("먼저 조이스틱 찾기 (Acrux 창 → ⚙ → 조이스틱 찾기)");
+        if (st == null) throw new RuntimeException("먼저 조이스틱 찾기 (Acrux 창 → 조이스틱 찾기)");
         goBase();
         // 조이스틱은 누를 때마다 판이 누른 자리로 옮겨짐 → 화면 왼쪽 아래를 넓게 보면서 판을 따라감 (Stick.Tracker)
         int rx0 = 0, ry0 = (int) (scr.height() * 0.3), rw = scr.width() / 2, rh = scr.height() - ry0;
@@ -605,7 +605,7 @@ public final class Mover {
                 int jcx = qx + (int) Math.round(jl[0]), jcy = qy + (int) Math.round(jl[1]);
                 double jr = jl[2], jbase = jl[3];
                 out.log("점프 버튼: 가운데 (" + jcx + ", " + jcy + ") · 반지름 " + Math.round(jr) + "px · 평소 밝기 차이 " + Math.round(jbase), 'd');
-                if (jbase > -15) out.log("점프 버튼이 잘 안 보임 — ⚙ → 점프 버튼 위치를 버튼 한가운데로 다시 지정해 주세요 (점프를 못 읽을 수 있음)", 'y');
+                if (jbase > -15) out.log("점프 버튼이 잘 안 보임 — 점프 버튼 위치를 버튼 한가운데로 다시 지정해 주세요 (점프를 못 읽을 수 있음)", 'y');
                 int jsz = (int) (jr * 2.9), jx = jcx - jsz / 2, jy = jcy - jsz / 2;
                 Stick.JumpWatch jw = new Stick.JumpWatch(jbase);
                 double jt0 = now();
@@ -623,7 +623,7 @@ public final class Mover {
                 jumpThread.setDaemon(true);
             }
         } else {
-            out.log("점프 버튼 위치가 없어서 점프는 기록 안 함 (Acrux 창 → ⚙ → 점프 버튼)", 'y');
+            out.log("점프 버튼 위치가 없어서 점프는 기록 안 함 (Acrux 창 → 점프 버튼)", 'y');
         }
         double t0 = now();
         if (jumpThread != null) jumpThread.start();

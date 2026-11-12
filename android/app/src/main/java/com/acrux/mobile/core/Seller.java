@@ -50,7 +50,7 @@ public final class Seller {
     public String fishMissing() {
         String m = mv.baseMissing();
         if (m != null) return m;
-        if (fishRoute == null || fishRoute.isEmpty()) return "낚시 장소 길이 없음 (Acrux 창 → ⚙ → 낚시 장소 길 기록)";
+        if (fishRoute == null || fishRoute.isEmpty()) return "낚시 장소 길이 없음 (Acrux 창 → 낚시 장소 길 기록)";
         return null;
     }
 
@@ -58,11 +58,11 @@ public final class Seller {
     public String missing() {
         List<String> miss = new ArrayList<>();
         for (String[] k : KEYS) if (!pos.containsKey(k[0])) miss.add(k[1]);
-        if (!miss.isEmpty()) return "판매 자동 보정 필요: " + String.join(", ", miss) + " (Acrux 창 → ⚙ → 판매 자동 보정)";
-        for (String[] k : TALK) if (!pos.containsKey(k[0])) return "먼저 지정 필요: " + k[1] + " (Acrux 창 → ⚙ → 판매)";
+        if (!miss.isEmpty()) return "판매 자동 보정 필요: " + String.join(", ", miss) + " (Acrux 창 → 판매 자동 보정)";
+        for (String[] k : TALK) if (!pos.containsKey(k[0])) return "먼저 지정 필요: " + k[1] + " (Acrux 창 → 판매)";
         String m = mv.baseMissing();
         if (m != null) return m;
-        if (sellRoute == null || sellRoute.isEmpty()) return "물고기 판매 장소 길이 없음 (Acrux 창 → ⚙ → 판매 장소 길 기록)";
+        if (sellRoute == null || sellRoute.isEmpty()) return "물고기 판매 장소 길이 없음 (Acrux 창 → 판매 장소 길 기록)";
         return fishMissing();
     }
 
@@ -427,7 +427,7 @@ public final class Seller {
         SellText.Box t2 = SellText.findText(boxes, "fishingshop"), s2 = SellText.findText(boxes, true, "sellall");
         if (t2 != null) title = t2;
         if (s2 != null) sa = s2;
-        // Buy · Sell 탭은 안 찾음 — 물고기 이름 · X 글자로 바로 찾고 · 못 찾으면 저장된 자리 (⚙ → 직접 지정) 그대로
+        // Buy · Sell 탭은 안 찾음 — 물고기 이름 · X 글자로 바로 찾고 · 못 찾으면 저장된 자리 (직접 지정) 그대로
         double aspect = (double) scr.width() / Math.max(1, scr.height());
         double[] first = slotFromLayout(boxes), close = SellText.closeX(boxes, title);
         if (first == null) first = SellText.firstFish(boxes, title, sa, aspect);
@@ -435,10 +435,10 @@ public final class Seller {
         pos.put("sell_all_pos", saAt != null ? saAt : new double[]{SellText.r4(sa.x), SellText.r4(sa.y)});
         if (first != null) pos.put("first_fish_pos", first);
         else if (p("first_fish_pos") != null) notes.add("물고기 이름을 못 읽어서 첫 번째 물고기 칸은 저장된 자리 그대로");
-        else throw new RuntimeException("첫 번째 물고기 칸을 못 찾음 (물고기가 있을 때 다시 하거나 ⚙ → 첫 번째 물고기 칸 직접 지정)");
+        else throw new RuntimeException("첫 번째 물고기 칸을 못 찾음 (물고기가 있을 때 다시 하거나 첫 번째 물고기 칸 직접 지정)");
         if (close != null) pos.put("shop_close_pos", close);
         else if (p("shop_close_pos") != null) notes.add("X 를 못 읽어서 상점 닫기는 저장된 자리 그대로");
-        else notes.add("상점 닫기 X 를 못 찾음 — ⚙ → 상점 닫기 X 직접 지정");
+        else notes.add("상점 닫기 X 를 못 찾음 — 상점 닫기 X 직접 지정");
         out.state("확인창 확인 중 (팔지는 않음)");
         if (!selectFirst(0)) notes.add("첫 번째 물고기 칸을 눌러도 골라진 게 안 보임 — 물고기가 있는지 확인해 주세요");
         mv.sleep(0.2);

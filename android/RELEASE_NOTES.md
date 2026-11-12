@@ -1,3 +1,27 @@
+## Acrux Mobile V1.4.21 업데이트
+- 미니 UI 새로 디자인 [ 기능이 늘어나도 그대로 쓸 수 있게 ]
+  - 홈: 위에 Acrux · 상태 [ 도는 중이면 실행 시간 ] → 큰 [매크로 시작] 버튼 → 그 밑에 작게 바이옴 매크로 켜기 · 끄기 → 기능 목록
+  - 낚시 통계는 미니 UI 에서 뺌 [ 앱에서만 보임 ]
+  - 기능 목록: 낚시 · 이동 · 판매 [ 각 줄에 지금 상태 · 덜 된 설정은 주황 ] → 누르면 그 기능 설정 페이지 · ‹ 로 돌아감
+  - 이동 · 판매 안에 조이스틱 · 기준 장소 · 길 · 판매 페이지
+  - 맨 아래에 최근 기록 두 줄
+  - ⚙ 메뉴 · 분류 버튼은 뺌
+- 색 · 모양 변경: 더 어두운 바탕 + 파란 강조색 · 가는 구분선 · 위치는 저장됨 / 없음으로 표시
+  - 손잡이 세로선: 회색 = 대기 · 파랑 = 도는 중
+- 설정 안내: 다른 페이지에 있으면 그 페이지로 가는 줄이나 ‹ 를 먼저 강조 · 안내 글의 ⚙ 도 새 메뉴에 맞게 바꿈
+
+## Acrux Mobile V1.4.21 Update
+- Redesigned the mini UI [ built to keep working as more features are added ]
+  - Home: Acrux · status at the top [ run time while running ] → a big [Start macro] button → a small Biome macro on · off below it → feature list
+  - Fishing stats removed from the mini UI [ only in the app now ]
+  - Feature list: Fishing · Movement · Selling [ each row shows its current state · unfinished setup in orange ] → tap to open that feature's settings page · ‹ goes back
+  - Movement · Selling holds the Joystick · Base spot · Routes · Selling pages
+  - The last two log lines at the bottom
+  - Removed the ⚙ menu and category buttons
+- New look: darker background + blue accent · thin dividers · positions show Saved / None
+  - Handle line: gray = idle · blue = running
+- Setup guide: on another page, it highlights the row that leads there or ‹ first · guide texts no longer mention ⚙
+
 ## Acrux Mobile V1.4.20 업데이트
 - 오른쪽 패널 애니메이션 수정
   - 열고 닫을 때 창 크기를 바꿔서, 기기가 크기 변화를 따로 그리는 동안 패널이 위에서부터 늘어나 보였음 [ 이제 창 크기는 고정하고 안의 패널만 미끄러짐 ]

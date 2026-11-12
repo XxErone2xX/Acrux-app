@@ -44,20 +44,19 @@ public class TapService extends AccessibilityService {
      *  · hwin = 닫힌 동안의 손잡이 (+ 길 기록 중 [도착]) · 오른쪽 가운데 · 작음
      *  · root = 패널 창 (손잡이 + 패널 · 위아래 꽉 참) · 닫힌 동안은 안 보이고 터치도 통과 · 열고 닫을 땐 안의 slide 만 미끄러짐
      */
-    LinearLayout root, hwin, slide, panel, menu, body;
+    LinearLayout root, hwin, slide, panel;
     WindowManager.LayoutParams lp, hlp;
-    TextView status, bioBtn, runBtn, gearBtn, arriveBtn;
+    TextView status, runBtn, arriveBtn;
     /** 손잡이 — 닫힌 창의 것 · 열린 패널 왼쪽의 것 (모양 · 자리는 같음) */
     HandleView handle, handleIn;
     /** 패널이 열려 있나 · 패널 폭 (px) */
     boolean open;
     int drawerW;
-    int bioCol;
     View picker;
     final Runnable refresh = this::refresh;
 
     // ---- 설정 안내 (로블록스 화면 위) — 앱 밖일 때 Acrux 창 옆에 안내 카드 · 눌러야 할 곳을 파랗게 강조
-    /** 강조할 수 있는 곳들 (gear · cal · run · cat:분류 · pos:위치 · act:실행) */
+    /** 강조할 수 있는 곳들 (지금 페이지의 것만: run · biome · feat:기능 · back · pos:위치 · act:실행) */
     final java.util.Map<String, View> targets = new java.util.HashMap<>();
     View lit;
     FrameLayout guideWin;
@@ -71,16 +70,14 @@ public class TapService extends AccessibilityService {
     }
 
     void applyGuide() {
-        boolean menuOpen = menu != null;
-        String cat = Hub.prefs().getString("menuCat", "stick");
-        String tg = Guide.cur == null ? null : Guide.target(menuOpen, cat);
+        String tg = guideTarget();
         View v = tg == null ? null : open ? targets.get(tg) : handle;   // 패널이 닫혀 있으면 먼저 손잡이를 강조
         if (v != null && !v.isAttachedToWindow()) v = null;
         if (v != lit) {
             if (lit instanceof HandleView) ((HandleView) lit).setLit(false);
             else if (lit != null) lit.setForeground(null);
             if (v instanceof HandleView) ((HandleView) v).setLit(true);           // 손잡이는 사다리꼴 모양 그대로 파랗게
-            else if (v != null) v.setForeground(new Ui.Deco(this, 0x405865F2, Ui.ACCENT, 0xFFFFFFFF, true, 7, 2));
+            else if (v != null) v.setForeground(new Ui.Deco(this, 0x334C8DFF, C_ACC, 0, true, 0, 0));
             lit = v;
         }
         boolean show = Guide.cur != null && !Hub.appVisible && !Hub.running() && picker == null;
@@ -88,7 +85,7 @@ public class TapService extends AccessibilityService {
             if (guideWin == null) makeGuideWin();
             if (guideWin == null) return;
             guideWin.setVisibility(View.VISIBLE);
-            fcard.bind(menuOpen, cat);
+            fcard.bind(open ? tg : null);
         } else if (guideWin != null) {
             guideWin.setVisibility(View.GONE);
         }
@@ -342,9 +339,9 @@ public class TapService extends AccessibilityService {
 
     /**
      * 떠 있는 조작 창 — 화면 오른쪽 가운데의 손잡이 · 누르거나 왼쪽으로 밀면 오른쪽에서 위아래로 꽉 찬 패널이 나옴
-     *  · 닫힘: 손잡이만 (게임 화면을 거의 안 가림) · 열림: 손잡이 + 패널 (⚙ 메뉴도 패널 안에서 펼쳐짐)
+     *  · 닫힘: 손잡이만 (게임 화면을 거의 안 가림) · 열림: 손잡이 + 패널 (홈 · 기능 설정 페이지)
      *  · 손잡이를 다시 누르거나 · 패널을 오른쪽으로 밀면 닫힘 · 매크로 · 보정 · 테스트를 시작하면 자동으로 닫힘 (화면 캡처에 안 찍히게)
-     *  · 손잡이 = 사다리꼴 (화면 쪽이 넓음) + 끝에 세로선 · 선 색: 파랑 = 대기 · 초록 = 도는 중
+     *  · 손잡이 = 사다리꼴 (화면 쪽이 넓음) + 끝에 세로선 · 선 색: 회색 = 대기 · 파랑 = 도는 중
      */
     void showPanel() {
         if (root != null) return;
@@ -389,40 +386,7 @@ public class TapService extends AccessibilityService {
 
         panel = new SwipePanel(this);
         panel.setOrientation(LinearLayout.VERTICAL);
-        int pad = Ui.dp(this, 12);
-        panel.setPadding(pad, pad, pad, pad);
-        // 단색 + 가는 테두리 (ㄱ 장식 없음)
-        panel.setBackground(new Ui.Deco(this, 0xF22B2D31, Ui.LINE, Ui.WHITE, true, 0, 0));
-
-        // 제목 줄
-        LinearLayout head = new LinearLayout(this);
-        head.setOrientation(LinearLayout.HORIZONTAL);
-        head.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title = Ui.text(this, "ACRUX MACRO", 12, Ui.FG, true);
-        title.setLetterSpacing(0.12f);
-        head.addView(title, Ui.wrap());
-        body = new LinearLayout(this);
-        body.setOrientation(LinearLayout.VERTICAL);
-        status = Ui.text(this, "대기", 11, Ui.MUTED, false);
-        status.setMaxWidth(drawerW - pad * 2);            // 긴 이유는 줄바꿈
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        // 바이옴 매크로 켜기 · 끄기 (꺼짐 = 회색 · 켜짐 + 감시 중 = 초록 · 켜짐 + 연결 안 됨 = 노랑) — 낚시 자동 보정은 ⚙ → 낚시
-        bioCol = Ui.MUTED;
-        bioBtn = reg("biome", small("바이옴 OFF", Ui.MUTED, v -> toggleBiome()));
-        runBtn = reg("run", small("시작", Ui.ACCENT, v -> toggle("run")));
-        gearBtn = reg("gear", small("⚙", Ui.MUTED, v -> toggleMenu()));
-        row.addView(bioBtn, Ui.wrap());
-        row.addView(runBtn, gap());
-        row.addView(gearBtn, gap());
-        panel.addView(head, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        LinearLayout.LayoutParams sp = Ui.wrap();
-        sp.topMargin = Ui.dp(this, 2);
-        body.addView(status, sp);
-        LinearLayout.LayoutParams rp = Ui.wrap();
-        rp.topMargin = Ui.dp(this, 8);
-        body.addView(row, rp);
-        panel.addView(body, Ui.wrap());
+        buildPanel();
         slide.addView(panel, new LinearLayout.LayoutParams(drawerW, LinearLayout.LayoutParams.MATCH_PARENT));
         open = false;
         slide.setTranslationX(drawerW);                    // 닫힘: 패널은 화면 밖 · 손잡이는 닫힌 손잡이와 같은 자리
@@ -500,13 +464,13 @@ public class TapService extends AccessibilityService {
         open = o;
         slide.animate().cancel();
         if (o) {
+            refresh();                                           // 실행 시간 · 상태를 열자마자 지금 값으로
             root.setVisibility(View.VISIBLE);
             touch(root, lp, true);
             handle.setVisibility(View.INVISIBLE);
             slide.animate().translationX(0).setDuration(220).setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f))
                     .withEndAction(this::updateRect).start();
         } else {
-            closeMenu();
             slide.animate().translationX(drawerW).setDuration(180).setInterpolator(new android.view.animation.AccelerateInterpolator(1.4f))
                     .withEndAction(() -> {
                         if (open || root == null) return;
@@ -527,7 +491,7 @@ public class TapService extends AccessibilityService {
                 bar = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
         final android.graphics.Path shape = new android.graphics.Path();
         final float u;
-        int barColor = Ui.ACCENT;
+        int barColor = C_MUT;
         boolean lit;
 
         HandleView(Context c) {
@@ -560,9 +524,9 @@ public class TapService extends AccessibilityService {
             shape.lineTo(0, h - inset);
             shape.lineTo(w, h);
             shape.close();
-            fill.setColor(lit ? 0xF2404794 : 0xF22B2D31);
+            fill.setColor(lit ? 0xF51B2F55 : C_BG);
             c.drawPath(shape, fill);
-            edge.setColor(lit ? Ui.ACCENT : Ui.LINE);
+            edge.setColor(lit ? C_ACC : C_LINE);
             c.drawPath(shape, edge);
             float x = Math.max(4 * u, w * 0.38f), len = (h - inset * 2) * 0.42f;
             bar.setColor(lit ? 0xFFFFFFFF : barColor);
@@ -570,7 +534,7 @@ public class TapService extends AccessibilityService {
         }
     }
 
-    /** 패널: 오른쪽으로 밀면 닫힘 (짧게 누르면 그대로 버튼 · ⚙ 메뉴 안에서 위아래로 밀면 메뉴 스크롤) */
+    /** 패널: 오른쪽으로 밀면 닫힘 (짧게 누르면 그대로 버튼 · 위아래로 밀면 목록 스크롤) */
     final class SwipePanel extends LinearLayout {
         final int slop = android.view.ViewConfiguration.get(getContext()).getScaledTouchSlop();
         float sx, sy;
@@ -638,7 +602,6 @@ public class TapService extends AccessibilityService {
         Hub.main.post(() -> {
             if (root == null) return;
             boolean was = open;
-            closeMenu();
             removeView(root);
             removeView(hwin);
             root = null;
@@ -673,14 +636,6 @@ public class TapService extends AccessibilityService {
         return b;
     }
 
-    TextView item(String s, View.OnClickListener on) {
-        TextView t = Ui.text(this, s, 12, Ui.FG, false);
-        t.setPadding(Ui.dp(this, 6), Ui.dp(this, 7), Ui.dp(this, 6), Ui.dp(this, 7));
-        if (on != null) t.setOnClickListener(on);
-        else t.setTextColor(Ui.MUTED);
-        return t;
-    }
-
     void toggle(String m) {
         if (Hub.running()) {
             Hub.stop();
@@ -710,7 +665,6 @@ public class TapService extends AccessibilityService {
             else if (m.equals("run") && !Hub.cfg.ready()) Guide.featureOn("fish");
             else if (m.equals("run") && Guide.moveNeeded()) Guide.featureOn("move");   // 자동 낚시는 이동 · 판매 설정까지 필요
         }
-        closeMenu();
         refresh();
     }
 
@@ -723,132 +677,454 @@ public class TapService extends AccessibilityService {
         refresh();
     }
 
-    // ---- ⚙ 메뉴 — 위쪽 분류 (낚시 · 조이스틱 · 기준 장소 · 길 · 판매) 를 눌러서 그 분류만 보임 · 마지막에 본 분류를 기억
-    static final String[][] CATS = {{"fish", "낚시"}, {"stick", "조이스틱"}, {"base", "기준 장소"}, {"route", "길"}, {"sell", "판매"}};
-    LinearLayout catBody;
-    final List<TextView> catTabs = new ArrayList<>();
+    // ---- 미니 UI — 홈 (매크로 시작 · 바이옴 매크로 · 기능 목록 · 낚시 통계는 앱에서만) + 기능마다 설정 페이지 (‹ 로 돌아감)
+    //  · 위 줄 (Acrux · 상태 · 실행 시간) 과 아래 기록 두 줄은 어느 페이지에서나 그대로
+    //  · 기능 = PAGES 에 한 줄 + 설정 페이지 하나 (새 기능도 같은 방식으로 추가) · 안내의 분류 이름 = 페이지 id
+    static final int C_BG = 0xF516191C, C_P2 = 0xFF1C2024, C_LINE = 0xFF262B30, C_FG = 0xFFE6E8EA, C_MUT = 0xFF8A939B,
+            C_DIM = 0xFF5B636B, C_ACC = 0xFF4C8DFF, C_RED = 0xFFFF5A4E, C_WARN = 0xFFFFB020;
 
-    void toggleMenu() {
-        if (menu != null) {
-            closeMenu();
-            return;
-        }
-        setDrawer(true);                                         // 메뉴는 패널 안에서 펼쳐짐 (안내 중 다시 열 때도)
-        menu = new LinearLayout(this);
-        menu.setOrientation(LinearLayout.VERTICAL);
-        HorizontalScrollView hs = new HorizontalScrollView(this);
-        hs.setHorizontalScrollBarEnabled(false);
-        LinearLayout tabs = new LinearLayout(this);
-        tabs.setOrientation(LinearLayout.HORIZONTAL);
-        catTabs.clear();
-        for (int i = 0; i < CATS.length; i++) {
-            String key = CATS[i][0];
-            TextView c = reg("cat:" + key, Ui.chip(this, CATS[i][1], v -> showCat(key)));
-            c.setTextSize(12);
-            LinearLayout.LayoutParams lp = Ui.wrap();
-            if (i > 0) lp.leftMargin = Ui.dp(this, 4);
-            tabs.addView(c, lp);
-            catTabs.add(c);
-        }
-        hs.addView(tabs);
-        catBody = new LinearLayout(this);
-        catBody.setOrientation(LinearLayout.VERTICAL);
-        ScrollView sv = new ScrollView(this);
-        sv.addView(catBody);
-        menu.addView(hs);
-        // 패널 남은 높이를 메뉴가 다 씀 (위아래로 꽉 찬 패널 · 길면 스크롤)
-        menu.addView(sv, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
-        p.topMargin = Ui.dp(this, 8);
-        panel.addView(menu, p);
-        menu.setTag(menu);
-        showCat(Hub.prefs().getString("menuCat", "fish"));
+    /** 페이지: id · 위 페이지 · 이름 */
+    static final String[][] PAGES = {
+            {"fish", "home", "낚시"},
+            {"move", "home", "이동 · 판매"},
+            {"stick", "move", "조이스틱"},
+            {"base", "move", "기준 장소"},
+            {"route", "move", "길"},
+            {"sell", "move", "판매"},
+    };
+
+    static String parentOf(String id) {
+        for (String[] p : PAGES) if (p[0].equals(id)) return p[1];
+        return null;
     }
 
-    void showCat(String key) {
-        if (catBody == null) return;
-        Hub.prefs().edit().putString("menuCat", key).apply();
-        for (int i = 0; i < CATS.length; i++) Ui.chipOn(this, catTabs.get(i), CATS[i][0].equals(key));
-        LinearLayout m = catBody;
-        m.removeAllViews();
-        Hub.main.post(this::applyGuide);
-        switch (key) {
+    static String pageName(String id) {
+        for (String[] p : PAGES) if (p[0].equals(id)) return p[2];
+        return id;
+    }
+
+    /** 기능 줄의 상태 한 줄 (준비가 덜 됐으면 주황) */
+    String featState(String id) {
+        switch (id) {
             case "fish":
-                m.addView(head("낚시 보정"));
-                m.addView(item(Hub.cfg.ready() ? "✓ 보정됨" : "· 보정 필요 — 낚시 자리에서 Fish 버튼이 보일 때", null));
-                m.addView(reg("act:cal", item((Hub.cfg.ready() ? "낚시 자동 보정 다시 하기" : "낚시 자동 보정") + " (Fish 를 한 번 던져 창 위치를 맞춤)", v -> toggle("cal"))));
+                return Hub.cfg.ready() ? "보정 완료" : "보정 필요";
+            case "move":
+                return moveReady() + " / 4 준비됨";
+            case "stick":
+                return Hub.stick != null ? "저장됨" : "없음";
+            case "base":
+                return count(Mover.BASE_KEYS) + " / " + Mover.BASE_KEYS.length + " 저장됨";
+            case "route":
+                return routes() + " / 2 기록됨";
+            case "sell":
+                return Guide.sellReady() ? "준비됨" : count(Seller.TALK) < Seller.TALK.length ? "대화 버튼 없음" : "자동 보정 필요";
+            default:
+                return "";
+        }
+    }
+
+    boolean featOk(String id) {
+        switch (id) {
+            case "fish":
+                return Hub.cfg.ready();
+            case "move":
+                return moveReady() == 4;
+            case "stick":
+                return Hub.stick != null;
+            case "base":
+                return Guide.baseReady();
+            case "route":
+                return routes() == 2;
+            case "sell":
+                return Guide.sellReady();
+            default:
+                return true;
+        }
+    }
+
+    int moveReady() {
+        int n = 0;
+        for (String id : new String[]{"stick", "base", "route", "sell"}) if (featOk(id)) n++;
+        return n;
+    }
+
+    static int count(String[][] keys) {
+        int n = 0;
+        for (String[] k : keys) if (Hub.pos.containsKey(k[0])) n++;
+        return n;
+    }
+
+    static int routes() {
+        return (Hub.fishRoute.isEmpty() ? 0 : 1) + (Hub.sellRoute.isEmpty() ? 0 : 1);
+    }
+
+    String page = "home";
+    LinearLayout pageBox;
+    TextView dot, clock, bioState;
+    TextView[] logLine = new TextView[2];
+    Toggle bioSw;
+    /** 지금 페이지에서 상태가 바뀌면 다시 쓸 것들 */
+    final List<Runnable> live = new ArrayList<>();
+    long runT0;
+    boolean wasRun;
+    int runCol;
+    final Runnable tick = this::refresh;
+
+    /** 패널 안 (위 줄 · 페이지 · 기록) */
+    void buildPanel() {
+        int pad = Ui.dp(this, 14);
+        panel.setPadding(pad, Ui.dp(this, 12), pad, Ui.dp(this, 10));
+        panel.setBackground(new Ui.Deco(this, C_BG, C_LINE, 0, true, 0, 0));
+        LinearLayout head = hrow();
+        head.addView(Ui.text(this, "Acrux", 15, C_FG, true), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        dot = Ui.text(this, "●", 9, C_DIM, false);
+        clock = mono("", 11, C_MUT);
+        LinearLayout.LayoutParams cp = Ui.wrap();
+        cp.leftMargin = Ui.dp(this, 6);
+        head.addView(dot, Ui.wrap());
+        head.addView(clock, cp);
+        panel.addView(head, mw());
+        pageBox = new LinearLayout(this);
+        pageBox.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
+        pp.topMargin = Ui.dp(this, 8);
+        panel.addView(pageBox, pp);
+        panel.addView(hair(), hairLp());
+        LinearLayout logs = new LinearLayout(this);
+        logs.setOrientation(LinearLayout.VERTICAL);
+        logs.setPadding(0, Ui.dp(this, 6), 0, 0);
+        for (int i = 0; i < logLine.length; i++) {
+            logLine[i] = mono("", 9.5f, C_DIM);
+            logLine[i].setSingleLine(true);
+            logLine[i].setEllipsize(android.text.TextUtils.TruncateAt.END);
+            logs.addView(logLine[i], mw());
+        }
+        panel.addView(logs, mw());
+        showPage(page);
+    }
+
+    /** 페이지 바꾸기 (패널이 닫혀 있어도 다음에 열면 그 페이지) */
+    void showPage(String id) {
+        if (pageBox == null) return;
+        if (!id.equals("home") && parentOf(id) == null) id = "home";
+        page = id;
+        pageBox.removeAllViews();
+        live.clear();
+        targets.clear();
+        if (id.equals("home")) homePage(pageBox);
+        else subPage(pageBox, id);
+        refresh();
+        Hub.main.post(this::applyGuide);
+    }
+
+    void homePage(LinearLayout box) {
+        status = Ui.text(this, "대기", 11, C_MUT, false);
+        status.setMaxLines(2);
+        status.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        box.addView(status, mw());
+        // 매크로 시작 · 정지 (크게)
+        runBtn = reg("run", Ui.text(this, "매크로 시작", 14, 0xFFFFFFFF, true));
+        runBtn.setGravity(Gravity.CENTER);
+        runCol = 0;
+        runBtn.setOnClickListener(v -> toggle("run"));
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 44));
+        rp.topMargin = Ui.dp(this, 8);
+        box.addView(runBtn, rp);
+        // 바이옴 매크로 (그 밑에 작게 · 줄 아무 데나 누르면 켜고 끔)
+        LinearLayout br = reg("biome", hrow());
+        br.setPadding(0, Ui.dp(this, 7), 0, Ui.dp(this, 7));
+        br.setBackground(press());
+        br.setOnClickListener(v -> toggleBiome());
+        br.addView(Ui.text(this, "바이옴 매크로", 11, C_FG, false), Ui.wrap());
+        bioState = Ui.text(this, "꺼짐", 10, C_DIM, false);
+        bioState.setSingleLine(true);
+        bioState.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        bp.leftMargin = Ui.dp(this, 8);
+        bp.rightMargin = Ui.dp(this, 8);
+        br.addView(bioState, bp);
+        bioSw = new Toggle(this);
+        br.addView(bioSw, new LinearLayout.LayoutParams(Ui.dp(this, 28), Ui.dp(this, 14)));
+        LinearLayout.LayoutParams brp = mw();
+        brp.topMargin = Ui.dp(this, 2);
+        box.addView(br, brp);
+        box.addView(section("기능"), mw());
+        LinearLayout list = scroll(box);
+        for (String[] p : PAGES) if (p[1].equals("home")) featRow(list, p[0]);
+    }
+
+    void subPage(LinearLayout box, String id) {
+        String up = parentOf(id);
+        LinearLayout back = reg("back", hrow());
+        back.setPadding(0, Ui.dp(this, 2), 0, Ui.dp(this, 8));
+        back.setBackground(press());
+        back.setOnClickListener(v -> showPage(up));
+        LinearLayout.LayoutParams ap = Ui.wrap();
+        ap.rightMargin = Ui.dp(this, 8);
+        back.addView(Ui.text(this, "‹", 18, C_MUT, false), ap);
+        back.addView(Ui.text(this, pageName(id), 13, C_FG, true), Ui.wrap());
+        box.addView(back, mw());
+        box.addView(hair(), hairLp());
+        LinearLayout m = scroll(box);
+        switch (id) {
+            case "fish":
+                pageFish(m);
+                break;
+            case "stick":
+                pageStick(m);
                 break;
             case "base":
-                m.addView(head("공통 위치 (기준 장소 맞추기)"));
-                for (String[] k : Mover.BASE_KEYS) m.addView(posItem(k[0], k[1], ""));
-                m.addView(head("테스트"));
-                m.addView(reg("act:base", item("기준 장소로", v -> toggle("base"))));
+                pageBase(m);
                 break;
             case "route":
-                place(m, false);
-                place(m, true);
-                m.addView(head("테스트"));
-                m.addView(reg("act:fish", item("기준 장소 → 낚시 장소", v -> toggle("fish"))));
-                m.addView(reg("act:sellgo", item("기준 장소 → 판매 장소", v -> toggle("sellgo"))));
+                pageRoute(m);
                 break;
-            case "sell": {
-                m.addView(head("대화"));
-                for (String[] k : Seller.TALK) m.addView(posItem(k[0], k[1], " (판매 장소에 서서)"));
-                m.addView(head("상점"));
-                m.addView(reg("act:sellcal", item("판매 자동 보정 (NPC 앞에서 시작 → 대화 버튼은 직접)", v -> toggle("sellcal"))));
-                int set = 0;
-                for (String[] k : Seller.KEYS) if (Hub.pos.containsKey(k[0])) set++;
-                m.addView(item("  판매 위치 " + set + " / " + Seller.KEYS.length + " 저장됨", null));
-                for (String[] k : new String[][]{{"first_fish_pos", "첫 번째 물고기 칸"}, {"shop_close_pos", "상점 닫기 X"}}) {
-                    m.addView(posItem(k[0], k[1], " 직접 지정 (상점을 연 채로)"));
-                }
-                m.addView(head("테스트"));
-                m.addView(reg("act:sell", item("판매 한 번 해 보기", v -> toggle("sell"))));
+            case "sell":
+                pageSell(m);
                 break;
-            }
-            default:
-                m.addView(head("조이스틱 (W · A · S · D)"));
-                m.addView(item(Hub.stick != null ? "✓ 조이스틱 저장됨 (눌러서 위치 보기)" : "· 조이스틱 없음 — 로블록스 설정 → 이동 방식: 조이스틱", Hub.stick != null ? v -> {
-                    closeMenu();
-                    Hub.showStick(2500);
-                } : null));
-                m.addView(reg("act:stickfind", item("조이스틱 찾기 (화면에서 자동으로)", v -> toggle("stickfind"))));
-                m.addView(item("조이스틱 직접 지정 (가운데 → 가장자리)", v -> pickStick()));
-                m.addView(head("점프"));
-                for (String[] k : Mover.JUMP_KEYS) m.addView(posItem(k[0], k[1], " — 길 기록에서 점프"));
-                m.addView(head("테스트"));
-                m.addView(reg("act:sticktest", item("조이스틱 테스트 (W · A · S · D 0.8초씩)", v -> toggle("sticktest"))));
-                m.addView(reg("act:jumptest", item("점프 테스트 (제자리 → 걸으면서)", v -> toggle("jumptest"))));
+            default:                                            // 묶음 페이지 = 아래 기능 목록
+                for (String[] p : PAGES) if (p[1].equals(id)) featRow(m, p[0]);
                 break;
         }
     }
 
-    /** 위치 하나 (✓ 저장됨 · · 없음) → 누르면 포인터로 지정 */
-    TextView posItem(String key, String label, String tail) {
-        return reg("pos:" + key, item((Hub.pos.containsKey(key) ? "✓ " : "· ") + label + tail, v -> pickSave(key, label)));
+    void pageFish(LinearLayout m) {
+        m.addView(section("낚시 보정"), mw());
+        info(m, () -> Hub.cfg.ready() ? "보정 완료" : "보정 필요 — 낚시 자리에서 Fish 버튼이 보일 때", () -> Hub.cfg.ready());
+        act(m, "act:cal", "낚시 자동 보정", "Fish 를 한 번 던져 창 위치를 맞춤", true, v -> toggle("cal"));
     }
 
-    /** 길 기록: 기준 장소로 간 뒤 '지금부터 기록' → WASD 패드로 걸어가서 [도착] */
-    void place(LinearLayout m, boolean sell) {
-        com.acrux.mobile.core.Route r = sell ? Hub.sellRoute : Hub.fishRoute;
-        String name = sell ? "물고기 판매 장소" : "낚시 장소";
-        m.addView(head(name + " 길"));
-        m.addView(item(r.isEmpty() ? "· 기록 없음" : "✓ 기록됨 · " + fmt(r.seconds()) + "초 · " + r.parts() + "조각 · 점프 " + r.jumps() + "번", null));
-        m.addView(reg(sell ? "act:rec_sell" : "act:rec_fish", item((r.isEmpty() ? "● 길 기록" : "● 다시 기록") + " (기준 장소로 간 뒤 WASD 패드로 걸어감 → [도착])", v -> toggle(sell ? "rec_sell" : "rec_fish"))));
+    void pageStick(LinearLayout m) {
+        m.addView(section("조이스틱 (W · A · S · D)"), mw());
+        val(m, null, "조이스틱", "로블록스 설정 → 이동 방식: 조이스틱", () -> Hub.stick != null, v -> {
+            if (Hub.stick == null) return;
+            setDrawer(false);
+            Hub.showStick(2500);
+        });
+        act(m, "act:stickfind", "조이스틱 찾기", "화면에서 자동으로", true, v -> toggle("stickfind"));
+        act(m, null, "조이스틱 직접 지정", "가운데 → 가장자리", false, v -> pickStick());
+        m.addView(section("점프"), mw());
+        for (String[] k : Mover.JUMP_KEYS) pos(m, k[0], k[1], "길 기록에서 점프");
+        m.addView(section("테스트"), mw());
+        act(m, "act:sticktest", "조이스틱 테스트", "W · A · S · D 0.8초씩", false, v -> toggle("sticktest"));
+        act(m, "act:jumptest", "점프 테스트", "제자리 → 걸으면서", false, v -> toggle("jumptest"));
     }
 
-    TextView head(String s) {
-        TextView t = Ui.text(this, s, 11, Ui.MUTED, true);
-        t.setPadding(Ui.dp(this, 2), Ui.dp(this, 8), 0, Ui.dp(this, 2));
+    void pageBase(LinearLayout m) {
+        m.addView(section("공통 위치 (기준 장소 맞추기)"), mw());
+        for (String[] k : Mover.BASE_KEYS) pos(m, k[0], k[1], null);
+        m.addView(section("테스트"), mw());
+        act(m, "act:base", "기준 장소로", null, false, v -> toggle("base"));
+    }
+
+    void pageRoute(LinearLayout m) {
+        for (boolean sell : new boolean[]{false, true}) {
+            m.addView(section((sell ? "물고기 판매 장소" : "낚시 장소") + " 길"), mw());
+            info(m, () -> {
+                com.acrux.mobile.core.Route r = sell ? Hub.sellRoute : Hub.fishRoute;
+                return r.isEmpty() ? "기록 없음" : "기록됨 · " + fmt(r.seconds()) + "초 · " + r.parts() + "조각 · 점프 " + r.jumps() + "번";
+            }, () -> !(sell ? Hub.sellRoute : Hub.fishRoute).isEmpty());
+            act(m, sell ? "act:rec_sell" : "act:rec_fish", "길 기록", "기준 장소로 간 뒤 WASD 패드로 걸어감 → [도착]", true, v -> toggle(sell ? "rec_sell" : "rec_fish"));
+        }
+        m.addView(section("테스트"), mw());
+        act(m, "act:fish", "기준 장소 → 낚시 장소", null, false, v -> toggle("fish"));
+        act(m, "act:sellgo", "기준 장소 → 판매 장소", null, false, v -> toggle("sellgo"));
+    }
+
+    void pageSell(LinearLayout m) {
+        m.addView(section("대화"), mw());
+        for (String[] k : Seller.TALK) pos(m, k[0], k[1], "판매 장소에 서서");
+        m.addView(section("상점"), mw());
+        act(m, "act:sellcal", "판매 자동 보정", "NPC 앞에서 시작 → 대화 버튼은 직접", true, v -> toggle("sellcal"));
+        info(m, () -> "판매 위치 " + count(Seller.KEYS) + " / " + Seller.KEYS.length + " 저장됨", () -> count(Seller.KEYS) == Seller.KEYS.length);
+        for (String[][] k : new String[][][]{{{"first_fish_pos", "첫 번째 물고기 칸"}}, {{"shop_close_pos", "상점 닫기 X"}}}) {
+            pos(m, k[0][0], k[0][1], "직접 지정 · 상점을 연 채로");
+        }
+        m.addView(section("테스트"), mw());
+        act(m, "act:sell", "판매 한 번 해 보기", null, false, v -> toggle("sell"));
+    }
+
+    // ---- 줄 만들기
+
+    /** 기능 줄: 이름 + 상태 한 줄 + › (누르면 그 페이지) */
+    void featRow(LinearLayout list, String id) {
+        LinearLayout r = reg("feat:" + id, hrow());
+        r.setPadding(0, Ui.dp(this, 9), 0, Ui.dp(this, 9));
+        r.setBackground(press());
+        r.setOnClickListener(v -> showPage(id));
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.addView(Ui.text(this, pageName(id), 13, C_FG, true), Ui.wrap());
+        TextView s = Ui.text(this, featState(id), 10.5f, C_MUT, false);
+        col.addView(s, Ui.wrap());
+        r.addView(col, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        r.addView(chev("›"), Ui.wrap());
+        live.add(() -> {
+            Ui.set(s, featState(id));
+            s.setTextColor(featOk(id) ? C_MUT : C_WARN);
+        });
+        list.addView(r, mw());
+        list.addView(hair(), hairLp());
+    }
+
+    /** 위치 줄: 이름 (+ 설명) · 저장됨 / 없음 · 누르면 포인터로 지정 */
+    void pos(LinearLayout m, String key, String label, String hint) {
+        val(m, "pos:" + key, label, hint, () -> Hub.pos.containsKey(key), v -> pickSave(key, label));
+    }
+
+    void val(LinearLayout m, String key, String label, String hint, java.util.function.BooleanSupplier ok, View.OnClickListener on) {
+        LinearLayout r = hrow();
+        if (key != null) reg(key, r);
+        r.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 8));
+        r.setBackground(press());
+        r.setOnClickListener(on);
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.addView(Ui.text(this, label, 12.5f, C_FG, false), Ui.wrap());
+        if (hint != null) col.addView(Ui.text(this, hint, 10, C_DIM, false), Ui.wrap());
+        r.addView(col, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        TextView v = Ui.text(this, "", 11, C_DIM, false);
+        LinearLayout.LayoutParams vp = Ui.wrap();
+        vp.leftMargin = Ui.dp(this, 8);
+        r.addView(v, vp);
+        r.addView(chev("›"), Ui.wrap());
+        live.add(() -> {
+            boolean y = ok.getAsBoolean();
+            Ui.set(v, y ? "저장됨" : "없음");
+            v.setTextColor(y ? C_ACC : C_DIM);
+        });
+        m.addView(r, mw());
+        m.addView(hair(), hairLp());
+    }
+
+    /** 실행 줄 (테두리 상자): 주요 = 파란 테두리 · 그 밖 = 회색 테두리 */
+    void act(LinearLayout m, String key, String title, String hint, boolean primary, View.OnClickListener on) {
+        LinearLayout r = hrow();
+        if (key != null) reg(key, r);
+        r.setPadding(Ui.dp(this, 10), Ui.dp(this, 8), Ui.dp(this, 10), Ui.dp(this, 8));
+        android.graphics.drawable.StateListDrawable d = new android.graphics.drawable.StateListDrawable();
+        d.addState(new int[]{android.R.attr.state_pressed}, new Ui.Deco(this, primary ? 0x334C8DFF : 0x14FFFFFF, primary ? C_ACC : C_MUT, 0, true, 0, 0));
+        d.addState(new int[0], new Ui.Deco(this, 0, primary ? C_ACC : C_LINE, 0, true, 0, 0));
+        r.setBackground(d);
+        r.setOnClickListener(on);
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.addView(Ui.text(this, title, 12.5f, primary ? C_ACC : C_FG, true), Ui.wrap());
+        if (hint != null) col.addView(Ui.text(this, hint, 10, C_DIM, false), Ui.wrap());
+        r.addView(col, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        r.addView(chev("▸"), Ui.wrap());
+        LinearLayout.LayoutParams p = mw();
+        p.topMargin = Ui.dp(this, 6);
+        m.addView(r, p);
+    }
+
+    /** 상태 한 줄 (됐으면 파랑 · 아니면 주황) */
+    void info(LinearLayout m, java.util.function.Supplier<String> s, java.util.function.BooleanSupplier ok) {
+        TextView t = Ui.text(this, "", 11, C_MUT, false);
+        t.setPadding(0, Ui.dp(this, 2), 0, Ui.dp(this, 2));
+        live.add(() -> {
+            Ui.set(t, s.get());
+            t.setTextColor(ok.getAsBoolean() ? C_ACC : C_WARN);
+        });
+        m.addView(t, mw());
+    }
+
+    TextView section(String s) {
+        TextView t = Ui.text(this, s, 10, C_DIM, true);
+        t.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 4));
         return t;
     }
 
-    void closeMenu() {
-        if (menu == null || panel == null) return;
-        panel.removeView((View) menu.getTag());
-        menu = null;
-        catBody = null;
-        Hub.main.post(this::applyGuide);
+    TextView chev(String s) {
+        TextView t = Ui.text(this, s, 15, C_DIM, false);
+        t.setPadding(Ui.dp(this, 8), 0, Ui.dp(this, 2), 0);
+        return t;
+    }
+
+    TextView mono(String s, float sp, int color) {
+        TextView t = Ui.text(this, s, sp, color, false);
+        t.setTypeface(android.graphics.Typeface.MONOSPACE);
+        return t;
+    }
+
+    LinearLayout hrow() {
+        LinearLayout r = new LinearLayout(this);
+        r.setOrientation(LinearLayout.HORIZONTAL);
+        r.setGravity(Gravity.CENTER_VERTICAL);
+        return r;
+    }
+
+    /** 남은 높이를 다 쓰는 스크롤 칸 (길면 위아래로 밀어서) */
+    LinearLayout scroll(LinearLayout box) {
+        ScrollView sv = new ScrollView(this);
+        sv.setVerticalScrollBarEnabled(false);
+        sv.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        LinearLayout m = new LinearLayout(this);
+        m.setOrientation(LinearLayout.VERTICAL);
+        sv.addView(m, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+        box.addView(sv, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        return m;
+    }
+
+    View hair() {
+        View v = new View(this);
+        v.setBackgroundColor(C_LINE);
+        return v;
+    }
+
+    LinearLayout.LayoutParams hairLp() {
+        return new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, Ui.dp(this, 0.6f)));
+    }
+
+    static LinearLayout.LayoutParams mw() {
+        return new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+    }
+
+    static android.graphics.drawable.Drawable press() {
+        android.graphics.drawable.StateListDrawable d = new android.graphics.drawable.StateListDrawable();
+        d.addState(new int[]{android.R.attr.state_pressed}, new android.graphics.drawable.ColorDrawable(0x14FFFFFF));
+        d.addState(new int[0], new android.graphics.drawable.ColorDrawable(0));
+        return d;
+    }
+
+    /** 작은 켜기 · 끄기 (각진 모양 · 켜짐 = 파랑) */
+    static final class Toggle extends View {
+        final android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        final float u;
+        boolean on;
+
+        Toggle(Context c) {
+            super(c);
+            u = c.getResources().getDisplayMetrics().density;
+        }
+
+        void set(boolean v) {
+            if (v == on) return;
+            on = v;
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(android.graphics.Canvas c) {
+            float w = getWidth(), h = getHeight(), i = 2 * u, k = h - i * 2;
+            p.setColor(on ? C_ACC : C_LINE);
+            c.drawRect(0, 0, w, h, p);
+            p.setColor(on ? 0xFFFFFFFF : C_MUT);
+            float x = on ? w - i - k : i;
+            c.drawRect(x, i, x + k, i + k, p);
+        }
+    }
+
+    /** 안내가 강조할 곳 — 그 항목의 페이지면 항목 · 위 페이지면 그쪽 기능 줄 · 아니면 ‹ (돌아가기) */
+    String guideTarget() {
+        Guide.Step s = Guide.cur == null ? null : Guide.step();
+        if (s == null || s.target == null) return null;
+        String want = s.cat == null ? "home" : s.cat;
+        if (want.equals(page)) return s.target;
+        for (String c = want; c != null && !c.equals("home"); c = parentOf(c)) {
+            if (page.equals(parentOf(c))) return "feat:" + c;
+        }
+        return "back";
     }
 
     void pickSave(String key, String label) {
@@ -857,9 +1133,7 @@ public class TapService extends AccessibilityService {
             Hub.pos.put(key, at);
             Hub.save();
             Hub.log("'" + label + "' 위치 저장 (" + at[0] + ", " + at[1] + ")", 'g');
-            if (Guide.cur != null) Hub.main.post(() -> {        // 설정 안내 중이면 메뉴를 다시 열어 둠 (다음 위치로 바로)
-                if (menu == null) toggleMenu();
-            });
+            if (Guide.cur != null) Hub.main.post(() -> setDrawer(true));   // 설정 안내 중이면 패널을 다시 열어 둠 (같은 페이지 · 다음 위치로 바로)
         });
     }
 
@@ -946,7 +1220,6 @@ public class TapService extends AccessibilityService {
      */
     void pick(String name, double[] init, java.util.function.Consumer<double[]> done) {
         setDrawer(false);                                        // 패널이 그 자리 게임 화면을 가리지 않게
-        closeMenu();
         if (picker != null) {
             done.accept(null);
             return;
@@ -1091,21 +1364,51 @@ public class TapService extends AccessibilityService {
     }
 
     void refresh() {
-        if (root == null || panel == null) return;
+        if (root == null || panel == null || pageBox == null) return;
         boolean run = Hub.running();
-        String mode = Hub.mode;
-        Ui.set(status, CaptureService.active == null ? "화면 캡처 꺼짐 · 앱에서 시작" : Hub.state);
-        boolean bio = Biome.on();
-        Ui.set(bioBtn, bio ? "바이옴 ON" : "바이옴 OFF");
-        int col = !bio ? Ui.MUTED : Biome.watching ? Ui.GREEN : Ui.YELLOW;
-        if (col != bioCol) {
-            bioCol = col;
-            Ui.paintButton(this, bioBtn, col);
+        if (run && !wasRun) runT0 = SystemClock.elapsedRealtime();
+        wasRun = run;
+        boolean cap = CaptureService.active != null;
+        // 위 줄: 점 (파랑 = 도는 중 · 주황 = 화면 캡처 꺼짐 · 회색 = 대기) + 실행 시간
+        dot.setTextColor(run ? C_ACC : !cap ? C_WARN : C_DIM);
+        if (run) {
+            long t = (SystemClock.elapsedRealtime() - runT0) / 1000;
+            String c = String.format(Locale.ROOT, "%02d:%02d:%02d", t / 3600, t / 60 % 60, t % 60);
+            if (!c.contentEquals(clock.getText())) clock.setText(c);
+        } else {
+            Ui.set(clock, cap ? "대기" : "캡처 꺼짐");
         }
-        Ui.set(runBtn, run ? "정지" : "시작");            // 보정 · 테스트 · 기록 중에도 [정지] 로 멈춤
+        Hub.main.removeCallbacks(tick);
+        if (run && open) Hub.main.postDelayed(tick, 1000);
+        if (status != null) Ui.set(status, !cap ? "화면 캡처 꺼짐 · 앱에서 시작" : Hub.state);
+        if (runBtn != null) {
+            boolean macro = !run || "run".equals(Hub.mode);
+            Ui.set(runBtn, !run ? "매크로 시작" : macro ? "매크로 정지" : "정지");   // 보정 · 테스트 · 기록 중에도 [정지] 로 멈춤
+            int col = run ? C_RED : C_ACC;
+            if (col != runCol) {
+                runCol = col;
+                android.graphics.drawable.StateListDrawable d = new android.graphics.drawable.StateListDrawable();
+                d.addState(new int[]{android.R.attr.state_pressed}, new Ui.Deco(this, (col & 0x00FFFFFF) | 0xB3000000, 0, 0, false, 0, 0));
+                d.addState(new int[0], new Ui.Deco(this, col, 0, 0, false, 0, 0));
+                runBtn.setBackground(d);
+            }
+        }
+        if (bioState != null) {
+            boolean bio = Biome.on();
+            Ui.set(bioState, bio ? Biome.status : "꺼짐");
+            bioState.setTextColor(!bio ? C_DIM : Biome.watching ? C_ACC : C_WARN);
+            bioSw.set(bio);
+        }
+        for (Runnable r : live) r.run();
+        List<String> l = Hub.recentLogsShown(logLine.length);
+        for (int i = 0; i < logLine.length; i++) {
+            int k = i - (logLine.length - l.size());
+            String t = k >= 0 ? l.get(k) : "";
+            if (!t.contentEquals(logLine[i].getText())) logLine[i].setText(t);
+        }
         arriveBtn.setVisibility(Hub.measuring ? View.VISIBLE : View.GONE);
-        handle.setBar(run ? Ui.GREEN : Ui.ACCENT);
-        handleIn.setBar(run ? Ui.GREEN : Ui.ACCENT);
+        handle.setBar(run ? C_ACC : C_MUT);
+        handleIn.setBar(run ? C_ACC : C_MUT);
     }
 
     static String fmt(double v) {

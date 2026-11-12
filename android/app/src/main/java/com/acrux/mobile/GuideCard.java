@@ -127,7 +127,8 @@ final class GuideCard {
     }
 
     /** 지금 안내 상태로 다시 그림 */
-    void bind(boolean menuOpen, String menuCat) {
+    /** ftg: 떠 있는 Acrux 창에서 지금 강조한 곳 (앱 화면 · 패널이 닫혀 있으면 null) */
+    void bind(String ftg) {
         Guide.Tut t = Guide.cur;
         Guide.Step s = Guide.step();
         if (t == null || s == null) return;
@@ -149,12 +150,13 @@ final class GuideCard {
             card.setTranslationY(Ui.dp(c, 8));
             card.animate().alpha(1f).translationY(0).setDuration(200).start();
         }
-        // 떠 있는 창에서 어디를 눌러야 하는지 (메뉴가 닫혀 있으면 ⚙ 부터)
-        String tg = app == null ? Guide.target(menuOpen, menuCat) : null;
+        // 떠 있는 창에서 어디를 눌러야 하는지 (다른 페이지면 그쪽 기능 줄 · ‹ 부터)
+        String tg = app == null ? ftg : null;
         String h = "";
         if (app != null && s.target != null) h = "로블록스 화면의 Acrux 창에서 진행해 주세요.";
-        else if ("gear".equals(tg)) h = "→ Acrux 창의 ⚙ 를 눌러 주세요.";
-        else if (tg != null && tg.startsWith("cat:")) h = "→ 위쪽 [" + catName(tg.substring(4)) + "] 을 눌러 주세요.";
+        else if (app == null && s.target != null && tg == null) h = "→ 화면 오른쪽 손잡이를 눌러 Acrux 창을 열어 주세요.";
+        else if ("back".equals(tg)) h = "→ 위쪽 ‹ 를 눌러 돌아가 주세요.";
+        else if (tg != null && tg.startsWith("feat:")) h = "→ [" + TapService.pageName(tg.substring(5)) + "] 을 눌러 주세요.";
         Ui.set(hint, h);
         hint.setVisibility(h.isEmpty() ? View.GONE : View.VISIBLE);
         // 해야 할 것
@@ -181,11 +183,6 @@ final class GuideCard {
         boolean can = Guide.canNext();
         next.setEnabled(can);
         next.setAlpha(can ? 1f : 0.35f);
-    }
-
-    static String catName(String k) {
-        for (String[] c : TapService.CATS) if (c[0].equals(k)) return c[1];
-        return k;
     }
 
     void doAction() {
