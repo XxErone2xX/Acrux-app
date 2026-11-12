@@ -384,9 +384,9 @@ public class MainActivity extends Activity {
         dcHome.addView(dcCol, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         dcHomeGo = Ui.text(this, "연결하기", 13, 0xFFFFFFFF, true);
         dcHomeGo.setPadding(Ui.dp(this, 12), Ui.dp(this, 6), Ui.dp(this, 12), Ui.dp(this, 6));
-        LinearLayout.LayoutParams gp = Ui.wrap();
-        gp.leftMargin = Ui.dp(this, 10);
-        dcHome.addView(dcHomeGo, gp);
+        LinearLayout.LayoutParams dgp = Ui.wrap();
+        dgp.leftMargin = Ui.dp(this, 10);
+        dcHome.addView(dcHomeGo, dgp);
         dcHome.setOnClickListener(v -> {
             if (!DiscordLink.linked() && DiscordLink.code == null) DiscordLink.login(this);
             else show(4, true);

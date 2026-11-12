@@ -1,3 +1,19 @@
+## Acrux Mobile V1.5.0 업데이트
+- V1.4.25 ~ V1.4.27 이 빌드에 실패해서 나오지 못했던 것을 모두 담은 버전 [ 빌드 오류 수정 ]
+- 미니 UI 제목을 Acrux → Acrux Mobile 로
+- 홈 맨 위에 디스코드 연결 칸 [ 안 했으면 [연결하기] 를 누르면 바로 브라우저 · 했으면 이름이 보이고 누르면 설정 → 디스코드 연결 ]
+- 디스코드 봇 연결: 봇이 물어볼 때만 보냄
+  - 평소에는 데이터 없이 "봇 요청 있어?" 만 확인
+  - /상태 · /통계 · /로그 명령이 오면 그 명령에 필요한 것만 보냄 · 서버는 봇 답에만 쓰고 저장 안 함
+
+## Acrux Mobile V1.5.0 Update
+- Includes everything from V1.4.25 – V1.4.27, which failed to build and were never released [ build error fixed ]
+- The mini UI title now says Acrux Mobile instead of Acrux
+- Discord link card at the top of Home [ not linked: press [Link] and the browser opens · linked: shows your name, press it to go to Settings → Discord link ]
+- Discord bot link: the app sends data only when the bot asks
+  - Normally it only checks "any bot request?" with no data
+  - When /status · /stats · /logs comes, it sends only what that command needs · the server uses it for the reply and doesn't store it
+
 ## Acrux Mobile V1.4.27 업데이트
 - 디스코드 봇 연결: 봇이 물어볼 때만 보내게 바꿈
   - 평소에는 데이터 없이 "봇 요청 있어?" 만 확인 [ 15초 · 1분마다 상태를 보내던 것 없앰 ]
