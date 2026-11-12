@@ -36,7 +36,9 @@ class RouteDriver(private val service: TapService) {
     }
 
     fun beginRecord() {
-        if (pad != null || recorder?.isAlive == true) return
+        if (pad != null || recorder?.isAlive == true) {
+            throw IllegalStateException("이전 길 기록을 정리 중입니다. 잠깐 뒤 다시 시작하세요.")
+        }
         configure()
         val input = RecPad()
         pad = input
@@ -75,6 +77,12 @@ class RouteDriver(private val service: TapService) {
     }
 
     fun arrive() { finishing = true }
+    fun cancelRecord() {
+        if (finishing) return
+        // Invalidate the recording generation before its finally block can save.
+        Native.control(0)
+        stop()
+    }
     fun stop() {
         recorder?.interrupt()
         playback?.interrupt()
@@ -105,7 +113,7 @@ class RouteDriver(private val service: TapService) {
             try {
                 android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY)
                 Joy.pilot.play(events) {
-                    if (!Native.inputCurrent(generation) || !service.gameVisible || Thread.currentThread().isInterrupted) throw IllegalStateException("길 재생 중지")
+                    if (!Native.inputCurrent(generation) || !service.canInput() || Thread.currentThread().isInterrupted) throw IllegalStateException("길 재생 중지")
                 }
             } catch (error: RuntimeException) {
                 success = false

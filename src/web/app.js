@@ -375,7 +375,7 @@ async function openPage(key) {
   hideDeco();
   if (key === 'log') scrollLog(true);
   if (key === 'mfeat') { renderMpop(); syncFeatItems(); }   // 플레이어 이름 · 버튼 위치가 바뀌었을 수 있음
-  if (key === 'acrux') refreshOcrInfo();
+  if (key === 'acrux') { refreshOcrInfo(); refreshDiscord(); }
   if (key === 'updates') loadChangelog();
   if (key === 'mstats') renderStats(true);
   shell.getAnimations().forEach(x => x.cancel());
@@ -2273,6 +2273,7 @@ function fillAcrux() {
   I18N.onChange(l => { sel.value = l; });
   $('acVer').textContent = $('verText').textContent;
   $('acOnline').checked = config.online_share !== false;
+  refreshDiscord();
 }
 $('acOcr').addEventListener('change', e => {
   config.ocr_engine = e.target.value;
@@ -2286,6 +2287,59 @@ function updateOnline(n) {
   $('nowActive').classList.toggle('live', n != null);
 }
 $('acOnline').addEventListener('change', e => { config.online_share = e.target.checked; queueSave({ online_share: e.target.checked }); });
+// Account linking is independent of gameplay input and never exposes its token.
+let dcState = { linked: false, name: '', code: null, error: '' }, dcTimer = 0, dcBusy = false, dcRevision = 0, dcAvailable = false;
+function drawDiscord() {
+  document.querySelectorAll('[data-discord-ui]').forEach(el => { el.hidden = !dcAvailable; el.style.display = dcAvailable ? '' : 'none'; });
+  if (!dcAvailable) return;
+  const d = dcState, btn = $('dcBtn');
+  setText($('dcName'), d.linked ? d.name || '-' : '-');
+  const code = d.code && d.code.length === 8 ? d.code.slice(0, 4) + '-' + d.code.slice(4) : d.code;
+  let hint;
+  if (d.linked) {
+    setText($('dcTitle'), '연결 끊기');
+    hint = '끊으면 봇에서 이 매크로가 사라짐';
+    setText(btn, '연결 끊기');
+  } else if (code) {
+    setText($('dcTitle'), '연결 기다리는 중');
+    hint = `브라우저에서 [연결] 을 눌러 주세요 · 코드 ${code}`;
+    setText(btn, '취소');
+  } else {
+    setText($('dcTitle'), '디스코드 로그인');
+    hint = '브라우저가 열리면 디스코드로 로그인한 뒤 [연결] 을 누르면 끝';
+    setText(btn, '디스코드 로그인');
+  }
+  setText($('dcHint'), d.error ? I18N.t(hint) + ' · ' + I18N.t(d.error) : hint);
+  btn.disabled = dcBusy;
+  btn.classList.toggle('ghost', d.linked || !!d.code);
+}
+async function refreshDiscord() {
+  if (dcBusy) return;
+  clearTimeout(dcTimer);
+  const revision = ++dcRevision;
+  try {
+    const next = await api('discord_state');
+    if (revision !== dcRevision) return;
+    dcAvailable = typeof next.linked === 'boolean' && typeof next.name === 'string'
+      && (next.code === null || typeof next.code === 'string') && typeof next.error === 'string';
+    if (dcAvailable) dcState = next;
+  } catch { if (revision === dcRevision) dcAvailable = false; }
+  if (revision !== dcRevision) return;
+  drawDiscord();
+  if (dcAvailable && (dcState.code || dcState.linked && current === 'acrux')) {
+    dcTimer = setTimeout(refreshDiscord, dcState.code ? 2000 : 10000);
+  }
+}
+$('dcBtn').addEventListener('click', async () => {
+  if (dcBusy || !dcAvailable) return;
+  dcBusy = true; ++dcRevision; clearTimeout(dcTimer); drawDiscord();
+  try {
+    const command = dcState.linked ? 'discord_logout' : dcState.code ? 'discord_cancel' : 'discord_login';
+    const result = await api(command);
+    if (result.error) toast(result.error);
+  } catch { toast('디스코드 연결 실패'); }
+  finally { dcBusy = false; await refreshDiscord(); }
+});
 $('acFolder').addEventListener('click', async () => {
   try { await api('open_folder'); } catch { toast('폴더를 열 수 없음'); }
 });

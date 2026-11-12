@@ -570,6 +570,14 @@ async function request(name: string, payload: Bag) {
     case "webhook_test":
       await invoke("biome_test");
       return { queued: true };
+    case "discord_state":
+      return invoke("discord_state");
+    case "discord_login":
+    case "discord_cancel":
+    case "discord_logout": {
+      const state = await invoke<{ code: string | null; error: string }>(name);
+      return state.error ? { error: state.error } : { ok: true, code: state.code };
+    }
     case "set_config":
       return setConfig(payload.patch as Bag);
     case "mfish_autocal": {

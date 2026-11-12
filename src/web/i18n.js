@@ -12,6 +12,37 @@ const I18N = (() => {
 
   // ---------------------------------------------------------------- 사전: [한국어, English, 日本語]
   const E = [
+    // Discord account link (PC and mobile share the backend contract).
+    ["연결 서버에 접속할 수 없습니다.", "Could not reach the link server.", "連携サーバーに接続できません。"],
+    ["연결 서버 응답을 읽지 못했습니다.", "Could not read the link server response.", "連携サーバーの応答を読み取れませんでした。"],
+    ["연결 서버 응답이 너무 큽니다.", "The link server response is too large.", "連携サーバーの応答が大きすぎます。"],
+    ["연결 서버 응답이 올바르지 않습니다.", "The link server response is invalid.", "連携サーバーの応答が正しくありません。"],
+    ["연결 코드를 읽지 못했습니다.", "Could not read the link code.", "連携コードを読み取れませんでした。"],
+    ["연결 요청을 확인하지 못했습니다.", "Could not verify the link request.", "連携リクエストを確認できませんでした。"],
+    ["이미 연결을 준비하고 있습니다.", "A link request is already being prepared.", "すでに連携を準備しています。"],
+    ["연결을 준비하지 못했습니다.", "Could not prepare the link request.", "連携リクエストを準備できませんでした。"],
+    ["연결 코드를 받지 못했습니다.", "Could not get a link code.", "連携コードを取得できませんでした。"],
+    ["연결 요청이 취소됐습니다.", "The link request was canceled.", "連携リクエストはキャンセルされました。"],
+    ["연결 페이지를 열지 못했습니다. 디스코드 로그인을 다시 눌러 주세요.", "Could not open the link page. Press Discord login again.", "連携ページを開けませんでした。Discord ログインをもう一度押してください。"],
+    ["디스코드 연결을 저장하지 못했습니다. 다시 연결해 주세요.", "Could not save the Discord link. Please link again.", "Discord の連携を保存できませんでした。もう一度連携してください。"],
+    ["연결은 중지됐지만 설정을 저장하지 못했습니다.", "The link stopped, but the settings could not be saved.", "連携は停止しましたが、設定を保存できませんでした。"],
+    ["연결 시간이 지났습니다. 다시 연결해 주세요.", "The link timed out. Please link again.", "連携の時間が切れました。もう一度連携してください。"],
+    ['디스코드 연결', 'Discord link', 'Discord 連携'],
+    ['매크로 봇으로 상태 보기', 'See your macro with the bot', 'ボットでマクロを確認'],
+    ['디스코드 계정', 'Discord account', 'Discord アカウント'],
+    ['연결하면 디스코드 봇 (/상태 · /통계 · /로그) 으로 이 매크로를 볼 수 있음', 'Once linked, the Discord bot (/status · /stats · /logs) can show this macro', '連携すると Discord ボット (/状態 · /統計 · /ログ) でこのマクロを見られます'],
+    ['디스코드 로그인', 'Discord login', 'Discord ログイン'],
+    ['브라우저가 열리면 디스코드로 로그인한 뒤 [연결] 을 누르면 끝', 'When the browser opens, log in with Discord and press [Link]', 'ブラウザが開いたら Discord でログインして [連携] を押すだけ'],
+    ['연결 끊기', 'Unlink', '連携を解除'],
+    ['끊으면 봇에서 이 매크로가 사라짐', 'The bot stops showing this macro', 'ボットにこのマクロが表示されなくなります'],
+    ['연결 기다리는 중', 'Waiting for link', '連携待ち'],
+    ['연결한 동안 보내는 것: 매크로 작동 여부 · 지금 하는 일 · 켜진 기능 · 바이옴 · 통계 · 최근 기록 30줄 (작동 중 15초 · 꺼져 있으면 1분마다)', 'Sent while linked: whether the macro is running · what it is doing · enabled features · biome · stats · last 30 log lines (every 15 s while running · every minute when off)', '連携中に送るもの: マクロの動作状態 · 今していること · オンの機能 · バイオーム · 統計 · 最近のログ 30 行 (動作中 15 秒 · オフなら 1 分ごと)'],
+    ['화면 · 파일 · 웹후크 주소는 보내지 않음 · 연결된 앱은 acruxmacro.com/link 에서도 끊을 수 있음', 'Never sends your screen, files or webhook URLs · you can also unlink apps at acruxmacro.com/link', '画面 · ファイル · Webhook の URL は送りません · acruxmacro.com/link でも連携を解除できます'],
+    ['서버에 연결할 수 없음', 'Could not reach the server', 'サーバーに接続できません'],
+    ['연결 시간이 지남 — 다시 눌러 주세요', 'The link timed out — press it again', '連携の時間が切れました — もう一度押してください'],
+    ['디스코드 연결 실패', 'Discord link failed', 'Discord 連携に失敗'],
+    ['디스코드 연결 끊음', 'Unlinked Discord', 'Discord の連携を解除'],
+    ['디스코드 연결이 끊김 — 다시 연결하려면 설정 → Acrux → 디스코드 연결', 'Discord link removed — to link again, go to Settings → Acrux → Discord link', 'Discord 連携が解除されました — もう一度連携するには 設定 → Acrux → Discord 連携'],
     ['현재 데스크톱 DUA는 자동 낚시만 지원합니다. 이동과 판매를 포함한 다른 기능은 준비 중입니다.', 'Desktop DUA currently supports auto fishing only. Movement, selling and other features are in development.', 'デスクトップDUAは現在、自動釣りのみ対応しています。移動・売却などは準備中です。'],
     ['던지기 · 릴링', 'Casting · reeling', 'キャスト・リール操作'],
     ['앱 전용 게임에서 자동 낚시 · 가득 차면 중지 · 이동과 판매는 준비 중 · 정지: 앱의 중지 버튼', 'Auto fishing in the private game · stops when full · movement and selling are in development · stop: Stop button in the app', 'アプリ専用ゲームで自動釣り・満杯で停止・移動と売却は準備中・停止：アプリの停止ボタン'],
@@ -1641,6 +1672,9 @@ const I18N = (() => {
   // 'A, B' 목록 묶음은 하나씩 (통째로 번역하면 끝 낱말만 보고 잘못 고를 수 있음: '아이템 사용, 상인 구매' → '… 구매')
   const trList = s => s.split(', ').map(x => tr(x, 1)).join(', ');
   const R = [
+    [/^브라우저에서 \[연결\] 을 눌러 주세요 · 코드 ([A-Z0-9]{4}-[A-Z0-9]{4})$/, 'Press [Link] in the browser · code $1', 'ブラウザで [連携] を押してください · コード $1'],
+    [/^디스코드 연결 — 브라우저에서 로그인한 뒤 \[연결\] 을 눌러 주세요 \(코드 ([A-Z0-9]{4}-[A-Z0-9]{4})\)$/, 'Discord link — log in in the browser and press [Link] (code $1)', 'Discord 連携 — ブラウザでログインして [連携] を押してください (コード $1)'],
+    [/^디스코드 연결됨 — (.+)$/, (g, r) => `Discord linked — ${r[1]}`, (g, r) => `Discord 連携済み — ${r[1]}`],
     // V2.3: 준비 상태 · ▾ · 통계
     [/^설정 (\d+)개 필요$/, '$1 setting(s) needed', '設定$1個が必要'],
     [/^필요: (.+) 외 (\d+)개$/, 'Needed: $1 and $2 more', '必要: $1 他$2個'],

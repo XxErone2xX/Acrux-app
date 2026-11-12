@@ -100,8 +100,9 @@ jobs:
             yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" >/dev/null || true
             rustup target add aarch64-linux-android
             npm ci
-            javac -d "$RUNNER_TEMP/pilot-tests" src-tauri/gen/android/app/src/main/java/com/acrux/next/{Pilot,TraceEvent}.java src-tauri/tests/android/PilotReplayTest.java
+            javac -d "$RUNNER_TEMP/pilot-tests" src-tauri/gen/android/app/src/main/java/com/acrux/next/{Pilot,TraceEvent,CaptureHealth}.java src-tauri/tests/android/{PilotReplayTest,CaptureHealthTest}.java
             java -cp "$RUNNER_TEMP/pilot-tests" com.acrux.next.PilotReplayTest
+            java -cp "$RUNNER_TEMP/pilot-tests" com.acrux.next.CaptureHealthTest
             npm run tauri -- android build --apk --target aarch64 --ci        # 릴리스 (Rust 최적화 · 디버그 빌드는 화면 인식이 수십 배 느리고 190MB)
           } 2>&1 | tee android-build.log
           apk=$(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' | head -n 1)

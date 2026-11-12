@@ -2,6 +2,7 @@
 name = "acrux"
 version = "0.1.0"
 edition = "2021"
+license = "GPL-2.0-only"
 
 [lib]
 name = "acrux_lib"
@@ -34,3 +35,6 @@ jni = "0.21"
 
 [target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "ios"))'.dependencies]
 reqwest = { version = "0.13.5", default-features = false, features = ["native-tls"] }
+
+[target.'cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))'.dependencies]
+open = "=5.4.5"

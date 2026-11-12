@@ -23,6 +23,9 @@ class OverlayOptions {
 @InvokeArg
 class BiomeAction { var action = "refresh" }
 
+@InvokeArg
+class DiscordLinkOptions { var url = "" }
+
 @TauriPlugin
 class AndroidSetup(private val activity: Activity) : Plugin(activity) {
     @Command
@@ -79,6 +82,16 @@ class AndroidSetup(private val activity: Activity) : Plugin(activity) {
 
     @Command
     fun donate(invoke: Invoke) = open(invoke, Intent(Intent.ACTION_VIEW, Uri.parse("https://ko-fi.com/acrux_")))
+
+    @Command
+    fun discordLink(invoke: Invoke) {
+        val url = invoke.parseArgs(DiscordLinkOptions::class.java).url
+        if (!Regex("https://acruxmacro\\.com/link/\\?code=[A-HJ-NP-Z2-9]{8}").matches(url)) {
+            invoke.reject("연결 주소가 올바르지 않습니다.")
+            return
+        }
+        open(invoke, Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    }
 
     private fun open(invoke: Invoke, intent: Intent) {
         activity.runOnUiThread {

@@ -2,6 +2,13 @@ use crate::vision::{Bar, Button, Catch, Frame, Point, Rect, Region, WindowFinder
 use serde::{Deserialize, Serialize};
 use std::{collections::VecDeque, time::Duration};
 
+const CAST_WAIT: f64 = 3.0;
+const EDGE_MARGIN: f64 = 0.04;
+const EDGE_ZONE: f64 = 0.35;
+const EDGE_K_MAX: f64 = 1.6;
+const RECLICK: f64 = 0.06;
+const LEAD_MAX: f64 = 0.1;
+
 #[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Tuning {
@@ -133,10 +140,10 @@ pub struct Observation {
 #[derive(Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Stats {
-    success: u32,
-    junk: u32,
-    fail: u32,
-    full: u32,
+    pub(crate) success: u32,
+    pub(crate) junk: u32,
+    pub(crate) fail: u32,
+    pub(crate) full: u32,
 }
 
 impl Stats {
@@ -518,7 +525,7 @@ impl Fishing {
         }
 
         match fish {
-            Some(Button::Fish) if now - self.last_cast >= 1.5 => {
+            Some(Button::Fish) if now - self.last_cast >= CAST_WAIT => {
                 if self.casts >= self.tuning.cast_retries {
                     self.stats.full += 1;
                     self.stop("Fish 버튼이 반응하지 않습니다. 인벤토리를 확인하세요.");
@@ -549,7 +556,6 @@ impl Fishing {
     }
 }
 
-#[derive(Default)]
 struct ReelControl {
     history: VecDeque<(f64, f64)>,
     odd: Option<f64>,
@@ -558,6 +564,24 @@ struct ReelControl {
     last_click: Option<f64>,
     rise_delay: f64,
     rising: bool,
+    edge_k: f64,
+    side: i8,
+}
+
+impl Default for ReelControl {
+    fn default() -> Self {
+        Self {
+            history: VecDeque::new(),
+            odd: None,
+            zone: None,
+            velocity: 0.0,
+            last_click: None,
+            rise_delay: 0.0,
+            rising: false,
+            edge_k: 1.0,
+            side: 0,
+        }
+    }
 }
 
 impl ReelControl {
@@ -664,6 +688,21 @@ impl ReelControl {
         let Some((left, right)) = self.track_zone(now, zones, m, width) else {
             return false;
         };
+        let side = if m > right {
+            1
+        } else if m < left - width * 0.01 {
+            -1
+        } else {
+            0
+        };
+        if side != self.side {
+            if side == 1 && self.last_click.is_some_and(|click| now - click < 0.8) {
+                self.edge_k = (self.edge_k * 0.7 - 0.05).max(0.0);
+            } else if side == -1 {
+                self.edge_k = (self.edge_k * 1.15 + 0.05).min(EDGE_K_MAX);
+            }
+            self.side = side;
+        }
         let settle = if tuning.adaptive {
             (self.rise_delay * 1.6).clamp(0.2, 0.5)
         } else {
@@ -671,17 +710,22 @@ impl ReelControl {
         };
         if let Some(click) = self.last_click {
             let elapsed = now - click;
+            let falling_below_zone = m < left && self.velocity <= 0.0 && elapsed >= RECLICK;
             if elapsed * 1000.0 < f64::from(tuning.click_gap_ms)
-                || (!self.rising && elapsed < settle)
+                || (!self.rising && elapsed < settle && !falling_below_zone)
             {
                 return false;
             }
         }
-        let target = left + (right - left) * tuning.target_percent / 100.0;
+        let target = left
+            + (right - left) * tuning.target_percent / 100.0
+            + (width * EDGE_MARGIN).min((right - left) * EDGE_ZONE) * self.edge_k;
         let max_rise = (2.0 * (target - m).max(0.0))
             .min(width * 0.5)
             .max(width * 0.05);
-        let predicted = m + self.velocity * tuning.lead_ms / 1000.0;
+        let predicted = m
+            + self.velocity.min(0.0) * self.rise_delay.min(LEAD_MAX)
+            + self.velocity * tuning.lead_ms / 1000.0;
         let click = (self.history.len() < 3 || self.velocity <= max_rise)
             && m.max(predicted) <= (left + right) / 2.0
             && predicted <= target - tuning.deadband * width;
@@ -754,13 +798,44 @@ mod tests {
         assert!(engine.frame(0.1, &frame).is_none());
         assert!(engine.calibration_changed);
         engine.start(0.2).unwrap();
-        for time in [0.3, 1.9, 3.5] {
+        for time in [0.3, 3.4, 6.5] {
             let tap = engine.frame(time, &frame).unwrap();
             assert!((170..179).contains(&tap.x) && (164..168).contains(&tap.y));
         }
-        assert!(engine.frame(5.1, &frame).is_none());
+        assert!(engine.frame(9.6, &frame).is_none());
         assert!(engine.phase == Phase::Idle);
         assert_eq!(engine.stats.full, 1);
+    }
+
+    #[test]
+    fn slow_cast_and_an_existing_exit_are_not_cancelled() {
+        let mut bytes = vec![0; STRIDE * H];
+        window(&mut bytes, 110, 95, 370, 181);
+        for y in 164..168 {
+            for x in 170..179 {
+                put(&mut bytes, x, y, [20, 75, 205]);
+            }
+        }
+        let mut engine = Fishing::default();
+        engine.calibrate(0.0).unwrap();
+        assert!(engine.frame(0.1, &frame(&bytes)).is_none());
+        engine.start(0.2).unwrap();
+        assert!(engine.frame(0.3, &frame(&bytes)).is_some());
+        assert!(engine.frame(1.9, &frame(&bytes)).is_none());
+        assert!(engine.frame(2.7, &frame(&bytes)).is_none());
+        for y in 164..168 {
+            for x in 170..179 {
+                put(&mut bytes, x, y, [230, 30, 30]);
+            }
+        }
+        assert!(engine.frame(2.8, &frame(&bytes)).is_none());
+        assert!(engine.phase == Phase::Waiting);
+        assert_eq!(engine.stats.full, 0);
+        engine.stop("test restart");
+        engine.start(4.0).unwrap();
+        assert!(engine.frame(4.1, &frame(&bytes)).is_none());
+        assert!(engine.phase == Phase::Waiting);
+        assert_eq!(engine.casts, 0);
     }
 
     #[test]
@@ -877,7 +952,106 @@ mod tests {
         let tuning = Tuning::default();
         let zone = [(35.0, 65.0)];
         assert!(controller.click(0.0, Some(15.0), &zone, 100.0, tuning));
-        assert!(!controller.click(0.1, Some(16.0), &zone, 100.0, tuning));
+        assert!(!controller.click(0.04, Some(16.0), &zone, 100.0, tuning));
         assert!(!controller.click(0.25, Some(55.0), &zone, 100.0, tuning));
+    }
+
+    #[test]
+    fn reel_clicks_inside_the_left_edge_without_pushing_past_the_middle() {
+        let zone = [(100.0, 180.0)];
+        let tuning = Tuning::default();
+        assert!(ReelControl::default().click(0.0, Some(114.0), &zone, 400.0, tuning));
+        assert!(!ReelControl::default().click(0.0, Some(120.0), &zone, 400.0, tuning));
+        let tuning = Tuning {
+            lead_ms: 100.0,
+            ..tuning
+        };
+        let mut falling = ReelControl::default();
+        for (time, marker) in [(0.0, 170.0), (0.05, 160.0), (0.1, 150.0)] {
+            assert!(!falling.click(time, Some(marker), &zone, 400.0, tuning));
+        }
+    }
+
+    #[test]
+    fn reel_reclicks_strong_falls_after_sixty_ms_on_both_platform_modes() {
+        for adaptive in [false, true] {
+            let tuning = Tuning {
+                adaptive,
+                ..Tuning::default()
+            };
+            let mut controller = ReelControl::default();
+            let mut clicks = Vec::new();
+            for index in 1..=40 {
+                let time = f64::from(index) * 0.01;
+                if controller.click(
+                    time,
+                    Some(90.0 - f64::from(index)),
+                    &[(100.0, 180.0)],
+                    400.0,
+                    tuning,
+                ) {
+                    clicks.push(time);
+                }
+            }
+            assert!(
+                clicks.len() >= 5,
+                "strong falls cannot wait 200ms per click"
+            );
+            assert!(clicks
+                .windows(2)
+                .all(|pair| pair[1] - pair[0] >= RECLICK - 1e-9));
+        }
+    }
+
+    #[test]
+    fn reel_learns_input_delay_before_predicting_a_falling_marker() {
+        let mut controller = ReelControl::default();
+        let zone = [(100.0, 180.0)];
+        let tuning = Tuning::default();
+        let mut clicks = Vec::new();
+        for (time, marker) in [
+            (0.0, 90.0),
+            (0.03, 95.0),
+            (0.06, 105.0),
+            (0.1, 120.0),
+            (0.2, 129.0),
+            (0.25, 128.0),
+            (0.3, 126.0),
+            (0.35, 123.0),
+            (0.4, 124.0),
+            (0.45, 122.0),
+            (0.5, 120.5),
+            (0.55, 120.0),
+        ] {
+            if controller.click(time, Some(marker), &zone, 400.0, tuning) {
+                clicks.push(time);
+            }
+        }
+        assert!((controller.rise_delay - 0.06).abs() < 1e-9);
+        assert_eq!(clicks, [0.0, 0.55]);
+        // At 120 the marker is still right of the current 119.2 threshold;
+        // its measured falling lead is what makes the final click timely.
+        assert!(120.0 > 100.0 + 16.0 * controller.edge_k);
+    }
+
+    #[test]
+    fn reel_reduces_early_margin_after_overshoot_and_adjusts_once_per_crossing() {
+        let mut controller = ReelControl::default();
+        let zone = [(100.0, 180.0)];
+        let tuning = Tuning::default();
+        assert!(controller.click(0.0, Some(90.0), &zone, 400.0, tuning));
+        let before = controller.edge_k;
+        assert!(!controller.click(0.1, Some(190.0), &zone, 400.0, tuning));
+        let reduced = controller.edge_k;
+        assert!(reduced < before);
+        assert!(!controller.click(0.2, Some(190.0), &zone, 400.0, tuning));
+        assert_eq!(controller.edge_k, reduced);
+        controller.click(0.3, Some(140.0), &zone, 400.0, tuning);
+        controller.click(0.4, Some(90.0), &zone, 400.0, tuning);
+        assert!(controller.edge_k > reduced);
+        let increased = controller.edge_k;
+        controller.click(0.5, Some(89.0), &zone, 400.0, tuning);
+        assert_eq!(controller.edge_k, increased);
+        assert!((0.0..=EDGE_K_MAX).contains(&controller.edge_k));
     }
 }

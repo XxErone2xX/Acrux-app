@@ -32,3 +32,9 @@ Both links always point to the latest version.
 배포 · 빌드 방법 (개발용): [RELEASE.md](RELEASE.md) · 실험(알파) 버전: [docs/next.md](docs/next.md)
 
 크로스플랫폼 개발은 `dev` 브랜치에서 진행하며, 빌드·회귀 검사와 DUA(Device Use Agent)의 Computer·Phone 기기 테스트를 함께 사용합니다. 개발·테스트 기준은 [개발 가이드](docs/next.md)에 정리합니다.
+
+## 라이선스 · License
+
+Acrux (PC · 모바일 · 모드)는 **GNU GPL v2 (GPL-2.0-only)**로 배포됩니다 — 전문: [LICENSE](LICENSE)
+
+Copyright (C) 2026 얼로니 · Acrux contributors

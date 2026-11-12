@@ -74,6 +74,12 @@ let online: { online: number | null; share: boolean } = { online: null, share: t
 let busy = false;
 let request = 0;
 let toastTimer = 0;
+interface DiscordState { linked: boolean; name: string; code: string | null; error: string }
+let discord: DiscordState = { linked: false, name: "", code: null, error: "" };
+let discordBusy = false;
+let discordLoaded = false;
+let discordRevision = 0;
+let discordTimer: ReturnType<typeof setTimeout> | undefined;
 
 function message(text: string) {
   const toast = element("toast");
@@ -212,6 +218,12 @@ function settings() {
   return card("update", "업데이트",
     row("Acrux Mobile V" + version, `지금 V${version} · 새 버전이 나오면 받아서 바로 설치 (설정은 그대로)`, button("확인", "unsupported", "accent"))
     + toggle("앱을 켤 때 자동으로 업데이트", "", false, true))
+  + card("discord-link", "디스코드 연결",
+    text("연결하면 디스코드 봇 (/상태 · /통계 · /로그) 으로 이 매크로를 볼 수 있음", 12)
+    + row("디스코드 계정", "", '<strong id="discord-name">-</strong>')
+    + `<p id="discord-state" class="readout"></p><div class="buttons">${button("디스코드 로그인", "discord-link", "accent", "discord-action")}</div>`
+    + text("연결한 동안 보내는 것: 매크로 작동 여부 · 지금 하는 일 · 켜진 기능 · 바이옴 · 통계 · 최근 기록 30줄 (작동 중 15초 · 꺼져 있으면 1분마다)", 12)
+    + text("화면 · 파일 · 웹후크 주소는 보내지 않음 · 연결된 앱은 acruxmacro.com/link 에서도 끊을 수 있음", 12))
   + card("overlay-settings", "조작 창",
     text("떠 있는 Acrux 창 · 어디든 잡고 끌면 움직임", 12)
     + `<div class="buttons">${button(overlay.visible ? "UI 끄기" : "UI 켜기", "toggle-ui", overlay.visible ? "muted" : "accent")}</div>`
@@ -289,11 +301,71 @@ function select(next: Page) {
   page = next;
   localStorage.setItem(tabKey, JSON.stringify(page));
   render();
+  if (page === "settings") void refreshDiscord();
 }
 
 function setText(id: string, value: string) {
   const target = document.getElementById(id);
   if (target && target.textContent !== value) target.textContent = value;
+}
+
+function applyDiscord() {
+  setText("discord-name", discord.linked ? discord.name || "-" : "-");
+  const code = discord.code && discord.code.length === 8 ? discord.code.slice(0, 4) + "-" + discord.code.slice(4) : discord.code;
+  const hint = discord.linked ? t("끊으면 봇에서 이 매크로가 사라짐")
+    : code ? t("브라우저에서 [연결] 을 눌러 주세요 · 코드 {0}").replace("{0}", code)
+    : t("브라우저가 열리면 디스코드로 로그인한 뒤 [연결] 을 누르면 끝");
+  setText("discord-state", discord.error ? hint + "\n" + t(discord.error) : hint);
+  setText("discord-action", t(discord.linked ? "연결 끊기" : discord.code ? "취소" : "디스코드 로그인"));
+  const button = document.getElementById("discord-action") as HTMLButtonElement | null;
+  if (button) button.disabled = discordBusy || !discordLoaded;
+}
+
+function scheduleDiscord() {
+  if (discordTimer !== undefined) clearTimeout(discordTimer);
+  discordTimer = undefined;
+  if (!document.hidden && page === "settings" && (discord.code || discord.linked)) {
+    discordTimer = setTimeout(() => { void refreshDiscord(); }, discord.code ? 2000 : 10000);
+  }
+}
+
+async function refreshDiscord() {
+  if (discordBusy || document.hidden || page !== "settings") return;
+  const revision = ++discordRevision;
+  try {
+    const next = await invoke<DiscordState>("discord_state");
+    if (revision === discordRevision) { discord = next; discordLoaded = true; }
+  } catch (error) {
+    if (revision === discordRevision) discord = { ...discord, error: String(error) };
+  }
+  if (revision !== discordRevision) return;
+  applyDiscord();
+  scheduleDiscord();
+}
+
+async function changeDiscord() {
+  if (discordBusy || !discordLoaded) return;
+  discordBusy = true;
+  const revision = ++discordRevision;
+  if (discordTimer !== undefined) clearTimeout(discordTimer);
+  applyDiscord();
+  try {
+    const command = discord.linked ? "discord_logout" : discord.code ? "discord_cancel" : "discord_login";
+    const next = await invoke<DiscordState>(command);
+    if (revision === discordRevision) {
+      discord = next;
+      if (discord.error) message(discord.error);
+    }
+  } catch (error) {
+    if (revision === discordRevision) {
+      discord = { ...discord, error: String(error) };
+      message("디스코드 연결 실패");
+    }
+  } finally {
+    discordBusy = false;
+    applyDiscord();
+    scheduleDiscord();
+  }
 }
 
 function statsText(prefix: string, s: Stats) {
@@ -326,6 +398,7 @@ function applyStatus() {
   setText("biome-test-button", t(transport.testUntil > Date.now() ? "테스트 중…" : "테스트 시작 (90초)"));
   const testButton = document.getElementById("biome-test-button") as HTMLButtonElement | null;
   if (testButton) testButton.disabled = transport.testUntil > Date.now();
+  applyDiscord();
   for (const field of document.querySelectorAll<HTMLInputElement>("input[data-biome]")) {
     if (field.type === "checkbox") field.checked = !!biome.settings[field.dataset.biome as "enabled" | "everyone"];
   }
@@ -358,6 +431,7 @@ async function refresh() {
     if (nextNavigation) nav = nextNavigation;
     if (initial) {
       render();
+      if (page === "settings") void refreshDiscord();
       if (next.platform === "android") {
         void setup("biome", { action: "refresh" }).catch(error => message(String(error)));
         void syncOverlay().catch(error => message(String(error)));
@@ -505,6 +579,7 @@ async function perform(action: string) {
   if (name === "guide-skip") return moveGuide(1, true);
   if (name === "guide-close") return closeGuide();
   if (name === "unsupported") return message(unsupported);
+  if (name === "discord-link") return changeDiscord();
 
   if (busy) return;
   busy = true;
@@ -668,5 +743,5 @@ element("pages").addEventListener("touchend", event => {
 
 render();
 void refresh();
-document.addEventListener("visibilitychange", () => void refresh());
+document.addEventListener("visibilitychange", () => { void refresh(); if (!document.hidden && page === "settings") void refreshDiscord(); });
 window.setInterval(() => void refresh(), 500);

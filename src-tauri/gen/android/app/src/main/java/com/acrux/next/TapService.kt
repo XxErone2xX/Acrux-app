@@ -3,8 +3,15 @@ package com.acrux.next
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
+import android.app.KeyguardManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.view.accessibility.AccessibilityEvent
 
 class TapService : AccessibilityService() {
@@ -17,10 +24,22 @@ class TapService : AccessibilityService() {
     lateinit var routes: RouteDriver
         private set
     private var generation = 0
+    @Volatile private var screenOff = false
+    private var blocked = false
+    private var screenReceiverRegistered = false
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                Intent.ACTION_SCREEN_OFF -> screenOff = true
+                Intent.ACTION_SCREEN_ON, Intent.ACTION_USER_PRESENT -> screenOff = false
+            }
+            updateWindow()
+        }
+    }
     private val update = object : Runnable {
         override fun run() {
             if (!Native.active()) routes.stop()
-            overlay.refresh()
+            updateWindow()
             main.postDelayed(this, 500)
         }
     }
@@ -30,6 +49,13 @@ class TapService : AccessibilityService() {
         overlay = Overlay(this)
         current = this
         Native.accessibility(true)
+        val filter = IntentFilter(Intent.ACTION_SCREEN_OFF).apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_USER_PRESENT)
+        }
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(screenReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        else registerReceiver(screenReceiver, filter)
+        screenReceiverRegistered = true
         updateWindow()
         main.post(update)
     }
@@ -42,12 +68,30 @@ class TapService : AccessibilityService() {
     @Suppress("DEPRECATION")
     private fun updateWindow(reset: Boolean = false) {
         if (!::overlay.isInitialized) return
+        if (!unlocked()) {
+            gameVisible = false
+            if (!blocked || Native.active()) {
+                blocked = true
+                // A locked display ends the task; unlocking never resumes input.
+                Native.control(0)
+                routes.stop()
+            }
+            overlay.update(false, false, reset)
+            return
+        }
+        blocked = false
         val root = rootInActiveWindow
         val foreground = try { root?.packageName?.toString() } finally { root?.recycle() }
         gameVisible = foreground == GAME_PACKAGE
         if (!gameVisible) Native.noTarget()
         overlay.update(gameVisible, foreground == packageName, reset)
     }
+
+    private fun unlocked(): Boolean = !screenOff
+        && getSystemService(PowerManager::class.java)?.isInteractive == true
+        && getSystemService(KeyguardManager::class.java)?.isKeyguardLocked != true
+
+    fun canInput(): Boolean = gameVisible && unlocked()
 
     fun input(packet: IntArray) {
         gesturePending = true
@@ -89,7 +133,7 @@ class TapService : AccessibilityService() {
         }
     }
 
-    fun safePoint(x: Float, y: Float) = !overlay.contains(x, y)
+    fun safePoint(x: Float, y: Float) = canInput() && !overlay.contains(x, y)
     @Suppress("DEPRECATION")
     fun screen(): IntArray {
         val metrics = android.util.DisplayMetrics()
@@ -128,7 +172,7 @@ class TapService : AccessibilityService() {
     }
 
     private fun holdStick(previous: GestureDescription.StrokeDescription, x: Float, y: Float, left: Long) {
-        val keep = gameVisible && Native.inputCurrent(generation) && current === this
+        val keep = canInput() && Native.inputCurrent(generation) && current === this
         val ms = if (keep) minOf(left, 120L) else 1L
         val next = previous.continueStroke(path(x, y, x, y), 0L, ms, keep && ms < left)
         send(listOf(next)) {
@@ -166,6 +210,10 @@ class TapService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        if (screenReceiverRegistered) {
+            unregisterReceiver(screenReceiver)
+            screenReceiverRegistered = false
+        }
         if (current === this) {
             current = null
             Native.accessibility(false)

@@ -5,6 +5,7 @@
 import os
 
 E = [
+    ['이전 길 기록을 정리 중입니다. 잠깐 뒤 다시 시작하세요.', 'The previous recording is still closing. Please try again shortly.', '前の道の記録を終了処理中です。少し待ってから再度開始してください。'],
     # ---------------------------------------------------------------- 공통
     ['확인', 'Check', '確認'], ['켜기', 'Turn on', 'オンにする'], ['설정', 'Settings', '設定'], ['연결', 'Connect', '接続'],
     ['다시', 'Again', '再接続'], ['시작', 'Start', '開始'], ['중지', 'Stop', '停止'], ['정지', 'Stop', '停止'], ['취소', 'Cancel', 'キャンセル'],
@@ -164,6 +165,12 @@ E = [
     ['판매 실패: {0}', 'Selling failed: {0}', '販売失敗: {0}'], ['화면 캡처를 허용하지 않음', 'Screen capture was not allowed', '画面キャプチャが許可されなかった'],
     # ---------------------------------------------------------------- 화면 캡처 · Shizuku
     ['화면 캡처 중 · 자동 낚시 준비됨', 'Capturing the screen · auto fishing ready', '画面キャプチャ中 · 自動釣り準備完了'], ['화면 캡처가 끝남', 'Screen capture ended', '画面キャプチャ終了'],
+    ['화면 캡처가 검은 화면만 받음 — 다른 화면 녹화 앱이 켜져 있으면 끄고, 앱에서 [화면 캡처 시작] 을 다시 눌러 주세요',
+     'Screen capture is receiving only black frames — close any other screen recorder, then tap [Start screen capture] again in the app.',
+     '画面キャプチャが黒い画面のみ受信しています — 他の画面録画アプリを終了し、アプリで [画面キャプチャ開始] をもう一度押してください。'],
+    ['화면 캡처가 멈춤 (새 화면이 안 들어옴) — 다른 화면 녹화 앱이 켜져 있으면 끄고, 앱에서 [화면 캡처 시작] 을 다시 눌러 주세요',
+     'Screen capture has stalled (no new frames) — close any other screen recorder, then tap [Start screen capture] again in the app.',
+     '画面キャプチャが停止しています（新しい画像が届きません） — 他の画面録画アプリを終了し、アプリで [画面キャプチャ開始] をもう一度押してください。'],
     ['화면 캡처 시작 ({0})', 'Screen capture started ({0})', '画面キャプチャ開始 ({0})'], ['화면 캡처를 시작하지 못함: {0}', 'Could not start screen capture: {0}', '画面キャプチャを開始できない: {0}'],
     ['화면 크기 바뀜 → {0}', 'Screen size changed → {0}', '画面サイズ変更 → {0}'],
     ['Shizuku 연결됨 — 키보드 · 마우스 입력 준비됨', 'Shizuku connected — keyboard · mouse input ready', 'Shizuku 接続 — キーボード・マウス入力準備完了'],

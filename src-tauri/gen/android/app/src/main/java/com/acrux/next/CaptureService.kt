@@ -16,6 +16,7 @@ import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.SystemClock
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.Display
@@ -29,6 +30,24 @@ class CaptureService : Service() {
     private var reader: ImageReader? = null
     private var closing = false
     private var previousFrame = 0L
+    private val health = CaptureHealth()
+    private var sampledAt = 0L
+    private val watch = object : Runnable {
+        override fun run() {
+            synchronized(lock) {
+                if (closing) return@synchronized
+                val problem = health.warning(SystemClock.uptimeMillis(), Native.active() && TapService.current?.canInput() == true)
+                if (problem != null) {
+                    val message = "$problem — 다른 화면 녹화 앱이 켜져 있으면 끄고, 앱에서 [화면 캡처 시작] 을 다시 눌러 주세요"
+                    Native.platformLog(message, 'r')
+                    Handler(mainLooper).post {
+                        android.widget.Toast.makeText(this@CaptureService, LogService.tr(this@CaptureService, message), android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+                handler.postDelayed(this, 1000)
+            }
+        }
+    }
 
     private val resizeListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(id: Int) = Unit
@@ -103,6 +122,8 @@ class CaptureService : Service() {
                     DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, output.surface, null, handler,
                 ))
                 Native.capture(true)
+                health.reset(SystemClock.uptimeMillis())
+                handler.post(watch)
                 TapService.refresh()
             }
             if (Build.VERSION.SDK_INT < 34) {
@@ -141,6 +162,9 @@ class CaptureService : Service() {
             try {
                 virtualDisplay.resize(width, height, metrics().densityDpi)
                 virtualDisplay.surface = next.surface
+                previousFrame = 0L
+                sampledAt = 0L
+                health.reset(SystemClock.uptimeMillis())
             } finally {
                 previous?.close()
             }
@@ -152,17 +176,23 @@ class CaptureService : Service() {
 
     private fun read(source: ImageReader) {
         source.acquireLatestImage()?.use { image ->
+            val now = SystemClock.uptimeMillis()
+            health.frame(now)
             if (!Native.active()) return
             val tapper = TapService.current
-            if (tapper?.gameVisible != true) {
+            if (tapper?.canInput() != true) {
                 Native.noTarget()
                 return
+            }
+            val plane = image.planes[0]
+            if (now - sampledAt >= 1000) {
+                sampledAt = now
+                health.sample(now, CaptureHealth.isBlack(plane.buffer, image.width, image.height, plane.rowStride, plane.pixelStride))
             }
             if (tapper.gesturePending) return
             // A display can produce more frames than the reel loop consumes.
             if (image.timestamp - previousFrame < 8_000_000L) return
             previousFrame = image.timestamp
-            val plane = image.planes[0]
             val tap = Native.frame(plane.buffer, image.width, image.height, plane.rowStride, plane.pixelStride)
             if (tap != null) tapper.input(tap)
         }
@@ -171,6 +201,7 @@ class CaptureService : Service() {
     override fun onDestroy() {
         synchronized(lock) {
             closing = true
+            if (::handler.isInitialized) handler.removeCallbacks(watch)
             Native.capture(false)
             display?.release()
             display = null

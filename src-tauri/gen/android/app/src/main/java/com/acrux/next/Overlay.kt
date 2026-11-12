@@ -369,6 +369,7 @@ class Overlay(private val service: TapService) {
         try { service.routes.beginRecord() }
         catch (error: RuntimeException) { feedback(error.message); Native.control(0); return }
         pad.addView(button("도착", ACCENT) { service.routes.arrive() }, rowParams(6))
+        pad.addView(button("취소", RED) { service.routes.cancelRecord(); refresh() }, rowParams(4))
         view.addView(pad, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
         recording = pad
     }
@@ -465,6 +466,7 @@ class Overlay(private val service: TapService) {
         const val ACCENT = 0xff5865f2.toInt()
         const val GREEN = 0xff3ba55d.toInt()
         const val YELLOW = 0xfff0b232.toInt()
+        const val RED = 0xffed4245.toInt()
         const val WHITE = 0xffffffff.toInt()
         val BASE = listOf(
             "menu_btn" to "로블록스 메뉴 버튼 (왼쪽 위)", "reset_btn" to "캐릭터 재설정 버튼 (메뉴 안)",

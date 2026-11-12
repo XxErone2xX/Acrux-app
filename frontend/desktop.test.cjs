@@ -42,6 +42,7 @@ function desktop(saved, options = {}) {
     dua: { supported: true, background: options.background !== false, hotkeys: false, running: false, route: null, reason: '대기 중', headlessTicks: 0, screenshotFrames: 0, transitions: 0 },
   };
   const biome = { settings: { enabled: false, player: '', psLink: '', webhooks: [], mentions: {}, roles: {} } };
+  const discord = { linked: false, name: '', code: null, error: '', ...options.discord };
   const modules = {
     './desktop-defaults.json': JSON.parse(fs.readFileSync(path.join(__dirname, 'desktop-defaults.json'), 'utf8')),
     './engine': {
@@ -62,6 +63,17 @@ function desktop(saved, options = {}) {
       calls.push([command, structuredClone(payload)]);
       if (command === 'online_status') return { share: true, online: 1 };
       if (command === 'save_online') return;
+      if (command === 'discord_state') return structuredClone(discord);
+      if (command === 'discord_login') {
+        discord.code = options.discordError ? null : 'ABCD1234';
+        discord.error = options.discordError || '';
+        return structuredClone(discord);
+      }
+      if (command === 'discord_cancel' || command === 'discord_logout') {
+        Object.assign(discord, { code: null, error: '' });
+        if (command === 'discord_logout') Object.assign(discord, { linked: false, name: '' });
+        return structuredClone(discord);
+      }
       if (command === 'desktop_session_start') {
         if (!status.session.supported) throw new Error('지원하지 않는 환경입니다.');
         status.session.state = 'ready'; status.dua.background = true;
@@ -117,7 +129,8 @@ function desktop(saved, options = {}) {
   return {
     api: window.acruxDesktopApi,
     stored: () => JSON.parse(storage.get(preferencesKey)),
-    status, calls, errors, elements, window, timers,
+    status, calls, errors, elements, window, timers, discord,
+    invoke: modules['@tauri-apps/api/core'].invoke,
     async tick(milliseconds) {
       time += milliseconds;
       for (const [id, timer] of [...timers]) {
@@ -643,6 +656,113 @@ test('private session uses app controls while the legacy Python UI retains short
   assert.equal(context.ui.shortcutText('F3 / F6 / F7'), 'F3 / F6 / F7');
   context.ui.updateMove({ running: true, msg: measureText });
   assert.equal(movement.textContent, measureText);
+});
+
+test('Discord bridge keeps the four public contracts and never stores account credentials in UI preferences', async () => {
+  const app = desktop({ discord: { token: 'private-backend-only', name: 'old' } });
+  assert.deepEqual(await app.api('discord_state', {}), { linked: false, name: '', code: null, error: '' });
+  assert.deepEqual({ ...await app.api('discord_login', {}) }, { ok: true, code: 'ABCD1234' });
+  assert.deepEqual({ ...await app.api('discord_cancel', {}) }, { ok: true, code: null });
+  app.discord.linked = true; app.discord.name = 'User';
+  assert.equal((await app.api('discord_state', {})).name, 'User');
+  assert.deepEqual({ ...await app.api('discord_logout', {}) }, { ok: true, code: null });
+  assert.equal(app.stored().discord, undefined);
+  assert.equal(app.calls.some(([name]) => name === 'control' || name === 'desktop_start'), false);
+  const failed = desktop({}, { discordError: '서버에 연결할 수 없음' });
+  assert.deepEqual({ ...await failed.api('discord_login', {}) }, { error: '서버에 연결할 수 없음' });
+});
+
+test('PC Discord UI renders pending code, account name and unlink while keeping older Python UI unchanged', async () => {
+  const source = fs.readFileSync(path.join(__dirname, '../src/web/app.js'), 'utf8');
+  const app = desktop({});
+  const elements = new Map();
+  const panels = [{ style: {}, hidden: true }, { style: {}, hidden: true }];
+  const $ = id => {
+    if (!elements.has(id)) elements.set(id, { listeners: {}, classList: { toggle() {} }, addEventListener(name, fn) { this.listeners[name] = fn; } });
+    return elements.get(id);
+  };
+  let supported = true;
+  const context = {
+    $, document: { querySelectorAll: () => panels }, current: 'acrux',
+    setText: (el, text) => { el.textContent = text; }, I18N: { t: text => text },
+    api: (name, args) => supported ? app.api(name, args) : Promise.resolve({ error: 'old Python backend' }),
+    setTimeout: () => 1, clearTimeout() {}, toast() {},
+  };
+  const start = source.indexOf('// Account linking is independent');
+  vm.runInNewContext(source.slice(start, source.indexOf("$('acFolder').addEventListener", start))
+    + '\nglobalThis.dcUi = { refreshDiscord };', context);
+  await context.dcUi.refreshDiscord();
+  assert.equal(panels[0].hidden, false);
+  await $('dcBtn').listeners.click();
+  assert.equal($('dcHint').textContent.includes('ABCD-1234'), true);
+  assert.equal($('dcBtn').textContent, '취소');
+  assert.equal(app.discord.code, 'ABCD1234');
+  await $('dcBtn').listeners.click();
+  assert.equal(app.discord.code, null);
+  app.discord.linked = true; app.discord.name = '<img src=x onerror=bad()>';
+  await context.dcUi.refreshDiscord();
+  assert.equal($('dcName').textContent, app.discord.name);
+  assert.equal($('dcName').innerHTML, undefined);
+  assert.equal($('dcBtn').textContent, '연결 끊기');
+  await $('dcBtn').listeners.click();
+  assert.equal(app.discord.linked, false);
+  supported = false;
+  await context.dcUi.refreshDiscord();
+  assert.equal(panels.every(panel => panel.hidden && panel.style.display === 'none'), true);
+});
+
+test('mobile Discord settings invoke the same four commands and render only public state', async () => {
+  const source = fs.readFileSync(path.join(__dirname, 'main.ts'), 'utf8');
+  const declarations = source.slice(source.indexOf('interface DiscordState'), source.indexOf('function message('));
+  const functions = source.slice(source.indexOf('function applyDiscord()'), source.indexOf('function statsText('));
+  const compiled = ts.transpileModule(declarations + functions + '\nglobalThis.dcUi = { refreshDiscord, changeDiscord };', {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const app = desktop({});
+  const elements = new Map(['discord-name', 'discord-state', 'discord-action'].map(id => [id, {}]));
+  const context = {
+    document: { hidden: false, getElementById: id => elements.get(id) }, page: 'settings',
+    invoke: app.invoke, setText: (id, text) => { elements.get(id).textContent = text; },
+    t: text => text, setTimeout: () => 1, clearTimeout() {}, message() {},
+  };
+  vm.runInNewContext(compiled, context);
+  await context.dcUi.refreshDiscord();
+  await context.dcUi.changeDiscord();
+  assert.equal(elements.get('discord-state').textContent.includes('ABCD-1234'), true);
+  assert.equal(elements.get('discord-action').textContent, '취소');
+  await context.dcUi.changeDiscord();
+  app.discord.linked = true; app.discord.name = '<script>account</script>';
+  await context.dcUi.refreshDiscord();
+  assert.equal(elements.get('discord-name').textContent, app.discord.name);
+  assert.equal(elements.get('discord-name').innerHTML, undefined);
+  await context.dcUi.changeDiscord();
+  assert.equal(app.discord.linked, false);
+  const before = app.calls.length;
+  context.document.hidden = true;
+  await context.dcUi.refreshDiscord();
+  assert.equal(app.calls.length, before);
+  assert.deepEqual(new Set(app.calls.map(([name]) => name)), new Set(['discord_state', 'discord_login', 'discord_cancel', 'discord_logout']));
+  assert.equal(JSON.stringify(app.stored()).includes('account'), false);
+});
+
+test('Discord account labels, pending code and backend errors translate without changing codes or names', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../src/web/i18n.js'), 'utf8');
+  const body = { nodeType: 1, querySelectorAll: () => [], matches: () => false, closest: () => null, hasAttribute: () => false };
+  const context = { document: { body, documentElement: {}, createTreeWalker: () => ({ nextNode: () => false }) }, NodeFilter: { SHOW_TEXT: 4 } };
+  vm.runInNewContext(source + '\nglobalThis.translations = I18N;', context);
+  const mobile = new Map(fs.readFileSync(path.join(__dirname, '../android/app/src/main/assets/i18n/pc.tsv'), 'utf8')
+    .trim().split('\n').map(line => { const [ko, ...other] = line.split('\t'); return [ko, other]; }));
+  for (const lang of ['en', 'ja']) {
+    context.translations.set(lang);
+    const login = context.translations.t('디스코드 로그인');
+    assert.equal(login, lang === 'en' ? 'Discord login' : 'Discord ログイン');
+    assert.equal(context.translations.t('브라우저에서 [연결] 을 눌러 주세요 · 코드 ABCD-1234').includes('ABCD-1234'), true);
+    assert.equal(context.translations.t('디스코드 연결됨 — 계정이름').endsWith('계정이름'), true);
+    const error = context.translations.t('연결 시간이 지났습니다. 다시 연결해 주세요.');
+    assert.doesNotMatch(error, /[가-힣]/);
+    assert.equal(mobile.get('디스코드 로그인')[lang === 'en' ? 0 : 1], login);
+    assert.equal(mobile.get('브라우저에서 [연결] 을 눌러 주세요 · 코드 {0}')[lang === 'en' ? 0 : 1].includes('{0}'), true);
+  }
 });
 
 test('saving cannot restore retired settings and preserves the Extras tab', async () => {

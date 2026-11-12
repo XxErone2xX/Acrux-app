@@ -137,7 +137,7 @@ final class Joy {
         @Override
         public boolean ready(boolean needStick) {
             TapService service = TapService.Companion.getCurrent();
-            return service != null && service.getGameVisible() && Native.inputCurrent(generation) && (!needStick || r > 0);
+            return service != null && service.canInput() && Native.inputCurrent(generation) && (!needStick || r > 0);
         }
 
         /** 방향 → 손가락이 갈 자리 (끝까지면 판 밖으로 조금 더 = 최대 속도) */

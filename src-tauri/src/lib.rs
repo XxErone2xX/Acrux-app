@@ -1,6 +1,7 @@
 #[cfg(target_os = "android")]
 mod android;
 mod biome;
+mod discord;
 mod fishing;
 #[cfg(target_os = "linux")]
 mod linux;
@@ -46,7 +47,8 @@ struct Runtime {
     capture: bool,
     input: bool,
     totals: Stats,
-    log: VecDeque<&'static str>,
+    log: VecDeque<(i64, &'static str)>,
+    macro_since: Option<i64>,
     logged: Option<&'static str>,
     navigation: Navigation,
     job: Option<Job>,
@@ -166,6 +168,8 @@ struct Profile {
     tuning: Tuning,
     totals: Stats,
     navigation: Navigation,
+    #[serde(rename = "discordLink")]
+    discord_link: discord::Settings,
 }
 
 #[derive(Serialize)]
@@ -241,6 +245,7 @@ impl Runtime {
                 Ok(profile) => {
                     biome::load(profile.biome);
                     online::load(profile.online);
+                    discord::load(profile.discord_link);
                     self.fishing.calibration = profile.calibration;
                     self.totals = profile.totals;
                     self.navigation = profile.navigation;
@@ -278,6 +283,15 @@ impl Runtime {
     }
 
     fn save_biome_profile(&self, tuning: Tuning, biome: biome::Settings) -> Result<(), String> {
+        self.save_profile(tuning, biome, discord::settings())
+    }
+
+    fn save_profile(
+        &self,
+        tuning: Tuning,
+        biome: biome::Settings,
+        discord_link: discord::Settings,
+    ) -> Result<(), String> {
         let path = self
             .settings
             .as_ref()
@@ -289,10 +303,28 @@ impl Runtime {
             tuning,
             totals: self.totals,
             navigation: self.navigation.clone(),
+            discord_link,
         })
         .map_err(|error| error.to_string())?;
         let temporary = path.with_extension("tmp");
-        fs::write(&temporary, data)
+        use std::io::Write;
+        let mut options = fs::OpenOptions::new();
+        options.write(true).create(true).truncate(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        options
+            .open(&temporary)
+            .and_then(|mut file| {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    file.set_permissions(fs::Permissions::from_mode(0o600))?;
+                }
+                file.write_all(&data)
+            })
             .and_then(|_| fs::rename(&temporary, path))
             .map_err(|error| format!("설정을 저장하지 못했습니다. {error}"))
     }
@@ -482,6 +514,15 @@ impl Runtime {
         self.dua.running || self.phase().active()
     }
 
+    fn macro_running(&self) -> bool {
+        self.dua.running
+            || self.job.as_ref().is_some_and(Job::resumes_fishing)
+            || matches!(
+                self.fishing.phase,
+                Phase::Searching | Phase::Casting | Phase::Waiting | Phase::Reeling | Phase::Result
+            )
+    }
+
     fn start_desktop(&mut self, features: &[String], at: f64) -> Result<(), &'static str> {
         if features.is_empty() {
             return Err("실행할 매크로 기능을 켜 주세요.");
@@ -619,6 +660,13 @@ impl Runtime {
     }
 
     fn record(&mut self) {
+        if self.macro_running() {
+            if self.macro_since.is_none() {
+                self.macro_since = Some(chrono::Utc::now().timestamp_millis());
+            }
+        } else {
+            self.macro_since = None;
+        }
         let message = self.message();
         if self.logged == Some(message) {
             return;
@@ -626,8 +674,10 @@ impl Runtime {
         if self.log.len() == 300 {
             self.log.pop_front();
         }
-        self.log.push_back(message);
+        self.log
+            .push_back((chrono::Utc::now().timestamp_millis(), message));
         self.logged = Some(message);
+        discord::wake();
     }
 
     fn control(&mut self, action: Action) -> Result<(), String> {
@@ -991,7 +1041,7 @@ fn fishing_log() -> Vec<String> {
         .log
         .iter()
         .rev()
-        .map(|line| (*line).into())
+        .map(|(_, line)| (*line).into())
         .collect();
     lines.extend(biome::status().logs);
     lines.truncate(300);
@@ -1062,6 +1112,54 @@ fn save_online(share: bool) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn discord_state() -> discord::PublicState {
+    discord::status()
+}
+
+#[tauri::command]
+async fn discord_login(app: tauri::AppHandle) -> Result<discord::PublicState, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Some(url) = discord::login()? {
+            #[cfg(target_os = "android")]
+            let opened = android::setup(&app, "discordLink", Some(serde_json::json!({"url":url})));
+            #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+            let opened = {
+                let _ = app;
+                open::that(url).map_err(|_| "브라우저를 열지 못했습니다.".to_owned())
+            };
+            #[cfg(not(any(
+                target_os = "android",
+                target_os = "linux",
+                target_os = "windows",
+                target_os = "macos"
+            )))]
+            let opened: Result<(), String> = {
+                let _ = (app, url);
+                Err("지원하지 않는 플랫폼입니다.".into())
+            };
+            if opened.is_err() {
+                discord::browser_failed();
+            }
+        }
+        Ok(discord::status())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn discord_cancel() -> discord::PublicState {
+    discord::cancel()
+}
+
+#[tauri::command]
+async fn discord_logout() -> Result<discord::PublicState, String> {
+    tauri::async_runtime::spawn_blocking(discord::logout)
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default();
@@ -1082,6 +1180,7 @@ pub fn run() {
             biome::watch_windows();
             #[cfg(target_os = "linux")]
             desktop::start()?;
+            discord::start();
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -1092,6 +1191,10 @@ pub fn run() {
             biome_test,
             online_status,
             save_online,
+            discord_state,
+            discord_login,
+            discord_cancel,
+            discord_logout,
             control,
             desktop_start,
             desktop_snapshot,
@@ -1126,6 +1229,42 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn private_account_settings_round_trip_without_entering_public_status() {
+        let path =
+            std::env::temp_dir().join(format!("acrux-account-{}.json", uuid::Uuid::new_v4()));
+        let state = Runtime {
+            settings: Some(path.clone()),
+            ..Runtime::default()
+        };
+        let credentials: discord::Settings =
+            serde_json::from_value(serde_json::json!({"token":"a".repeat(64),"name":"account"}))
+                .unwrap();
+        state
+            .save_profile(
+                state.fishing.tuning,
+                biome::Settings::default(),
+                credentials,
+            )
+            .unwrap();
+        let saved: Profile = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        assert_eq!(
+            serde_json::to_value(saved.discord_link).unwrap()["token"],
+            "a".repeat(64)
+        );
+        let public = serde_json::to_string(&state.status()).unwrap();
+        assert!(!public.contains(&"a".repeat(64)) && !public.contains("discordLink"));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+        }
+        fs::remove_file(path).unwrap();
+    }
 
     #[cfg(any(target_os = "windows", target_os = "linux"))]
     #[test]

@@ -34,6 +34,7 @@ pub fn setup(
         "overlay" => "overlay",
         "appInfo" => "appInfo",
         "donate" => "donate",
+        "discordLink" => "discordLink",
         "biome" => "biome",
         _ => return Err("알 수 없는 준비 작업입니다.".into()),
     };
