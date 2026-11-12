@@ -1592,7 +1592,7 @@ const I18N = (() => {
     ['연결 끊기', 'Unlink', '連携を解除'],
     ['끊으면 봇에서 이 매크로가 사라짐', 'The bot stops showing this macro', 'ボットにこのマクロが表示されなくなります'],
     ['연결 기다리는 중', 'Waiting for link', '連携待ち'],
-    ['연결한 동안 보내는 것: 매크로 작동 여부 · 지금 하는 일 · 켜진 기능 · 바이옴 · 통계 · 최근 기록 30줄 (작동 중 15초 · 꺼져 있으면 1분마다)', 'Sent while linked: whether the macro is running · what it is doing · enabled features · biome · stats · last 30 log lines (every 15 s while running · every minute when off)', '連携中に送るもの: マクロの動作状態 · 今していること · オンの機能 · バイオーム · 統計 · 最近のログ 30 行 (動作中 15 秒 · オフなら 1 分ごと)'],
+    ['봇 명령이 왔을 때만 보냄: /상태 = 작동 여부 · 지금 하는 일 · 켜진 기능 · 바이옴 · /통계 = 통계 · /로그 = 최근 기록 · 평소에는 데이터 없이 요청이 왔는지만 확인', 'Sent only when a bot command comes: /status = running · what it is doing · enabled features · biome · /stats = stats · /logs = recent log · otherwise it only checks for requests, with no data', 'ボットのコマンドが来たときだけ送ります: /状態 = 動作状態 · 今していること · オンの機能 · バイオーム · /統計 = 統計 · /ログ = 最近のログ · 普段はデータなしでリクエストの有無だけ確認'],
     ['화면 · 파일 · 웹후크 주소는 보내지 않음 · 연결된 앱은 acruxmacro.com/link 에서도 끊을 수 있음', 'Never sends your screen, files or webhook URLs · you can also unlink apps at acruxmacro.com/link', '画面 · ファイル · Webhook の URL は送りません · acruxmacro.com/link でも連携を解除できます'],
     ['서버에 연결할 수 없음', 'Could not reach the server', 'サーバーに接続できません'],
     ['연결 시간이 지남 — 다시 눌러 주세요', 'The link timed out — press it again', '連携の時間が切れました — もう一度押してください'],

@@ -892,7 +892,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams dbp = Ui.wrap();
         dbp.topMargin = Ui.dp(this, 8);
         dc.addView(dcBtn, dbp);
-        dc.addView(Ui.text(this, "연결한 동안 보내는 것: 매크로 작동 여부 · 지금 하는 일 · 바이옴 · 통계 · 최근 기록 30줄 (작동 중 15초 · 꺼져 있으면 1분마다) · 화면은 안 보냄 · acruxmacro.com/link 에서도 끊을 수 있음",
+        dc.addView(Ui.text(this, "봇 명령이 왔을 때만 보냄: /상태 = 작동 여부 · 지금 하는 일 · 바이옴 · /통계 = 통계 · /로그 = 최근 기록 · 평소에는 데이터 없이 요청이 왔는지만 확인 · 화면은 안 보냄 · acruxmacro.com/link 에서도 끊을 수 있음",
                 12, Ui.MUTED, false), Ui.fill(this, 6));
         showDiscord();
 

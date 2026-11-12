@@ -17,8 +17,9 @@ import java.util.List;
 /**
  * 디스코드 연결 (매크로 봇 /상태 · /통계 · /로그) — PC 버전 app.py 의 디스코드 연결과 같은 서버 · 같은 방식
  *  · [디스코드 로그인] → 브라우저로 acruxmacro.com/link 를 열어 디스코드로 로그인 → [연결] → 앱 전용 열쇠를 받아 둠 (2초마다 확인 · 10분까지)
- *  · 연결된 동안만 15초 (작동 중) · 60초 (꺼짐) 마다 상태를 보냄: 작동 여부 · 지금 하는 일 · 바이옴 · 통계 · 최근 기록 30줄
- *    (주소는 지움 · 화면은 안 보냄) · 매크로를 켜고 끌 때는 바로
+ *  · 평소에는 데이터 없이 "봇 요청 있어?" 만 기다림 (서버가 최대 45초 열어 둠 → 끝나면 바로 다시)
+ *  · 봇 명령이 왔을 때만 그 명령에 필요한 것만 보냄 (서버는 봇 답에만 쓰고 저장 안 함)
+ *    /상태 = 작동 여부 · 지금 하는 일 · 켠 시각 · 바이옴 · /통계 = 통계 · /로그 = 최근 기록 (주소는 지움 · 화면은 안 보냄)
  */
 final class DiscordLink {
     private DiscordLink() {}
@@ -66,9 +67,13 @@ final class DiscordLink {
 
     /** acruxmacro.com/api 호출 → {상태 번호, JSON} */
     static Object[] call(String path, JSONObject body, String tok) throws Exception {
+        return call(path, body, tok, 10000);
+    }
+
+    static Object[] call(String path, JSONObject body, String tok, int readMs) throws Exception {
         HttpURLConnection h = (HttpURLConnection) new URL(URL + path).openConnection();
         h.setConnectTimeout(10000);
-        h.setReadTimeout(10000);
+        h.setReadTimeout(readMs);
         h.setRequestProperty("User-Agent", "AcruxMobile/" + Online.BuildConfigVersion.get());
         h.setRequestProperty("Content-Type", "application/json");
         if (tok != null) h.setRequestProperty("Authorization", "Bearer " + tok);
@@ -191,67 +196,91 @@ final class DiscordLink {
 
     static final String[][] STAT_MAP = {{"success", "fish_success"}, {"junk", "fish_junk"}, {"fail", "fish_fail"}, {"sells", "sell_runs"}, {"sold", "sold"}};
 
-    /** 봇에 보낼 지금 상태 (글자는 앱 언어로) */
-    static JSONObject state() throws Exception {
+    /** 봇이 물어본 것만 (need = status · stats · logs · 글자는 앱 언어로) */
+    static JSONObject state(String need, int lines) throws Exception {
         boolean run = Hub.running();
         JSONObject s = new JSONObject();
         s.put("v", "V" + Online.BuildConfigVersion.get());
         s.put("running", run);
-        String st = Hub.state == null ? "" : Hub.state;
-        s.put("action", com.acrux.mobile.core.I18n.t(run ? st : "꺼짐"));
-        if (run && since > 0) s.put("started", since);
-        if (Biome.on()) {
-            s.put("features", new JSONArray().put(com.acrux.mobile.core.I18n.t("바이옴 매크로")));
-            if (Biome.current != null && !Biome.current.isEmpty()) s.put("biome", Biome.current);
-        }
-        JSONObject ses = new JSONObject(), all = new JSONObject();
-        for (int i = 0; i < Hub.STAT_KEYS.length; i++) {
-            for (String[] m : STAT_MAP) {
-                if (!m[0].equals(Hub.STAT_KEYS[i])) continue;
-                ses.put(m[1], Hub.statRun[i]);
-                all.put(m[1], Hub.statAll(i));
+        if ("stats".equals(need)) {
+            JSONObject ses = new JSONObject(), all = new JSONObject();
+            for (int i = 0; i < Hub.STAT_KEYS.length; i++) {
+                for (String[] m : STAT_MAP) {
+                    if (!m[0].equals(Hub.STAT_KEYS[i])) continue;
+                    ses.put(m[1], Hub.statRun[i]);
+                    all.put(m[1], Hub.statAll(i));
+                }
+            }
+            s.put("stats", new JSONObject().put("session", ses).put("all", all));
+        } else if ("logs".equals(need)) {
+            JSONArray logs = new JSONArray();
+            for (String line : Hub.recentLogsShown(Math.max(1, Math.min(30, lines)))) {
+                int k = line.indexOf("  ");
+                String t = k > 0 ? line.substring(0, k) : "", m = k > 0 ? line.substring(k + 2) : line;
+                m = m.replaceAll("https?://\\S+", "[link]");
+                logs.put(new JSONArray().put(t).put(m.length() > 200 ? m.substring(0, 200) : m));
+            }
+            s.put("logs", logs);
+        } else {
+            String st = Hub.state == null ? "" : Hub.state;
+            s.put("action", com.acrux.mobile.core.I18n.t(run ? st : "꺼짐"));
+            if (run && since > 0) s.put("started", since);
+            if (Biome.on()) {
+                s.put("features", new JSONArray().put(com.acrux.mobile.core.I18n.t("바이옴 매크로")));
+                if (Biome.current != null && !Biome.current.isEmpty()) s.put("biome", Biome.current);
             }
         }
-        s.put("stats", new JSONObject().put("session", ses).put("all", all));
-        JSONArray logs = new JSONArray();
-        List<String> l = Hub.recentLogsShown(30);
-        for (String line : l) {
-            int k = line.indexOf("  ");
-            String t = k > 0 ? line.substring(0, k) : "", m = k > 0 ? line.substring(k + 2) : line;
-            m = m.replaceAll("https?://\\S+", "[link]");
-            logs.put(new JSONArray().put(t).put(m.length() > 200 ? m.substring(0, 200) : m));
-        }
-        s.put("logs", logs);
         return s;
     }
 
+    /** 연결돼 있으면 계속 "봇 요청 있어?" 를 기다림 (데이터 없음) → 요청이 오면 그것만 보냄 */
     static void run() {
-        long wait = 5000;
         while (true) {
-            synchronized (wake) {
+            try {
+                String tok = token();
+                if (!linked()) {
+                    synchronized (wake) {
+                        wake.wait(30_000);             // 연결하면 바로 깸
+                    }
+                    continue;
+                }
+                Object[] r;
                 try {
-                    wake.wait(wait);
+                    r = call("/macro/wait", new JSONObject().put("v", "V" + Online.BuildConfigVersion.get()), tok, 70_000);
                 } catch (InterruptedException e) {
                     return;
+                } catch (Exception e) {
+                    Thread.sleep(15_000);              // 인터넷이 끊겼거나 서버가 잠깐 안 됨
+                    continue;
                 }
-            }
-            String tok = token();
-            if (!linked()) {
-                wait = 30_000;
-                continue;
-            }
-            try {
-                Object[] r = call("/macro/state", state(), tok);
-                if ((int) r[0] == 401) {               // 사이트에서 연결을 끊었음
+                int st = (int) r[0];
+                if (st == 401) {                       // 사이트에서 연결을 끊었음
                     if (tok.equals(token())) Hub.prefs().edit().remove("dcToken").remove("dcName").apply();
                     Hub.log("디스코드 연결이 끊김 — 다시 연결하려면 설정 → 디스코드 연결", 'y');
                     Hub.changed();
-                    wait = 30_000;
                     continue;
                 }
-                wait = Math.min(300, Math.max(10, ((JSONObject) r[1]).optInt("next", 60))) * 1000L;
+                if (st != 200) {
+                    Thread.sleep(30_000);
+                    continue;
+                }
+                JSONObject req = ((JSONObject) r[1]).optJSONObject("req");
+                if (req != null && !req.optString("id").isEmpty()) {
+                    try {
+                        JSONObject state = state(req.optString("need", "status"), req.optInt("lines", 15));
+                        String id = req.optString("id");
+                        call("/macro/reply", new JSONObject().put("id", id.length() > 32 ? id.substring(0, 32) : id).put("state", state), tok);
+                    } catch (Exception ignored) {
+                    }
+                }
+            } catch (InterruptedException e) {
+                return;
             } catch (Throwable e) {
-                wait = 60_000;
+                try {
+                    Thread.sleep(30_000);
+                } catch (InterruptedException ie) {
+                    return;
+                }
             }
         }
     }

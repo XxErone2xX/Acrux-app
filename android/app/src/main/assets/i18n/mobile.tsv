@@ -775,7 +775,7 @@ VIP 는 걸음이 빨라서 짧게 · 기본 2.5	VIP walks faster, so shorter ·
 연결 끊기	Unlink	連携を解除
 연결됨 — {0}	Linked — {0}	連携済み — {0}
 브라우저에서 [연결] 을 눌러 주세요 · 코드 {0}	Press [Link] in the browser · code {0}	ブラウザで [連携] を押してください · コード {0}
-연결한 동안 보내는 것: 매크로 작동 여부 · 지금 하는 일 · 바이옴 · 통계 · 최근 기록 30줄 (작동 중 15초 · 꺼져 있으면 1분마다) · 화면은 안 보냄 · acruxmacro.com/link 에서도 끊을 수 있음	Sent while linked: whether the macro is running · what it is doing · biome · stats · last 30 log lines (every 15 s while running · every minute when off) · never your screen · you can also unlink at acruxmacro.com/link	連携中に送るもの: マクロの動作状態 · 今していること · バイオーム · 統計 · 最近のログ 30 行 (動作中 15 秒 · オフなら 1 分ごと) · 画面は送りません · acruxmacro.com/link でも解除できます
+봇 명령이 왔을 때만 보냄: /상태 = 작동 여부 · 지금 하는 일 · 바이옴 · /통계 = 통계 · /로그 = 최근 기록 · 평소에는 데이터 없이 요청이 왔는지만 확인 · 화면은 안 보냄 · acruxmacro.com/link 에서도 끊을 수 있음	Sent only when a bot command comes: /status = running · what it is doing · biome · /stats = stats · /logs = recent log · otherwise it only checks for requests, with no data · never your screen · you can also unlink at acruxmacro.com/link	ボットのコマンドが来たときだけ送ります: /状態 = 動作状態 · 今していること · バイオーム · /統計 = 統計 · /ログ = 最近のログ · 普段はデータなしでリクエストの有無だけ確認 · 画面は送りません · acruxmacro.com/link でも解除できます
 서버에 연결할 수 없음	Could not reach the server	サーバーに接続できません
 브라우저를 열 수 없음	Could not open the browser	ブラウザを開けません
 연결 시간이 지남 — 다시 눌러 주세요	The link timed out — press it again	連携の時間が切れました — もう一度押してください
