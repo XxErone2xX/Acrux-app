@@ -214,7 +214,7 @@ final class DiscordLink {
             s.put("stats", new JSONObject().put("session", ses).put("all", all));
         } else if ("logs".equals(need)) {
             JSONArray logs = new JSONArray();
-            for (String line : Hub.recentLogsShown(Math.max(1, Math.min(30, lines)))) {
+            for (String line : Hub.recentLogsShown(Math.max(1, Math.min(100, lines)))) {
                 int k = line.indexOf("  ");
                 String t = k > 0 ? line.substring(0, k) : "", m = k > 0 ? line.substring(k + 2) : line;
                 m = m.replaceAll("https?://\\S+", "[link]");
@@ -267,7 +267,7 @@ final class DiscordLink {
                 JSONObject req = ((JSONObject) r[1]).optJSONObject("req");
                 if (req != null && !req.optString("id").isEmpty()) {
                     try {
-                        JSONObject state = state(req.optString("need", "status"), req.optInt("lines", 15));
+                        JSONObject state = state(req.optString("need", "status"), req.optInt("lines", 50));
                         String id = req.optString("id");
                         call("/macro/reply", new JSONObject().put("id", id.length() > 32 ? id.substring(0, 32) : id).put("state", state), tok);
                     } catch (Exception ignored) {

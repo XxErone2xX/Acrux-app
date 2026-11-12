@@ -747,7 +747,7 @@ class Bridge:
         except Exception:
             return 0, {}
 
-    def _dc_state(self, need="status", lines=15):
+    def _dc_state(self, need="status", lines=50):
         """봇이 물어본 것만 (need = status · stats · logs)"""
         mon = bool(self.data.get("macro_on"))
         out = {"v": VERSION, "running": mon}
@@ -772,7 +772,7 @@ class Bridge:
             st = self._stats()
             out["stats"] = {"session": st["session"], "all": st["all"]}
         elif need == "logs":
-            n = max(1, min(30, int(lines or 15)))
+            n = max(1, min(100, int(lines or 50)))
             with self.lock:
                 logs = list(self.logs)[-n:]
             out["logs"] = [[time.strftime("%H:%M:%S", time.localtime(t)), self.DC_URL_RE.sub("[링크]", str(m))[:200]]
@@ -806,7 +806,7 @@ class Bridge:
             req = r.get("req")
             if isinstance(req, dict) and req.get("id"):
                 try:
-                    state = self._dc_state(str(req.get("need") or "status"), req.get("lines") or 15)
+                    state = self._dc_state(str(req.get("need") or "status"), req.get("lines") or 50)
                     self._dc_req("/macro/reply", {"id": str(req["id"])[:32], "state": state}, token)
                 except Exception:
                     pass

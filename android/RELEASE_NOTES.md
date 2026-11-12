@@ -1,3 +1,9 @@
+## Acrux Mobile V1.5.1 업데이트
+- 디스코드 봇 /로그: 최근 기록을 최대 100줄까지 보냄 [ 기본 50줄 · 예전 30줄 ]
+
+## Acrux Mobile V1.5.1 Update
+- Discord bot /logs: sends up to 100 recent log lines [ default 50 · was 30 ]
+
 ## Acrux Mobile V1.5.0 업데이트
 - V1.4.25 ~ V1.4.27 이 빌드에 실패해서 나오지 못했던 것을 모두 담은 버전 [ 빌드 오류 수정 ]
 - 미니 UI 제목을 Acrux → Acrux Mobile 로
