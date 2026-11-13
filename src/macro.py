@@ -952,6 +952,135 @@ def show_banner(kind="autocal", seconds=240, progress=None, parent=None):
     root.mainloop()
 
 
+# ---------------------------------------------------------------- 현재 상태 (매크로 작동 중 · 로블록스 화면 오른쪽 가운데)
+STATUS_LABELS = {
+    "feat": {"ko": "작동 중인 기능", "en": "Running", "ja": "動作中の機能"},
+    "act": {"ko": "현재 행동", "en": "Current action", "ja": "現在の行動"},
+    "queue": {"ko": "대기 중인 기능", "en": "Waiting", "ja": "待機中の機能"},
+    "cool": {"ko": "아이템 사용 쿨타임", "en": "Item cooldowns", "ja": "アイテム使用クールタイム"},
+    "biome": {"ko": "인식 중인 바이옴", "en": "Detected biome", "ja": "認識中のバイオーム"},
+    "on": {"ko": "켜져 있는 기능", "en": "Enabled", "ja": "オンの機能"},
+    "time": {"ko": "작동 시간", "en": "Uptime", "ja": "稼働時間"},
+}
+
+# 값 쪽 정해진 말 (기능 이름 · 상태) — " · " 로 나눠서 하나씩 · 그 밖 (지금 하는 일 글자) 은 그대로
+STATUS_VALUES = {
+    "자동 낚시": ("Auto fishing", "自動釣り"), "레어 바이옴 자동 팝핑": ("Rare biome popping", "レアバイオーム自動ポッピング"),
+    "블러드 레인 자동 생성": ("Auto Blood Rain", "ブラッドレイン自動生成"), "오토 아이템 사용": ("Auto item use", "アイテム自動使用"),
+    "상인 자동 구매": ("Merchant auto buy", "商人の自動購入"), "포션 자동 제작": ("Auto potion crafting", "ポーション自動作成"),
+    "오토 메모리 매치": ("Auto memory match", "オートメモリーマッチ"), "바이옴 매크로": ("Biome macro", "バイオームマクロ"),
+    "이동": ("Moving", "移動"), "매크로": ("Macro", "マクロ"), "없음": ("None", "なし"), "대기": ("Idle", "待機"),
+    "작동 중": ("Running", "動作中"), "이동 중": ("Moving", "移動中"), "켜진 기능 없음": ("No features on", "オンの機能なし"),
+    "다른 서버 접속 중이라 대기": ("Waiting (in another server)", "他のサーバーに接続中のため待機"),
+    "준비됨": ("Ready", "準備完了"), "꺼짐": ("Off", "オフ"), "확인 중": ("Checking", "確認中"),
+}
+
+
+def _status_value(v):
+    if _LANG not in ("en", "ja"):
+        return v
+    i = 0 if _LANG == "en" else 1
+    return " · ".join(STATUS_VALUES[p][i] if p in STATUS_VALUES else p for p in str(v).split(" · "))
+
+
+def show_status(path, parent=None):
+    """매크로 작동 중 로블록스 화면 오른쪽 가운데에 뜨는 상태 창 (스크립트 매크로의 상태 UI 처럼)
+    (tkinter 라 별도 프로세스: macro.py --status 파일 · 앱이 0.5초마다 파일에 줄들을 씀 · 앱이 꺼지면 같이 닫힘)
+    줄: [종류, 라벨 열쇠 또는 글자, 값] — 종류: row (라벨 회색 · 값 흰색) · act (값 하늘색) · head (작은 제목) · sub (들여 쓴 줄)
+         ready (값 초록) · div (구분선) · small (작은 글씨)
+    클릭이 통과되고 포커스를 안 가져감 · 화면 캡처에는 안 찍힘 (매크로가 화면을 읽을 때 방해 안 되게)"""
+    import json as _json
+    import tkinter as tk
+    BG, LABEL, VALUE, ACCENT, READY, LINE = "#121216", "#9aa0ac", "#ffffff", "#7fd1ff", "#4ade80", "#2a2d35"
+    family = _UI_FONT.get(_LANG, "Malgun Gothic")
+    f_lab, f_val, f_act, f_small, f_head = (family, 10), (family, 10, "bold"), (family, 11, "bold"), (family, 9), (family, 9)
+    root = tk.Tk()
+    root.overrideredirect(True)
+    root.attributes("-topmost", True)
+    try:
+        root.attributes("-alpha", 0.9)
+    except Exception:
+        pass
+    root.configure(bg=BG)
+    box = tk.Frame(root, bg=BG, padx=14, pady=10)
+    box.pack(fill="both", expand=True)
+    st = {"mtime": None, "rows": None, "n": 0, "shown": False, "geo": None}
+
+    def lab(key):
+        t = STATUS_LABELS.get(key)
+        return t.get(_LANG, t["ko"]) if t else str(key)
+
+    def build(rows):
+        for w in box.winfo_children():
+            w.destroy()
+        r = 0
+        for kind, key, val in rows:
+            if kind == "div":
+                tk.Frame(box, bg=LINE, height=1).grid(row=r, column=0, columnspan=2, sticky="ew", pady=5)
+            elif kind == "head":
+                tk.Label(box, text=lab(key), bg=BG, fg=LABEL, font=f_head, anchor="w").grid(row=r, column=0, columnspan=2, sticky="w")
+            else:
+                small = kind == "small"
+                tk.Label(box, text=lab(key), bg=BG, fg=LABEL, font=f_small if small else f_lab, anchor="w",
+                         padx=(10 if kind in ("sub", "ready") else 0)).grid(row=r, column=0, sticky="nw", padx=(0, 12))
+                tk.Label(box, text=_status_value(val), bg=BG, font=f_small if small else (f_act if kind == "act" else f_val),
+                         fg=ACCENT if kind == "act" else READY if kind == "ready" else VALUE,
+                         anchor="w", justify="left", wraplength=230).grid(row=r, column=1, sticky="w")
+            r += 1
+
+    def place():
+        root.update_idletasks()
+        w, h = root.winfo_reqwidth(), root.winfo_reqheight()
+        rect = client_rect(roblox_window_cached(2.0)) if IS_WIN else None
+        if rect and rect[2] > 200:
+            x, y = rect[0] + rect[2] - w - 12, rect[1] + max(0, (rect[3] - h) // 2)
+        else:
+            x, y = root.winfo_screenwidth() - w - 12, max(0, (root.winfo_screenheight() - h) // 2)
+        geo = f"{w}x{h}+{x}+{y}"
+        if geo != st["geo"]:
+            st["geo"] = geo
+            root.geometry(geo)
+
+    def tick():
+        try:
+            m = os.path.getmtime(path)
+            if m != st["mtime"]:
+                st["mtime"] = m
+                with open(path, encoding="utf-8") as f:
+                    rows = _json.load(f).get("rows") or []
+                rows = [tuple(x) for x in rows if isinstance(x, list) and len(x) == 3]
+                if rows != st["rows"]:
+                    st["rows"] = rows
+                    build(rows)
+                if not st["shown"]:
+                    st["shown"] = True
+                    root.deiconify()
+        except (OSError, ValueError):
+            pass
+        st["n"] += 1
+        if st["n"] % 2 == 0:
+            place()
+        if parent and st["n"] % 10 == 0 and not _pid_alive(parent):
+            root.destroy()
+            return
+        root.after(250, tick)
+
+    root.withdraw()
+    if IS_WIN:
+        try:
+            root.update()
+            hwnd = user32.GetAncestor(root.winfo_id(), 2) or root.winfo_id()
+            ex = user32.GetWindowLongW(hwnd, -20)
+            # 겹친 창 · 클릭 통과 · 포커스 안 가져감 · 작업 표시줄에 안 보임
+            user32.SetWindowLongW(hwnd, -20, ex | 0x80000 | 0x20 | 0x8000000 | 0x80)
+            # 화면 캡처에서 빼기 (WDA_EXCLUDEFROMCAPTURE · 윈도우 10 2004 이상) — 매크로가 화면을 찍을 때 이 창이 안 찍힘
+            user32.SetWindowDisplayAffinity(hwnd, 0x11)
+        except Exception:
+            pass
+    tick()
+    root.mainloop()
+
+
 # ---------------------------------------------------------------- 화면 캡처 / OCR
 SHOT_DIR = None
 
@@ -1562,6 +1691,9 @@ elif __name__ == "__main__" and "--pick-region" in sys.argv:
     pick_region_to_file(sys.argv[sys.argv.index("--pick-region") + 1])
 elif __name__ == "__main__" and "--pick-point" in sys.argv:
     pick_region_to_file(sys.argv[sys.argv.index("--pick-point") + 1], "point")
+elif __name__ == "__main__" and "--status" in sys.argv:
+    _pp = sys.argv[sys.argv.index("--parent") + 1] if "--parent" in sys.argv[:-1] else None
+    show_status(sys.argv[sys.argv.index("--status") + 1], parent=_pp)
 elif __name__ == "__main__" and "--banner" in sys.argv:
     _i = sys.argv.index("--banner")
     _p = sys.argv[sys.argv.index("--progress") + 1] if "--progress" in sys.argv[:-1] else None

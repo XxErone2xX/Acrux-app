@@ -71,6 +71,8 @@ footer { position: absolute; bottom: 14px; color: var(--faint); font-size: 11px;
 .status-line { display: flex; align-items: center; gap: 10px; font-size: 16px; }
 .status-left p { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
 .status-right { text-align: right; }
+.status-card:has(> #statusRight[hidden]) { display: none; }       /* 모드가 감지 수를 켤 때만 보임 */
+.status-card { justify-content: flex-end; }
 #count { font-size: 30px; font-weight: 800; line-height: 1; }
 .status-right span { color: var(--muted); font-size: 11px; }
 

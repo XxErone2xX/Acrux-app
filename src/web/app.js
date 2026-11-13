@@ -670,7 +670,6 @@ function syncMainTiles() {
   setData($('macroDot'), 's', mOn ? (away ? 'waiting' : 'flux') : '');
   setText($('macroState'), mOn ? `매크로 켜짐 · ${mText}` : (n ? `매크로 꺼짐 · 기능 ${n}개 켜짐` : '매크로 꺼짐'));
   const on = [bOn && '바이옴 매크로', mOn && '매크로', ...Mods.emit('active')].filter(Boolean);
-  setText($('modeText'), on.length ? `작동 중: ${on.join(' · ')}` : '모두 꺼짐 — 아래 버튼으로 켜기');
   syncFeatItems();
   Mods.emit('tiles');
 }

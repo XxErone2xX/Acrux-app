@@ -838,7 +838,7 @@ class Bridge:
     def _hotkey_loop(self):
         """F3: 매크로 켜기 · 끄기 (어느 창에 있든) · 매크로 작동 중엔 화면 위에 '건드리지 마세요' 띠
         (이동 · 자동 보정 띠가 떠 있을 땐 그 띠만)"""
-        was, banner, tick = False, None, 0
+        was, banner, tick, status = False, None, 0, None
         while True:
             time.sleep(0.05)
             try:
@@ -861,6 +861,17 @@ class Bridge:
                 elif not want and alive:
                     banner.kill()
                     banner = None
+                # 현재 상태 창 (매크로가 켜져 있는 동안 로블록스 화면 오른쪽 가운데)
+                show = bool(self.data.get("macro_on"))
+                s_alive = status is not None and status.poll() is None
+                if show:
+                    if tick % 8 == 0 or not s_alive:
+                        self._write_status()
+                    if not s_alive:
+                        status = self._status_proc()
+                elif s_alive:
+                    status.kill()
+                    status = None
             except Exception as e:
                 write_crash(f"hotkey loop: {e}")
                 time.sleep(1)
@@ -1120,6 +1131,73 @@ class Bridge:
         else:
             self._banner_progress(1.0 if kind in ("measure", "record") else 0.0, 0)
             args = ["--banner", kind, "--progress", str(self.BANNER_PROGRESS)]
+        cmd = [sys.executable, *args] if getattr(sys, "frozen", False) else \
+            [sys.executable, str(Path(__file__).resolve().parent / "macro.py"), *args]
+        try:
+            return subprocess.Popen(cmd, creationflags=NO_WINDOW, env=env)
+        except Exception:
+            return None
+
+    STATUS_FILE = Path(tempfile.gettempdir()) / f"acrux_status_{os.getpid()}.json"
+    STATUS_ORDER = (("mpop", "레어 바이옴 자동 팝핑"), ("mblood", "블러드 레인 자동 생성"), ("mitem", "오토 아이템 사용"),
+                    ("mmerch", "상인 자동 구매"), ("mcraft", "포션 자동 제작"), ("mmatch", "오토 메모리 매치"), ("mfish", "자동 낚시"))
+
+    def _status_rows(self):
+        """현재 상태 창의 줄들 (스크립트 매크로 상태 UI 순서): 작동 중인 기능 · 현재 행동 · 대기 중인 기능 → 아이템 사용 쿨타임
+        → 인식 중인 바이옴 → 켜져 있는 기능 · 작동 시간"""
+        snaps = {"mpop": self.mpop.snapshot(), "mblood": self.blood.snapshot(), "mitem": self.items.snapshot(),
+                 "mmerch": self.merchant.snapshot(), "mcraft": self.crafter.snapshot(), "mmatch": self.matcher.snapshot(),
+                 "mfish": self.fisher.snapshot()}
+        on = [(k, n) for k, n in self.STATUS_ORDER if (self.data.get(k) or {}).get("enabled")]
+        run = next(((k, n) for k, n in self.STATUS_ORDER if snaps[k].get("running") and (k != "mmerch" or snaps[k].get("job") == "buy")), None)
+        mv = self.mover.snapshot()
+        bio = self.biome.state()
+        if run:
+            feat, act = run[1], snaps[run[0]].get("msg") or "작동 중"
+        elif mv.get("running"):
+            feat, act = "이동", mv.get("msg") or "이동 중"
+        elif bio.get("away"):
+            feat, act = "매크로", "다른 서버 접속 중이라 대기"
+        elif not on:
+            feat, act = "매크로", "켜진 기능 없음"
+        else:
+            feat, act = "없음", "대기"
+        rows = [["row", "feat", feat], ["act", "act", str(act)[:80]]]
+        queue = [n for k, n in on if not run or k != run[0]]
+        if queue:
+            rows.append(["row", "queue", " · ".join(queue)])
+        items = snaps["mitem"].get("items") if (self.data.get("mitem") or {}).get("enabled") else None
+        if items:
+            rows += [["div", "", ""], ["head", "cool", ""]]
+            for k, name in (("strange", "Strange Controller"), ("randomizer", "Biome Randomizer")):
+                it = items.get(k) or {}
+                left = int(round(float(it.get("left") or 0)))
+                if not it.get("on"):
+                    rows.append(["sub", name, "꺼짐"])
+                elif left <= 0:
+                    rows.append(["ready", name, "준비됨"])
+                else:
+                    rows.append(["sub", name, f"{left // 3600}:{left // 60 % 60:02d}:{left % 60:02d}" if left >= 3600 else f"{left // 60}:{left % 60:02d}"])
+        cur = bio.get("current")
+        if cur or (self.data.get("biome") or {}).get("enabled"):
+            rows += [["div", "", ""], ["row", "biome", biome.show_name(cur) if cur else "확인 중"]]
+        feats = ([("바이옴 매크로")] if (self.data.get("biome") or {}).get("enabled") else []) + [n for _, n in on]
+        up = int(time.time() - self.macro_since) if self.macro_since else 0
+        rows += [["div", "", ""], ["small", "on", " · ".join(feats) or "-"],
+                 ["small", "time", f"{up // 3600:02d}:{up // 60 % 60:02d}:{up % 60:02d}"]]
+        return rows
+
+    def _write_status(self):
+        try:
+            tmp = self.STATUS_FILE.with_suffix(".tmp")
+            tmp.write_text(json.dumps({"rows": self._status_rows()}, ensure_ascii=False), encoding="utf-8")
+            os.replace(tmp, self.STATUS_FILE)
+        except Exception:
+            pass
+
+    def _status_proc(self):
+        env = dict(os.environ, ACRUX_LANG=str(self.data.get("lang") or "ko"))
+        args = ["--status", str(self.STATUS_FILE), "--parent", str(os.getpid())]
         cmd = [sys.executable, *args] if getattr(sys, "frozen", False) else \
             [sys.executable, str(Path(__file__).resolve().parent / "macro.py"), *args]
         try:
@@ -2626,6 +2704,10 @@ if __name__ == "__main__":
         sys.exit(0)
     if "--pick-point" in sys.argv:           # 클릭 위치 지정 창
         macro.pick_region_to_file(sys.argv[sys.argv.index("--pick-point") + 1], "point")
+        sys.exit(0)
+    if "--status" in sys.argv:               # 매크로 작동 중 오른쪽 가운데 상태 창
+        _pp = sys.argv[sys.argv.index("--parent") + 1] if "--parent" in sys.argv else None
+        macro.show_status(sys.argv[sys.argv.index("--status") + 1], parent=_pp)
         sys.exit(0)
     if "--banner" in sys.argv:               # 화면 위 안내 띠 (자동 보정 중 · 이동 중)
         _i = sys.argv.index("--banner")

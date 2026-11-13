@@ -19,11 +19,9 @@
       <p data-notr>Made by 얼로니</p>
     </header>
 
+    <!-- 예전 상태 칸 (대기 중) 은 없앰 — 현재 상태는 매크로가 켜져 있는 동안 로블록스 화면 오른쪽 가운데에 뜸 (macro.show_status)
+         감지 수 칸은 모드 (스나이핑) 가 켤 때만 보임 -->
     <div class="card status-card">
-      <div class="status-left">
-        <div class="status-line"><span class="dot" data-status-dot></span><b data-status-text>중지됨</b></div>
-        <p id="modeText">-</p>
-      </div>
       <div class="status-right" id="statusRight" hidden>
         <div id="count">0</div>
         <span>감지</span>
@@ -528,7 +526,6 @@
     <button class="back deco" data-back><span class="ico" data-icon="back"></span>뒤로</button>
     <div class="head" data-head></div>
     <div class="top-right">
-      <span class="status-mini"><span class="dot" data-status-dot></span><span data-status-text>중지됨</span></span>
       <button class="btn ghost" id="clearLog">지우기</button>
     </div>
   </div>
