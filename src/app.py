@@ -108,7 +108,7 @@ class Bridge:
         self.blood_wait = False            # 블러드 레인이 다른 기능이 끝나길 기다리는 중
         self.blood_seen = None             # 마지막으로 처리한 PUMPKIN MOON · GRAVEYARD (바이옴 기록 한 줄) — 한 번 뜬 바이옴엔 한 번만
         self.urgent_lock = threading.Lock()   # 레어 바이옴 팝핑 · 블러드 레인이 같이 시작되지 않게
-        # 이동: 기준 장소(리셋 · 카메라 정렬 · 줌) → 사용자가 기록한 키 입력(WASD · Space · E)을 그대로 눌러 장소로 감
+        # 이동: 기준 장소(리셋 · 카메라 정렬 · 줌) → 사용자가 기록한 키 입력(WASD · Space)을 그대로 눌러 장소로 감
         self.mover = move.Mover(lambda: self.data.get("base", {}), lambda: self.data.get("move", {}), self._on_log,
                                 set_route=self._set_route, before=lambda: self._fish_yield("move", 45),
                                 after=lambda: self.fisher.release("move"), banner=self._move_banner,
@@ -865,13 +865,23 @@ class Bridge:
                 show = bool(self.data.get("macro_on"))
                 s_alive = status is not None and status.poll() is None
                 if show:
+                    if s_alive and getattr(status, "_off_at", 0):
+                        status._off_at = 0                   # 사라지는 중에 다시 켬 → 다시 보임
                     if tick % 8 == 0 or not s_alive:
                         self._write_status()
                     if not s_alive:
                         status = self._status_proc()
                 elif s_alive:
-                    status.kill()
-                    status = None
+                    # 꺼짐 → 창이 0.3초 동안 서서히 사라지고 스스로 끝남 · 2초 안에 안 끝나면 끔
+                    if not getattr(status, "_off_at", 0):
+                        status._off_at = time.time()
+                        try:
+                            self.STATUS_FILE.write_text(json.dumps({"on": False}), encoding="utf-8")
+                        except OSError:
+                            pass
+                    elif time.time() - status._off_at > 2:
+                        status.kill()
+                        status = None
             except Exception as e:
                 write_crash(f"hotkey loop: {e}")
                 time.sleep(1)
@@ -1139,58 +1149,55 @@ class Bridge:
             return None
 
     STATUS_FILE = Path(tempfile.gettempdir()) / f"acrux_status_{os.getpid()}.json"
-    STATUS_ORDER = (("mpop", "레어 바이옴 자동 팝핑"), ("mblood", "블러드 레인 자동 생성"), ("mitem", "오토 아이템 사용"),
-                    ("mmerch", "상인 자동 구매"), ("mcraft", "포션 자동 제작"), ("mmatch", "오토 메모리 매치"), ("mfish", "자동 낚시"))
+    # 스크립트 매크로 상태 UI 와 같은 이름 · 묶음
+    STATUS_ORDER = (("mpop", "레어 바이옴 자동 팝핑"), ("mblood", "블러드 레인 자동 생성"), ("mitem", "아이템 사용"),
+                    ("mmerch", "상인 자동 구매"), ("mcraft", "포션 자동 제작"), ("mmatch", "메모리 매치"), ("mfish", "자동 낚시"))
+    STATUS_GROUPS = (("g_always", ("mfish",)), ("g_single", ("mmatch", "mcraft", "mitem", "mmerch")), ("g_urgent", ("mpop", "mblood")))
 
     def _status_rows(self):
-        """현재 상태 창의 줄들 (스크립트 매크로 상태 UI 순서): 작동 중인 기능 · 현재 행동 · 대기 중인 기능 → 아이템 사용 쿨타임
-        → 인식 중인 바이옴 → 켜져 있는 기능 · 작동 시간"""
+        """현재 상태 창의 줄들 (스크립트 매크로 상태 UI 순서 그대로):
+        현재 작동중인 기능 · 현재 행동 · 대기열인 기능 → 아이템 사용 쿨타임 → 인식중인 바이옴 → 켜져 있는 기능 (묶음별) · 작동 시간"""
+        names = dict(self.STATUS_ORDER)
         snaps = {"mpop": self.mpop.snapshot(), "mblood": self.blood.snapshot(), "mitem": self.items.snapshot(),
                  "mmerch": self.merchant.snapshot(), "mcraft": self.crafter.snapshot(), "mmatch": self.matcher.snapshot(),
                  "mfish": self.fisher.snapshot()}
-        on = [(k, n) for k, n in self.STATUS_ORDER if (self.data.get(k) or {}).get("enabled")]
-        run = next(((k, n) for k, n in self.STATUS_ORDER if snaps[k].get("running") and (k != "mmerch" or snaps[k].get("job") == "buy")), None)
+        on = [k for k, _ in self.STATUS_ORDER if (self.data.get(k) or {}).get("enabled")]
+        run = next((k for k, _ in self.STATUS_ORDER if snaps[k].get("running") and (k != "mmerch" or snaps[k].get("job") == "buy")), None)
         mv = self.mover.snapshot()
         bio = self.biome.state()
         if run:
-            feat, act = run[1], snaps[run[0]].get("msg") or "작동 중"
+            feat, act = names[run], snaps[run].get("msg") or "작동 중"
         elif mv.get("running"):
             feat, act = "이동", mv.get("msg") or "이동 중"
         elif bio.get("away"):
-            feat, act = "매크로", "다른 서버 접속 중이라 대기"
+            feat, act = "없음", "다른 서버 접속 중이라 대기"
         elif not on:
-            feat, act = "매크로", "켜진 기능 없음"
+            feat, act = "없음", "켜진 기능 없음"
         else:
             feat, act = "없음", "대기"
-        rows = [["row", "feat", feat], ["act", "act", str(act)[:80]]]
-        queue = [n for k, n in on if not run or k != run[0]]
-        if queue:
-            rows.append(["row", "queue", " · ".join(queue)])
-        items = snaps["mitem"].get("items") if (self.data.get("mitem") or {}).get("enabled") else None
-        if items:
-            rows += [["div", "", ""], ["head", "cool", ""]]
-            for k, name in (("strange", "Strange Controller"), ("randomizer", "Biome Randomizer")):
-                it = items.get(k) or {}
-                left = int(round(float(it.get("left") or 0)))
-                if not it.get("on"):
-                    rows.append(["sub", name, "꺼짐"])
-                elif left <= 0:
-                    rows.append(["ready", name, "준비됨"])
-                else:
-                    rows.append(["sub", name, f"{left // 3600}:{left // 60 % 60:02d}:{left % 60:02d}" if left >= 3600 else f"{left // 60}:{left % 60:02d}"])
+        queue = [names[k] for k in on if k != run]
+        rows = [["line", "feat", feat], ["act", "act", str(act)[:80]], ["line", "queue", ", ".join(queue) or "없음"],
+                ["div", "", ""], ["head", "cool", ""]]
+        items = snaps["mitem"].get("items") if "mitem" in on else None
+        for k, key in (("strange", "strange"), ("randomizer", "random")):
+            it = (items or {}).get(k) or {}
+            left = int(float(it.get("left") or 0))
+            rows.append(["sub", key, "꺼짐" if not items or not it.get("on") else "준비됨" if left <= 0 else f"{left // 60}분 {left % 60:02d}초"])
         cur = bio.get("current")
-        if cur or (self.data.get("biome") or {}).get("enabled"):
-            rows += [["div", "", ""], ["row", "biome", biome.show_name(cur) if cur else "확인 중"]]
-        feats = ([("바이옴 매크로")] if (self.data.get("biome") or {}).get("enabled") else []) + [n for _, n in on]
+        rows += [["div", "", ""], ["line6", "biome", biome.show_name(cur) if cur else "없음"], ["div", "", ""], ["shead", "on", ""]]
+        web = ["바이옴 매크로"] if (self.data.get("biome") or {}).get("enabled") else []
+        rows.append(["small", "g_web", ", ".join(web)] if web else ["small", "g_web", "없음", "#9AA0AC"])
+        for key, ks in self.STATUS_GROUPS:
+            got = [names[k] for k in ks if k in on]
+            rows.append(["small", key, ", ".join(got)] if got else ["small", key, "없음", "#9AA0AC"])
         up = int(time.time() - self.macro_since) if self.macro_since else 0
-        rows += [["div", "", ""], ["small", "on", " · ".join(feats) or "-"],
-                 ["small", "time", f"{up // 3600:02d}:{up // 60 % 60:02d}:{up % 60:02d}"]]
+        rows.append(["small", "time", f"{up // 3600:02d}:{up // 60 % 60:02d}:{up % 60:02d}" if up else "-"])
         return rows
 
     def _write_status(self):
         try:
             tmp = self.STATUS_FILE.with_suffix(".tmp")
-            tmp.write_text(json.dumps({"rows": self._status_rows()}, ensure_ascii=False), encoding="utf-8")
+            tmp.write_text(json.dumps({"on": True, "rows": self._status_rows()}, ensure_ascii=False), encoding="utf-8")
             os.replace(tmp, self.STATUS_FILE)
         except Exception:
             pass
@@ -1670,7 +1677,7 @@ class Bridge:
         return {"ok": True}
 
     def api_move_record(self, p):
-        """길 기록: 기준 장소(포션 제작 장소는 반대쪽 기준 장소)로 간 뒤 사용자가 WASD · Space · E 로 걸어감 → F6 (도착) 하면 저장"""
+        """길 기록: 기준 장소(포션 제작 장소는 반대쪽 기준 장소)로 간 뒤 사용자가 WASD · Space 로 걸어감 → F6 (도착) 하면 저장"""
         i = int(p.get("place", -1))
         places = self.data.get("move", {}).get("places") or []
         if not 0 <= i < len(places):

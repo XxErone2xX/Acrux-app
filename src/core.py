@@ -87,7 +87,7 @@ MOVE_FEATS = ("mfish", "mpop", "mcraft", "mmatch")    # 장소를 따로 둘 수
 # 기능마다 정해진 장소 (사용자가 만들거나 지우지 않음 · 지점 위치와 시간만 지정)
 MOVE_TEMPLATES = {"mfish": (("fish_spot", "낚시 장소"), ("sell_spot", "물고기 판매 장소")), "mcraft": (("craft_spot", "포션 제작 장소"),),
                   "mmatch": (("match_spot", "메모리 매치 장소"),)}
-ROUTE_KEYS = ("w", "a", "s", "d", "space", "e")         # 길 기록에 쓰는 키 (move.REC_KEYS 와 같음)
+ROUTE_KEYS = ("w", "a", "s", "d", "space")              # 길 기록에 쓰는 키 (move.REC_KEYS 와 같음)
 
 
 def _route(r):
@@ -150,7 +150,7 @@ MOVE_DEFAULT = {
     "button": "right",            # 이동할 곳을 누를 마우스 버튼 (Click to Move)
     "margin": 0.3,                # 잰 시간에 더 기다릴 여유 (초)
     # 장소: [{"name", "feat": 쓰는 기능, "key": 정해진 장소 이름표, "route": 기록한 길 또는 None}]
-    #   route = {"ev": [[초, 키, 1 누름 · 0 뗌] 또는 [초, "click", [x, y]]], "len": 처음 키부터 도착까지 (초)} — 기준 장소에서 WASD · Space · E 로 걸어간 그대로
+    #   route = {"ev": [[초, 키, 1 누름 · 0 뗌] 또는 [초, "click", [x, y]]], "len": 처음 키부터 도착까지 (초)} — 기준 장소에서 WASD · Space 로 걸어간 그대로
     #   (예전 Click to Move 의 "points" 는 더 안 씀)
     "places": [],
 }

@@ -4,7 +4,7 @@
 외부 앱이라 게임 안 좌표를 모르므로, 매번 '같은 자리 · 같은 화면'을 만든 뒤 같은 키를 같은 시간에 누름:
   1. 기준 장소: 리셋(Esc → R → Enter) → / · 채팅 · 도감 열고 닫기 · / · Enter (카메라 정렬)
      → W 1초 → W+A 7초 → A 1초 (0.75초 뒤부터 W 0.25초 같이) (구석으로 걸어가 항상 같은 자리) → 우클릭 드래그(위에서 내려다보기) → O 2.5초 (최대 줌)
-  2. 길 기록: 기준 장소에 도착하면 사용자가 W · A · S · D · Space · E (+ 로블록스 창 안 왼쪽 클릭) 로 걸어감
+  2. 길 기록: 기준 장소에 도착하면 사용자가 W · A · S · D · Space (+ 로블록스 창 안 왼쪽 클릭) 로 걸어감
      → 처음 키를 누른 순간부터 도착(F6 또는 화면의 [도착])까지 누르고 뗀 시각을 저장
   3. 이동: 기준 장소 → 저장한 입력을 같은 시각에 그대로 누르고 뗌
 """
@@ -16,7 +16,7 @@ import macro
 ARRIVE_KEY = "f6"        # 시간 잴 때 도착하면 누르는 키
 MEASURE_MAX = 180.0      # 시간 재기 최대 (초)
 MOVE_KEYS = ("w", "a", "s", "d", "o", "space", "shift", "e")
-REC_KEYS = ("w", "a", "s", "d", "space", "e")   # 길 기록에 쓰는 키 (그 밖의 키는 기록 안 함)
+REC_KEYS = ("w", "a", "s", "d", "space")   # 길 기록에 쓰는 키 (그 밖의 키는 기록 안 함 · E 는 안 씀)
 REC_MAX = 300.0          # 길 기록 최대 (초)
 
 
@@ -194,7 +194,11 @@ class Mover:
         rect = macro.client_rect(hwnd) if hwnd else None
         if not rect or rect[2] < 50:
             raise RuntimeError("로블록스 창을 찾을 수 없음")
-        macro.focus(hwnd)
+        # 이동은 키 입력이 들어가야 함 → 로블록스가 맨 앞이 아니면 앞으로 가져오고 제목 줄을 한 번 눌러 입력을 받게 함
+        if macro.focus(hwnd, wait=0.15, click=True):
+            self.log("로블록스 창을 맨 앞으로 가져옴", "d")
+        if not macro.is_foreground(hwnd):
+            raise RuntimeError("로블록스 창을 맨 앞으로 가져오지 못함 — 로블록스 창을 한 번 눌러 주세요")
         return rect
 
     def _click(self, pos, button="left"):
@@ -478,7 +482,7 @@ class Mover:
     # ---- 3. 길 기록
     def record(self, i):
         """기준 장소(또는 반대쪽 기준 장소)로 간 뒤, 사용자가 걸어가는 키 입력을 기록 → 도착(F6 · 화면의 [도착])하면 저장
-        W · A · S · D · Space · E 를 누르고 뗀 시각 + 로블록스 창 안 왼쪽 클릭 자리 · 처음 키를 누른 순간이 0초"""
+        W · A · S · D · Space 를 누르고 뗀 시각 + 로블록스 창 안 왼쪽 클릭 자리 · 처음 키를 누른 순간이 0초"""
         pl = self._place(i)
         name = pl["name"] or "장소"
         self.go_start(i)
@@ -486,7 +490,7 @@ class Mover:
         self._banner("record")
         rect = self._rect()
         self._set(msg=f"{name} 길 기록 중 — 걸어가서 도착하면 F6", measuring={"place": i, "rec": True, "since": time.time()})
-        self.log(f"{name} 길 기록 중 — WASD · Space · E 로 걸어가고 도착하면 F6 (또는 화면의 [도착]) · 화면은 돌리지 마세요", "c")
+        self.log(f"{name} 길 기록 중 — WASD · Space 로 걸어가고 도착하면 F6 (또는 화면의 [도착]) · 화면은 돌리지 마세요", "c")
         held = {k: macro.key_down_now(k) for k in REC_KEYS}     # 이미 누르고 있던 키는 뗀 뒤부터
         lb = macro.mouse_down_now("left")
         f6 = macro.key_down_now(ARRIVE_KEY)

@@ -565,12 +565,15 @@ def focus_back(hwnd):
         focus(hwnd)
 
 
-def focus(hwnd, wait=0.0):
-    """로블록스 창을 맨 앞으로. 이미 앞에 있으면 아무것도 안 함. wait: 앞으로 가져왔을 때 화면이 바뀔 시간"""
+def focus(hwnd, wait=0.0, click=False):
+    """로블록스 창을 맨 앞으로. 이미 앞에 있으면 아무것도 안 함. wait: 앞으로 가져왔을 때 화면이 바뀔 시간
+    click: 키 입력이 들어가야 할 때 (이동 · 길 기록) — 앞으로 가져온 뒤 창 제목 줄을 한 번 눌러 확실히 입력을 받게 함
+    (윈도우가 다른 프로그램이 창을 앞으로 가져오는 걸 막거나, 로블록스가 앞에 와도 사용자가 한 번 누르기 전엔 키를 안 받을 때가 있음)
+    → 앞으로 가져왔으면 True"""
     if not IS_WIN or not hwnd:
-        return
+        return False
     if is_foreground(hwnd) and not user32.IsIconic(hwnd):
-        return
+        return False
     try:
         if user32.IsIconic(hwnd):
             user32.ShowWindow(hwnd, 9)        # 최소화 상태면 복원
@@ -578,7 +581,15 @@ def focus(hwnd, wait=0.0):
         _send(_key_input("alt", False), _key_input("alt", True))
         user32.BringWindowToTop(hwnd)
         user32.SetForegroundWindow(hwnd)
-        for _ in range(25):                   # 실제로 앞으로 올 때까지 최대 0.5초
+        for _ in range(15):                   # 실제로 앞으로 올 때까지 최대 0.3초
+            if is_foreground(hwnd):
+                break
+            time.sleep(0.02)
+        if not is_foreground(hwnd):
+            _force_foreground(hwnd)           # 지금 앞에 있는 창의 입력을 잠깐 같이 써서 앞으로
+        if click:
+            _activate_click(hwnd)
+        for _ in range(25):
             if is_foreground(hwnd):
                 break
             time.sleep(0.02)
@@ -586,6 +597,49 @@ def focus(hwnd, wait=0.0):
             time.sleep(wait)
     except Exception:
         pass
+    return is_foreground(hwnd)
+
+
+def _force_foreground(hwnd):
+    """AttachThreadInput: 지금 앞에 있는 창의 스레드에 잠깐 붙어서 SetForegroundWindow 가 막히지 않게"""
+    k32 = ctypes.windll.kernel32
+    fg = user32.GetForegroundWindow()
+    me = k32.GetCurrentThreadId()
+    other = user32.GetWindowThreadProcessId(fg, None) if fg else 0
+    target = user32.GetWindowThreadProcessId(hwnd, None)
+    attached = []
+    try:
+        for t in {other, target}:
+            if t and t != me and user32.AttachThreadInput(me, t, True):
+                attached.append(t)
+        user32.ShowWindow(hwnd, 5)            # SW_SHOW
+        user32.BringWindowToTop(hwnd)
+        user32.SetForegroundWindow(hwnd)
+        user32.SetActiveWindow(hwnd)
+        user32.SetFocus(hwnd)
+    finally:
+        for t in attached:
+            user32.AttachThreadInput(me, t, False)
+
+
+def _activate_click(hwnd):
+    """창 제목 줄 (게임 화면 밖) 을 한 번 눌러 사용자가 누른 것처럼 창을 활성화 · 마우스는 원래 자리로
+    전체 화면이라 제목 줄이 없으면 안 누름 (게임 화면을 누르면 게임 안에서 뭔가 눌릴 수 있어서)"""
+    rc = wintypes.RECT()
+    if not user32.GetWindowRect(hwnd, ctypes.byref(rc)):
+        return
+    cr = client_rect(hwnd)
+    if not cr or cr[1] - rc.top < 8:          # 제목 줄이 없음 (전체 화면 · 테두리 없는 창)
+        return
+    x, y = rc.left + max(60, (rc.right - rc.left) // 3), (rc.top + cr[1]) // 2
+    old = cursor_pos()
+    move_to(x, y)
+    time.sleep(0.03)
+    _send(_mouse(MOUSEEVENTF_LEFTDOWN))
+    time.sleep(0.03)
+    _send(_mouse(MOUSEEVENTF_LEFTUP))
+    time.sleep(0.05)
+    move_to(*old)
 
 
 def to_screen(rx, ry, rect):
@@ -860,9 +914,9 @@ BANNER_TEXT = {
         "ja": "マクロ移動中 · マウスとキーボードに触らないでください（F7: 停止）",
     },
     "record": {
-        "ko": "길 기록 중 · WASD · Space · E 로 걸어가고 도착하면 F6 · 화면은 돌리지 마세요 (F7: 취소)",
-        "en": "Recording route · walk with WASD · Space · E and press F6 on arrival · don't turn the camera (F7: cancel)",
-        "ja": "道を記録中 · WASD · Space · E で歩き、到着したらF6 · カメラは回さないでください（F7: キャンセル）",
+        "ko": "길 기록 중 · WASD · Space 로 걸어가고 도착하면 F6 · 화면은 돌리지 마세요 (F7: 취소)",
+        "en": "Recording route · walk with WASD · Space and press F6 on arrival · don't turn the camera (F7: cancel)",
+        "ja": "道を記録中 · WASD · Space で歩き、到着したらF6 · カメラは回さないでください（F7: キャンセル）",
     },
     "measure": {
         "ko": "시간 재는 중 · 도착하면 F6 · 그 밖엔 건드리지 마세요 (F7: 정지)",
@@ -953,89 +1007,66 @@ def show_banner(kind="autocal", seconds=240, progress=None, parent=None):
 
 
 # ---------------------------------------------------------------- 현재 상태 (매크로 작동 중 · 로블록스 화면 오른쪽 가운데)
-STATUS_LABELS = {
-    "feat": {"ko": "작동 중인 기능", "en": "Running", "ja": "動作中の機能"},
-    "act": {"ko": "현재 행동", "en": "Current action", "ja": "現在の行動"},
-    "queue": {"ko": "대기 중인 기능", "en": "Waiting", "ja": "待機中の機能"},
-    "cool": {"ko": "아이템 사용 쿨타임", "en": "Item cooldowns", "ja": "アイテム使用クールタイム"},
-    "biome": {"ko": "인식 중인 바이옴", "en": "Detected biome", "ja": "認識中のバイオーム"},
-    "on": {"ko": "켜져 있는 기능", "en": "Enabled", "ja": "オンの機能"},
-    "time": {"ko": "작동 시간", "en": "Uptime", "ja": "稼働時間"},
-}
-
-# 값 쪽 정해진 말 (기능 이름 · 상태) — " · " 로 나눠서 하나씩 · 그 밖 (지금 하는 일 글자) 은 그대로
-STATUS_VALUES = {
-    "자동 낚시": ("Auto fishing", "自動釣り"), "레어 바이옴 자동 팝핑": ("Rare biome popping", "レアバイオーム自動ポッピング"),
-    "블러드 레인 자동 생성": ("Auto Blood Rain", "ブラッドレイン自動生成"), "오토 아이템 사용": ("Auto item use", "アイテム自動使用"),
-    "상인 자동 구매": ("Merchant auto buy", "商人の自動購入"), "포션 자동 제작": ("Auto potion crafting", "ポーション自動作成"),
-    "오토 메모리 매치": ("Auto memory match", "オートメモリーマッチ"), "바이옴 매크로": ("Biome macro", "バイオームマクロ"),
-    "이동": ("Moving", "移動"), "매크로": ("Macro", "マクロ"), "없음": ("None", "なし"), "대기": ("Idle", "待機"),
-    "작동 중": ("Running", "動作中"), "이동 중": ("Moving", "移動中"), "켜진 기능 없음": ("No features on", "オンの機能なし"),
-    "다른 서버 접속 중이라 대기": ("Waiting (in another server)", "他のサーバーに接続中のため待機"),
-    "준비됨": ("Ready", "準備完了"), "꺼짐": ("Off", "オフ"), "확인 중": ("Checking", "確認中"),
-}
-
-
-def _status_value(v):
-    if _LANG not in ("en", "ja"):
-        return v
-    i = 0 if _LANG == "en" else 1
-    return " · ".join(STATUS_VALUES[p][i] if p in STATUS_VALUES else p for p in str(v).split(" · "))
-
-
 def show_status(path, parent=None):
-    """매크로 작동 중 로블록스 화면 오른쪽 가운데에 뜨는 상태 창 (스크립트 매크로의 상태 UI 처럼)
-    (tkinter 라 별도 프로세스: macro.py --status 파일 · 앱이 0.5초마다 파일에 줄들을 씀 · 앱이 꺼지면 같이 닫힘)
-    줄: [종류, 라벨 열쇠 또는 글자, 값] — 종류: row (라벨 회색 · 값 흰색) · act (값 하늘색) · head (작은 제목) · sub (들여 쓴 줄)
-         ready (값 초록) · div (구분선) · small (작은 글씨)
-    클릭이 통과되고 포커스를 안 가져감 · 화면 캡처에는 안 찍힘 (매크로가 화면을 읽을 때 방해 안 되게)"""
+    """매크로 작동 중 로블록스 화면 오른쪽 가운데에 뜨는 현재 상태 창 (스크립트 매크로의 상태 UI 와 같은 모양 · overlay.py)
+    (tkinter 라 별도 프로세스: macro.py --status 파일 · 앱이 파일에 줄들을 씀 · 앱이 꺼지면 같이 닫힘)
+    윈도우에서 겹친 창(픽셀마다 투명도)을 못 만들면 단순한 창으로"""
+    if IS_WIN:
+        try:
+            import overlay
+            overlay.run(path, parent, _LANG, _UI_FONT.get(_LANG, "Malgun Gothic"),
+                        rect_fn=lambda: client_rect(roblox_window_cached(2.0)), alive_fn=_pid_alive)
+            return
+        except Exception:
+            pass
+    _show_status_simple(path, parent)
+
+
+def _show_status_simple(path, parent=None):
+    """단순한 상태 창 (오른쪽 정렬 "라벨 값" 줄 · 창 전체 투명도) — 겹친 창을 못 쓸 때"""
     import json as _json
     import tkinter as tk
-    BG, LABEL, VALUE, ACCENT, READY, LINE = "#121216", "#9aa0ac", "#ffffff", "#7fd1ff", "#4ade80", "#2a2d35"
+    import overlay
+    labels = overlay._labels(_LANG)
+    BG, LINE = "#121216", "#2a2d35"
     family = _UI_FONT.get(_LANG, "Malgun Gothic")
-    f_lab, f_val, f_act, f_small, f_head = (family, 10), (family, 10, "bold"), (family, 11, "bold"), (family, 9), (family, 9)
     root = tk.Tk()
     root.overrideredirect(True)
     root.attributes("-topmost", True)
     try:
-        root.attributes("-alpha", 0.9)
+        root.attributes("-alpha", 0.85)
     except Exception:
         pass
     root.configure(bg=BG)
-    box = tk.Frame(root, bg=BG, padx=14, pady=10)
+    box = tk.Frame(root, bg=BG, padx=20, pady=16)
     box.pack(fill="both", expand=True)
     st = {"mtime": None, "rows": None, "n": 0, "shown": False, "geo": None}
-
-    def lab(key):
-        t = STATUS_LABELS.get(key)
-        return t.get(_LANG, t["ko"]) if t else str(key)
 
     def build(rows):
         for w in box.winfo_children():
             w.destroy()
-        r = 0
-        for kind, key, val in rows:
+        for r in rows:
+            kind = r[0]
             if kind == "div":
-                tk.Frame(box, bg=LINE, height=1).grid(row=r, column=0, columnspan=2, sticky="ew", pady=5)
-            elif kind == "head":
-                tk.Label(box, text=lab(key), bg=BG, fg=LABEL, font=f_head, anchor="w").grid(row=r, column=0, columnspan=2, sticky="w")
-            else:
-                small = kind == "small"
-                tk.Label(box, text=lab(key), bg=BG, fg=LABEL, font=f_small if small else f_lab, anchor="w",
-                         padx=(10 if kind in ("sub", "ready") else 0)).grid(row=r, column=0, sticky="nw", padx=(0, 12))
-                tk.Label(box, text=_status_value(val), bg=BG, font=f_small if small else (f_act if kind == "act" else f_val),
-                         fg=ACCENT if kind == "act" else READY if kind == "ready" else VALUE,
-                         anchor="w", justify="left", wraplength=230).grid(row=r, column=1, sticky="w")
-            r += 1
+                tk.Frame(box, bg=LINE, height=1).pack(fill="x", pady=4)
+                continue
+            size, extra, vcol = overlay.STYLE.get(kind, overlay.STYLE["line"])
+            f = (family, max(7, int(size * 0.5)))
+            line = tk.Frame(box, bg=BG)
+            line.pack(anchor="e", pady=(extra // 2, 0))
+            col = r[3] if len(r) > 3 and r[3] else vcol
+            if r[2] not in (None, ""):
+                tk.Label(line, text=overlay._value(r[2], _LANG), bg=BG, fg=col, font=f, wraplength=240, justify="right").pack(side="right")
+            tk.Label(line, text=labels.get(r[1], r[1]), bg=BG, fg=overlay.LABEL, font=f).pack(side="right")
 
     def place():
         root.update_idletasks()
         w, h = root.winfo_reqwidth(), root.winfo_reqheight()
         rect = client_rect(roblox_window_cached(2.0)) if IS_WIN else None
         if rect and rect[2] > 200:
-            x, y = rect[0] + rect[2] - w - 12, rect[1] + max(0, (rect[3] - h) // 2)
+            x, y = rect[0] + rect[2] - w - 20, rect[1] + max(0, (rect[3] - h) // 2)
         else:
-            x, y = root.winfo_screenwidth() - w - 12, max(0, (root.winfo_screenheight() - h) // 2)
+            x, y = root.winfo_screenwidth() - w - 20, max(0, (root.winfo_screenheight() - h) // 2)
         geo = f"{w}x{h}+{x}+{y}"
         if geo != st["geo"]:
             st["geo"] = geo
@@ -1047,8 +1078,11 @@ def show_status(path, parent=None):
             if m != st["mtime"]:
                 st["mtime"] = m
                 with open(path, encoding="utf-8") as f:
-                    rows = _json.load(f).get("rows") or []
-                rows = [tuple(x) for x in rows if isinstance(x, list) and len(x) == 3]
+                    d = _json.load(f)
+                if not d.get("on", True):
+                    root.destroy()
+                    return
+                rows = [list(x) for x in d.get("rows") or [] if isinstance(x, list) and len(x) >= 3]
                 if rows != st["rows"]:
                     st["rows"] = rows
                     build(rows)
@@ -1071,9 +1105,7 @@ def show_status(path, parent=None):
             root.update()
             hwnd = user32.GetAncestor(root.winfo_id(), 2) or root.winfo_id()
             ex = user32.GetWindowLongW(hwnd, -20)
-            # 겹친 창 · 클릭 통과 · 포커스 안 가져감 · 작업 표시줄에 안 보임
             user32.SetWindowLongW(hwnd, -20, ex | 0x80000 | 0x20 | 0x8000000 | 0x80)
-            # 화면 캡처에서 빼기 (WDA_EXCLUDEFROMCAPTURE · 윈도우 10 2004 이상) — 매크로가 화면을 찍을 때 이 창이 안 찍힘
             user32.SetWindowDisplayAffinity(hwnd, 0x11)
         except Exception:
             pass

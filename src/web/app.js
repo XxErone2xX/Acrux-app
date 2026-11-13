@@ -1242,7 +1242,7 @@ $('mbloodStop').addEventListener('click', () => api('mblood_stop'));
 // ---------------------------------------------------------------- 매크로 탭 · 포션 자동 제작
 const mcraft = () => (config.mcraft ||= {});
 const saveMcraft = () => queueSave({ mcraft: JSON.parse(JSON.stringify(mcraft())) });
-const routeOk = pl => !!(pl && pl.route && pl.route.ev && pl.route.ev.length);       // 길을 기록했나 (WASD · Space · E)
+const routeOk = pl => !!(pl && pl.route && pl.route.ev && pl.route.ev.length);       // 길을 기록했나 (WASD · Space)
 const craftPlaceOk = () => (move().places || []).some(pl => pl.feat === 'mcraft' && routeOk(pl));
 // 제작할 포션: 직접 입력한 이름 → 게임에서 찾을 이름 (서버 crafter.typed_name 과 같게: 띄어쓰기 정리 · 끝 숫자 1~5 → 로마 숫자)
 const ROMAN_NUM = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V' };
@@ -1487,7 +1487,7 @@ MPOS.mcraft = { box: 'mposCraft',
   tabs: [['shop', '제작 창', '실행할 땐 글자로 먼저 찾고, 못 찾으면 이 위치를 씀',
           ['search_pos', 'list_region', 'shop_close_pos', 'open_recipe_pos', 'add_all_pos', 'craft_pos', 'add_close_pos'], false, '', 'craftauto'],
          ['revbase', '반대쪽 기준 장소', '낚시와 정반대 방향 · 리셋 → 카메라 정렬 → 내려다보기+줌 → S+D → S (끝에 A 같이)', [], false, 'movebaserev'],
-         ['move', '이동', '반대쪽 기준 장소에서 포션 제작 장소까지 직접 걸어간 길 (퀘스트 보드 E · Exit 클릭도 같이 기록)', [], false, 'places:mcraft']] };
+         ['move', '이동', '반대쪽 기준 장소에서 포션 제작 장소까지 직접 걸어간 길 (WASD · Space)', [], false, 'places:mcraft']] };
 MPOS.mmatch = { box: 'mposMatch',
   points: [['note_close_pos', '알림 창 X', 'E 를 누르면 뜨는 Notification 창 오른쪽 위 X'],
            ['note_btn_pos', 'Start / Available 버튼', '창 가운데 초록 버튼 (Start Memory Match · Available after)'],
@@ -1545,7 +1545,7 @@ function renderMpos(feat) {
   }));
 }
 // ---------------------------------------------------------------- 이동 (공통 위치 → 이동 · 기준 장소 / 기능마다 장소)
-// 기준 장소: 리셋 → Collection 열고 닫기(카메라 정렬) → 줌 · 장소: 기준 장소에서 직접 걸어간 길 (WASD · Space · E 기록)
+// 기준 장소: 리셋 → Collection 열고 닫기(카메라 정렬) → 줌 · 장소: 기준 장소에서 직접 걸어간 길 (WASD · Space 기록)
 const move = () => (config.move ||= { places: [] });
 const saveMove = () => queueSave({ move: JSON.parse(JSON.stringify(move())) });
 const MOVE_SET = [['reset_wait', '리셋 후 대기', 'Esc → R → Enter 로 리셋한 뒤 (초)', 3.5, 0.5, 0.1],
@@ -1756,7 +1756,7 @@ const MPOS_CUSTOM = {
     el.querySelector('[data-move-rev]').addEventListener('click', () => moveCall('move_base_rev', {}, '반대쪽 기준 장소로 이동 시작 · 정지: F7'));
     el.querySelector('[data-move-stop]').addEventListener('click', () => api('move_stop'));
   },
-  // 기능마다 가는 장소: 기준 장소에서 직접 걸어간 길 (WASD · Space · E) 을 기록 → 그대로 다시 누름
+  // 기능마다 가는 장소: 기준 장소에서 직접 걸어간 길 (WASD · Space) 을 기록 → 그대로 다시 누름
   places(el, feat) {
     const m = move(), st = lastMove || {}, busy = !!st.running;
     const all = (m.places ||= []);
@@ -1765,10 +1765,10 @@ const MPOS_CUSTOM = {
     const fixed = MOVE_FIXED.includes(feat);              // 정해진 장소만 쓰는 기능 (장소를 만들거나 지우지 않음)
     const from = feat === 'mcraft' ? '반대쪽 기준 장소' : '기준 장소';
     el.innerHTML = `
-      ${meas ? `<div class="row move-measure"><span>길 기록 중<small>WASD · Space · E 로 걸어가고 도착하면 F6 또는 [도착] · 화면은 돌리지 마세요</small></span>
+      ${meas ? `<div class="row move-measure"><span>길 기록 중<small>WASD · Space 로 걸어가고 도착하면 F6 또는 [도착] · 화면은 돌리지 마세요</small></span>
         <span class="pos"><b data-move-timer>0.0초</b><button class="btn mini" type="button" data-move-arrive>도착</button>
         <button class="btn mini ghost" type="button" data-move-stop>취소</button></span></div>` : ''}
-      <div class="row"><span>장소<small>[길 기록] → 매크로가 ${from}로 간 뒤, 직접 WASD · Space · E 로 걸어가서 도착하면 F6 · 그 입력을 그대로 다시 누름</small></span>
+      <div class="row"><span>장소<small>[길 기록] → 매크로가 ${from}로 간 뒤, 직접 WASD · Space 로 걸어가서 도착하면 F6 · 그 입력을 그대로 다시 누름</small></span>
         <span class="pos">${busy && !meas ? `<b class="move-state">${esc(st.msg || '이동 중')}</b>` : ''}
         ${fixed ? '' : '<button class="btn mini" type="button" data-move-add-place>장소 추가</button>'}</span></div>` +
       (mine.length ? '' : `<div class="row"><span><small>아직 장소 없음 — [장소 추가] 로 만들기</small></span></div>`) +
@@ -1798,7 +1798,7 @@ const MPOS_CUSTOM = {
       moveCall('move_place', { place: +b.dataset.moveGo }, '장소로 이동 시작 · 정지: F7')));
     el.querySelectorAll('[data-move-rec]').forEach(b => b.addEventListener('click', async () => {
       await flushSave();
-      moveCall('move_record', { place: +b.dataset.moveRec }, `${from}로 가는 중… 도착하면 WASD · Space · E 로 걸어가고 F6`);
+      moveCall('move_record', { place: +b.dataset.moveRec }, `${from}로 가는 중… 도착하면 WASD · Space 로 걸어가고 F6`);
     }));
   },
 };
@@ -2609,7 +2609,7 @@ const Tutorial = (() => {
         const name = pl.name || t.label, row = rowOf(taskBox(t.places), `[data-move-rec="${i}"]`);
         const ok = () => routeOk((move().places || [])[i]);
         out.push({ title: `${name} 길을 기록해주세요`, target: row, input: true,
-          body: `<p><b>길 기록</b>을 누르면 캐릭터가 ${pl.feat === 'mcraft' ? '반대쪽 기준 장소' : '기준 장소'}로 갑니다. 도착하면 <b>WASD · Space · E</b> 로 ${esc(name)}까지 직접 걸어간 뒤 <b>F6</b> 을 눌러주세요. 매크로가 그 입력을 그대로 다시 누릅니다.</p>`,
+          body: `<p><b>길 기록</b>을 누르면 캐릭터가 ${pl.feat === 'mcraft' ? '반대쪽 기준 장소' : '기준 장소'}로 갑니다. 도착하면 <b>WASD · Space</b> 로 ${esc(name)}까지 직접 걸어간 뒤 <b>F6</b> 을 눌러주세요. 매크로가 그 입력을 그대로 다시 누릅니다.</p>`,
           requires: ok, done: ok, needs: sideId });
       }
     }
