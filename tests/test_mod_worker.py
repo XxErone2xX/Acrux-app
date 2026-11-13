@@ -1,5 +1,6 @@
 """Actual desktop Python SDK setup/API/hooks over stdio; no game I/O."""
 import json
+import os
 import pathlib
 import queue
 import subprocess
@@ -16,7 +17,8 @@ class Worker:
     def __init__(self):
         self.process = subprocess.Popen([sys.executable, str(WORKER)], stdin=subprocess.PIPE,
                                         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                                        text=True, encoding="utf-8", bufsize=1)
+                                        text=True, encoding="utf-8", bufsize=1,
+                                        env={**os.environ, "PYTHONIOENCODING": "cp1252"})
         self.messages = queue.Queue()
         self.calls = []
         self.config = {}
@@ -89,12 +91,25 @@ class ModWorkerTest(unittest.TestCase):
     def package(self, mid, source):
         folder = self.data / "mods" / mid
         folder.mkdir(parents=True)
-        (folder / "mod.json").write_text(json.dumps({"id": mid, "name": mid, "version": "1.2.3", "type": "plugin"}))
-        (folder / "main.py").write_text(source)
+        (folder / "mod.json").write_text(json.dumps({"id": mid, "name": mid, "version": "1.2.3", "type": "plugin"}), encoding="utf-8")
+        (folder / "main.py").write_text(source, encoding="utf-8")
 
     def load(self):
         return self.worker.command("load", {"data": str(self.data), "sdk": str(ROOT / "src/mods.py"),
             "defaults": str(ROOT / "frontend/desktop-defaults.json"), "config": {}, "reserved": ["poll", "state", "set_config"]})
+
+    def test_unicode_round_trip_uses_utf8_despite_legacy_process_encoding(self):
+        self.package("unicode", '''def setup(ctx):
+    @ctx.api("unicode_echo")
+    def echo(payload):
+        ctx.settings["표시 이름"] = payload["text"]
+        ctx.save()
+        return {"text": ctx.settings["표시 이름"]}
+''')
+        self.assertTrue(self.load()["mods"][0]["loaded"])
+        text = "낚시 · 日本語 · 🐟"
+        self.assertEqual(self.worker.command("call", {"name": "unicode_echo", "payload": {"text": text}}), {"text": text})
+        self.assertEqual(self.worker.config["mod_settings"]["unicode"]["표시 이름"], text)
 
     def test_original_context_executes_real_setup_api_hooks_and_config_round_trip(self):
         self.package("sample", '''import macro\ndef setup(ctx):\n    ctx.config_keys({"sample_option": 3})\n    ctx.log("sample setup", "g")\n    @ctx.api("sample_call")\n    def call(payload):\n        ctx.settings["count"] = ctx.settings.get("count", 0) + payload["add"]\n        ctx.save()\n        return {"count": ctx.settings["count"], "native": macro.tap(0.2, 0.3, 40)}\n    def ready():\n        ctx.settings["ready"] = True\n        ctx.save()\n    ctx.on("ready", ready)\n    ctx.on("poll", lambda out, since: out.update(sample_seen=ctx.settings.get("count", 0)))\n''')

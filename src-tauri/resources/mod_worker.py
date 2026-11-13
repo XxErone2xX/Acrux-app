@@ -10,6 +10,9 @@ import threading
 import types
 import urllib.parse
 
+sys.stdin.reconfigure(encoding="utf-8")
+sys.stdout.reconfigure(encoding="utf-8", newline="\n")
+sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
 _protocol = sys.stdout
 sys.stdout = sys.stderr
 _write_lock = threading.Lock()
