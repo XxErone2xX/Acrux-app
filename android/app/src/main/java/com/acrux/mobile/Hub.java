@@ -217,6 +217,7 @@ final class Hub {
         if (m.equals("sticktest") && stick == null) return "먼저 조이스틱 찾기 (로블록스 설정 → 이동 방식: 조이스틱 · 조이스틱 찾기)";
         TouchIn touch = new TouchIn(cap.width(), cap.height());
         Fisher f = new Fisher(cap, fishInput(), OUT, cfg);
+        f.shot = why -> saveShot(cap, why);
         Mover mv = new Mover(cap, touch, new MlOcr(), pos, move, OUT, CHECK);
         Seller sl = seller(cap, mv);
         // 필요한 위치 · 길이 없으면 시작 전에 바로 알려 줌

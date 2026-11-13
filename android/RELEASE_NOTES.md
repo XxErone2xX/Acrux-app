@@ -1,3 +1,17 @@
+## Acrux Mobile V1.5.4 업데이트
+- 낚시: 일부 기종에서 쓰레기가 뜨면 결과창을 못 닫던 문제 수정
+  - 원인: X 를 잘못 누르지 않게 하면서, X 모양이 안 보이는 결과창은 보정한 결과창과 같은 자리일 때만 누르게 했음 → 크기가 다른 쓰레기 결과창은 아무것도 안 누름
+  - 결과창을 닫을 때는 가운데 결과창 모양이면 크기가 달라도 그 창의 X 자리를 누름 [ 두 번 확인한 뒤에만 ]
+  - 결과창 구석의 X 는 모양 검사를 느슨하게 [ 쓰레기 결과창 X ]
+  - 결과창을 10초 안에 못 닫으면 그 화면을 사진첩 Pictures/Acrux 에 남김 [ 한 번 켤 때 3장까지 · 기종마다 다른 결과창 확인용 ]
+
+## Acrux Mobile V1.5.4 Update
+- Fishing: fixed the result window not closing on junk on some devices
+  - Cause: to avoid wrong taps, a result window without a visible X was only tapped if it matched the calibrated one → the differently sized junk window got no tap
+  - While closing results, a centered result-shaped window now gets its X tapped even if its size differs [ only after seeing it twice ]
+  - Looser X shape check inside the result window corner [ junk window X ]
+  - If the result can't be closed within 10 s, that screen is saved to Pictures/Acrux [ up to 3 per run · to check device-specific result windows ]
+
 ## Acrux Mobile V1.5.3 업데이트
 - 낚시 결과창 닫기: 처음 3.5초는 보정한 X 자리만 누름 [ 전: 2초 ]
 - 결과창 X 찾기 강화 [ 다른 것을 X 로 잘못 누르던 문제 ]

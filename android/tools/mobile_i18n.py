@@ -201,6 +201,7 @@ E = [
     ['결과창이 다른 자리에 뜨거나 깨짐 — X 를 찾아서 누름', 'The result window appeared elsewhere or broken — found the X and tapped it', '結果ウィンドウが別の場所に出たか崩れた — X を見つけて押した'],
     ['화면 복구 중', 'Recovering the screen', '画面を復旧中'], ['결과창 닫는 중', 'Closing the result window', '結果ウィンドウを閉じ中'],
     ['결과창을 닫은 뒤 {0}초 동안 Fish 버튼이 보이지 않음 — 다시 확인', 'Fish button not visible for {0} s after closing the result window — checking again', '結果ウィンドウを閉じて {0} 秒 Fish ボタンが見えない — 再確認'],
+    ['결과창을 못 닫은 화면을 사진첩 Pictures/Acrux 에 남김 — 보내 주면 원인을 볼 수 있음', 'Saved the screen where the result could not be closed to Pictures/Acrux — send it to find the cause', '結果ウィンドウを閉じられなかった画面を Pictures/Acrux に保存 — 送ってくれれば原因を確認できます'],
     ['낚시 결과: {0} · 성공 {1} / 쓰레기 {2} / 실패 {3}', 'Fishing result: {0} · Success {1} / Junk {2} / Fail {3}', '釣り結果: {0} · 成功 {1} / ゴミ {2} / 失敗 {3}'],
     ['성공', 'Success', '成功'], ['쓰레기', 'Junk', 'ゴミ'], ['실패', 'Fail', '失敗'], ['릴링 중', 'Reeling', 'リール中'],
     ['낚시 통계', 'Fishing stats', '釣りの統計'], ['이번 실행', 'This run', '今回の実行'], ['전체', 'All time', '全体'], ['성공률', 'Success rate', '成功率'],

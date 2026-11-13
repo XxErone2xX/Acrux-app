@@ -685,7 +685,8 @@ public final class Vision {
             }
             if (ring - n > 0.15 * n) continue;
             if (diag(lab, W, Hh, i, x1, y1, bw, bh, false) < 0.85 || diag(lab, W, Hh, i, x1, y1, bw, bh, true) < 0.85) continue;
-            if (!crossShape(lab, W, i, x1, y1, bw, bh)) continue;
+            // 엄격한 X 모양은 화면 넓은 곳을 볼 때만 (결과창 오른쪽 위 구석만 볼 때는 쓰레기 결과창 X 처럼 모양이 달라도 됨)
+            if (!relaxed && !crossShape(lab, W, i, x1, y1, bw, bh)) continue;
             double left = meanOf(dark, W, Hh, Math.max(0, x1 - 5 * m), y1, Math.max(0, x1 - m), y2 + 1);
             double below = meanOf(dark, W, Hh, x1, y2 + m, x2 + 1, y2 + 5 * m);
             if (!relaxed && !((!Double.isNaN(left) && left > 0.6) || (!Double.isNaN(below) && below > 0.6))) continue;

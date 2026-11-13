@@ -45,6 +45,9 @@ public final class Fisher {
     final Screen scr;
     final Input in;
     final Out out;
+    /** 결과창을 못 닫았을 때 지금 화면을 사진으로 남김 (기종마다 다른 결과창 확인용 · 한 번 켤 때 3장까지) — 안드로이드 쪽에서 넣어 줌 */
+    public java.util.function.Consumer<String> shot;
+    int shots;
     public final Settings cfg;
     volatile boolean stop;
     boolean diamondOk = false;
@@ -389,7 +392,9 @@ public final class Fisher {
     /** 화면에서 결과창 X 찾기 → {x, y, 1 = 결과창 · 2 = 어두운 바탕 위 X} | null */
     int[] findX() {
         int W = W(), H = H();
-        double[] r = Vision.findResultClose(full(), H, MAX_FRAME_W, cfg.resultRegion);
+        // 결과창을 닫는 중 (릴링 직후 · 구조) 에만 부름 → 가운데 결과창 모양이면 X 가 안 보여도 계산한 자리를 누름
+        // (1.5.3 에서는 보정한 결과창과 같은 자리일 때만 눌러서, 크기가 다른 쓰레기 결과창을 못 닫았음)
+        double[] r = Vision.findResultClose(full(), H, MAX_FRAME_W, null);
         if (r != null) return new int[]{(int) r[0], (int) r[1], 1};
         int[] p = cfg.closePos != null ? px(cfg.closePos[0], cfg.closePos[1]) : null;
         int left, right, top, bottom;
@@ -461,7 +466,17 @@ public final class Fisher {
             else clickFoundX();
             sleep(FINISH_GAP);
         }
-        if (!closed) out.log("결과창을 닫은 뒤 " + (int) FINISH_MAX + "초 동안 Fish 버튼이 보이지 않음 — 다시 확인", 'y');
+        if (!closed) {
+            out.log("결과창을 닫은 뒤 " + (int) FINISH_MAX + "초 동안 Fish 버튼이 보이지 않음 — 다시 확인", 'y');
+            if (shot != null && shots < 3) {
+                shots++;
+                try {
+                    shot.accept("result_close");
+                    out.log("결과창을 못 닫은 화면을 사진첩 Pictures/Acrux 에 남김 — 보내 주면 원인을 볼 수 있음", 'y');
+                } catch (RuntimeException ignored) {
+                }
+            }
+        }
         String kind = seenFail ? "fail" : seenSuccess ? "success" : seenJunk ? "junk" : "success";
         if (kind.equals("fail")) fail++;
         else if (kind.equals("junk")) junk++;
