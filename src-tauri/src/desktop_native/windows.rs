@@ -112,7 +112,7 @@ unsafe extern "system" {
         user: *mut FileTime,
     ) -> i32;
 }
-#[link(name = "combase")]
+#[link(name = "runtimeobject")]
 unsafe extern "system" {
     fn RoInitialize(kind: u32) -> i32;
     fn RoUninitialize();
