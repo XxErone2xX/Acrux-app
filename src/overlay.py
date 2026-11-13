@@ -230,15 +230,10 @@ def run(path, parent=None, lang="ko", font="Malgun Gothic", rect_fn=None, alive_
     root.overrideredirect(True)
     root.attributes("-topmost", True)
     root.geometry("1x1+-32000+-32000")
-    root.update()
-    hwnd = u.GetAncestor(root.winfo_id(), 2) or root.winfo_id()
-    ex = u.GetWindowLongW(hwnd, -20)
-    # 겹친 창 · 클릭 통과 · 포커스 안 가져감 · 작업 표시줄에 안 보임 · 맨 위
-    u.SetWindowLongW(hwnd, -20, ex | 0x80000 | 0x20 | 0x8000000 | 0x80 | 0x8)
-    try:
-        u.SetWindowDisplayAffinity(hwnd, 0x11)              # WDA_EXCLUDEFROMCAPTURE (윈도우 10 2004 이상)
-    except Exception:
-        pass
+    import macro
+    # 겹친 창 · 클릭 통과 · 포커스 안 가져감 · 작업 표시줄에 안 보임 · 맨 위 · 화면 캡처에서 뺌 — 스타일을 먼저 바꾸고 띄움 (로블록스 포커스를 안 뺏게)
+    hwnd = macro.quiet_window(root, extra=0x8, capture=False)
+    hwnd = hwnd or u.GetAncestor(root.winfo_id(), 2) or root.winfo_id()
     screen = u.GetDC(None)
     mem = g.CreateCompatibleDC(screen)
     st = {"mtime": None, "rows": None, "img": None, "bmp": None, "bits": None, "size": (0, 0), "on": True,

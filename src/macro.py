@@ -942,6 +942,39 @@ def _pid_alive(pid):
         return False
 
 
+def quiet_window(root, extra=0, capture=True):
+    """안내 띠 · 상태 창처럼 위에만 떠 있는 창을 '포커스를 안 뺏는 창' 으로 만들고 띄움 → 창 핸들
+    (전에는 창을 먼저 띄운 뒤 스타일을 바꿔서, 뜨는 순간 로블록스에서 포커스를 가져갔음 — 길 기록이 켜질 때 로블록스가 뒤로 밀림)
+    1. 숨긴 채로 창을 만들고 스타일 (겹친 창 · 클릭 통과 · 포커스 안 가져감 · 작업 표시줄에 안 보임) 을 먼저 바꿈
+    2. 띄우기 직전의 맨 앞 창을 기억 → 띄운 뒤 이 창이 맨 앞이 됐으면 그 창 (로블록스) 으로 바로 돌려 놓음
+    capture=False: 화면 캡처에서 뺌 (매크로가 화면을 읽을 때 안 찍히게)"""
+    root.withdraw()
+    root.update_idletasks()
+    hwnd = None
+    if IS_WIN:
+        try:
+            hwnd = user32.GetAncestor(root.winfo_id(), 2) or root.winfo_id()
+            ex = user32.GetWindowLongW(hwnd, -20)
+            user32.SetWindowLongW(hwnd, -20, ex | 0x80000 | 0x20 | 0x8000000 | 0x80 | extra)
+            if not capture:
+                user32.SetWindowDisplayAffinity(hwnd, 0x11)
+        except Exception:
+            pass
+    prev = user32.GetForegroundWindow() if IS_WIN else None
+    root.deiconify()
+    root.update()
+    if IS_WIN and hwnd and prev and prev != hwnd:
+        try:
+            for _ in range(3):
+                if user32.GetForegroundWindow() != hwnd:
+                    break
+                user32.SetForegroundWindow(prev)        # 방금 뜬 창이 포커스를 가져갔으면 돌려 놓음
+                time.sleep(0.02)
+        except Exception:
+            pass
+    return hwnd
+
+
 def show_banner(kind="autocal", seconds=240, progress=None, parent=None):
     """화면 위 가운데에 안내 띠 — 클릭이 통과되고 포커스도 안 가져가서 로블록스 조작을 방해하지 않음
     (tkinter 라 별도 프로세스: macro.py --banner · 앱이 끝나면 끔 · 안 끄면 seconds 뒤 저절로 닫힘)
@@ -970,15 +1003,7 @@ def show_banner(kind="autocal", seconds=240, progress=None, parent=None):
     rect = client_rect(roblox_window()) if IS_WIN else None
     cx, top = (rect[0] + rect[2] // 2, rect[1] + 8) if rect else (sw // 2, 8)
     root.geometry(f"{w}x{h}+{cx - w // 2}+{top}")
-    if IS_WIN:
-        try:
-            root.update()
-            hwnd = user32.GetAncestor(root.winfo_id(), 2) or root.winfo_id()
-            ex = user32.GetWindowLongW(hwnd, -20)
-            # 겹친 창 · 클릭 통과 · 포커스 안 가져감 · 작업 표시줄에 안 보임
-            user32.SetWindowLongW(hwnd, -20, ex | 0x80000 | 0x20 | 0x8000000 | 0x80)
-        except Exception:
-            pass
+    quiet_window(root)                     # 포커스를 안 뺏고 띄움 (로블록스가 맨 앞에 그대로)
     st = {"cur": 1.0 if not progress else 0.0, "from": 0.0, "to": 1.0 if not progress else 0.0,
           "t0": 0.0, "dur": 0.0, "mtime": None}
 
@@ -1088,7 +1113,7 @@ def _show_status_simple(path, parent=None):
                     build(rows)
                 if not st["shown"]:
                     st["shown"] = True
-                    root.deiconify()
+                    quiet_window(root, capture=False)
         except (OSError, ValueError):
             pass
         st["n"] += 1
@@ -1100,15 +1125,6 @@ def _show_status_simple(path, parent=None):
         root.after(250, tick)
 
     root.withdraw()
-    if IS_WIN:
-        try:
-            root.update()
-            hwnd = user32.GetAncestor(root.winfo_id(), 2) or root.winfo_id()
-            ex = user32.GetWindowLongW(hwnd, -20)
-            user32.SetWindowLongW(hwnd, -20, ex | 0x80000 | 0x20 | 0x8000000 | 0x80)
-            user32.SetWindowDisplayAffinity(hwnd, 0x11)
-        except Exception:
-            pass
     tick()
     root.mainloop()
 

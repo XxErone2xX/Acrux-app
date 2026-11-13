@@ -495,9 +495,15 @@ class Mover:
         lb = macro.mouse_down_now("left")
         f6 = macro.key_down_now(ARRIVE_KEY)
         ev, t0, start = [], None, time.time()
+        hwnd, refocus = macro.roblox_window_cached(1.0), 0.0
         while True:
             self._check()
             now = time.perf_counter()
+            # 첫 키를 누르기 전까지: 다른 창(안내 띠 등)이 포커스를 가져갔으면 로블록스를 다시 맨 앞으로 (걷기 시작한 뒤엔 안 건드림)
+            if t0 is None and hwnd and time.time() >= refocus:
+                refocus = time.time() + 0.3
+                if not macro.is_foreground(hwnd):
+                    macro.focus(hwnd)
             for k in REC_KEYS:
                 d = macro.key_down_now(k)
                 if d == held[k]:
