@@ -5,7 +5,7 @@
   → (첫 칸 → Sell All → 확인 Sell) 을 확인창이 안 뜰 때까지 반복 (최대 sell_max 번)
   → X 로 상점 닫기 → 기준 장소 → 낚시 장소 로 돌아감
 다 팔았는지: Sell All 을 눌렀는데 확인창(초록 Sell 버튼)이 안 뜸 → 물고기가 없음 (버튼 자리 픽셀만 봄)
-이동은 move.Mover 를 그대로 씀 (기준 장소 · 장소별 지점 · 잰 시간)
+이동은 move.Mover 를 그대로 씀 (기준 장소 · 장소별 기록한 길)
 대화창 위치는 여러 기능이 같이 쓰는 통합 위치(base.dialog_pos) — get_cfg 가 같이 넘겨 줌
 """
 import contextlib

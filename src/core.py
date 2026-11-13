@@ -87,8 +87,44 @@ MOVE_FEATS = ("mfish", "mpop", "mcraft", "mmatch")    # 장소를 따로 둘 수
 # 기능마다 정해진 장소 (사용자가 만들거나 지우지 않음 · 지점 위치와 시간만 지정)
 MOVE_TEMPLATES = {"mfish": (("fish_spot", "낚시 장소"), ("sell_spot", "물고기 판매 장소")), "mcraft": (("craft_spot", "포션 제작 장소"),),
                   "mmatch": (("match_spot", "메모리 매치 장소"),)}
-# 지점 수가 정해진 장소 (포션 제작 장소: 1번 퀘스트 보드 · 2번 스텔라 포탈)
-MOVE_FIXED_POINTS = {("mcraft", "craft_spot"): 2}
+ROUTE_KEYS = ("w", "a", "s", "d", "space", "e")         # 길 기록에 쓰는 키 (move.REC_KEYS 와 같음)
+
+
+def _route(r):
+    """기록한 길 정리: {"ev": [[초, 키, 0|1] | [초, "click", [x, y]]], "len": 초} · 이상하면 None"""
+    if not isinstance(r, dict) or not isinstance(r.get("ev"), list):
+        return None
+    ev, last = [], 0.0
+    for e in r["ev"][:20000]:
+        if not isinstance(e, (list, tuple)) or len(e) != 3:
+            continue
+        try:
+            t = round(min(REC_MAX_SEC, max(last, float(e[0]))), 3)
+        except (TypeError, ValueError):
+            continue
+        if e[1] == "click":
+            try:
+                pos = [round(min(1.0, max(0.0, float(x))), 4) for x in e[2]][:2]
+            except (TypeError, ValueError):
+                continue
+            if len(pos) != 2:
+                continue
+            ev.append([t, "click", pos])
+        elif e[1] in ROUTE_KEYS:
+            ev.append([t, e[1], 1 if e[2] else 0])
+        else:
+            continue
+        last = t
+    if not ev:
+        return None
+    try:
+        ln = round(min(REC_MAX_SEC, max(last, float(r.get("len") or 0))), 2)
+    except (TypeError, ValueError):
+        ln = last
+    return {"ev": ev, "len": ln}
+
+
+REC_MAX_SEC = 300.0
 MOVE_DEFAULT = {
     # 기준 장소로 가기 (사용자가 정한 순서):
     #  Esc → R → Enter (리셋 · 0.5초 간격) → 3.5초 → / → 채팅 버튼 → 도감 버튼 → 도감 Exit → / → Enter (각 0.5초)
@@ -113,8 +149,9 @@ MOVE_DEFAULT = {
     "o_time": 2.5,                # O 누르기 (초) — 최대 줌
     "button": "right",            # 이동할 곳을 누를 마우스 버튼 (Click to Move)
     "margin": 0.3,                # 잰 시간에 더 기다릴 여유 (초)
-    # 장소: [{"name", "feat": 쓰는 기능, "key": 정해진 장소 이름표, "points": [{"pos": [x, y] (기준 장소 화면에서 누를 곳), "time": 걸린 시간(초) 또는 None}]}]
-    # 지점이 여러 개면 앞 지점에 도착한 화면에서 다음 지점을 누름 (멀리 갈 때)
+    # 장소: [{"name", "feat": 쓰는 기능, "key": 정해진 장소 이름표, "route": 기록한 길 또는 None}]
+    #   route = {"ev": [[초, 키, 1 누름 · 0 뗌] 또는 [초, "click", [x, y]]], "len": 처음 키부터 도착까지 (초)} — 기준 장소에서 WASD · Space · E 로 걸어간 그대로
+    #   (예전 Click to Move 의 "points" 는 더 안 씀)
     "places": [],
 }
 MPOP_DEFAULT = {
@@ -370,18 +407,9 @@ def normalize(raw):
     for pl in (mv.get("places") if isinstance(mv.get("places"), list) else [])[:30]:
         if not isinstance(pl, dict):
             continue
-        pts = []
-        for pt in (pl.get("points") if isinstance(pl.get("points"), list) else [])[:20]:
-            if not isinstance(pt, dict):
-                continue
-            try:
-                t = round(min(600.0, max(0.0, float(pt["time"]))), 2) if pt.get("time") is not None else None
-            except (TypeError, ValueError):
-                t = None
-            pts.append({"pos": _ratio_list(pt.get("pos"), 2), "time": t})
         feat = pl.get("feat") if pl.get("feat") in MOVE_FEATS else "mfish"     # 그 장소를 쓰는 기능 (예전 장소는 자동 낚시)
         places.append({"name": str(pl.get("name") or "")[:40], "feat": feat, "key": str(pl.get("key") or ""),
-                       "points": pts or [{"pos": None, "time": None}]})
+                       "route": _route(pl.get("route"))})
     # 정해진 장소(템플릿)가 있는 기능은 그 장소만 (이름은 템플릿대로 · 없으면 만듦)
     # (순서는 그대로 둠 — 화면이 장소를 순서 번호로 가리킴)
     out, seen = [], set()
@@ -392,15 +420,10 @@ def normalize(raw):
         elif pl["key"] in tpls and (pl["feat"], pl["key"]) not in seen:
             seen.add((pl["feat"], pl["key"]))
             out.append(dict(pl, name=tpls[pl["key"]]))
-            fixed = MOVE_FIXED_POINTS.get((pl["feat"], pl["key"]))
-            if fixed:                                              # 지점 수를 딱 맞춤 (남는 건 버리고 모자라면 빈 지점)
-                pts = out[-1]["points"][:fixed]
-                out[-1]["points"] = pts + [{"pos": None, "time": None} for _ in range(fixed - len(pts))]
     for feat, tpls in MOVE_TEMPLATES.items():
         for key, name in tpls:
             if (feat, key) not in seen:
-                n = MOVE_FIXED_POINTS.get((feat, key), 1)
-                out.append({"name": name, "feat": feat, "key": key, "points": [{"pos": None, "time": None} for _ in range(n)]})
+                out.append({"name": name, "feat": feat, "key": key, "route": None})
     mv["places"] = out
     d["move"] = {k: mv[k] for k in MOVE_DEFAULT}
     d["move"]["v18"] = d["move"]["v129"] = d["move"]["v130"] = d["move"]["v131"] = d["move"]["v132"] = True

@@ -352,6 +352,13 @@ def key_down_now(name):
     return bool(user32.GetAsyncKeyState(VK[name.lower()]) & 0x8000)
 
 
+def mouse_down_now(button="left"):
+    """지금 마우스 버튼이 눌려 있는지 (길 기록용)"""
+    if not IS_WIN:
+        return False
+    return bool(user32.GetAsyncKeyState(0x01 if button == "left" else 0x02) & 0x8000)
+
+
 def cursor_pos():
     if not IS_WIN:
         return 0, 0
@@ -851,6 +858,11 @@ BANNER_TEXT = {
         "ko": "매크로 이동 중 · 마우스와 키보드를 건드리지 마세요 (F7: 정지)",
         "en": "Macro is moving · don't touch the mouse or keyboard (F7: stop)",
         "ja": "マクロ移動中 · マウスとキーボードに触らないでください（F7: 停止）",
+    },
+    "record": {
+        "ko": "길 기록 중 · WASD · Space · E 로 걸어가고 도착하면 F6 · 화면은 돌리지 마세요 (F7: 취소)",
+        "en": "Recording route · walk with WASD · Space · E and press F6 on arrival · don't turn the camera (F7: cancel)",
+        "ja": "道を記録中 · WASD · Space · E で歩き、到着したらF6 · カメラは回さないでください（F7: キャンセル）",
     },
     "measure": {
         "ko": "시간 재는 중 · 도착하면 F6 · 그 밖엔 건드리지 마세요 (F7: 정지)",

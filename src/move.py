@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-이동 — 기준 장소에서 화면의 한 점을 눌러(Click to Move) 원하는 장소로 걸어감
-외부 앱이라 게임 안 좌표를 모르므로, 매번 '같은 화면'을 만든 뒤 그 화면의 같은 점을 누름:
+이동 — 기준 장소에서 사용자가 직접 걸어간 키 입력을 그대로 다시 눌러 원하는 장소로 감 (TinyTask 처럼 · Click to Move 는 안 씀)
+외부 앱이라 게임 안 좌표를 모르므로, 매번 '같은 자리 · 같은 화면'을 만든 뒤 같은 키를 같은 시간에 누름:
   1. 기준 장소: 리셋(Esc → R → Enter) → / · 채팅 · 도감 열고 닫기 · / · Enter (카메라 정렬)
      → W 1초 → W+A 7초 → A 1초 (0.75초 뒤부터 W 0.25초 같이) (구석으로 걸어가 항상 같은 자리) → 우클릭 드래그(위에서 내려다보기) → O 2.5초 (최대 줌)
-  2. 장소마다 지점 목록: [누를 곳, 걸리는 시간] — 지점이 여러 개면 앞 지점에 도착한 화면에서 다음 지점을 누름
-  3. 걸리는 시간은 직접 잼: 누른 순간부터 사용자가 '도착'(F6 또는 화면의 버튼)을 누를 때까지
+  2. 길 기록: 기준 장소에 도착하면 사용자가 W · A · S · D · Space · E (+ 로블록스 창 안 왼쪽 클릭) 로 걸어감
+     → 처음 키를 누른 순간부터 도착(F6 또는 화면의 [도착])까지 누르고 뗀 시각을 저장
+  3. 이동: 기준 장소 → 저장한 입력을 같은 시각에 그대로 누르고 뗌
 """
 import threading
 import time
@@ -15,6 +16,8 @@ import macro
 ARRIVE_KEY = "f6"        # 시간 잴 때 도착하면 누르는 키
 MEASURE_MAX = 180.0      # 시간 재기 최대 (초)
 MOVE_KEYS = ("w", "a", "s", "d", "o", "space", "shift", "e")
+REC_KEYS = ("w", "a", "s", "d", "space", "e")   # 길 기록에 쓰는 키 (그 밖의 키는 기록 안 함)
+REC_MAX = 300.0          # 길 기록 최대 (초)
 
 
 class Stopped(Exception):
@@ -24,13 +27,13 @@ class Stopped(Exception):
 class Mover:
     LABEL = "이동"
 
-    def __init__(self, get_base, get_move, log, set_move_time=None, before=None, after=None, banner=None, progress=None):
+    def __init__(self, get_base, get_move, log, set_route=None, before=None, after=None, banner=None, progress=None):
         self.get_base = get_base            # 통합 위치 (Collection 버튼 · 닫기 위치)
         self.get_move = get_move            # 이동 설정 (move)
         self.log = log
-        self.set_move_time = set_move_time  # (장소, 지점, 초) → 잰 시간 저장
+        self.set_route = set_route          # (장소, 길) → 기록한 길 저장
         self.before, self.after = before, after   # 자동 낚시 잠깐 멈춤 / 이어감
-        self.banner = banner                # 화면 위 안내 띠: banner('move' · 'measure' · None)
+        self.banner = banner                # 화면 위 안내 띠: banner('move' · 'record' · None)
         self.progress = progress            # 안내 띠 게이지: progress(목표 0~1, 걸리는 초)
         self._plan, self._acc = 0.0, 0.0    # 이번 이동 전체 예상 시간 · 지금까지 지난 예상 시간
         self.stop_ev = threading.Event()
@@ -61,7 +64,7 @@ class Mover:
 
     # ---- 실행 (별도 스레드)
     def start(self, job, *args):
-        """job: 'base' (기준 장소로만) / 'test' (장소 i, 지점 j, 기준 장소부터?) / 'place' (장소 i 로 이동)"""
+        """job: 'base' (기준 장소로만) / 'rev' (반대쪽 기준 장소) / 'place' (장소 i 로 이동) / 'record' (장소 i 길 기록)"""
         if self.running():
             return False
         self.stop_ev = threading.Event()
@@ -85,8 +88,8 @@ class Mover:
                 self.plan(self.rev_time())
             elif job == "place":
                 self.plan(self.start_time(args[0]) + self.place_time(args[0]))
-            elif job in ("test", "prep") and (job == "prep" or (args[2] if len(args) > 2 else True)):
-                self.plan(self.start_time(args[0]) + self.place_time(args[0], upto=args[1]))
+            elif job == "record":
+                self.plan(self.start_time(args[0]))
             else:
                 self.plan(0)
             self._banner("move")
@@ -98,12 +101,8 @@ class Mover:
                 self.log("반대쪽 기준 장소 도착", "g")
             elif job == "place":
                 self.go_place(*args)
-            elif job == "test":
-                self.measure(*args)
-            elif job == "prep":                     # 지점 지정 준비: 기준 장소 → 앞 지점들까지
-                i, j = args
-                self.go_start(i)
-                self.walk(i, upto=j)
+            elif job == "record":
+                self.record(*args)
         except Stopped:
             self.log("이동 멈춤", "y")
         except Exception as e:
@@ -145,18 +144,14 @@ class Mover:
     def start_time(self, i):
         return self.rev_time() if self.is_rev(i) else self.base_time()
 
-    def place_time(self, i, upto=None):
+    def place_time(self, i):
+        """기록한 길 길이 + 도착 여유"""
         m = self.get_move() or {}
         try:
-            pts = self._place(i)["points"]
+            r = self._place(i).get("route") or {}
         except RuntimeError:
             return 0.0
-        pts = pts[:upto] if upto is not None else pts
-        t = sum(float(pt.get("time") or 0) + float(m.get("margin", 0.3)) for pt in pts)
-        if self.is_rev(i):                         # 1번 뒤 E → Exit · 2번 뒤 D
-            t += (0.6 + float(m.get("q_wait", 1.5)) + float(m.get("qd_time", 2.0)) + float(m.get("qd_wait", 0.65)) if len(pts) >= 1 else 0) \
-                + (float(m.get("rd_time", 2.0)) if len(pts) >= 2 else 0)
-        return t
+        return float(r.get("len") or 0) + float(m.get("margin", 0.3)) if r.get("ev") else 0.0
 
     def plan(self, total):
         """이번 이동 전체 예상 시간 (0 = 게이지 안 씀)"""
@@ -229,20 +224,14 @@ class Mover:
         miss = [n for k, n in self.BASE_KEYS if not b.get(k)]
         return f"먼저 지정 필요: {', '.join(miss)} (매크로 설정 → 공통 위치 → 이동 · 기준 장소)" if miss else None
 
-    def path_missing(self, i, upto=None):
-        """장소 i 의 지점들(upto 앞까지) 중 위치 · 시간이 없는 것 → 안내 글 또는 None"""
+    def path_missing(self, i):
+        """장소 i 의 길이 기록돼 있나 → 안내 글 또는 None"""
         places = (self.get_move() or {}).get("places") or []
         if not 0 <= i < len(places):
             return "장소를 찾을 수 없음"
         pl = places[i]
-        for n, pt in enumerate(pl["points"][:upto] if upto is not None else pl["points"], 1):
-            if not pt.get("pos"):
-                return f"{pl['name'] or '장소'} · {n}번 지점 위치가 없음"
-            if pt.get("time") is None:
-                return f"{pl['name'] or '장소'} · {n}번 지점 시간을 먼저 재야 함 (테스트)"
-        walked = len(pl["points"][:upto] if upto is not None else pl["points"])
-        if pl.get("feat") == "mcraft" and walked and not (self.get_move() or {}).get("quest_exit_pos"):
-            return "퀘스트 보드 Exit 위치를 먼저 지정 (매크로 설정 → 포션 자동 제작 → 반대쪽 기준 장소)"
+        if not (pl.get("route") or {}).get("ev"):
+            return f"{pl['name'] or '장소'} 길을 먼저 기록해야 함 (매크로 설정 → 장소 → [길 기록])"
         return None
 
     # ---- 1. 기준 장소 (사용자가 정한 순서)
@@ -433,28 +422,6 @@ class Mover:
         else:
             self.go_base()
 
-    def _quest_step(self):
-        """반대쪽 길의 1번 지점(퀘스트 보드) 다음: E → 1.5초 → 퀘스트 창 Exit → D 2초 → 0.65초 대기 (그 뒤 2번 지점 = 스텔라 포탈)"""
-        mv = self.get_move() or {}
-        pos = mv.get("quest_exit_pos")
-        if not pos:
-            raise RuntimeError("퀘스트 보드 Exit 위치를 먼저 지정 (매크로 설정 → 포션 자동 제작 → 반대쪽 기준 장소)")
-        self._set(msg="퀘스트 보드 · E → Exit → D")
-        self._advance(0.6 + float(mv.get("q_wait", 1.5)) + float(mv.get("qd_time", 2.0)) + float(mv.get("qd_wait", 0.65)))
-        macro.key_tap("e")
-        self._wait(float(mv.get("q_wait", 1.5)))
-        self._click(pos)
-        self._wait(0.4)
-        self._hold(("d",), float(mv.get("qd_time", 2.0)))
-        self._wait(float(mv.get("qd_wait", 0.65)))
-
-    def _final_step(self):
-        """반대쪽 길의 2번 지점(스텔라 포탈) 다음: D 2초 → 포션 제작 장소"""
-        mv = self.get_move() or {}
-        self._set(msg="포션 제작 장소로 · D")
-        self._advance(float(mv.get("rd_time", 2.0)))
-        self._hold(("d",), float(mv.get("rd_time", 2.0)))
-
     # ---- 2. 장소로
     def _place(self, i):
         places = (self.get_move() or {}).get("places") or []
@@ -462,23 +429,45 @@ class Mover:
             raise RuntimeError("장소를 찾을 수 없음")
         return places[i]
 
-    def walk(self, i, upto=None):
-        """장소 i 의 지점들을 차례로 (upto 앞까지) 누르고 각 지점의 시간만큼 기다림"""
+    def _until(self, t):
+        """perf_counter 시각 t 까지 기다림 (F7 확인 · 끝 무렵은 촘촘히)"""
+        while True:
+            self._check()
+            left = t - time.perf_counter()
+            if left <= 0:
+                return
+            time.sleep(min(0.01, left) if left > 0.002 else 0)
+
+    def walk(self, i):
+        """장소 i 의 기록한 길을 그대로 누름 (기준 장소에 서 있다고 봄) — 키를 같은 시각에 누르고 떼고 · 클릭은 같은 자리"""
         pl, mv = self._place(i), self.get_move() or {}
-        pts = pl["points"][:upto] if upto is not None else pl["points"]
-        for n, pt in enumerate(pts, 1):
-            if not pt.get("pos"):
-                raise RuntimeError(f"{pl['name'] or '장소'} · {n}번 지점 위치가 없음")
-            if pt.get("time") is None:
-                raise RuntimeError(f"{pl['name'] or '장소'} · {n}번 지점 시간을 먼저 재야 함 (테스트)")
-            self._set(msg=f"{pl['name'] or '장소'} 가는 중 ({n}/{len(pl['points'])})")
-            self._advance(float(pt["time"]) + float(mv.get("margin", 0.3)))
-            self._click(pt["pos"], mv.get("button", "right"))
-            self._wait(float(pt["time"]) + float(mv.get("margin", 0.3)))
-            if self.is_rev(i) and n == 1:          # 반대쪽 길: 1번(퀘스트 보드) 뒤 E → Exit
-                self._quest_step()
-            elif self.is_rev(i) and n == 2:        # 2번(스텔라 포탈) 뒤 D → 포션 제작 장소
-                self._final_step()
+        r = pl.get("route") or {}
+        ev = r.get("ev") or []
+        if not ev:
+            raise RuntimeError(f"{pl['name'] or '장소'} 길을 먼저 기록해야 함 (매크로 설정 → 장소 → [길 기록])")
+        name = pl["name"] or "장소"
+        self._set(msg=f"{name} 가는 중 (기록한 길 · {float(r.get('len') or 0):g}초)")
+        self._advance(self.place_time(i))
+        self._rect()
+        macro.mark_moved()                         # 캐릭터가 움직임 → 다음 리셋은 해야 함
+        down = set()
+        t0 = time.perf_counter()
+        try:
+            for t, k, v in ev:
+                self._until(t0 + float(t))
+                if k == "click":
+                    self._click(v, "left")
+                elif v:
+                    macro.key_down(k)
+                    down.add(k)
+                else:
+                    macro.key_up(k)
+                    down.discard(k)
+            self._until(t0 + float(r.get("len") or 0))
+        finally:
+            for k in down:
+                macro.key_up(k)
+        self._wait(float(mv.get("margin", 0.3)))
 
     def go_place(self, i):
         pl = self._place(i)
@@ -486,35 +475,58 @@ class Mover:
         self.walk(i)
         self.log(f"{pl['name'] or '장소'} 도착", "g")
 
-    # ---- 3. 시간 재기
-    def measure(self, i, j, from_base=True):
-        """장소 i 의 지점 j 를 눌러 놓고, 도착(F6 · 화면 버튼)할 때까지 걸린 시간을 잼
-        from_base: 기준 장소부터 (아니면 지금 화면에서 바로 — 이미 기준 장소 · 앞 지점에 있을 때)"""
-        pl, mv = self._place(i), self.get_move() or {}
-        if not 0 <= j < len(pl["points"]) or not pl["points"][j].get("pos"):
-            raise RuntimeError("지점 위치를 먼저 지정")
-        if from_base:
-            self.go_start(i)
-            self.walk(i, upto=j)
+    # ---- 3. 길 기록
+    def record(self, i):
+        """기준 장소(또는 반대쪽 기준 장소)로 간 뒤, 사용자가 걸어가는 키 입력을 기록 → 도착(F6 · 화면의 [도착])하면 저장
+        W · A · S · D · Space · E 를 누르고 뗀 시각 + 로블록스 창 안 왼쪽 클릭 자리 · 처음 키를 누른 순간이 0초"""
+        pl = self._place(i)
+        name = pl["name"] or "장소"
+        self.go_start(i)
         self.arrive_ev.clear()
-        self._banner("measure")
-        name = f"{pl['name'] or '장소'} · {j + 1}번 지점"
-        self._click(pl["points"][j]["pos"], mv.get("button", "right"))
-        t0 = time.time()
-        self._set(msg=f"{name}까지 걷는 중 — 도착하면 F6", measuring={"place": i, "point": j, "since": t0})
-        self.log(f"{name} 시간 재는 중 — 도착하면 F6 (또는 화면의 [도착])", "c")
-        was = macro.key_down_now(ARRIVE_KEY)        # 이미 누르고 있던 F6 은 안 셈 (새로 누른 순간만)
+        self._banner("record")
+        rect = self._rect()
+        self._set(msg=f"{name} 길 기록 중 — 걸어가서 도착하면 F6", measuring={"place": i, "rec": True, "since": time.time()})
+        self.log(f"{name} 길 기록 중 — WASD · Space · E 로 걸어가고 도착하면 F6 (또는 화면의 [도착]) · 화면은 돌리지 마세요", "c")
+        held = {k: macro.key_down_now(k) for k in REC_KEYS}     # 이미 누르고 있던 키는 뗀 뒤부터
+        lb = macro.mouse_down_now("left")
+        f6 = macro.key_down_now(ARRIVE_KEY)
+        ev, t0, start = [], None, time.time()
         while True:
             self._check()
-            down = macro.key_down_now(ARRIVE_KEY)
-            if self.arrive_ev.is_set() or (down and not was):
+            now = time.perf_counter()
+            for k in REC_KEYS:
+                d = macro.key_down_now(k)
+                if d == held[k]:
+                    continue
+                held[k] = d
+                if t0 is None:
+                    if not d:
+                        continue
+                    t0 = now
+                ev.append([round(now - t0, 3), k, 1 if d else 0])
+            d = macro.mouse_down_now("left")
+            if d != lb:
+                lb = d
+                x, y = macro.cursor_pos()
+                if d and rect[0] <= x < rect[0] + rect[2] and rect[1] <= y < rect[1] + rect[3]:   # 로블록스 창 안 클릭만
+                    if t0 is None:
+                        t0 = now
+                    ev.append([round(now - t0, 3), "click", list(macro.to_ratio(x, y, rect))])
+            f = macro.key_down_now(ARRIVE_KEY)
+            if self.arrive_ev.is_set() or (f and not f6):
                 break
-            was = down
-            if time.time() - t0 > MEASURE_MAX:
-                raise RuntimeError(f"{MEASURE_MAX:g}초 안에 도착을 안 누름 — 시간 재기 취소")
-            time.sleep(0.01)
-        sec = round(time.time() - t0, 2)
-        if self.set_move_time:
-            self.set_move_time(i, j, sec)
-        self.log(f"{name} 걸린 시간 {sec:g}초 저장", "g")
-        return sec
+            f6 = f
+            if time.time() - start > REC_MAX:
+                raise RuntimeError(f"{REC_MAX:g}초 안에 도착을 안 누름 — 길 기록 취소")
+            time.sleep(0.004)
+        if t0 is None or not ev:
+            raise RuntimeError("아무 키도 안 눌러서 길을 저장하지 않음")
+        end = round(time.perf_counter() - t0, 3)
+        for k in REC_KEYS:                          # 도착할 때 아직 누르고 있던 키는 끝에서 뗌
+            if held[k] and any(e[1] == k for e in ev):
+                ev.append([end, k, 0])
+        route = {"ev": ev, "len": round(end, 2)}
+        if self.set_route:
+            self.set_route(i, route)
+        self.log(f"{name} 길 저장 ({round(end, 1):g}초 · 입력 {len(ev)}개)", "g")
+        return route

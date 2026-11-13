@@ -108,9 +108,9 @@ class Bridge:
         self.blood_wait = False            # 블러드 레인이 다른 기능이 끝나길 기다리는 중
         self.blood_seen = None             # 마지막으로 처리한 PUMPKIN MOON · GRAVEYARD (바이옴 기록 한 줄) — 한 번 뜬 바이옴엔 한 번만
         self.urgent_lock = threading.Lock()   # 레어 바이옴 팝핑 · 블러드 레인이 같이 시작되지 않게
-        # 이동: 기준 장소(리셋 · 카메라 정렬 · 줌) → 화면의 한 점을 눌러 장소로 걸어감 · 걸리는 시간은 직접 잼
+        # 이동: 기준 장소(리셋 · 카메라 정렬 · 줌) → 사용자가 기록한 키 입력(WASD · Space · E)을 그대로 눌러 장소로 감
         self.mover = move.Mover(lambda: self.data.get("base", {}), lambda: self.data.get("move", {}), self._on_log,
-                                set_move_time=self._set_move_time, before=lambda: self._fish_yield("move", 45),
+                                set_route=self._set_route, before=lambda: self._fish_yield("move", 45),
                                 after=lambda: self.fisher.release("move"), banner=self._move_banner,
                                 progress=self._banner_progress)
         # 판매: 자동 낚시 중 인벤토리가 가득 차면 물고기 판매 장소로 가서 팔고 낚시 장소로 돌아옴
@@ -487,7 +487,7 @@ class Bridge:
                     self.blood.stop()
                 if ok and want_match and now >= self.matcher.next_at and self._place_of("mmatch", "match_spot") is None:
                     self.matcher.next_at = now + 600         # 장소가 없으면 낚시를 멈추지 않고 알림만 (10분마다)
-                    self._on_log("오토 메모리 매치 안 함 — 매크로 설정 → 오토 메모리 매치 → 이동에서 장소 지정 · 시간 재기", "n")
+                    self._on_log("오토 메모리 매치 안 함 — 매크로 설정 → 오토 메모리 매치 → 이동에서 길 기록", "n")
                 # ---- 긴급: 블러드 레인 자동 생성 — PUMPKIN MOON · GRAVEYARD 가 떠 있으면 그 바이옴에 한 번 (하던 단일성 기능은 멈추고 먼저)
                 if ok and want_blood and not self._emergency():
                     occ = self._blood_due()
@@ -1113,12 +1113,12 @@ class Bridge:
 
     def _banner_proc(self, kind):
         """화면 위 가운데 '건드리지 마세요' 안내 띠 (별도 프로세스 · 회색 → 파란 게이지) → Popen 또는 None
-        시간 재기 띠는 끝을 알 수 없어서 다 찬 상태로 · 매크로 작동 띠는 게이지 없이 (앱이 꺼지면 같이 닫힘)"""
+        길 기록 띠는 끝을 알 수 없어서 다 찬 상태로 · 매크로 작동 띠는 게이지 없이 (앱이 꺼지면 같이 닫힘)"""
         env = dict(os.environ, ACRUX_LANG=str(self.data.get("lang") or "ko"))
         if kind == "macro":
             args = ["--banner", kind, "--parent", str(os.getpid())]
         else:
-            self._banner_progress(1.0 if kind == "measure" else 0.0, 0)
+            self._banner_progress(1.0 if kind in ("measure", "record") else 0.0, 0)
             args = ["--banner", kind, "--progress", str(self.BANNER_PROGRESS)]
         cmd = [sys.executable, *args] if getattr(sys, "frozen", False) else \
             [sys.executable, str(Path(__file__).resolve().parent / "macro.py"), *args]
@@ -1128,7 +1128,7 @@ class Bridge:
             return None
 
     def _move_banner(self, kind):
-        """이동 중 안내 띠 바꾸기 (kind: 'move' · 'measure' · None = 끔)"""
+        """이동 중 안내 띠 바꾸기 (kind: 'move' · 'record' · None = 끔)"""
         old = getattr(self, "_mv_banner", None)
         if old is not None and old.poll() is None:
             old.kill()
@@ -1316,20 +1316,13 @@ class Bridge:
         return {"mfish": self.data["mfish"], "done": text}
 
     # ---------------- 이동 (통합 위치 → 이동) ----------------
-    def _set_move_time(self, i, j, sec):
+    def _set_route(self, i, route):
         with self.lock:
             try:
-                self.data["move"]["places"][i]["points"][j]["time"] = sec
+                self.data["move"]["places"][i]["route"] = core._route(route)
             except (KeyError, IndexError, TypeError):
                 return
         self._save()
-
-    def _move_point(self, p):
-        places = self.data.get("move", {}).get("places") or []
-        i, j = int(p.get("place", -1)), int(p.get("point", -1))
-        if not 0 <= i < len(places) or not 0 <= j < len(places[i].get("points") or []):
-            return None, None
-        return i, j
 
     # ---------------- 판매 (자동 낚시 → 판매) ----------------
     def _on_fish_start(self, stop):
@@ -1598,20 +1591,28 @@ class Bridge:
             return {"error": "이동이 이미 도는 중"}
         return {"ok": True}
 
-    def api_move_test(self, p):
-        """지점까지 걸리는 시간 재기 — from_base: 기준 장소부터 (아니면 지금 자리에서 바로)"""
-        i, j = self._move_point(p)
-        if i is None:
-            return {"error": "지점을 찾을 수 없음"}
-        if not self.data["move"]["places"][i]["points"][j].get("pos"):
-            return {"error": "지점 위치를 먼저 지정"}
-        if p.get("from_base", True):
-            miss = self.mover.base_missing() or self.mover.path_missing(i, upto=j)
-            if miss:
-                return {"error": miss}
-        if not self.mover.start("test", i, j, bool(p.get("from_base", True))):
+    def api_move_record(self, p):
+        """길 기록: 기준 장소(포션 제작 장소는 반대쪽 기준 장소)로 간 뒤 사용자가 WASD · Space · E 로 걸어감 → F6 (도착) 하면 저장"""
+        i = int(p.get("place", -1))
+        places = self.data.get("move", {}).get("places") or []
+        if not 0 <= i < len(places):
+            return {"error": "장소를 찾을 수 없음"}
+        miss = self.mover.base_missing()
+        if miss:
+            return {"error": miss}
+        if not self.mover.start("record", i):
             return {"error": "이동이 이미 도는 중"}
         return {"ok": True}
+
+    def api_move_route_clear(self, p):
+        i = int(p.get("place", -1))
+        with self.lock:
+            places = self.data.get("move", {}).get("places") or []
+            if not 0 <= i < len(places):
+                return {"error": "장소를 찾을 수 없음"}
+            places[i]["route"] = None
+        self._save()
+        return {"move": self.data["move"]}
 
     def api_move_get(self, _):
         return {"move": self.data.get("move", {})}
@@ -1623,31 +1624,6 @@ class Bridge:
     def api_move_stop(self, _):
         self.mover.stop()
         return {"ok": True}
-
-    def api_move_pick(self, p):
-        """지점 위치 지정 — from_base: 매크로가 기준 장소(+ 앞 지점들)까지 간 뒤 / 아니면 지금 화면에서 바로
-        로블록스 화면에서 걸어갈 곳을 클릭 → 저장 (위치가 바뀌면 잰 시간은 지움)"""
-        i, j = self._move_point(p)
-        if i is None:
-            return {"error": "지점을 찾을 수 없음"}
-        if p.get("from_base"):
-            miss = self.mover.base_missing() or self.mover.path_missing(i, upto=j)
-            if miss:
-                return {"error": miss}
-            if not self.mover.start("prep", i, j):
-                return {"error": "이동이 이미 도는 중"}
-            self.mover.thread.join(180)
-            err = self.mover.snapshot().get("error")
-            if self.mover.running() or err or self.mover.stop_ev.is_set():
-                return {"error": err or "기준 장소로 못 감 (멈춤)"}
-        r = self._pick_overlay("--pick-point")
-        if r.get("error"):
-            return r
-        with self.lock:
-            pt = self.data["move"]["places"][i]["points"][j]
-            pt["pos"], pt["time"] = [round(r["x"], 4), round(r["y"], 4)], None
-        self._save()
-        return {"move": self.data["move"]}
 
     def api_mpos_point(self, p):
         feat, key = str(p.get("feat", "")), str(p.get("key", ""))
@@ -1780,8 +1756,7 @@ class Bridge:
 
     def _place_of(self, feat, key):
         for i, pl in enumerate((self.data.get("move") or {}).get("places") or []):
-            if pl.get("feat") == feat and pl.get("key") == key and pl.get("points") \
-                    and all(pt.get("pos") and pt.get("time") is not None for pt in pl["points"]):
+            if pl.get("feat") == feat and pl.get("key") == key and (pl.get("route") or {}).get("ev"):
                 return i
         return None
 
@@ -1831,9 +1806,7 @@ class Bridge:
         if not name:
             return {"error": "제작할 포션을 입력해 주세요"}
         if self._place_of("mcraft", "craft_spot") is None:
-            return {"error": "매크로 설정 → 포션 자동 제작 → 이동에서 '포션 제작 장소' 를 먼저 지정 · 시간 재기"}
-        if not (self.data.get("move") or {}).get("quest_exit_pos"):
-            return {"error": "퀘스트 보드 Exit 위치를 먼저 지정 (매크로 설정 → 포션 자동 제작 → 반대쪽 기준 장소)"}
+            return {"error": "매크로 설정 → 포션 자동 제작 → 이동에서 '포션 제작 장소' 길을 먼저 기록"}
         if self.crafter.running() or self.mover.running():
             return {"error": "다른 동작이 도는 중"}
         self.fisher.stop()

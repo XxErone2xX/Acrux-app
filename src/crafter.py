@@ -301,7 +301,7 @@ class Crafter(popping.Popper):
         self._set(msg="포션 제작 장소로 가는 중")
         with self.borrow(stop) as mv:
             mv.plan(mv.start_time(i) + mv.place_time(i))
-            mv.go_start(i)                   # 반대쪽 기준 장소 → 퀘스트 보드 → E · Exit · D → 나머지 지점
+            mv.go_start(i)                   # 반대쪽 기준 장소 → 기록한 길 (퀘스트 보드 E · Exit 포함)
             mv.walk(i)
         try:
             with macro.fast_timing():

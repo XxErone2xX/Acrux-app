@@ -1243,7 +1243,8 @@ $('mbloodStop').addEventListener('click', () => api('mblood_stop'));
 // ---------------------------------------------------------------- 매크로 탭 · 포션 자동 제작
 const mcraft = () => (config.mcraft ||= {});
 const saveMcraft = () => queueSave({ mcraft: JSON.parse(JSON.stringify(mcraft())) });
-const craftPlaceOk = () => (move().places || []).some(pl => pl.feat === 'mcraft' && pl.points.length && pl.points.every(pt => pt.pos && pt.time != null));
+const routeOk = pl => !!(pl && pl.route && pl.route.ev && pl.route.ev.length);       // 길을 기록했나 (WASD · Space · E)
+const craftPlaceOk = () => (move().places || []).some(pl => pl.feat === 'mcraft' && routeOk(pl));
 // 제작할 포션: 직접 입력한 이름 → 게임에서 찾을 이름 (서버 crafter.typed_name 과 같게: 띄어쓰기 정리 · 끝 숫자 1~5 → 로마 숫자)
 const ROMAN_NUM = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V' };
 function potionName(v) {
@@ -1303,7 +1304,7 @@ $('mcraftStop').addEventListener('click', () => api('mcraft_stop'));
 // ---------------------------------------------------------------- 매크로 탭 · 오토 메모리 매치
 const mmatch = () => (config.mmatch ||= {});
 const saveMmatch = () => queueSave({ mmatch: JSON.parse(JSON.stringify(mmatch())) });
-const matchPlaceOk = () => (move().places || []).some(pl => pl.feat === 'mmatch' && pl.points.length && pl.points.every(pt => pt.pos && pt.time != null));
+const matchPlaceOk = () => (move().places || []).some(pl => pl.feat === 'mmatch' && routeOk(pl));
 const fmtHM = s => s >= 3600 ? `${Math.floor(s / 3600)}시간 ${Math.floor(s % 3600 / 60)}분` : s >= 60 ? `${Math.floor(s / 60)}분` : `${s}초`;
 function renderMmatch() {
   const m = mmatch();
@@ -1487,7 +1488,7 @@ MPOS.mcraft = { box: 'mposCraft',
   tabs: [['shop', '제작 창', '실행할 땐 글자로 먼저 찾고, 못 찾으면 이 위치를 씀',
           ['search_pos', 'list_region', 'shop_close_pos', 'open_recipe_pos', 'add_all_pos', 'craft_pos', 'add_close_pos'], false, '', 'craftauto'],
          ['revbase', '반대쪽 기준 장소', '낚시와 정반대 방향 · 리셋 → 카메라 정렬 → 내려다보기+줌 → S+D → S (끝에 A 같이)', [], false, 'movebaserev'],
-         ['move', '이동', '1번 퀘스트 보드 → E → 대기 → Exit → D → 2번 스텔라 포탈 → D = 포션 제작 장소', [], false, 'places:mcraft']] };
+         ['move', '이동', '반대쪽 기준 장소에서 포션 제작 장소까지 직접 걸어간 길 (퀘스트 보드 E · Exit 클릭도 같이 기록)', [], false, 'places:mcraft']] };
 MPOS.mmatch = { box: 'mposMatch',
   points: [['note_close_pos', '알림 창 X', 'E 를 누르면 뜨는 Notification 창 오른쪽 위 X'],
            ['note_btn_pos', 'Start / Available 버튼', '창 가운데 초록 버튼 (Start Memory Match · Available after)'],
@@ -1545,7 +1546,7 @@ function renderMpos(feat) {
   }));
 }
 // ---------------------------------------------------------------- 이동 (공통 위치 → 이동 · 기준 장소 / 기능마다 장소)
-// 기준 장소: 리셋 → Collection 열고 닫기(카메라 정렬) → 줌 · 장소: 지점 목록 [누를 곳, 걸린 시간]
+// 기준 장소: 리셋 → Collection 열고 닫기(카메라 정렬) → 줌 · 장소: 기준 장소에서 직접 걸어간 길 (WASD · Space · E 기록)
 const move = () => (config.move ||= { places: [] });
 const saveMove = () => queueSave({ move: JSON.parse(JSON.stringify(move())) });
 const MOVE_SET = [['reset_wait', '리셋 후 대기', 'Esc → R → Enter 로 리셋한 뒤 (초)', 3.5, 0.5, 0.1],
@@ -1556,27 +1557,20 @@ const MOVE_SET = [['reset_wait', '리셋 후 대기', 'Esc → R → Enter 로 �
                   ['sd_time', 'S + D 누르기', '그 다음 S 와 D 를 같이 누르는 시간 (초)', 0.25, 0, 0.05],
                   ['tilt_px', '화면 내려다보기', '우클릭을 누른 채 마우스를 아래로 끄는 거리 (px)', 800, 0, 50],
                   ['o_time', 'O 누르기', '최대 줌 (초)', 2.5, 0, 0.1],
-                  ['margin', '도착 여유', '잰 시간에 더 기다릴 시간 (초)', 0.3, 0, 0.1]];
+                  ['margin', '도착 여유', '기록한 길이 끝난 뒤 더 기다릴 시간 (초)', 0.3, 0, 0.1]];
 const REV_SET = [['rsd_time', 'S + D 누르기', 'S 와 D 를 같이 누르는 시간 (초)', 1, 0, 0.1],
                  ['rs_time', 'S 누르기', '그 다음 S 를 누르는 시간 (초)', 6, 0, 0.5],
-                 ['ra_time', 'A 같이 누르기', 'S 를 누르는 마지막 이 시간 동안 A 도 같이 (초)', 1, 0, 0.1],
-                 ['q_wait', '퀘스트 보드 E 뒤 대기', 'E 를 누르고 Exit 를 누르기까지 (초)', 1.5, 0, 0.1],
-                 ['qd_time', 'Exit 뒤 D 누르기', '퀘스트 창 Exit 를 누른 뒤 D 를 누르는 시간 (초)', 2, 0, 0.1],
-                 ['qd_wait', 'D 뒤 대기', 'Exit 뒤 D 를 누른 다음 기다리는 시간 (초)', 0.65, 0, 0.05],
-                 ['rd_time', '포탈 뒤 D 누르기', '스텔라 포탈 다음 D 를 누르는 시간 (초) — 끝나는 자리가 포션 제작 장소', 2, 0, 0.1]];
+                 ['ra_time', 'A 같이 누르기', 'S 를 누르는 마지막 이 시간 동안 A 도 같이 (초)', 1, 0, 0.1]];
 const revTime = m => 4.4 + (m.reset_wait ?? 3.5) + Math.max(m.o_time ?? 2.5, (m.tilt_px ?? 800) / 20 * 0.015)
   + (m.rsd_time ?? 1) + Math.max(m.rs_time ?? 6, m.ra_time ?? 1);
-const questTime = m => 0.6 + (m.q_wait ?? 1.5) + (m.qd_time ?? 2) + (m.qd_wait ?? 0.65) + (m.rd_time ?? 2);
 let lastMove = null;
-const fmtT = t => t == null ? '안 잼' : `${t}초`;
-// 장소의 지점이 전부 지정 · 측정되면 제목 옆에 총 걸리는 시간 — Esc(리셋)부터 도착까지 전부
+// 장소의 길이 기록돼 있으면 제목 옆에 총 걸리는 시간 — Esc(리셋)부터 도착까지 전부
 // 기준 장소 (서버 move.go_base 순서): 0.2 + Esc·R 1.0 + 리셋 대기 + 카메라 정렬 2.8 + W + W+A + 0.5 + 내려다보기·줌 + 0.4
 const baseTime = m => 4.9 + (m.reset_wait ?? 3.5) + (m.w_time ?? 1) + (m.wa_time ?? 7) + Math.max(m.a_time ?? 1, m.w2_time ?? 0.25) + (m.sd_time ?? 0.25)
   + Math.max(m.o_time ?? 2.5, (m.tilt_px ?? 800) / 20 * 0.015);
 const placeTotal = pl => {
-  if (!pl.points.length || !pl.points.every(pt => pt.pos && pt.time != null)) return '';
-  const rev = pl.feat === 'mcraft';
-  const m = move(), t = (rev ? revTime(m) + questTime(m) : baseTime(m)) + pl.points.reduce((a, pt) => a + pt.time + (m.margin ?? 0.3), 0);
+  if (!routeOk(pl)) return '';
+  const m = move(), t = (pl.feat === 'mcraft' ? revTime(m) : baseTime(m)) + pl.route.len + (m.margin ?? 0.3);
   return `<em class="move-total">총 ${Math.round(t * 10) / 10}초</em>`;
 };
 const MOVE_FIXED = ['mfish', 'mcraft', 'mmatch'];                            // 자동 낚시: 낚시 장소 · 물고기 판매 장소 (서버 MOVE_TEMPLATES)
@@ -1731,12 +1725,7 @@ const MPOS_CUSTOM = {
         <button class="btn mini ghost" type="button" data-move-stop ${busy ? '' : 'disabled'}>멈춤</button></span></div>` +
       MOVE_SET.map(([k, name, sub, def, min, step]) => `
       <label class="row"><span>${name}<small>${sub} · 기본 ${def}</small></span>
-        <input type="number" min="${min}" step="${step}" data-move-set="${k}" value="${m[k] ?? def}"></label>`).join('') + `
-      <label class="row"><span>누를 버튼<small>장소를 누를 마우스 버튼 (Click to Move)</small></span>
-        <select data-move-btn><option value="right">우클릭</option><option value="left">좌클릭</option></select></label>`;
-    const sel = el.querySelector('[data-move-btn]');
-    sel.value = m.button || 'right';
-    sel.addEventListener('change', () => { m.button = sel.value; saveMove(); });
+        <input type="number" min="${min}" step="${step}" data-move-set="${k}" value="${m[k] ?? def}"></label>`).join('');
     el.querySelectorAll('[data-move-set]').forEach(i => i.addEventListener('input', () => {
       const n = parseFloat(i.value);
       if (!isNaN(n) && n >= 0) {
@@ -1747,7 +1736,7 @@ const MPOS_CUSTOM = {
     el.querySelector('[data-move-base]').addEventListener('click', () => moveCall('move_base', {}, '기준 장소로 이동 시작 · 정지: F7'));
     el.querySelector('[data-move-stop]').addEventListener('click', () => api('move_stop'));
   },
-  // 반대쪽 기준 장소 (포션 제작 장소 출발점) · 퀘스트 보드 동작
+  // 반대쪽 기준 장소 (포션 제작 장소 출발점)
   movebaserev(el) {
     const m = move(), st = lastMove || {}, busy = !!st.running;
     el.innerHTML = `
@@ -1757,10 +1746,7 @@ const MPOS_CUSTOM = {
         <button class="btn mini ghost" type="button" data-move-stop ${busy ? '' : 'disabled'}>멈춤</button></span></div>` +
       REV_SET.map(([k, name, sub, def, min, step]) => `
       <label class="row"><span>${name}<small>${sub} · 기본 ${def}</small></span>
-        <input type="number" min="${min}" step="${step}" data-move-set="${k}" value="${m[k] ?? def}"></label>`).join('') + `
-      <div class="row"><span>퀘스트 보드 Exit 위치<small>퀘스트 보드 앞에서 E 로 창을 연 뒤 [바로 지정] → Exit 클릭</small></span>
-        <span class="pos"><code class="${m.quest_exit_pos ? '' : 'unset'}">${fmtPos(m.quest_exit_pos)}</code>
-        <button class="btn mini ghost" type="button" data-quest-pick>바로 지정</button></span></div>`;
+        <input type="number" min="${min}" step="${step}" data-move-set="${k}" value="${m[k] ?? def}"></label>`).join('');
     el.querySelectorAll('[data-move-set]').forEach(i => i.addEventListener('input', () => {
       const n = parseFloat(i.value);
       if (!isNaN(n) && n >= 0) {
@@ -1770,46 +1756,37 @@ const MPOS_CUSTOM = {
     }));
     el.querySelector('[data-move-rev]').addEventListener('click', () => moveCall('move_base_rev', {}, '반대쪽 기준 장소로 이동 시작 · 정지: F7'));
     el.querySelector('[data-move-stop]').addEventListener('click', () => api('move_stop'));
-    el.querySelector('[data-quest-pick]').addEventListener('click', async e => {
-      const r = await pickWith(e.currentTarget, '로블록스 화면에서 퀘스트 창 Exit 클릭', () => api('move_quest_pick'));
-      if (r && r.move) { config.move = r.move; rerenderMove(); toast('퀘스트 보드 Exit 위치 저장'); }
-    });
   },
-  // 기능마다 가는 장소: 장소 → 지점 [누를 곳, 걸린 시간]
+  // 기능마다 가는 장소: 기준 장소에서 직접 걸어간 길 (WASD · Space · E) 을 기록 → 그대로 다시 누름
   places(el, feat) {
     const m = move(), st = lastMove || {}, busy = !!st.running;
     const all = (m.places ||= []);
     const mine = all.map((pl, i) => [pl, i]).filter(([pl]) => (pl.feat || 'mfish') === feat);
     const meas = st.measuring && mine.some(([, i]) => i === st.measuring.place) ? st.measuring : null;
     const fixed = MOVE_FIXED.includes(feat);              // 정해진 장소만 쓰는 기능 (장소를 만들거나 지우지 않음)
+    const from = feat === 'mcraft' ? '반대쪽 기준 장소' : '기준 장소';
     el.innerHTML = `
-      ${meas ? `<div class="row move-measure"><span>시간 재는 중<small>캐릭터가 도착하면 F6 을 누르거나 [도착] 을 누르기</small></span>
+      ${meas ? `<div class="row move-measure"><span>길 기록 중<small>WASD · Space · E 로 걸어가고 도착하면 F6 또는 [도착] · 화면은 돌리지 마세요</small></span>
         <span class="pos"><b data-move-timer>0.0초</b><button class="btn mini" type="button" data-move-arrive>도착</button>
-        <button class="btn mini ghost" type="button" data-move-stop>멈춤</button></span></div>` : ''}
-      <div class="row"><span>장소<small>멀리 갈 때는 지점을 여러 개로</small></span>
+        <button class="btn mini ghost" type="button" data-move-stop>취소</button></span></div>` : ''}
+      <div class="row"><span>장소<small>[길 기록] → 매크로가 ${from}로 간 뒤, 직접 WASD · Space · E 로 걸어가서 도착하면 F6 · 그 입력을 그대로 다시 누름</small></span>
         <span class="pos">${busy && !meas ? `<b class="move-state">${esc(st.msg || '이동 중')}</b>` : ''}
         ${fixed ? '' : '<button class="btn mini" type="button" data-move-add-place>장소 추가</button>'}</span></div>` +
       (mine.length ? '' : `<div class="row"><span><small>아직 장소 없음 — [장소 추가] 로 만들기</small></span></div>`) +
       mine.map(([pl, i]) => `
       <div class="move-place">
         <div class="row"><span>${pl.key ? `<span class="move-head"><b class="move-title">${esc(pl.name)}</b>${placeTotal(pl)}</span>` :
-          `<input class="move-name" data-move-name="${i}" value="${esc(pl.name || '')}" placeholder="장소 이름 (예: Captain Flarg)" maxlength="40">`}</span>
-          <span class="pos"><button class="btn mini" type="button" data-move-go="${i}" ${busy ? 'disabled' : ''}>이 장소로 이동</button>
-          ${pl.key ? '' : `<button class="btn mini ghost" type="button" data-move-del-place="${i}">장소 삭제</button>`}</span></div>` +
-        pl.points.map((pt, j) => `
-        <div class="row move-point"><span>${j + 1}번 지점${pl.feat === 'mcraft' ? (j === 0 ? ' (퀘스트 보드)' : ' (스텔라 포탈)') : ''}<small>누를 곳 ${fmtPos(pt.pos)} · 걸린 시간 <b class="${pt.time == null ? 'warn' : ''}">${fmtT(pt.time)}</b></small></span>
+          `<input class="move-name" data-move-name="${i}" value="${esc(pl.name || '')}" placeholder="장소 이름 (예: Captain Flarg)" maxlength="40">`}
+          <small>길 <b class="${routeOk(pl) ? '' : 'warn'}">${routeOk(pl) ? `기록됨 · ${pl.route.len}초 · 입력 ${pl.route.ev.length}개` : '기록 안 됨'}</b></small></span>
           <span class="pos">
-            <button class="btn mini ghost" type="button" data-move-pick="${i},${j},1" ${busy ? 'disabled' : ''}>기준 장소에서 지정</button>
-            <button class="btn mini ghost" type="button" data-move-pick="${i},${j},0" ${busy ? 'disabled' : ''}>바로 지정</button>
-            <button class="btn mini" type="button" data-move-test="${i},${j},1" ${busy || !pt.pos ? 'disabled' : ''}>시간 재기</button>
-            ${pl.points.length > 1 && pl.feat !== 'mcraft' ? `<button class="btn mini ghost" type="button" data-move-del-point="${i},${j}">삭제</button>` : ''}</span></div>`).join('') +
-        (pl.feat === 'mcraft' ? '' : `
-        <div class="row"><span></span><span class="pos"><button class="btn mini ghost" type="button" data-move-add-point="${i}">지점 추가</button></span></div>`) + `
+          <button class="btn mini" type="button" data-move-rec="${i}" ${busy ? 'disabled' : ''}>${routeOk(pl) ? '다시 기록' : '길 기록'}</button>
+          <button class="btn mini ghost" type="button" data-move-go="${i}" ${busy || !routeOk(pl) ? 'disabled' : ''}>이 장소로 이동</button>
+          ${pl.key ? '' : `<button class="btn mini ghost" type="button" data-move-del-place="${i}">장소 삭제</button>`}</span></div>
       </div>`).join('');
     el.querySelector('[data-move-arrive]')?.addEventListener('click', () => api('move_arrive'));
     el.querySelector('[data-move-stop]')?.addEventListener('click', () => api('move_stop'));
     el.querySelector('[data-move-add-place]')?.addEventListener('click', () => {
-      all.push({ name: '', feat, points: [{ pos: null, time: null }] }); saveMove(); rerenderMove();
+      all.push({ name: '', feat, route: null }); saveMove(); rerenderMove();
     });
     el.querySelectorAll('[data-move-name]').forEach(i => i.addEventListener('input', () => {
       all[+i.dataset.moveName].name = i.value; saveMove();
@@ -1818,27 +1795,11 @@ const MPOS_CUSTOM = {
       if (!(b._armed > Date.now())) { b._armed = Date.now() + 3000; b.textContent = '한 번 더 누르면 삭제'; return; }
       all.splice(+b.dataset.moveDelPlace, 1); saveMove(); rerenderMove();
     }));
-    el.querySelectorAll('[data-move-add-point]').forEach(b => b.addEventListener('click', () => {
-      all[+b.dataset.moveAddPoint].points.push({ pos: null, time: null }); saveMove(); rerenderMove();
-    }));
-    el.querySelectorAll('[data-move-del-point]').forEach(b => b.addEventListener('click', () => {
-      const [i, j] = b.dataset.moveDelPoint.split(',').map(Number);
-      all[i].points.splice(j, 1); saveMove(); rerenderMove();
-    }));
     el.querySelectorAll('[data-move-go]').forEach(b => b.addEventListener('click', () =>
       moveCall('move_place', { place: +b.dataset.moveGo }, '장소로 이동 시작 · 정지: F7')));
-    el.querySelectorAll('[data-move-test]').forEach(b => b.addEventListener('click', async () => {
-      const [i, j, fb] = b.dataset.moveTest.split(',').map(Number);
+    el.querySelectorAll('[data-move-rec]').forEach(b => b.addEventListener('click', async () => {
       await flushSave();
-      moveCall('move_test', { place: i, point: j, from_base: !!fb },
-        fb ? '기준 장소로 간 뒤 지점을 누르고 시간 재기 · 도착하면 F6' : '지점을 누르고 시간 재기 · 도착하면 F6');
-    }));
-    el.querySelectorAll('[data-move-pick]').forEach(b => b.addEventListener('click', async () => {
-      const [i, j, fb] = b.dataset.movePick.split(',').map(Number);
-      await flushSave();
-      const r = await pickWith(b, fb ? '기준 장소로 가는 중… 그다음 걸어갈 곳 클릭' : '로블록스 화면에서 걸어갈 곳 클릭',
-        () => api('move_pick', { place: i, point: j, from_base: !!fb }));
-      if (r && r.move) { config.move = r.move; rerenderMove(); toast(`${j + 1}번 지점 저장 · 이제 [시간 재기]`); }
+      moveCall('move_record', { place: +b.dataset.moveRec }, `${from}로 가는 중… 도착하면 WASD · Space · E 로 걸어가고 F6`);
     }));
   },
 };
@@ -1891,7 +1852,7 @@ $('mfishCheck').addEventListener('click', async e => {
 // 매크로 설정의 [준비 상태] · 왼쪽 목록 표시 · 메인 화면 ▾ · 기능별 설정 안내 튜토리얼이 같이 씀
 const placesOk = feat => {
   const mine = (move().places || []).filter(pl => pl.feat === feat);
-  return mine.length > 0 && mine.every(pl => pl.points.length && pl.points.every(pt => pt.pos && pt.time != null));
+  return mine.length > 0 && mine.every(routeOk);
 };
 const SELL_REQ = ['sell_fish_pos', 'first_fish_pos', 'sell_all_pos', 'confirm_sell_pos', 'shop_close_pos'];
 const rowOf = (box, sel) => () => $(box)?.querySelector(sel)?.closest('.row');
@@ -1916,10 +1877,6 @@ const TASKS = {
     auto: { target: rowOf('mposMerch', '[data-merch-auto]'), title: '상인 자동 보정을 해주세요',
       body: `<p>상인이 와 있을 때 <b>자동 보정</b>을 누른 뒤 상인 앞에서 <b>E</b> 를 눌러주세요. 사지는 않습니다.</p>
              <p class="dim">바로 위 <b>상점 위치 자동 보정</b>이 켜져 있으면 살 때마다 알아서 맞추므로 건너뛰어도 됩니다.</p>` } },
-  craftRev: { label: '퀘스트 보드 Exit', sec: 'mf-craft', side: '포션 자동 제작',
-    steps: [{ title: '퀘스트 보드 Exit 위치를 지정해주세요', target: rowOf('mposCraft', '[data-quest-pick]'),
-      body: `<p>퀘스트 보드 앞에서 <b>E</b> 로 창을 연 뒤 <b>바로 지정</b>을 누르고 <b>Exit</b> 를 클릭해주세요.</p>`,
-      ok: () => !!move().quest_exit_pos }] },
   craftShop: { label: '제작 창 위치', feat: 'mcraft', sec: 'mf-craft', side: '포션 자동 제작', optional: true, cal: 'cal_shop',
     keys: ['search_pos', 'list_region', 'shop_close_pos', 'open_recipe_pos', 'add_all_pos', 'craft_pos', 'add_close_pos'],
     auto: { target: rowOf('mposCraft', '[data-craft-auto]'), title: '제작 창 자동 보정을 해주세요',
@@ -1940,7 +1897,7 @@ for (const feat of ['mfish', 'mcraft', 'mmatch'])
 const FEAT_TASKS = { mpop: ['inv'], mitem: ['inv'], mblood: ['inv'],
   mmerch: ['inv', 'dialog', 'merchChat', 'merchShop'],
   mfish: ['fishWin', 'notice', 'moveBase', 'mfishPlace', 'fishSell', 'dialog'],
-  mcraft: ['notice', 'moveBase', 'craftRev', 'mcraftPlace', 'craftShop'],
+  mcraft: ['notice', 'moveBase', 'mcraftPlace', 'craftShop'],
   mmatch: ['moveBase', 'mmatchPlace', 'matchNote', 'matchBoard'] };
 const taskCalDone = t => !t.cal || !!featCfg(t.feat)[t.cal];
 const taskKeysOk = t => {
@@ -2646,19 +2603,16 @@ const Tutorial = (() => {
       const mine = all.map((pl, i) => [pl, i]).filter(([pl]) => (pl.feat || 'mfish') === t.places);
       if (!mine.length) {
         out.push({ title: `${t.label}${eul(t.label)} 지정해주세요`, target: () => $(taskBox(t.places))?.querySelector(`[data-mpos-custom="places:${t.places}"]`),
-          body: `<p>지점을 <b>기준 장소에서 지정</b>한 뒤 <b>시간 재기</b>로 걸리는 시간을 재주세요.</p>`,
+          body: `<p><b>길 기록</b>을 누르고 기준 장소에서 직접 걸어가 도착하면 <b>F6</b> 을 눌러주세요.</p>`,
           input: true, requires: () => placesOk(t.places), done: () => placesOk(t.places), needs: sideId });
       }
-      for (const [pl, i] of mine) pl.points.forEach((pt0, j) => {
-        const name = pl.name || t.label, row = rowOf(taskBox(t.places), `[data-move-pick="${i},${j},1"]`);
-        const pt = () => (move().places || [])[i]?.points?.[j] || {};
-        out.push({ title: `${name} · ${j + 1}번 지점을 지정해주세요`, target: row, input: true,
-          body: `<p><b>기준 장소에서 지정</b>을 누르면 캐릭터가 기준 장소로 갑니다. 도착하면 로블록스 화면에서 걸어갈 곳을 클릭해주세요.</p>`,
-          requires: () => !!pt().pos, done: () => !!pt().pos, needs: sideId });
-        out.push({ title: `${name} · ${j + 1}번 지점 시간을 재주세요`, target: row, input: true,
-          body: `<p><b>시간 재기</b>를 누르면 기준 장소에서 그 지점까지 걸어갑니다. 캐릭터가 도착하면 <b>F6</b> 을 눌러주세요.</p>`,
-          requires: () => pt().time != null, done: () => pt().time != null, needs: sideId });
-      });
+      for (const [pl, i] of mine) {
+        const name = pl.name || t.label, row = rowOf(taskBox(t.places), `[data-move-rec="${i}"]`);
+        const ok = () => routeOk((move().places || [])[i]);
+        out.push({ title: `${name} 길을 기록해주세요`, target: row, input: true,
+          body: `<p><b>길 기록</b>을 누르면 캐릭터가 ${pl.feat === 'mcraft' ? '반대쪽 기준 장소' : '기준 장소'}로 갑니다. 도착하면 <b>WASD · Space · E</b> 로 ${esc(name)}까지 직접 걸어간 뒤 <b>F6</b> 을 눌러주세요. 매크로가 그 입력을 그대로 다시 누릅니다.</p>`,
+          requires: ok, done: ok, needs: sideId });
+      }
     }
     for (const q of t.steps || [])
       out.push({ title: q.title, body: q.body, target: q.target, input: true, requires: q.ok, done: q.ok, needs: sideId });
