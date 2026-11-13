@@ -15,6 +15,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod ocr;
 pub(crate) mod session;
 use x11rb::{
     connection::Connection as _,
@@ -725,15 +726,73 @@ pub fn launch_session() -> Result<crate::BackgroundStatus, String> {
         .spawn(|| {
             let result = (|| -> Result<(), String> {
                 let mut owned = session::Session::launch_with_cancel(&SESSION_STOP)?;
-                *STOP_HANDLE.lock().unwrap_or_else(|e| e.into_inner()) = Some(owned.stop_handle());
-                if SESSION_STOP.load(Ordering::Acquire) {
-                    return Ok(());
+                loop {
+                    *STOP_HANDLE.lock().unwrap_or_else(|e| e.into_inner()) =
+                        Some(owned.stop_handle());
+                    if SESSION_STOP.load(Ordering::Acquire) {
+                        break;
+                    }
+                    let connected = owned.connect_x11().and_then(|(conn, screen)| {
+                        Connection::from_connection(conn, screen)
+                            .ok_or_else(|| "독립 게임 화면에 연결하지 못했습니다.".to_owned())
+                    });
+                    let ended = match connected {
+                        Ok(connection) => {
+                            set_session("ready", "백그라운드 게임에 연결됐습니다.");
+                            worker(connection, &mut owned)
+                        }
+                        Err(error) => WorkerExit::Disconnected(error),
+                    };
+                    let WorkerExit::Disconnected(error) = ended else {
+                        break;
+                    };
+                    AVAILABLE.store(false, Ordering::Release);
+                    {
+                        let mut state = runtime();
+                        state.no_target();
+                        state.capture = false;
+                        state.input = false;
+                    }
+                    cancel_requests("게임 연결이 끊겨 이전 화면과 입력을 취소했습니다.");
+                    set_session("recovering", error);
+                    let Some((generation, url)) = await_recovery() else {
+                        break;
+                    };
+                    if !recovery_current(generation) {
+                        break;
+                    }
+                    // End only the private identities from this session. A new server,
+                    // authentication cookie and Flatpak instance are created for recovery.
+                    owned.stop()?;
+                    STOP_HANDLE.lock().unwrap_or_else(|e| e.into_inner()).take();
+                    if !recovery_current(generation) {
+                        break;
+                    }
+                    match session::Session::launch_url_with_cancel(&url, &SESSION_STOP, || {
+                        recovery_current(generation)
+                    }) {
+                        Ok(mut replacement) => {
+                            if !recovery_current(generation) {
+                                replacement.stop()?;
+                                break;
+                            }
+                            if let Err(error) = replacement.connect_x11() {
+                                replacement.stop()?;
+                                recovery_failed(generation, error.clone());
+                                return Err(error);
+                            }
+                            acknowledge_launch(generation, true);
+                            owned = replacement;
+                        }
+                        Err(error) => {
+                            if !recovery_current(generation) {
+                                break;
+                            }
+                            recovery_failed(generation, error.clone());
+                            return Err(error);
+                        }
+                    }
                 }
-                let (conn, screen) = owned.connect_x11()?;
-                let connection = Connection::from_connection(conn, screen)
-                    .ok_or("독립 게임 화면에 연결하지 못했습니다.")?;
-                set_session("ready", "백그라운드 게임에 연결됐습니다.");
-                worker(connection, &mut owned);
                 owned.stop()?;
                 Ok(())
             })();
@@ -746,14 +805,7 @@ pub fn launch_session() -> Result<crate::BackgroundStatus, String> {
                 state.input = false;
                 state.dua.background = false;
             }
-            for request in std::mem::take(&mut *MANUAL.lock().unwrap_or_else(|e| e.into_inner())) {
-                let _ = request
-                    .reply
-                    .send(Err("게임 세션이 종료돼 입력을 취소했습니다.".into()));
-            }
-            if let Some(reply) = SNAPSHOT.lock().unwrap_or_else(|e| e.into_inner()).take() {
-                let _ = reply.send(Err("백그라운드 게임 연결이 종료됐습니다.".into()));
-            }
+            cancel_requests("백그라운드 게임 연결이 종료됐습니다.");
             match result {
                 Ok(()) => set_session("stopped", "백그라운드 게임을 열어 주세요."),
                 Err(error) => set_session("error", error),
@@ -799,7 +851,81 @@ pub fn game_available() -> bool {
     AVAILABLE.load(Ordering::Acquire)
 }
 
-fn worker(connection: Connection, session: &mut session::Session) {
+enum WorkerExit {
+    Stopped,
+    Disconnected(String),
+}
+
+fn recovery_allowed(stop: bool, running: bool, current: i32, requested: i32) -> bool {
+    !stop && running && current == requested
+}
+fn recovery_current(generation: i32) -> bool {
+    let state = runtime();
+    recovery_allowed(
+        SESSION_STOP.load(Ordering::Acquire),
+        state.dua.running && state.active(),
+        state.generation,
+        generation,
+    )
+}
+fn acknowledge_launch(generation: i32, success: bool) {
+    let mut state = runtime();
+    if !SESSION_STOP.load(Ordering::Acquire) && state.input_current(generation) {
+        if success {
+            state.device_ack();
+        } else {
+            state.input_rejected("소유 게임에 재접속 주소를 전달하지 못했습니다.");
+        }
+    }
+}
+fn recovery_failed(generation: i32, error: String) {
+    let mut state = runtime();
+    if state.input_current(generation) {
+        state.stop_automation(error);
+    }
+}
+fn cancel_requests(message: &str) {
+    for request in std::mem::take(&mut *MANUAL.lock().unwrap_or_else(|e| e.into_inner())) {
+        let _ = request.reply.send(Err(message.to_owned()));
+    }
+    if let Some(reply) = SNAPSHOT.lock().unwrap_or_else(|e| e.into_inner()).take() {
+        let _ = reply.send(Err(message.to_owned()));
+    }
+}
+fn recovery_launch() -> Option<(i32, String)> {
+    let next = {
+        let mut state = runtime();
+        if !state.dua.running || !state.active() {
+            return None;
+        }
+        state.headless_missing(now())
+    };
+    match next {
+        Some((generation, crate::automation::Command::Launch { url })) => {
+            match crate::automation::game_url(&url) {
+                Ok(url) => Some((generation, url)),
+                Err(error) => {
+                    recovery_failed(generation, error);
+                    None
+                }
+            }
+        }
+        _ => None,
+    }
+}
+fn await_recovery() -> Option<(i32, String)> {
+    loop {
+        if SESSION_STOP.load(Ordering::Acquire) || !runtime().dua.running {
+            return None;
+        }
+        if let Some(request) = recovery_launch() {
+            return Some(request);
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+}
+
+fn worker(connection: Connection, session: &mut session::Session) -> WorkerExit {
     {
         let mut state = runtime();
         state.capture = true;
@@ -813,11 +939,11 @@ fn worker(connection: Connection, session: &mut session::Session) {
         let started = Instant::now();
         if SESSION_STOP.load(Ordering::Acquire) {
             manual_held.release(&connection);
-            return;
+            return WorkerExit::Stopped;
         }
         if !session.healthy() {
             manual_held.release(&connection);
-            return;
+            return WorkerExit::Disconnected("백그라운드 게임 구성 요소가 종료됐습니다.".into());
         }
         if connection
             .conn
@@ -827,11 +953,7 @@ fn worker(connection: Connection, session: &mut session::Session) {
             .is_none()
         {
             AVAILABLE.store(false, Ordering::Release);
-            let mut state = runtime();
-            state.capture = false;
-            state.input = false;
-            state.stop("Sober 연결이 끊겼습니다. 앱을 다시 실행하세요.");
-            return;
+            return WorkerExit::Disconnected("전용 게임 디스플레이 연결이 끊겼습니다.".into());
         }
         AVAILABLE.store(connection.available(), Ordering::Release);
         if let Some(reply) = SNAPSHOT.lock().unwrap_or_else(|e| e.into_inner()).take() {
@@ -880,6 +1002,14 @@ fn worker(connection: Connection, session: &mut session::Session) {
         previous = target.map(|target| target.window);
         let Some(target) = target else {
             runtime().no_target();
+            if let Some((generation, url)) = recovery_launch() {
+                if recovery_current(generation) {
+                    let success = session
+                        .launch_url(&url, &SESSION_STOP, || recovery_current(generation))
+                        .is_ok();
+                    acknowledge_launch(generation, success);
+                }
+            }
             thread::sleep(Duration::from_millis(100));
             continue;
         };
@@ -889,7 +1019,19 @@ fn worker(connection: Connection, session: &mut session::Session) {
             (state.tick(now(), geometry, None), state.generation)
         };
         if let DeviceTick::Observe(region) = step {
+            let needs_ocr = runtime().request_ocr;
+            // XGetImage has no render timestamp. Start at the request, rather
+            // than granting a fresh lifetime after a slow reply/pixel copy.
+            let captured_at = now();
             let image = connection.capture_region(target, region);
+            let words = if needs_ocr {
+                image
+                    .as_ref()
+                    .map(|image| ocr::read(image, generation, captured_at))
+                    .transpose()
+            } else {
+                Ok(None)
+            };
             let mut state = runtime();
             if !state.input_current(generation) {
                 continue;
@@ -898,8 +1040,17 @@ fn worker(connection: Connection, session: &mut session::Session) {
                 state.no_target();
                 continue;
             }
+            let words = match words {
+                Ok(words) => words.unwrap_or_default(),
+                Err(error) => {
+                    state.stop_automation(error);
+                    continue;
+                }
+            };
             step = match image.as_ref().and_then(Image::frame) {
-                Some(frame) => state.tick(now(), geometry, Some(&frame)),
+                Some(frame) => {
+                    observed_tick(&mut state, geometry, &frame, words, captured_at, now())
+                }
                 None => {
                     state.stop("Sober 화면을 캡처하지 못했습니다.");
                     DeviceTick::Wait
@@ -908,8 +1059,28 @@ fn worker(connection: Connection, session: &mut session::Session) {
             generation = state.generation;
         }
         if let DeviceTick::Input(input) = step {
-            match perform(&connection, target, input, generation) {
-                Some(true) => {}
+            if !input_evidence_current(&runtime(), now()) {
+                runtime().input_rejected("새 게임 화면을 다시 확인해야 합니다.");
+                continue;
+            }
+            ocr::invalidate();
+            let result = match input {
+                GameInput::Command(crate::automation::Command::Launch { url }) => Some(
+                    crate::automation::game_url(&url)
+                        .and_then(|url| {
+                            session.launch_url(&url, &SESSION_STOP, || recovery_current(generation))
+                        })
+                        .is_ok(),
+                ),
+                other => perform(&connection, target, other, generation),
+            };
+            match result {
+                Some(true) => {
+                    let mut state = runtime();
+                    if state.input_current(generation) {
+                        state.device_ack();
+                    }
+                }
                 result => {
                     let mut state = runtime();
                     if state.input_current(generation) {
@@ -927,6 +1098,45 @@ fn worker(connection: Connection, session: &mut session::Session) {
     }
 }
 
+fn input_evidence_current(state: &crate::Runtime, at: f64) -> bool {
+    at.is_finite()
+        && at >= 0.0
+        && state
+            .frame_expires
+            .is_none_or(|deadline| deadline.is_finite() && at <= deadline)
+}
+fn claim_evidence(state: &mut crate::Runtime, at: f64) -> bool {
+    if !input_evidence_current(state, at) {
+        return false;
+    }
+    // Only the beginning is evidence-bound. A bounded drag/chord/text transfer
+    // continues under generation/target guards, including its required release.
+    state.frame_expires = None;
+    true
+}
+fn observed_tick(
+    state: &mut crate::Runtime,
+    geometry: (usize, usize),
+    frame: &Frame<'_>,
+    words: Vec<crate::automation::Word>,
+    captured_at: f64,
+    at: f64,
+) -> DeviceTick {
+    state.frame_expires = Some(captured_at + 0.300);
+    state.ocr_words.clear();
+    if !captured_at.is_finite()
+        || captured_at < 0.0
+        || at < captured_at
+        || !input_evidence_current(state, at)
+    {
+        return DeviceTick::Observe(Some(frame.coverage()));
+    }
+    state.ocr_words = words;
+    let step = state.tick(at, geometry, Some(frame));
+    state.ocr_words.clear();
+    step
+}
+
 fn keep_input(connection: &Connection, target: Target, generation: i32) -> bool {
     if SESSION_STOP.load(Ordering::Acquire) || !runtime().input_current(generation) {
         return false;
@@ -942,11 +1152,48 @@ fn keep_input(connection: &Connection, target: Target, generation: i32) -> bool 
     runtime().input_current(generation)
 }
 
-fn wait_input(connection: &Connection, target: Target, generation: i32, duration: Duration) {
+fn wait_input(
+    connection: &Connection,
+    target: Target,
+    generation: i32,
+    duration: Duration,
+) -> bool {
     let end = Instant::now() + duration;
-    while Instant::now() < end && keep_input(connection, target, generation) {
+    while Instant::now() < end {
+        if !keep_input(connection, target, generation) {
+            return false;
+        }
         thread::sleep(Duration::from_millis(12).min(end.saturating_duration_since(Instant::now())));
     }
+    keep_input(connection, target, generation)
+}
+
+fn stick_keys(from: Point, to: Point, geometry: (usize, usize)) -> Vec<u16> {
+    let (dx, dy) = (
+        (to.0 - from.0) * geometry.0 as f64,
+        (to.1 - from.1) * geometry.1 as f64,
+    );
+    let magnitude = dx.hypot(dy);
+    let mut keys = Vec::new();
+    if magnitude > 1e-6 {
+        for (component, negative, positive) in [(dx, 0x41, 0x44), (dy, 0x57, 0x53)] {
+            if component / magnitude > 0.25 {
+                keys.push(positive);
+            } else if component / magnitude < -0.25 {
+                keys.push(negative);
+            }
+        }
+    }
+    keys
+}
+
+fn pinch_key(from: [Point; 2], to: [Point; 2], geometry: (usize, usize)) -> Option<u16> {
+    let distance = |points: [Point; 2]| {
+        ((points[1].0 - points[0].0) * geometry.0 as f64)
+            .hypot((points[1].1 - points[0].1) * geometry.1 as f64)
+    };
+    let (before, after) = (distance(from), distance(to));
+    ((before - after).abs() >= 1e-6).then_some(if after < before { 0x4f } else { 0x49 })
 }
 
 fn perform(
@@ -958,12 +1205,49 @@ fn perform(
     if !keep_input(connection, target, generation) {
         return None;
     }
+    if !input_evidence_current(&runtime(), now()) {
+        return Some(false);
+    }
     let at = |point: Point, ms: u32| Tap {
         x: ((point.0 * target.width as f64) as usize).min(target.width - 1),
         y: ((point.1 * target.height as f64) as usize).min(target.height - 1),
         duration: Duration::from_millis(ms.into()),
     };
     match input {
+        GameInput::Gesture(gesture)
+        | GameInput::Command(crate::automation::Command::Gesture(gesture)) => {
+            if gesture
+                .packet((target.width, target.height), 1, generation)
+                .is_err()
+            {
+                return Some(false);
+            }
+            match gesture {
+                crate::device::Gesture::Tap { at: point, ms } => {
+                    click(connection, target, at(point, ms), false, generation)
+                }
+                crate::device::Gesture::Stick { from, to, jump, ms } => {
+                    let keys = stick_keys(from, to, (target.width, target.height));
+                    Some(hold_keys(
+                        connection,
+                        target,
+                        &keys,
+                        ms,
+                        generation,
+                        jump.is_some(),
+                    ))
+                }
+                crate::device::Gesture::Pinch { from, to, ms } => {
+                    let Some(key) = pinch_key(from, to, (target.width, target.height)) else {
+                        return Some(false);
+                    };
+                    Some(hold_keys(connection, target, &[key], ms, generation, false))
+                }
+                crate::device::Gesture::Drag { from, to, ms } => {
+                    drag(connection, target, at(from, 1), at(to, 1), ms, generation)
+                }
+            }
+        }
         GameInput::Tap(tap) => click(connection, target, tap, false, generation),
         GameInput::Motion(Motion::Tap(point, ms)) => {
             click(connection, target, at(point, ms), false, generation)
@@ -972,13 +1256,272 @@ fn perform(
             click(connection, target, at(point, 40), right, generation)
         }
         GameInput::Motion(Motion::Keys(keys, ms)) => {
-            Some(hold_keys(connection, target, keys, ms, generation))
+            Some(hold_keys(connection, target, keys, ms, generation, false))
         }
         GameInput::Motion(Motion::Tilt { pixels, ms }) => {
             Some(tilt(connection, target, pixels, ms, generation))
         }
+        GameInput::Command(crate::automation::Command::Key { vk, ms }) => {
+            Some(ms <= 30_000 && hold_keys(connection, target, &[vk], ms, generation, false))
+        }
+        GameInput::Command(crate::automation::Command::Text { text, submit }) => {
+            Some(replace_text(connection, target, &text, submit, generation))
+        }
+        // Launch needs the owned Session, and is handled by the worker above.
+        GameInput::Command(crate::automation::Command::Launch { .. }) => Some(false),
         GameInput::Motion(_) => Some(false),
     }
+}
+
+/// Serve UTF-8 text on this private X server only. SDL receives an ordinary
+/// Ctrl+V selection request; neither the host clipboard nor keymap is changed.
+fn replace_text(
+    connection: &Connection,
+    target: Target,
+    text: &str,
+    submit: bool,
+    generation: i32,
+) -> bool {
+    use x11rb::{protocol::Event, wrapper::ConnectionExt as _};
+    if text.len() > 8192 || text.contains('\0') || !keep_input(connection, target, generation) {
+        return false;
+    }
+    let result = (|| -> Result<bool, Box<dyn std::error::Error>> {
+        let atom = |name: &[u8]| -> Result<Atom, Box<dyn std::error::Error>> {
+            Ok(connection.conn.intern_atom(false, name)?.reply()?.atom)
+        };
+        let clipboard = atom(b"CLIPBOARD")?;
+        let utf8 = atom(b"UTF8_STRING")?;
+        let targets = atom(b"TARGETS")?;
+        let owner = connection.conn.generate_id()?;
+        connection
+            .conn
+            .create_window(
+                0,
+                owner,
+                connection.root,
+                0,
+                0,
+                1,
+                1,
+                0,
+                WindowClass::INPUT_OUTPUT,
+                0,
+                &CreateWindowAux::new(),
+            )?
+            .check()?;
+        let old = connection
+            .conn
+            .get_selection_owner(clipboard)?
+            .reply()?
+            .owner;
+        let transfer = (|| -> Result<bool, Box<dyn std::error::Error>> {
+            connection
+                .conn
+                .set_selection_owner(owner, clipboard, x11rb::CURRENT_TIME)?
+                .check()?;
+            if connection
+                .conn
+                .get_selection_owner(clipboard)?
+                .reply()?
+                .owner
+                != owner
+            {
+                return Ok(false);
+            }
+            if !hold_keys(connection, target, &[0x11, 0x41], 30, generation, false) {
+                return Ok(false);
+            }
+            if text.is_empty() {
+                return Ok(
+                    hold_keys(connection, target, &[0x08], 30, generation, false)
+                        && (!submit
+                            || hold_keys(connection, target, &[0x0d], 40, generation, false)),
+                );
+            }
+            if !hold_keys(connection, target, &[0x11, 0x56], 30, generation, false) {
+                return Ok(false);
+            }
+            let deadline = Instant::now() + Duration::from_secs(2);
+            loop {
+                if !keep_input(connection, target, generation) || Instant::now() >= deadline {
+                    return Ok(false);
+                }
+                while let Some(event) = connection.conn.poll_for_event()? {
+                    let Event::SelectionRequest(request) = event else {
+                        continue;
+                    };
+                    if request.owner != owner || request.selection != clipboard {
+                        continue;
+                    }
+                    let mut property = if request.property == 0 {
+                        request.target
+                    } else {
+                        request.property
+                    };
+                    let mut pasted = false;
+                    // SDL may use a hidden sibling as its clipboard requestor.
+                    // Its X resource namespace must still be the selected client's.
+                    let mask = connection.conn.setup().resource_id_mask;
+                    let same_client = (request.requestor & !mask) == (target.window & !mask);
+                    if !connection.over(request.requestor, target.window) && !same_client {
+                        property = 0;
+                    } else if request.target == targets {
+                        connection
+                            .conn
+                            .change_property32(
+                                PropMode::REPLACE,
+                                request.requestor,
+                                property,
+                                AtomEnum::ATOM,
+                                &[targets, utf8, AtomEnum::STRING.into()],
+                            )?
+                            .check()?;
+                    } else if request.target == utf8
+                        || (request.target == u32::from(AtomEnum::STRING) && text.is_ascii())
+                    {
+                        connection
+                            .conn
+                            .change_property8(
+                                PropMode::REPLACE,
+                                request.requestor,
+                                property,
+                                request.target,
+                                text.as_bytes(),
+                            )?
+                            .check()?;
+                        pasted = true;
+                    } else {
+                        property = 0;
+                    }
+                    connection
+                        .conn
+                        .send_event(
+                            false,
+                            request.requestor,
+                            EventMask::NO_EVENT,
+                            SelectionNotifyEvent {
+                                response_type: SELECTION_NOTIFY_EVENT,
+                                sequence: 0,
+                                time: request.time,
+                                requestor: request.requestor,
+                                selection: request.selection,
+                                target: request.target,
+                                property,
+                            },
+                        )?
+                        .check()?;
+                    connection.conn.flush()?;
+                    if pasted {
+                        if !wait_input(connection, target, generation, Duration::from_millis(50)) {
+                            return Ok(false);
+                        }
+                        return Ok(!submit
+                            || hold_keys(connection, target, &[0x0d], 40, generation, false));
+                    }
+                }
+                thread::sleep(Duration::from_millis(4));
+            }
+        })();
+        // Restore only if this transfer still owns the private selection.
+        if connection
+            .conn
+            .get_selection_owner(clipboard)
+            .ok()
+            .and_then(|c| c.reply().ok())
+            .is_some_and(|r| r.owner == owner)
+        {
+            let _ = connection
+                .conn
+                .set_selection_owner(old, clipboard, x11rb::CURRENT_TIME)
+                .ok()
+                .map(|c| c.check());
+        }
+        let _ = connection
+            .conn
+            .destroy_window(owner)
+            .ok()
+            .map(|c| c.check());
+        let _ = connection.conn.flush();
+        transfer
+    })();
+    result.unwrap_or(false)
+}
+
+fn drag(
+    connection: &Connection,
+    target: Target,
+    from: Tap,
+    to: Tap,
+    ms: u32,
+    generation: i32,
+) -> Option<bool> {
+    if !keep_input(connection, target, generation) {
+        return None;
+    }
+    let (previous_x, previous_y, _, _) = connection.pointer()?;
+    let start = (target.x + from.x as i32, target.y + from.y as i32);
+    let end = (target.x + to.x as i32, target.y + to.y as i32);
+    if !claim_evidence(&mut runtime(), now()) {
+        return Some(false);
+    }
+    if !connection.move_pointer(start.0, start.1) || !keep_input(connection, target, generation) {
+        return Some(false);
+    }
+    if !connection
+        .pointer()
+        .is_some_and(|(_, _, _, child)| connection.over(child, target.window))
+        || !keep_input(connection, target, generation)
+    {
+        return Some(false);
+    }
+    let down = {
+        let state = runtime();
+        state.input_current(generation) && connection.button(3, true)
+    };
+    if !down {
+        connection.button(3, false);
+        return Some(false);
+    }
+    let started = Instant::now();
+    let duration = Duration::from_millis(ms.into());
+    let mut ok = true;
+    let mut position = start;
+    while started.elapsed() < duration {
+        if !keep_input(connection, target, generation) {
+            ok = false;
+            break;
+        }
+        let ratio = (started.elapsed().as_secs_f64() / duration.as_secs_f64()).min(1.0);
+        let x = start.0 + (f64::from(end.0 - start.0) * ratio).round() as i32;
+        let y = start.1 + (f64::from(end.1 - start.1) * ratio).round() as i32;
+        let state = runtime();
+        if !state.input_current(generation) || !connection.move_pointer(x, y) {
+            ok = false;
+            break;
+        }
+        position = (x, y);
+        drop(state);
+        std::thread::sleep(Duration::from_millis(8));
+    }
+    if ok && keep_input(connection, target, generation) {
+        let state = runtime();
+        ok = state.input_current(generation) && connection.move_pointer(end.0, end.1);
+        if ok {
+            position = end;
+        }
+    } else {
+        ok = false;
+    }
+    ok &= connection.button(3, false);
+    if connection
+        .pointer()
+        .is_some_and(|(x, y, _, _)| (x, y) == position)
+        && connection.focused() == Some(target)
+    {
+        connection.move_pointer(previous_x, previous_y);
+    }
+    Some(ok)
 }
 
 fn click(
@@ -994,8 +1537,8 @@ fn click(
         target.y + tap.y.min(target.height - 1) as i32,
     );
     {
-        let state = runtime();
-        if !state.input_current(generation) {
+        let mut state = runtime();
+        if !state.input_current(generation) || !claim_evidence(&mut state, now()) {
             return None;
         }
         if !connection.move_pointer(position.0, position.1) {
@@ -1015,7 +1558,7 @@ fn click(
         connection.button(button, false);
         return Some(false);
     }
-    wait_input(connection, target, generation, tap.duration);
+    let completed = wait_input(connection, target, generation, tap.duration);
     let released = connection.button(button, false);
     if connection
         .pointer()
@@ -1024,7 +1567,7 @@ fn click(
     {
         connection.move_pointer(previous_x, previous_y);
     }
-    Some(released)
+    Some(completed && released)
 }
 
 fn hold_keys(
@@ -1033,22 +1576,31 @@ fn hold_keys(
     keys: &[u16],
     ms: u32,
     generation: i32,
+    jump: bool,
 ) -> bool {
     let Some(codes) = keys
         .iter()
-        .map(|key| connection.keycode(*key))
+        .copied()
+        .chain(jump.then_some(0x20))
+        .map(|key| connection.keycode(key))
         .collect::<Option<Vec<_>>>()
     else {
         return false;
     };
     let mut held = Vec::new();
     let mut ok = true;
+    let jump_code = jump.then(|| *codes.last().unwrap());
+    let count = codes.len();
     for code in codes {
         if !keep_input(connection, target, generation) {
+            ok = false;
             break;
         }
-        let state = runtime();
-        if !state.input_current(generation) {
+        let mut state = runtime();
+        if !state.input_current(generation)
+            || (held.is_empty() && !claim_evidence(&mut state, now()))
+        {
+            ok = false;
             break;
         }
         if !connection.key(code, true) {
@@ -1058,13 +1610,31 @@ fn hold_keys(
         }
         held.push(code);
     }
-    if held.len() == keys.len() {
-        wait_input(
+    if held.len() == count {
+        let first = if jump { ms.min(50) } else { ms };
+        ok &= wait_input(
             connection,
             target,
             generation,
-            Duration::from_millis(ms.into()),
+            Duration::from_millis(first.into()),
         );
+        if let Some(code) = jump_code {
+            // Lift only the jump key. Walking remains continuously held until
+            // the bounded action completes or cancellation releases everything.
+            if connection.key(code, false) {
+                held.retain(|&held_code| held_code != code);
+            } else {
+                ok = false;
+            }
+            if ok && ms > first {
+                ok &= wait_input(
+                    connection,
+                    target,
+                    generation,
+                    Duration::from_millis((ms - first).into()),
+                );
+            }
+        }
     }
     for code in held.into_iter().rev() {
         ok &= connection.key(code, false);
@@ -1081,9 +1651,9 @@ fn tilt(connection: &Connection, target: Target, pixels: i32, ms: u32, generatio
         target.y + target.height as i32 / 2,
     );
     {
-        let state = runtime();
-        if !state.input_current(generation) {
-            return true;
+        let mut state = runtime();
+        if !state.input_current(generation) || !claim_evidence(&mut state, now()) {
+            return false;
         }
         if !connection.move_pointer(center.0, center.1) {
             return false;
@@ -1507,6 +2077,126 @@ mod tests {
     use x11rb::{protocol::Event, wrapper::ConnectionExt as _};
 
     #[test]
+    fn slow_ocr_cannot_turn_an_old_frame_into_input_or_game_evidence() {
+        let mut state = crate::Runtime::default();
+        state.capture = true;
+        state.input = true;
+        state.dua.background = true;
+        let mut config = state.macro_config();
+        config["useMove"] = false.into();
+        config["useSell"] = false.into();
+        state.macro_settings = config;
+        state.start_desktop(&["mfish".into()], now()).unwrap();
+        let geometry = (480, 270);
+        assert!(matches!(
+            state.tick(now(), geometry, None),
+            DeviceTick::Observe(_)
+        ));
+        let mut pixels = vec![0; 480 * 270 * 4];
+        let mut put = |x: usize, y: usize, color: [u8; 3]| {
+            pixels[(y * 480 + x) * 4..(y * 480 + x) * 4 + 3].copy_from_slice(&color)
+        };
+        for n in 0..14 {
+            for x in [110 + n, 370 - n] {
+                for y in [95, 181] {
+                    put(x, y, [248; 3]);
+                }
+            }
+            for x in [110, 370] {
+                for y in [95 + n, 181 - n] {
+                    put(x, y, [248; 3]);
+                }
+            }
+        }
+        for y in 164..168 {
+            for x in 170..179 {
+                put(x, y, [20, 75, 205]);
+            }
+        }
+        let frame = Frame::new(&pixels, 480, 270, 1920, 4, false).unwrap();
+        let generation = state.generation;
+        let frames = state.dua.screenshot_frames;
+        let captured = now();
+        let slow_ocr = || {
+            thread::sleep(Duration::from_millis(900));
+            vec![crate::automation::Word {
+                text: "Auto Roll".into(),
+                rect: crate::vision::Rect(0.1, 0.1, 0.2, 0.2),
+            }]
+        };
+        let words = slow_ocr();
+        assert!(matches!(
+            observed_tick(&mut state, geometry, &frame, words, captured, now()),
+            DeviceTick::Observe(_)
+        ));
+        assert!(
+            state.ocr_words.is_empty()
+                && !state.game_observed
+                && state.fishing.calibration.is_none()
+        );
+        assert_eq!(state.generation, generation);
+        assert_eq!(state.dua.screenshot_frames, frames);
+        let fresh = now();
+        let step = observed_tick(&mut state, geometry, &frame, vec![], fresh, now());
+        assert!(matches!(step, DeviceTick::Wait));
+        assert!(state.fishing.calibration.is_some());
+        assert!(!input_evidence_current(&state, fresh + 0.301));
+        state.frame_expires = Some(fresh + 0.300);
+        assert!(claim_evidence(&mut state, fresh + 0.1));
+        assert!(
+            input_evidence_current(&state, fresh + 1.0),
+            "a bounded action already begun must finish and release its inputs"
+        );
+    }
+
+    #[test]
+    fn recovery_never_reuses_a_stopped_or_replaced_execution_generation() {
+        assert!(recovery_allowed(false, true, 17, 17));
+        assert!(!recovery_allowed(true, true, 17, 17));
+        assert!(!recovery_allowed(false, false, 17, 17));
+        assert!(!recovery_allowed(false, true, 18, 17));
+        assert!(!recovery_allowed(false, true, 17, 18));
+    }
+
+    #[test]
+    fn screen_gestures_preserve_pixel_direction_on_wide_viewports() {
+        assert_eq!(
+            stick_keys(Point(0.5, 0.5), Point(0.5, 0.4), (2000, 1000)),
+            vec![0x57]
+        );
+        assert_eq!(
+            stick_keys(Point(0.5, 0.5), Point(0.6, 0.45), (2000, 1000)),
+            vec![0x44]
+        );
+        assert_eq!(
+            stick_keys(Point(0.5, 0.5), Point(0.5, 0.5), (2000, 1000)),
+            Vec::<u16>::new()
+        );
+        assert_eq!(
+            pinch_key(
+                [Point(0.4, 0.4), Point(0.4, 0.6)],
+                [Point(0.45, 0.5), Point(0.56, 0.5)],
+                (2000, 1000)
+            ),
+            Some(0x49)
+        );
+        assert_eq!(
+            pinch_key(
+                [Point(0.4, 0.5), Point(0.6, 0.5)],
+                [Point(0.45, 0.5), Point(0.55, 0.5)],
+                (2000, 1000)
+            ),
+            Some(0x4f)
+        );
+        assert!(pinch_key(
+            [Point(0.4, 0.5), Point(0.6, 0.5)],
+            [Point(0.4, 0.5), Point(0.6, 0.5)],
+            (2000, 1000)
+        )
+        .is_none());
+    }
+
+    #[test]
     fn manual_input_rejects_invalid_or_overflowing_requests_before_queueing() {
         for event in [
             ManualEvent::Look {
@@ -1585,6 +2275,144 @@ mod tests {
             assert_eq!(key_symbol(vk), Some(symbol));
         }
         assert_eq!(key_symbol(0xffff), None);
+    }
+
+    #[test]
+    #[ignore = "requires ACRUX_X11_TEST=1 and a dedicated Xvfb display >= :90"]
+    fn private_clipboard_delivers_unicode_and_restores_selection_owner() {
+        use x11rb::{protocol::Event, wrapper::ConnectionExt as _};
+        assert_eq!(std::env::var("ACRUX_X11_TEST").as_deref(), Ok("1"));
+        assert!(std::env::var("DISPLAY")
+            .unwrap()
+            .strip_prefix(':')
+            .and_then(|d| d.split('.').next())
+            .and_then(|d| d.parse::<u32>().ok())
+            .is_some_and(|d| d >= 90));
+        let connection = Connection::open().expect("dedicated Xvfb");
+        let (client, screen) = x11rb::connect(None).unwrap();
+        let window = client.generate_id().unwrap();
+        client
+            .create_window(
+                0,
+                window,
+                client.setup().roots[screen].root,
+                0,
+                0,
+                480,
+                270,
+                0,
+                WindowClass::INPUT_OUTPUT,
+                0,
+                &CreateWindowAux::new().event_mask(EventMask::KEY_PRESS),
+            )
+            .unwrap()
+            .check()
+            .unwrap();
+        client
+            .change_property8(
+                PropMode::REPLACE,
+                window,
+                AtomEnum::WM_CLASS,
+                AtomEnum::STRING,
+                b"sober\0org.vinegarhq.Sober\0",
+            )
+            .unwrap()
+            .check()
+            .unwrap();
+        client.map_window(window).unwrap().check().unwrap();
+        client
+            .set_input_focus(InputFocus::PARENT, window, x11rb::CURRENT_TIME)
+            .unwrap()
+            .check()
+            .unwrap();
+        let clipboard = client
+            .intern_atom(false, b"CLIPBOARD")
+            .unwrap()
+            .reply()
+            .unwrap()
+            .atom;
+        let utf8 = client
+            .intern_atom(false, b"UTF8_STRING")
+            .unwrap()
+            .reply()
+            .unwrap()
+            .atom;
+        let property = client
+            .intern_atom(false, b"ACRUX_TEST_TEXT")
+            .unwrap()
+            .reply()
+            .unwrap()
+            .atom;
+        client
+            .set_selection_owner(window, clipboard, x11rb::CURRENT_TIME)
+            .unwrap()
+            .check()
+            .unwrap();
+        let target = connection.focused().expect("fixture target");
+        let paste = connection.keycode(0x56).unwrap();
+        let recipient = thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(4);
+            loop {
+                if Instant::now() > deadline {
+                    panic!("private selection delivery timed out");
+                }
+                match client.poll_for_event().unwrap() {
+                    Some(Event::KeyPress(event)) if event.detail == paste => {
+                        client
+                            .convert_selection(
+                                window,
+                                clipboard,
+                                utf8,
+                                property,
+                                x11rb::CURRENT_TIME,
+                            )
+                            .unwrap()
+                            .check()
+                            .unwrap();
+                    }
+                    Some(Event::SelectionNotify(event)) if event.property != 0 => {
+                        let data = client
+                            .get_property(true, window, property, utf8, 0, 8192)
+                            .unwrap()
+                            .reply()
+                            .unwrap()
+                            .value;
+                        // Keep the old owner alive until the transfer restores it.
+                        thread::sleep(Duration::from_millis(150));
+                        return (client, window, data);
+                    }
+                    _ => thread::sleep(Duration::from_millis(2)),
+                }
+            }
+        });
+        let generation = {
+            let mut state = runtime();
+            state.stop("isolated clipboard test");
+            state.fishing.phase = Phase::Searching;
+            state.generation
+        };
+        assert!(replace_text(
+            &connection,
+            target,
+            "Acrux 테스트 123",
+            false,
+            generation
+        ));
+        assert!(!connection.pressed(0x11));
+        assert!(!connection.pressed(0x56));
+        let (client, owner, data) = recipient.join().unwrap();
+        assert_eq!(String::from_utf8(data).unwrap(), "Acrux 테스트 123");
+        assert_eq!(
+            client
+                .get_selection_owner(clipboard)
+                .unwrap()
+                .reply()
+                .unwrap()
+                .owner,
+            owner
+        );
+        runtime().stop("isolated clipboard test complete");
+        client.destroy_window(owner).unwrap().check().unwrap();
     }
 
     #[test]
@@ -1961,7 +2789,14 @@ mod tests {
             runtime().stop("isolated stop");
         });
         let began = Instant::now();
-        assert!(hold_keys(&connection, target, &[0x57], 5000, generation));
+        assert!(!hold_keys(
+            &connection,
+            target,
+            &[0x57],
+            5000,
+            generation,
+            false
+        ));
         stop.join().unwrap();
         assert!(began.elapsed() < Duration::from_secs(1));
         assert!(!connection.pressed(0x57), "stop must release held W");
@@ -1973,6 +2808,154 @@ mod tests {
                 generation
             ),
             None
+        );
+        let restart = || {
+            let mut state = runtime();
+            state.stop("isolated gesture test");
+            state.fishing.phase = Phase::Searching;
+            state.generation
+        };
+        let generation = restart();
+        while c.poll_for_event().unwrap().is_some() {}
+        let moving = thread::spawn(|| {
+            let peer = Connection::open().unwrap();
+            thread::sleep(Duration::from_millis(100));
+            (peer.pressed(0x57), peer.pressed(0x20))
+        });
+        assert_eq!(
+            perform(
+                &connection,
+                target,
+                GameInput::Gesture(crate::device::Gesture::Stick {
+                    from: Point(0.2, 0.7),
+                    to: Point(0.2, 0.5),
+                    jump: Some(Point(0.9, 0.8)),
+                    ms: 220,
+                }),
+                generation
+            ),
+            Some(true)
+        );
+        assert_eq!(
+            moving.join().unwrap(),
+            (true, false),
+            "walking must remain held after the single jump pulse"
+        );
+        assert!(!connection.pressed(0x57) && !connection.pressed(0x20));
+        let (walk_code, jump_code) = (
+            connection.keycode(0x57).unwrap(),
+            connection.keycode(0x20).unwrap(),
+        );
+        let (mut walk_down, mut walk_up, mut jump_down, mut jump_up) = (0, 0, 0, 0);
+        while let Some(event) = c.poll_for_event().unwrap() {
+            match event {
+                Event::KeyPress(e) if e.detail == walk_code => walk_down += 1,
+                Event::KeyRelease(e) if e.detail == walk_code => walk_up += 1,
+                Event::KeyPress(e) if e.detail == jump_code => jump_down += 1,
+                Event::KeyRelease(e) if e.detail == jump_code => jump_up += 1,
+                _ => {}
+            }
+        }
+        assert_eq!(
+            (walk_down, walk_up, jump_down, jump_up),
+            (1, 1, 1, 1),
+            "the jump must not release and restart walking"
+        );
+
+        let generation = restart();
+        let stopped = thread::spawn(|| {
+            thread::sleep(Duration::from_millis(25));
+            runtime().stop("isolated moving jump stop");
+        });
+        let began = Instant::now();
+        assert_eq!(
+            perform(
+                &connection,
+                target,
+                GameInput::Gesture(crate::device::Gesture::Stick {
+                    from: Point(0.2, 0.7),
+                    to: Point(0.2, 0.5),
+                    jump: Some(Point(0.9, 0.8)),
+                    ms: 900,
+                }),
+                generation
+            ),
+            Some(false)
+        );
+        stopped.join().unwrap();
+        assert!(began.elapsed() < Duration::from_secs(1));
+        assert!(
+            !connection.pressed(0x57) && !connection.pressed(0x20),
+            "stop must lift both walking and jump keys"
+        );
+
+        let generation = restart();
+        let zooming = thread::spawn(|| {
+            let peer = Connection::open().unwrap();
+            thread::sleep(Duration::from_millis(60));
+            peer.pressed(0x4f)
+        });
+        assert_eq!(
+            perform(
+                &connection,
+                target,
+                GameInput::Gesture(crate::device::Gesture::Pinch {
+                    from: [Point(0.3, 0.3), Point(0.7, 0.3)],
+                    to: [Point(0.4, 0.3), Point(0.6, 0.3)],
+                    ms: 150,
+                }),
+                generation
+            ),
+            Some(true)
+        );
+        assert!(zooming.join().unwrap());
+        assert!(
+            !connection.pressed(0x4f),
+            "pinch completion must lift the zoom key"
+        );
+
+        let generation = restart();
+        let pointer = connection.pointer().unwrap();
+        assert_eq!(
+            perform(
+                &connection,
+                target,
+                GameInput::Gesture(crate::device::Gesture::Drag {
+                    from: Point(0.25, 0.25),
+                    to: Point(0.7, 0.55),
+                    ms: 80,
+                }),
+                generation
+            ),
+            Some(true)
+        );
+        let after_drag = connection.pointer().unwrap();
+        assert_eq!((after_drag.0, after_drag.1), (pointer.0, pointer.1));
+        assert_eq!(after_drag.2 & u32::from(u16::from(KeyButMask::BUTTON3)), 0);
+
+        let generation = restart();
+        let stopped = thread::spawn(|| {
+            thread::sleep(Duration::from_millis(35));
+            runtime().stop("isolated drag stop");
+        });
+        assert_eq!(
+            perform(
+                &connection,
+                target,
+                GameInput::Gesture(crate::device::Gesture::Drag {
+                    from: Point(0.25, 0.25),
+                    to: Point(0.7, 0.55),
+                    ms: 900,
+                }),
+                generation
+            ),
+            Some(false)
+        );
+        stopped.join().unwrap();
+        assert_eq!(
+            connection.pointer().unwrap().2 & u32::from(u16::from(KeyButMask::BUTTON3)),
+            0,
+            "stop must release the dragged button"
         );
         let other = c.generate_id().unwrap();
         c.create_window(
@@ -2017,7 +3000,14 @@ mod tests {
                 }
             });
             let began = Instant::now();
-            assert!(hold_keys(&connection, target, &[0x57], 5000, generation));
+            assert!(!hold_keys(
+                &connection,
+                target,
+                &[0x57],
+                5000,
+                generation,
+                false
+            ));
             change.join().unwrap();
             assert!(began.elapsed() < Duration::from_secs(1));
             assert!(!connection.pressed(0x57), "target changes must release W");

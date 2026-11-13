@@ -1,4 +1,120 @@
 # PC 버전 src/web/i18n.js 에서 자동으로 뽑음 — 고치지 말고 PC 사전을 고칠 것 (android/tools/export_pc_i18n.py)
+운영체제 자동 선택	Selected automatically for this OS	OSに合わせて自動選択
+아이템 · 상점 · 제작 · 메모리 매치 화면의 글자를 이 기기에서 읽습니다.	Reads item, shop, crafting and memory match text on this device.	アイテム・ショップ・製作・メモリーマッチの文字をこの端末で読み取ります。
+이 앱은 운영체제에 맞는 OCR 엔진을 자동으로 사용합니다.	This app automatically uses the OCR engine for your operating system.	このアプリはOSに合わせたOCRエンジンを自動で使用します。
+브라우저에서 [연결] 을 눌러 주세요 · 코드 {0}	Press [Link] in the browser · code {0}	ブラウザで [連携] を押してください · コード {0}
+캐릭터 이름 (표시명|계정명)	Avatar name (display name|account name)	キャラクター名（表示名|アカウント名）
+비우면 바이옴 설정의 플레이어 이름을 사용합니다.	Leave blank to use the player name in Biome settings.	空欄の場合はバイオーム設定のプレイヤー名を使用します。
+현재 위치와 지형을 화면에서 확인하고 장애물과 점프 구간을 고려해 이동합니다. 목적지 앞에서 [현재 장소 기억]을 누르면 실제 화면을 다음 이동에 사용합니다.	Uses the screen to locate the avatar, terrain, obstacles and jump sections. Press [Remember current location] at a destination to use its actual view on later trips.	画面で現在位置、地形、障害物とジャンプ区間を確認して移動します。目的地の前で[現在地を記憶]を押すと、次の移動で実際の画面を使用します。
+시간 기록 없이 이동 · 도착은 화면에서 확인	Travel without recorded timings · arrival verified on screen	時間記録を使わず移動 · 画面で到着を確認
+현재 장소 기억	Remember current location	現在地を記憶
+관측 취소	Cancel observation	観測をキャンセル
+이동 정지	Stop moving	移動停止
+시작할 때 낚시 장소로 이동	Travel to a fishing spot on start	開始時に釣り場へ移動
+가득 차면 판매하러 가기	Go sell when full	満杯になったら売却へ
+화면에서 경로를 확인하며 이동합니다.	Moving while checking the route on screen.	画面で経路を確認しながら移動します。
+실제 목적지 화면을 기억했습니다.	Remembered the actual destination view.	実際の目的地画面を記憶しました。
+목적지 관측을 취소했습니다.	Cancelled destination observation.	目的地の観測をキャンセルしました。
+개발 버전 업데이트	Development build update	開発版の更新
+alpha 배포 확인	Check alpha release	alphaリリースを確認
+새 업데이트가 있습니다.	An update is available.	更新があります。
+최신 버전입니다.	You are up to date.	最新版です。
+설치 준비 완료	Ready to install	インストール準備完了
+던지기 · 릴링 · 판매	Casting · reeling · selling	キャスト・リール・売却
+앱 전용 게임에서 자동 낚시 · 지형을 확인하며 이동 · 가득 차면 팔고 돌아옴 · 정지: 앱의 중지 버튼	Auto fishing in the app-owned game · terrain-guided travel · sell when full and return · Stop: the app Stop button	アプリ専用ゲームで自動釣り · 地形を確認して移動 · 満杯で売却して戻る · 停止：アプリの停止ボタン
+연결 서버에 접속할 수 없습니다.	Could not reach the link server.	連携サーバーに接続できません。
+연결 서버 응답을 읽지 못했습니다.	Could not read the link server response.	連携サーバーの応答を読み取れませんでした。
+연결 서버 응답이 너무 큽니다.	The link server response is too large.	連携サーバーの応答が大きすぎます。
+연결 서버 응답이 올바르지 않습니다.	The link server response is invalid.	連携サーバーの応答が正しくありません。
+연결 코드를 읽지 못했습니다.	Could not read the link code.	連携コードを読み取れませんでした。
+연결 요청을 확인하지 못했습니다.	Could not verify the link request.	連携リクエストを確認できませんでした。
+이미 연결을 준비하고 있습니다.	A link request is already being prepared.	すでに連携を準備しています。
+연결을 준비하지 못했습니다.	Could not prepare the link request.	連携リクエストを準備できませんでした。
+연결 코드를 받지 못했습니다.	Could not get a link code.	連携コードを取得できませんでした。
+연결 요청이 취소됐습니다.	The link request was canceled.	連携リクエストはキャンセルされました。
+연결 페이지를 열지 못했습니다. 디스코드 로그인을 다시 눌러 주세요.	Could not open the link page. Press Discord login again.	連携ページを開けませんでした。Discord ログインをもう一度押してください。
+디스코드 연결을 저장하지 못했습니다. 다시 연결해 주세요.	Could not save the Discord link. Please link again.	Discord の連携を保存できませんでした。もう一度連携してください。
+연결은 중지됐지만 설정을 저장하지 못했습니다.	The link stopped, but the settings could not be saved.	連携は停止しましたが、設定を保存できませんでした。
+연결 시간이 지났습니다. 다시 연결해 주세요.	The link timed out. Please link again.	連携の時間が切れました。もう一度連携してください。
+디스코드 연결	Discord link	Discord 連携
+매크로 봇으로 상태 보기	See your macro with the bot	ボットでマクロを確認
+디스코드 계정	Discord account	Discord アカウント
+연결하면 디스코드 봇 (/상태 · /통계 · /로그) 으로 이 매크로를 볼 수 있음	Once linked, the Discord bot (/status · /stats · /logs) can show this macro	連携すると Discord ボット (/状態 · /統計 · /ログ) でこのマクロを見られます
+디스코드 로그인	Discord login	Discord ログイン
+브라우저가 열리면 디스코드로 로그인한 뒤 [연결] 을 누르면 끝	When the browser opens, log in with Discord and press [Link]	ブラウザが開いたら Discord でログインして [連携] を押すだけ
+연결 끊기	Unlink	連携を解除
+끊으면 봇에서 이 매크로가 사라짐	The bot stops showing this macro	ボットにこのマクロが表示されなくなります
+연결 기다리는 중	Waiting for link	連携待ち
+연결한 동안 보내는 것: 매크로 작동 여부 · 지금 하는 일 · 켜진 기능 · 바이옴 · 통계 · 최근 기록 30줄 (작동 중 15초 · 꺼져 있으면 1분마다)	Sent while linked: whether the macro is running · what it is doing · enabled features · biome · stats · last 30 log lines (every 15 s while running · every minute when off)	連携中に送るもの: マクロの動作状態 · 今していること · オンの機能 · バイオーム · 統計 · 最近のログ 30 行 (動作中 15 秒 · オフなら 1 分ごと)
+화면 · 파일 · 웹후크 주소는 보내지 않음 · 연결된 앱은 acruxmacro.com/link 에서도 끊을 수 있음	Never sends your screen, files or webhook URLs · you can also unlink apps at acruxmacro.com/link	画面 · ファイル · Webhook の URL は送りません · acruxmacro.com/link でも連携を解除できます
+서버에 연결할 수 없음	Could not reach the server	サーバーに接続できません
+연결 시간이 지남 — 다시 눌러 주세요	The link timed out — press it again	連携の時間が切れました — もう一度押してください
+디스코드 연결 실패	Discord link failed	Discord 連携に失敗
+디스코드 연결 끊음	Unlinked Discord	Discord の連携を解除
+디스코드 연결이 끊김 — 다시 연결하려면 설정 → Acrux → 디스코드 연결	Discord link removed — to link again, go to Settings → Acrux → Discord link	Discord 連携が解除されました — もう一度連携するには 設定 → Acrux → Discord 連携
+현재 데스크톱 DUA는 자동 낚시만 지원합니다. 이동과 판매를 포함한 다른 기능은 준비 중입니다.	Desktop DUA currently supports auto fishing only. Movement, selling and other features are in development.	デスクトップDUAは現在、自動釣りのみ対応しています。移動・売却などは準備中です。
+던지기 · 릴링	Casting · reeling	キャスト・リール操作
+앱 전용 게임에서 자동 낚시 · 가득 차면 중지 · 이동과 판매는 준비 중 · 정지: 앱의 중지 버튼	Auto fishing in the private game · stops when full · movement and selling are in development · stop: Stop button in the app	アプリ専用ゲームで自動釣り・満杯で停止・移動と売却は準備中・停止：アプリの停止ボタン
+앱 전용 게임	Private game session	アプリ専用ゲーム
+게임을 열어 주세요.	Open the game to continue.	ゲームを開いてください。
+게임 열기	Open game	ゲームを開く
+게임 닫기	Close game	ゲームを閉じる
+게임 화면	Game view	ゲーム画面
+화면 닫기	Close view	画面を閉じる
+화면 열기를 취소했습니다.	Opening the view was canceled.	画面を開く操作をキャンセルしました。
+앱 전용 게임 화면	Private game view	アプリ専用ゲーム画面
+앱 전용 게임 조작 화면	Private game controls	アプリ専用ゲーム操作画面
+앱 전용 게임을 먼저 여세요.	Open the private game session first.	先にアプリ専用ゲームを開いてください。
+화면을 클릭한 뒤 키보드로 조작하세요. 우클릭 드래그로 시점을 움직입니다.	Click the image to use the keyboard. Drag with the right mouse button to look around.	画面をクリックするとキーボードで操作できます。右ドラッグで視点を動かします。
+매크로 실행 중에는 보기만 가능합니다. 조작하려면 매크로를 중지하세요.	View only while the macro is running. Stop the macro to control the game.	マクロ実行中は閲覧のみです。操作するにはマクロを停止してください。
+지도 기반 이동 준비 중	Map navigation is in development	マップによる移動は準備中
+게임 화면에서 직접 장소를 맞춘 뒤 매크로를 시작하세요. 이전 시간 기반 이동은 사용하지 않습니다.	Position the character in the game view before starting the macro. Timed navigation is disabled.	ゲーム画面で場所を調整してからマクロを開始してください。従来の時間指定移動は無効です。
+지도 기반 이동은 준비 중입니다. 게임 화면에서 직접 장소를 맞춰 주세요.	Map navigation is in development. Position the character in the game view.	マップによる移動は準備中です。ゲーム画面で場所を調整してください。
+정지 방법	Stop control	停止方法
+앱의 중지 버튼	Stop button in the app	アプリの停止ボタン
+앱의 시작·중지 버튼	Start/Stop button in the app	アプリの開始・停止ボタン
+F7 또는 앱의 중지 버튼	F7 or the Stop button in the app	F7またはアプリの停止ボタン
+Sober 화면에서 저장할 위치를 클릭하세요.	Click the position to save in the Sober image.	Soberの画像で保存する位置をクリックしてください。
+캡처한 Sober 화면입니다. Esc 또는 취소로 닫을 수 있습니다.	This is a captured Sober image. Press Esc or Cancel to close.	Soberのキャプチャ画像です。Escまたはキャンセルで閉じられます。
+Sober 위치 선택 화면	Sober position picker	Sober位置選択画面
+Sober 화면 데이터를 읽을 수 없습니다.	Could not read the Sober image data.	Soberの画像データを読み取れませんでした。
+Sober 화면 크기나 픽셀 데이터가 올바르지 않습니다.	The Sober image size or pixel data is invalid.	Soberの画像サイズまたはピクセルデータが正しくありません。
+Sober 화면을 표시할 수 없습니다.	Could not display the Sober image.	Soberの画像を表示できませんでした。
+DUA 실행 경로	DUA execution route	DUA実行ルート
+상태와 명령을 우선 사용하고, 화면 확인이 필요할 때 캡처	Uses state and commands first, captures the screen when needed	状態とコマンドを優先し、画面の確認が必要なときにキャプチャ
+현재 판단	Current decision	現在の判断
+Headless 처리	Headless steps	Headless処理
+스크린샷 처리	Screenshot frames	スクリーンショット処理
+경로 전환	Route changes	ルート変更
+스크린샷	Screenshot	スクリーンショット
+실행할 기능이 바뀌어 DUA를 중지했습니다. 다시 시작하세요.	DUA stopped because the enabled features changed. Start again.	実行する機能が変更されたためDUAを停止しました。再度開始してください。
+DUA 대기 중	DUA idle	DUA待機中
+실행 중인 Sober에 연결하지 못했습니다. 앱의 연결 상태를 확인하세요.	Could not connect to the running Sober app. Check the connection status in Acrux.	実行中のSoberに接続できませんでした。Acruxの接続状態を確認してください。
+실행 중인 Sober 게임 창을 찾지 못했습니다.	Could not find a running Sober game window.	実行中のSoberゲーム画面が見つかりませんでした。
+실행 중인 Sober 게임 창을 찾지 못했습니다. Sober에서 게임을 연 뒤 다시 시작하세요.	Could not find a running Sober game window. Open a game in Sober, then start the macro again.	実行中のSoberゲーム画面が見つかりませんでした。Soberでゲームを開いてからマクロを再度開始してください。
+Sober 연결이 끊겼습니다. 앱을 다시 실행하세요.	The Sober connection was lost. Restart Acrux.	Soberとの接続が切れました。Acruxを再起動してください。
+Sober 화면을 캡처하지 못했습니다.	Could not capture the Sober window.	Soberの画面をキャプチャできませんでした。
+Sober 입력을 보내지 못했습니다.	Could not send input to Sober.	Soberに入力を送信できませんでした。
+Sober 화면 데이터가 올바르지 않습니다.	The Sober image data is invalid.	Soberの画像データが正しくありません。
+Sober 화면 크기가 너무 큽니다.	The Sober image is too large.	Soberの画像サイズが大きすぎます。
+이 환경에서는 앱 미리보기 위치 지정을 사용할 수 없습니다.	The in-app position picker is unavailable in this environment.	この環境ではアプリ内の位置選択を利用できません。
+Sober X11 화면에서 위치를 선택하지 않았습니다.	No position was selected in the Sober X11 window.	Sober X11の画面で位置が選択されませんでした。
+데스크톱 DUA의 게임 캡처 · 입력은 Windows와 Linux에서 지원합니다.	Desktop DUA game capture and input are supported on Windows and Linux.	デスクトップDUAのゲームキャプチャと入力はWindowsとLinuxに対応しています。
+Windows와 Linux에서 게임 입력을 사용할 수 있습니다.	Game input is available on Windows and Linux.	WindowsとLinuxでゲーム入力を利用できます。
+Windows와 Linux에서 화면 위치를 지정할 수 있습니다.	Screen positions can be selected on Windows and Linux.	WindowsとLinuxで画面の位置を指定できます。
+데스크톱 이동 설정이 없습니다.	Desktop movement settings are missing.	デスクトップの移動設定がありません。
+이전 실행 요청이 취소됐습니다. 다시 시작하세요.	The previous start request was canceled. Start again.	以前の実行リクエストはキャンセルされました。再度開始してください。
+설정과 실행할 작업을 확인합니다.	Checking settings and selected tasks.	設定と実行するタスクを確認しています。
+구조화된 이동 명령과 대기를 처리합니다.	Processing movement commands and waits.	移動コマンドと待機を処理しています。
+판매 화면의 실제 상태를 확인합니다.	Checking the sale screen.	販売画面の状態を確認しています。
+낚시 창의 위치를 화면에서 보정합니다.	Calibrating the fishing panel from the screen.	画面から釣りパネルの位置を調整しています。
+던지기 · 입질 · 릴링 · 결과를 화면에서 확인합니다.	Checking casting, bites, reeling and results on screen.	画面でキャスト・アタリ・巻き取り・結果を確認しています。
+Roblox가 앞에 오기를 기다립니다.	Waiting for Roblox to come to the foreground.	Robloxが前面になるのを待っています。
+실행할 매크로 기능을 켜 주세요.	Enable a macro feature to run.	実行するマクロ機能を有効にしてください。
+실행 중인 DUA를 먼저 중지하세요.	Stop the running DUA first.	実行中のDUAを先に停止してください。
+게임 화면 크기를 확인할 수 없어 DUA를 중지했습니다.	DUA stopped because the game screen size could not be verified.	ゲーム画面のサイズを確認できないためDUAを停止しました。
+현재 데스크톱 DUA는 자동 낚시 · 이동 · 판매를 지원합니다. 다른 기능은 이식 전입니다.	Desktop DUA currently supports auto fishing, movement and selling. Other features have not been ported yet.	デスクトップDUAは現在、自動釣り・移動・販売に対応しています。他の機能は未移植です。
+Windows에서 게임 화면을 캡처하지 못했습니다.	Could not capture the game screen on Windows.	Windowsでゲーム画面をキャプチャできませんでした。
 이 모드는 더 이상 지원하지 않습니다.	This mod is no longer supported.	このモッドはサポートされなくなりました。
 블러드 레인 자동 생성 취소 — 자동 낚시가 멈추지 않음	Blood Rain auto summon canceled — auto fishing did not stop	ブラッドレイン自動生成中止 — 自動釣りが止まらない
 아이템 사용 시 이름이 이 이상 같아야 사용 (%)	Minimum name match required to use an item (%)	アイテム使用に必要な名前一致率 (%)
@@ -174,7 +290,9 @@ Collection 창을 연 상태에서 닫기(X) 버튼	Close (X) button while the C
 우클릭	Right click	右クリック
 좌클릭	Left click	左クリック
 시간 재는 중	Measuring time	時間を計測中
+시간 재는 중 · 도착하면 F6을 누르세요.	Measuring time · press F6 when you arrive.	時間を計測中・到着したらF6を押してください。
 캐릭터가 도착하면 F6 을 누르거나 [도착] 을 누르기	when the character arrives, press F6 or [Arrived]	キャラクターが到着したらF6か［到着］を押す
+캐릭터가 도착하면 [도착] 을 누르기	when the character arrives, press [Arrived]	キャラクターが到着したら［到着］を押す
 도착	Arrived	到着
 장소	Places	場所
 장소 추가	Add place	場所を追加
@@ -1287,34 +1405,3 @@ Acrux 웹사이트	Acrux website	Acruxウェブサイト
 삭제함 · 다시 켜면 적용	Deleted · applies after restart	削除しました・再起動後に適用
 Acrux 를 다시 켜는 중…	Restarting Acrux…	Acruxを再起動中…
 켜기 · 끄기	On · off	オン・オフ
-디스코드 연결	Discord link	Discord 連携
-매크로 봇으로 상태 보기	See your macro with the bot	ボットでマクロを確認
-디스코드 계정	Discord account	Discord アカウント
-연결하면 디스코드 봇 (/상태 · /통계 · /로그) 으로 이 매크로를 볼 수 있음	Once linked, the Discord bot (/status · /stats · /logs) can show this macro	連携すると Discord ボット (/状態 · /統計 · /ログ) でこのマクロを見られます
-디스코드 로그인	Discord login	Discord ログイン
-브라우저가 열리면 디스코드로 로그인한 뒤 [연결] 을 누르면 끝	When the browser opens, log in with Discord and press [Link]	ブラウザが開いたら Discord でログインして [連携] を押すだけ
-연결 끊기	Unlink	連携を解除
-끊으면 봇에서 이 매크로가 사라짐	The bot stops showing this macro	ボットにこのマクロが表示されなくなります
-연결 기다리는 중	Waiting for link	連携待ち
-연결한 동안 보내는 것: 매크로 작동 여부 · 지금 하는 일 · 켜진 기능 · 바이옴 · 통계 · 최근 기록 30줄 (작동 중 15초 · 꺼져 있으면 1분마다)	Sent while linked: whether the macro is running · what it is doing · enabled features · biome · stats · last 30 log lines (every 15 s while running · every minute when off)	連携中に送るもの: マクロの動作状態 · 今していること · オンの機能 · バイオーム · 統計 · 最近のログ 30 行 (動作中 15 秒 · オフなら 1 分ごと)
-화면 · 파일 · 웹후크 주소는 보내지 않음 · 연결된 앱은 acruxmacro.com/link 에서도 끊을 수 있음	Never sends your screen, files or webhook URLs · you can also unlink apps at acruxmacro.com/link	画面 · ファイル · Webhook の URL は送りません · acruxmacro.com/link でも連携を解除できます
-서버에 연결할 수 없음	Could not reach the server	サーバーに接続できません
-연결 시간이 지남 — 다시 눌러 주세요	The link timed out — press it again	連携の時間が切れました — もう一度押してください
-디스코드 연결 실패	Discord link failed	Discord 連携に失敗
-디스코드 연결 끊음	Unlinked Discord	Discord の連携を解除
-디스코드 연결이 끊김 — 다시 연결하려면 설정 → Acrux → 디스코드 연결	Discord link removed — to link again, go to Settings → Acrux → Discord link	Discord 連携が解除されました — もう一度連携するには 設定 → Acrux → Discord 連携
-브라우저에서 [연결] 을 눌러 주세요 · 코드 {0}	Press [Link] in the browser · code {0}	ブラウザで [連携] を押してください · コード {0}
-연결 서버에 접속할 수 없습니다.	Could not reach the link server.	連携サーバーに接続できません。
-연결 서버 응답을 읽지 못했습니다.	Could not read the link server response.	連携サーバーの応答を読み取れませんでした。
-연결 서버 응답이 너무 큽니다.	The link server response is too large.	連携サーバーの応答が大きすぎます。
-연결 서버 응답이 올바르지 않습니다.	The link server response is invalid.	連携サーバーの応答が正しくありません。
-연결 코드를 읽지 못했습니다.	Could not read the link code.	連携コードを読み取れませんでした。
-연결 요청을 확인하지 못했습니다.	Could not verify the link request.	連携リクエストを確認できませんでした。
-이미 연결을 준비하고 있습니다.	A link request is already being prepared.	すでに連携を準備しています。
-연결을 준비하지 못했습니다.	Could not prepare the link request.	連携リクエストを準備できませんでした。
-연결 코드를 받지 못했습니다.	Could not get a link code.	連携コードを取得できませんでした。
-연결 요청이 취소됐습니다.	The link request was canceled.	連携リクエストはキャンセルされました。
-연결 페이지를 열지 못했습니다. 디스코드 로그인을 다시 눌러 주세요.	Could not open the link page. Press Discord login again.	連携ページを開けませんでした。Discord ログインをもう一度押してください。
-디스코드 연결을 저장하지 못했습니다. 다시 연결해 주세요.	Could not save the Discord link. Please link again.	Discord の連携を保存できませんでした。もう一度連携してください。
-연결은 중지됐지만 설정을 저장하지 못했습니다.	The link stopped, but the settings could not be saved.	連携は停止しましたが、設定を保存できませんでした。
-연결 시간이 지났습니다. 다시 연결해 주세요.	The link timed out. Please link again.	連携の時間が切れました。もう一度連携してください。

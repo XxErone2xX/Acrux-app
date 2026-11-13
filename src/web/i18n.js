@@ -12,6 +12,36 @@ const I18N = (() => {
 
   // ---------------------------------------------------------------- 사전: [한국어, English, 日本語]
   const E = [
+    // Native apps select the actual operating-system OCR backend.
+    ["운영체제 자동 선택", "Selected automatically for this OS", "OSに合わせて自動選択"],
+    ["아이템 · 상점 · 제작 · 메모리 매치 화면의 글자를 이 기기에서 읽습니다.", "Reads item, shop, crafting and memory match text on this device.", "アイテム・ショップ・製作・メモリーマッチの文字をこの端末で読み取ります。"],
+    ["이 앱은 운영체제에 맞는 OCR 엔진을 자동으로 사용합니다.", "This app automatically uses the OCR engine for your operating system.", "このアプリはOSに合わせたOCRエンジンを自動で使用します。"],
+    ["<b>Linux · Tesseract</b>: 영어 데이터와 앱 언어에 맞는 한국어·일본어 언어 데이터를 사용합니다.", "<b>Linux · Tesseract</b>: Uses English data and Korean or Japanese language data matching the app language.", "<b>Linux · Tesseract</b>: 英語データと、アプリの言語に合わせた韓国語または日本語の言語データを使用します。"],
+    ["<b>Windows · Windows OCR</b>: Windows에 설치된 사용자 언어로 화면을 읽습니다.", "<b>Windows · Windows OCR</b>: Reads the screen using user languages installed in Windows.", "<b>Windows · Windows OCR</b>: Windowsにインストールされたユーザー言語で画面を読み取ります。"],
+    ["<b>macOS · Apple Vision</b>: macOS의 기본 문자 인식 기능으로 화면을 읽습니다.", "<b>macOS · Apple Vision</b>: Reads the screen using the text recognition built into macOS.", "<b>macOS · Apple Vision</b>: macOS標準の文字認識機能で画面を読み取ります。"],
+
+    ["브라우저에서 [연결] 을 눌러 주세요 · 코드 {0}", "Press [Link] in the browser · code {0}", "ブラウザで [連携] を押してください · コード {0}"],
+    // Native DUA navigation and development updater.
+    ["캐릭터 이름 (표시명|계정명)", "Avatar name (display name|account name)", "キャラクター名（表示名|アカウント名）"],
+    ["비우면 바이옴 설정의 플레이어 이름을 사용합니다.", "Leave blank to use the player name in Biome settings.", "空欄の場合はバイオーム設定のプレイヤー名を使用します。"],
+    ["현재 위치와 지형을 화면에서 확인하고 장애물과 점프 구간을 고려해 이동합니다. 목적지 앞에서 [현재 장소 기억]을 누르면 실제 화면을 다음 이동에 사용합니다.", "Uses the screen to locate the avatar, terrain, obstacles and jump sections. Press [Remember current location] at a destination to use its actual view on later trips.", "画面で現在位置、地形、障害物とジャンプ区間を確認して移動します。目的地の前で[現在地を記憶]を押すと、次の移動で実際の画面を使用します。"],
+    ["시간 기록 없이 이동 · 도착은 화면에서 확인", "Travel without recorded timings · arrival verified on screen", "時間記録を使わず移動 · 画面で到着を確認"],
+    ["현재 장소 기억", "Remember current location", "現在地を記憶"],
+    ["관측 취소", "Cancel observation", "観測をキャンセル"],
+    ["이동 정지", "Stop moving", "移動停止"],
+    ["시작할 때 낚시 장소로 이동", "Travel to a fishing spot on start", "開始時に釣り場へ移動"],
+    ["가득 차면 판매하러 가기", "Go sell when full", "満杯になったら売却へ"],
+    ["화면에서 경로를 확인하며 이동합니다.", "Moving while checking the route on screen.", "画面で経路を確認しながら移動します。"],
+    ["실제 목적지 화면을 기억했습니다.", "Remembered the actual destination view.", "実際の目的地画面を記憶しました。"],
+    ["목적지 관측을 취소했습니다.", "Cancelled destination observation.", "目的地の観測をキャンセルしました。"],
+    ["개발 버전 업데이트", "Development build update", "開発版の更新"],
+    ["alpha 배포 확인", "Check alpha release", "alphaリリースを確認"],
+    ["새 업데이트가 있습니다.", "An update is available.", "更新があります。"],
+    ["최신 버전입니다.", "You are up to date.", "最新版です。"],
+    ["설치 준비 완료", "Ready to install", "インストール準備完了"],
+    ["던지기 · 릴링 · 판매", "Casting · reeling · selling", "キャスト・リール・売却"],
+    ["앱 전용 게임에서 자동 낚시 · 지형을 확인하며 이동 · 가득 차면 팔고 돌아옴 · 정지: 앱의 중지 버튼", "Auto fishing in the app-owned game · terrain-guided travel · sell when full and return · Stop: the app Stop button", "アプリ専用ゲームで自動釣り · 地形を確認して移動 · 満杯で売却して戻る · 停止：アプリの停止ボタン"],
+
     // Discord account link (PC and mobile share the backend contract).
     ["연결 서버에 접속할 수 없습니다.", "Could not reach the link server.", "連携サーバーに接続できません。"],
     ["연결 서버 응답을 읽지 못했습니다.", "Could not read the link server response.", "連携サーバーの応答を読み取れませんでした。"],

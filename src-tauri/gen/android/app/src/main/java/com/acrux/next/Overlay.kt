@@ -7,6 +7,8 @@ import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
@@ -28,14 +30,16 @@ class Overlay(private val service: TapService) {
     private var panel: Panel? = null
     private var menu: LinearLayout? = null
     private var picker: PositionPicker? = null
-    private var recording: LinearLayout? = null
+    private val main = Handler(Looper.getMainLooper())
+    @Volatile private var macroRequest = false
+    @Volatile private var actionRevision = 0
     private var inGame = false
     private var status: TextView? = null
     private var biome: TextView? = null
     private var run: TextView? = null
     private var lang = ""
     private val dictionary = mutableMapOf<String, String>()
-    private val categories = listOf("낚시", "조이스틱", "기준 장소", "길", "판매")
+    private val categories = listOf("낚시", "조이스틱", "기준 장소", "길", "판매", "매크로")
     private val params = WindowManager.LayoutParams(
         WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
         WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
@@ -98,8 +102,6 @@ class Overlay(private val service: TapService) {
             val enabled = state.getJSONObject("settings").optBoolean("enabled")
             setTextColor(if (!enabled) MUTED else if (state.optBoolean("watching")) GREEN else YELLOW)
         }
-        if (phase == 3 && recording == null && inGame) showRecorder()
-        if (phase != 3 && recording != null) { service.routes.stop(); recording?.let { panel?.removeView(it) }; recording = null }
         run?.apply {
             setTextIfChanged(t(if (phase > 0) "정지" else "시작"))
         }
@@ -149,9 +151,10 @@ class Overlay(private val service: TapService) {
     }
 
     fun remove() {
+        ++actionRevision
+        macroRequest = false
         picker?.remove()
         picker = null
-        recording = null
         panel?.let { wm.removeView(it) }
         panel = null
         menu = null
@@ -161,12 +164,16 @@ class Overlay(private val service: TapService) {
     }
 
     fun contains(x: Float, y: Float): Boolean {
+        return intersects(x, y, x, y)
+    }
+
+    fun intersects(x0: Float, y0: Float, x1: Float, y1: Float): Boolean {
         val view = panel ?: return false
         if (picker != null) return true
         if (params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE != 0) return false
         val origin = IntArray(2)
         view.getLocationOnScreen(origin)
-        return x >= origin[0] && x < origin[0] + view.width && y >= origin[1] && y < origin[1] + view.height
+        return AgentTransport.intersects(x0, y0, x1, y1, origin[0], origin[1], origin[0] + view.width, origin[1] + view.height)
     }
 
     fun routePassThrough(packet: IntArray) {
@@ -193,7 +200,7 @@ class Overlay(private val service: TapService) {
     }
 
     private fun operation(operation: Int) {
-        if (operation == 0 && Native.overlayPhase() == 3) { service.routes.arrive(); return }
+        if (operation == 0) { ++actionRevision; macroRequest = false }
         Native.control(operation)?.let { Toast.makeText(service, t(it), Toast.LENGTH_SHORT).show() }
         refresh()
     }
@@ -261,50 +268,73 @@ class Overlay(private val service: TapService) {
         fun position(key: String, label: String) {
             item((if (points.has(key)) "✓ " else "· ") + t(label)) { pick(key, label) }
         }
-        fun route(sell: Boolean) {
-            heading(if (sell) "물고기 판매 장소" else "낚시 장소")
-            val count = data.optInt(if (sell) "sell" else "fish")
-            item(if (count > 0) "✓ " + count + " " + t("조각 저장됨") else "· " + t("길 없음"))
-            val row = LinearLayout(service)
-            row.addView(button("길 기록", MUTED) {}.apply { isEnabled = false; alpha = 0.6f })
-            row.addView(button("지우기", MUTED) {
-                feedback(Native.clearRoute(sell))
-                showMenu(category)
-            }.apply { isEnabled = false; alpha = 0.6f }, rowParams().apply { leftMargin = dp(4) })
-            body.addView(row, rowParams(4))
+        fun diagnostic(label: String, action: String, vararg required: String) {
+            val ready = inGame && required.all(points::has)
+            body.addView(button(label, MUTED) {
+                if (!inGame) { feedback("Roblox에서 실행하세요."); return@button }
+                if (Native.active()) { feedback("실행 중인 작업을 먼저 중지하세요."); return@button }
+                val size = service.screen()
+                val error = Native.navigationAction(action, size[0], size[1])
+                feedback(error)
+                if (error == null) closeMenu()
+                refresh()
+            }.apply { isEnabled = ready; if (!ready) alpha = 0.6f }, rowParams(4))
+        }
+        fun nativeAction(label: String, action: String, payload: JSONObject = JSONObject()) {
+            item(label) { macroAction(action, payload) }
+        }
+        fun destination(name: String, destination: String) {
+            heading(name)
+            nativeAction("이 장소로 이동", "go", JSONObject().put("destination", destination))
+            nativeAction("현재 장소 기억", "waypoint_mark", JSONObject().put("destination", destination))
         }
         when (category) {
             0 -> {
                 heading("낚시")
                 item("낚시 자동 보정") { closeMenu(); operation(1) }
-                item("DUA가 낚시를 제어합니다. 이동과 판매는 준비 중입니다.")
+                item("선택한 기능과 이동 · 판매를 DUA가 제어합니다.")
+                nativeAction("낚시 중지", "mfish_stop")
             }
             1 -> {
                 heading("조이스틱 (W · A · S · D)")
                 item(if (points.has("stick_edge")) "✓ " + t("조이스틱 저장됨") else "· " + t("조이스틱 없음 — 로블록스 설정 → 이동 방식: 조이스틱"))
-                item("조이스틱 찾기 (화면에서 자동으로)") { feedback("현재는 조이스틱을 직접 지정하세요.") }
                 item("조이스틱 직접 지정 (가운데 → 가장자리)") {
                     pick("stick_center", "조이스틱 가운데") { pick("stick_edge", "조이스틱 가장자리") }
                 }
                 heading("점프")
                 position("jump_btn", "점프 버튼 (오른쪽 아래)")
                 heading("테스트")
-                item("조이스틱 테스트 · 준비 중")
-                item("점프 테스트 · 준비 중")
+                diagnostic("앞으로", "forward", "stick_center", "stick_edge")
+                diagnostic("뒤로", "back", "stick_center", "stick_edge")
+                diagnostic("왼쪽", "left", "stick_center", "stick_edge")
+                diagnostic("오른쪽", "right", "stick_center", "stick_edge")
+                diagnostic("점프", "jump", "jump_btn")
+                diagnostic("이동하며 점프", "moving_jump", "stick_center", "stick_edge", "jump_btn")
             }
             2 -> {
                 heading("공통 위치 (기준 장소 맞추기)")
                 BASE.forEach { (key, label) -> position(key, label) }
                 heading("테스트")
-                item("기준 장소로 이동 · 준비 중")
+                nativeAction("기준 장소로 이동", "move_base")
+                nativeAction("현재 장소 기억", "waypoint_mark", JSONObject().put("destination", "base"))
             }
             3 -> {
-                route(false)
-                route(true)
-                item("저장한 길은 보존됩니다. 새 지도 기반 이동은 준비 중입니다.")
-                heading("테스트")
-                item("낚시 장소로 이동 · 준비 중")
-                item("판매 장소로 이동 · 준비 중")
+                item("현재 위치와 지형을 확인해 경로를 계산합니다.")
+                destination("낚시 장소", "coast")
+                destination("물고기 판매 장소", "sell")
+                destination("포션 제작 장소", "craft")
+                destination("메모리 매치 장소", "match")
+                nativeAction("목적지 관측 취소", "waypoint_cancel")
+                item("이동 정지") { operation(0) }
+                heading("화면 기반 이동 입력 확인")
+                diagnostic("카메라 위로", "camera_up")
+                diagnostic("줌 아웃", "zoom_out")
+                diagnostic("왼쪽", "left", "stick_center", "stick_edge")
+                diagnostic("오른쪽", "right", "stick_center", "stick_edge")
+                diagnostic("앞으로", "forward", "stick_center", "stick_edge")
+                diagnostic("뒤로", "back", "stick_center", "stick_edge")
+                diagnostic("점프", "jump", "jump_btn")
+                diagnostic("이동하며 점프", "moving_jump", "stick_center", "stick_edge", "jump_btn")
             }
             4 -> {
                 heading("대화")
@@ -312,11 +342,36 @@ class Overlay(private val service: TapService) {
                 position("dialog_pos", "대화창")
                 position("sell_fish_pos", "Sell Fish 버튼")
                 heading("상점")
-                item("판매 자동 보정 · 준비 중")
-                item("  판매 위치 " + SELL.count { points.has(it.first) } + " / 6 저장됨")
+                nativeAction("판매 자동 보정", "sell_autocal")
+                item(t("판매 위치 {0} / 6 저장됨").replace("{0}", SELL.count { points.has(it.first) }.toString()))
                 SELL.drop(2).forEach { (key, label) -> position(key, label) }
                 heading("테스트")
-                item("판매 테스트 · 준비 중")
+                nativeAction("판매 테스트", "sell_test")
+            }
+            5 -> {
+                heading("개별 기능 테스트")
+                item("기능 선택과 상세 설정은 앱의 홈 · 설정에서 변경합니다.")
+                nativeAction("CYBERSPACE 팝핑 테스트", "mpop_test", JSONObject().put("biome", "CYBERSPACE"))
+                nativeAction("GLITCHED 팝핑 테스트", "mpop_test", JSONObject().put("biome", "GLITCHED"))
+                nativeAction("DREAMSPACE 팝핑 테스트", "mpop_test", JSONObject().put("biome", "DREAMSPACE"))
+                nativeAction("주기 아이템 테스트", "mitem_test")
+                nativeAction("블러드 레인 테스트", "mblood_test")
+                nativeAction("상인 채팅 확인", "mmerch_check")
+                nativeAction("Mari 구매 테스트", "mmerch_buy_test", JSONObject().put("name", "Mari"))
+                nativeAction("Jester 구매 테스트", "mmerch_buy_test", JSONObject().put("name", "Jester"))
+                nativeAction("상점 자동 보정", "mmerch_autocal")
+                nativeAction("포션 제작 테스트", "mcraft_test")
+                nativeAction("제작 창 자동 보정", "mcraft_autocal")
+                nativeAction("메모리 매치 테스트", "mmatch_test")
+                nativeAction("메모리 매치 알림 보정", "mmatch_autocal")
+                nativeAction("카드 판 보정", "mmatch_boardcal")
+                nativeAction("인벤토리 OCR 확인", "mpop_ocr_test")
+                heading("접속 · 복귀")
+                nativeAction("내 서버 접속", "ret_join")
+                nativeAction("복귀 테스트", "ret_test")
+                nativeAction("Play 테스트", "play_test")
+                nativeAction("자동 복귀 취소", "crash_cancel")
+                item("모두 중지") { operation(0) }
             }
         }
         val scroller = ScrollView(service).apply { addView(body) }
@@ -334,15 +389,53 @@ class Overlay(private val service: TapService) {
         error?.let { Toast.makeText(service, t(it), Toast.LENGTH_SHORT).show() }
     }
 
-    private fun task(name: String) {
-        if (!inGame) {
-            feedback("Roblox에서 실행하세요.")
-            return
+    private fun macroAction(action: String, payload: JSONObject = JSONObject()) {
+        val cancelling = action.endsWith("_stop") || action == "waypoint_cancel" || action == "crash_cancel"
+        if (!inGame && !cancelling) { feedback("Roblox에서 실행하세요."); return }
+        if (macroRequest && !cancelling) { feedback("요청을 처리하고 있습니다. 잠시 기다려 주세요."); return }
+        if (cancelling) ++actionRevision
+        val revision = actionRevision
+        val generation = Native.generation()
+        payload.put("_generation", generation)
+        macroRequest = true
+        closeMenu()
+        Thread({
+            val error = try {
+                if (revision != actionRevision || generation != Native.generation()) "이전 실행 요청이 취소됐습니다."
+                else Native.macroAction(action, payload.toString())
+            } catch (error: RuntimeException) { error.message ?: "작업 요청을 처리하지 못했습니다." }
+            main.post {
+                if (revision == actionRevision) {
+                    macroRequest = false
+                    feedback(error)
+                }
+                refresh()
+            }
+        }, "acrux-overlay-action").start()
+    }
+
+    fun selectMacro(label: String, initial: List<Double>, region: Boolean, done: (List<Double>?) -> Unit) {
+        if (!inGame || Native.active() || picker != null) { done(null); return }
+        val view = panel
+        view?.visibility = View.GONE
+        fun finish(pos: List<Double>?) { picker = null; view?.visibility = View.VISIBLE; done(pos) }
+        fun second(first: Pair<Double, Double>) {
+            val at = if (initial.size == 4) Pair(initial[2], initial[3]) else null
+            picker = PositionPicker(service, label + " — " + t("오른쪽 아래"), at) { last ->
+                picker = null
+                if (last == null) finish(null)
+                else finish(listOf(minOf(first.first,last.first),minOf(first.second,last.second),maxOf(first.first,last.first),maxOf(first.second,last.second)))
+            }
         }
-        val error = Native.task(name)
-        feedback(error)
-        if (error == null) closeMenu()
-        refresh()
+        try {
+            val at = if (initial.size >= 2) Pair(initial[0], initial[1]) else null
+            picker = PositionPicker(service, label + (if (region) " — " + t("왼쪽 위") else ""), at) { first ->
+                picker = null
+                if (first == null) finish(null)
+                else if (region) second(first)
+                else finish(listOf(first.first,first.second))
+            }
+        } catch (error: RuntimeException) { finish(null) }
     }
 
     private fun pick(key: String, label: String, saved: (() -> Unit)? = null) {
@@ -371,18 +464,6 @@ class Overlay(private val service: TapService) {
         }
     }
 
-    private fun showRecorder() {
-        val view = panel ?: return
-        closeMenu()
-        val pad = LinearLayout(service).apply { orientation = LinearLayout.VERTICAL }
-        try { service.routes.beginRecord() }
-        catch (error: RuntimeException) { feedback(error.message); Native.control(0); return }
-        pad.addView(button("도착", ACCENT) { service.routes.arrive() }, rowParams(6))
-        pad.addView(button("취소", RED) { service.routes.cancelRecord(); refresh() }, rowParams(4))
-        view.addView(pad, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
-        recording = pad
-    }
-
     private inner class Panel : LinearLayout(service) {
         private val slop = ViewConfiguration.get(service).scaledTouchSlop
         private var startX = 0f
@@ -400,7 +481,7 @@ class Overlay(private val service: TapService) {
                 x = params.x
                 y = params.y
                 moving = false
-                inMenu = recording != null || menu?.let { event.y >= it.top } == true
+                inMenu = menu?.let { event.y >= it.top } == true
             }
             if (!inMenu && event.actionMasked == MotionEvent.ACTION_MOVE && dragged(event)) {
                 moving = true

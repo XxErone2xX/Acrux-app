@@ -206,7 +206,7 @@
     <nav class="side">
       <button class="item deco" data-sec="mf-base"><b>공통 위치</b><span>여러 기능이 같이 쓰는 위치</span></button>
       <button class="item deco feat-item" data-sec="mf-pop" data-feat-item="mpop"><b>레어 바이옴 자동 팝핑</b><span data-feat-sub="mpop">내 서버에서 포션 사용</span><i class="feat-dot"></i></button>
-      <button class="item deco feat-item" data-sec="mf-fish" data-feat-item="mfish"><b>자동 낚시</b><span data-feat-sub="mfish" data-desktop-text="던지기 · 릴링">던지기 · 릴링 · 판매</span><i class="feat-dot"></i></button>
+      <button class="item deco feat-item" data-sec="mf-fish" data-feat-item="mfish"><b>자동 낚시</b><span data-feat-sub="mfish" data-desktop-text="던지기 · 릴링 · 판매">던지기 · 릴링 · 판매</span><i class="feat-dot"></i></button>
       <button class="item deco feat-item" data-sec="mf-item" data-feat-item="mitem"><b>오토 아이템 사용</b><span data-feat-sub="mitem">쿨타임마다 사용</span><i class="feat-dot"></i></button>
       <button class="item deco feat-item" data-sec="mf-merchant" data-feat-item="mmerch"><b>상인 자동 구매</b><span data-feat-sub="mmerch">마리 · 제스터</span><i class="feat-dot"></i></button>
       <button class="item deco feat-item" data-sec="mf-craft" data-feat-item="mcraft"><b>포션 자동 제작</b><span data-feat-sub="mcraft">Auto Crafted · 재료 채우기</span><i class="feat-dot"></i></button>
@@ -257,7 +257,7 @@
           <button class="btn ghost" id="mfishCheck">상태 확인</button>
           <button class="btn ghost mini" data-feat-tut="mfish">설정 안내</button>
           <button class="btn ghost" id="mfishStop">정지</button></div>
-        <p class="hint" data-stop-shortcut data-desktop-text="앱 전용 게임에서 자동 낚시 · 가득 차면 중지 · 이동과 판매는 준비 중 · 정지: 앱의 중지 버튼">매크로가 켜져 있는 동안 낚시 장소에서 계속 낚시 · 가득 차면 팔고 돌아옴 · 정지: F7</p>
+        <p class="hint" data-stop-shortcut data-desktop-text="앱 전용 게임에서 자동 낚시 · 지형을 확인하며 이동 · 가득 차면 팔고 돌아옴 · 정지: 앱의 중지 버튼">매크로가 켜져 있는 동안 낚시 장소에서 계속 낚시 · 가득 차면 팔고 돌아옴 · 정지: F7</p>
         <div class="card form" id="mfishForm" data-jump-label="켜기"></div>
         <div class="grp">
           <div class="grp-head"><b>세부 설정</b></div>
@@ -476,15 +476,15 @@
       <div class="sec" data-sec="ac-ocr">
         <div class="sec-head"><h2>OCR 감지 방식</h2></div>
         <div class="card form">
-          <label class="row"><span>OCR 엔진<small>오토 팝핑 · 레어 바이옴 자동 팝핑에서 아이템 이름 · 개수를 읽을 때 씀</small></span>
+          <label class="row"><span>OCR 엔진<small id="acOcrDescription">오토 팝핑 · 레어 바이옴 자동 팝핑에서 아이템 이름 · 개수를 읽을 때 씀</small></span>
             <select id="acOcr">
               <option value="auto">자동 (추천)</option>
               <option value="rapid">RapidOCR</option>
               <option value="windows">윈도우 OCR</option>
             </select></label>
-          <div class="row"><span>지금 쓰는 엔진<small>RapidOCR 를 골랐어도 설치가 안 돼 있으면 윈도우 OCR 을 씀</small></span><b id="acOcrNow">-</b></div>
+          <div class="row"><span>지금 쓰는 엔진<small id="acOcrSelection">RapidOCR 를 골랐어도 설치가 안 돼 있으면 윈도우 OCR 을 씀</small></span><b id="acOcrNow">-</b></div>
         </div>
-        <div class="card form ac-ocr-help">
+        <div class="card form ac-ocr-help" id="acOcrHelp">
           <p class="hint"><b>자동</b>: RapidOCR 가 있으면 RapidOCR, 없으면 윈도우 OCR</p>
           <p class="hint"><b>RapidOCR</b>: 게임 글자(테두리 · 배경색)에 강하고 더 정확함 · 처음 한 번 불러올 때 조금 느림</p>
           <p class="hint"><b>윈도우 OCR</b>: 윈도우 기본 기능 · 가볍지만 덜 정확함 · 윈도우 언어팩(한국어/영어) 필요</p>

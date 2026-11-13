@@ -69,7 +69,7 @@ const persist = () => {
   removeRetiredSettings(config);
   localStorage.setItem(key, JSON.stringify({ ...config, macro_on: false }));
 };
-const modsError = "PC 3.0의 Python 모드는 아직 Tauri에 이식되지 않았습니다.";
+
 const stopped = ["stopped", "중지됨"];
 const featureKeys = ["mpop", "mfish", "mitem", "mmerch", "mcraft", "mmatch", "mblood"] as const;
 const enabledFeatures = () => featureKeys.filter(key => (config[key] as Bag).enabled === true);
@@ -442,32 +442,48 @@ async function pickDesktop(): Promise<Position> {
 }
 
 let desktopRevision = 0;
-async function syncDesktop(featuresChanged: boolean, toggle: boolean) {
-  const revision = ++desktopRevision;
-  try {
-    const current = await status();
-    if (revision !== desktopRevision) return;
-    if (!config.macro_on) {
-      if (current.dua.running || toggle) await control("stop");
-      return;
-    }
-    if (current.dua.running) {
-      if (featuresChanged) {
-        await control("stop");
-        throw new Error("실행할 기능이 바뀌어 DUA를 중지했습니다. 다시 시작하세요.");
-      }
-      return;
-    }
-    if (!current.dua.background || current.session.state !== "ready") throw new Error("앱 전용 게임을 먼저 여세요.");
-    await releaseGameInput?.();
-    if (revision !== desktopRevision || !config.macro_on) return;
-    await invoke<Status>("desktop_start", { features: enabledFeatures(), generation: current.generation });
-  } catch (error) {
-    if (revision === desktopRevision) throw error;
-  }
+let desiredMacro = false;
+let desktopPending = 0;
+async function syncDesktop(revision = desktopRevision) {
+  const current = await status();
+  if (revision !== desktopRevision || !config.macro_on) return;
+  if (current.dua.running) return;
+  if (!current.dua.background || current.session.state !== "ready") throw new Error("앱 전용 게임을 먼저 여세요.");
+  await releaseGameInput?.();
+  if (revision !== desktopRevision || !config.macro_on) return;
+  await invoke<Status>("desktop_start", { features: enabledFeatures(), generation: current.generation });
 }
 
-const pendingNavigation = "지도 기반 이동은 준비 중입니다. 게임 화면에서 직접 장소를 맞춰 주세요.";
+let configLoaded: Promise<void> | undefined;
+async function loadNativeConfig() {
+  if (!configLoaded) configLoaded = (async () => {
+    const native = await invoke<Config>("macro_settings");
+    if (!native || typeof native !== "object" || Array.isArray(native)) throw new Error("저장된 매크로 설정을 읽을 수 없습니다.");
+    for (const [group, fallback] of Object.entries(defaults)) {
+      if (fallback && typeof fallback === "object" && !Array.isArray(fallback)) {
+        native[group] = { ...structuredClone(fallback), ...(native[group] as Bag ?? {}) };
+      }
+    }
+    Object.assign(config, native, { macro_on: false });
+    removeRetiredSettings(config);
+    persist();
+  })().catch(error => { configLoaded = undefined; throw error; });
+  return configLoaded;
+}
+let configSaves = Promise.resolve();
+async function saveNativeConfig() {
+  const running = config.macro_on;
+  const native = await invoke<Config>("save_macro_settings", { config: { ...structuredClone(config), macro_on: false } });
+  Object.assign(config, native, { macro_on: running && config.macro_on });
+  persist();
+}
+async function nativeAction(action: string, payload: Bag = {}) {
+  const current = await status();
+  return invoke<Bag>("automation_action", { action, payload, generation: current.generation });
+}
+async function service(action: string, payload: Bag = {}) {
+  return invoke<Bag>("service_action", { action, payload });
+}
 
 function biomeSettings(source: Bag): BiomeSettings {
   return {
@@ -482,42 +498,132 @@ function biomeSettings(source: Bag): BiomeSettings {
 }
 
 async function setConfig(patch: Bag) {
-  if (patch.biome) {
-    const source = patch.biome as Bag;
-    try {
-      await saveBiome(biomeSettings(source));
-    } catch (error) { reportError(String(error)); return saved(); }
+  if (!patch || typeof patch !== "object" || Array.isArray(patch)) throw new Error("저장할 설정을 확인하세요.");
+  // Stop is deliberately outside the save queue so it can invalidate a pending start.
+  if ("macro_on" in patch) desiredMacro = patch.macro_on === true;
+  if (patch.macro_on === false) {
+    ++desktopRevision;
+    config.macro_on = false;
+    await cancelDesktopPick();
+    await control("stop");
+    persist();
+    if (Object.keys(patch).length === 1) return saved();
   }
-  if ("online_share" in patch) await invoke("save_online", { share: patch.online_share !== false });
-  const fish = patch.mfish as Bag | undefined;
-  if (fish) {
+  const revision = ++desktopRevision;
+  desktopPending++;
+  const save = configSaves.then(async () => {
+    await loadNativeConfig();
+    if (patch.biome) await saveBiome(biomeSettings(patch.biome as Bag));
+    if ("online_share" in patch) await invoke("save_online", { share: patch.online_share !== false });
+    const previous = JSON.stringify({ ...config, macro_on: false });
+    const next = { ...structuredClone(config), ...structuredClone(patch), macro_on: false } as Config;
+    removeRetiredSettings(next);
+    const changed = previous !== JSON.stringify(next);
     const current = await status();
-    const tuning = { ...current.tuning };
-    for (const [ui, rust] of Object.entries(tuningKeys)) {
-      const next = fish[ui];
-      if (typeof next === "number") tuning[rust] = next;
-    }
-    if (JSON.stringify(tuning) !== JSON.stringify(current.tuning)) {
-      try { await saveTuning(tuning); } catch (error) {
-        reportError(String(error));
-        for (const [ui, rust] of Object.entries(tuningKeys)) fish[ui] = current.tuning[rust];
+    if (changed && (current.dua.running || current.phase !== "idle")) await control("stop");
+    Object.assign(config, next, { macro_on: desiredMacro });
+    if (changed) {
+      const fish = patch.mfish as Bag | undefined;
+      if (fish) {
+        const tuning = { ...current.tuning };
+        for (const [ui, rust] of Object.entries(tuningKeys)) if (typeof fish[ui] === "number") tuning[rust] = fish[ui] as number;
+        if (JSON.stringify(tuning) !== JSON.stringify(current.tuning)) await saveTuning(tuning);
       }
+      await saveNativeConfig();
     }
+    if (revision === desktopRevision && config.macro_on) await syncDesktop(revision);
+    persist();
+    return saved();
+  });
+  configSaves = save.then(() => undefined, () => undefined);
+  try { return await save; } catch (error) {
+    if (revision === desktopRevision) { desiredMacro = false; config.macro_on = false; persist(); reportError(String(error)); }
+    return saved();
+  } finally { desktopPending--; }
+}
+
+async function pickFile() {
+  return new Promise<Bag>(resolve => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".acxm,.acrux,.zip";
+    input.hidden = true;
+    const finish = (value: Bag) => { input.remove(); resolve(value); };
+    input.addEventListener("cancel", () => finish({ cancel: true }));
+    input.addEventListener("change", async () => {
+      const file = input.files?.[0];
+      if (!file) return finish({ cancel: true });
+      if (file.size > 30 * 1024 * 1024) return finish({ error: "모드 파일은 30MB 이하로 고르세요." });
+      try { finish(await service("mods_install", { name: file.name, bytes: Array.from(new Uint8Array(await file.arrayBuffer())) })); }
+      catch (error) { finish({ error: String(error) }); }
+    });
+    document.body.append(input);
+    input.click();
+  });
+}
+
+async function pickSetting(feat: string, key: string, region: boolean) {
+  await loadNativeConfig();
+  if (!Object.hasOwn(config, feat) || !["base", "mfish", "mmerch", "mcraft", "mmatch", "play", "move"].includes(feat)
+      || !/^[a-z_]+$/.test(key)) throw new Error("저장할 위치를 확인하세요.");
+  const first = await pickDesktop();
+  let pos: number[] = first;
+  if (region) {
+    const second = await pickDesktop();
+    pos = [Math.min(first[0], second[0]), Math.min(first[1], second[1]), Math.max(first[0], second[0]), Math.max(first[1], second[1])];
+    if (pos[0] === pos[2] || pos[1] === pos[3]) throw new Error("영역의 서로 다른 두 모서리를 고르세요.");
   }
-  const previousFeatures = enabledFeatures().join();
-  Object.assign(config, patch);
-  if ("macro_on" in patch || featureKeys.some(key => key in patch)) {
-    try { await syncDesktop(previousFeatures !== enabledFeatures().join(), "macro_on" in patch); } catch (error) {
-      config.macro_on = false;
-      reportError(String(error));
+  const group = config[feat] as Bag;
+  group[key] = pos;
+  await saveNativeConfig();
+  return { [feat]: structuredClone(group), pos };
+}
+
+const calibrations = new Set<string>();
+async function calibration(action: string, group: string) {
+  if (calibrations.has(action)) {
+    await nativeAction(group + "_stop");
+    throw new Error("자동 보정 취소");
+  }
+  const before = await status();
+  if (before.dua.running || before.phase !== "idle") throw new Error("실행 중인 작업을 먼저 중지하세요.");
+  calibrations.add(action);
+  try {
+    const result = await nativeAction(action);
+    const baseline = result.automation as Bag;
+    const generation = result.generation;
+    for (let i = 0; i < 480; i++) {
+      await new Promise(resolve => setTimeout(resolve, 250));
+      const s = await status() as Status & { automation?: Bag };
+      const a = s.automation;
+      if (s.generation !== generation) throw new Error("자동 보정 요청이 취소됐습니다.");
+      if (!a) throw new Error("자동 보정 상태를 읽을 수 없습니다.");
+      if (Number(a.failed ?? 0) > Number(baseline?.failed ?? 0)) throw new Error(String(a.message || s.message));
+      if (Number(a.completed ?? 0) > Number(baseline?.completed ?? 0)) {
+        const next = await invoke<Config>("macro_settings");
+        Object.assign(config, next, { macro_on: config.macro_on });
+        persist();
+        return { ...result, [group]: structuredClone(config[group]), done: a.message };
+      }
+      if (!a.running && !a.active && !a.queued) throw new Error(String(a.message || s.message || "자동 보정이 중지됐습니다."));
     }
-  }
-  persist();
-  return saved();
+    await nativeAction(group + "_stop");
+    throw new Error("자동 보정 시간이 초과되었습니다. 게임 화면과 기록을 확인하세요.");
+  } finally { calibrations.delete(action); }
 }
 
 let last = "";
 let seq = 0;
+let haveMods = false;
+const seenNativeLogs = new Set<string>();
+const openedAt = Date.now() / 1000;
+async function hook(event: string, args: unknown[] = []) {
+  return haveMods ? service("mods_hook", { event, args }) : {} as Bag;
+}
+function numberStats(value: unknown): Record<string, number> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter(([, value]) => typeof value === "number" && Number.isFinite(value)).map(([key, value]) => [key, Math.trunc(value as number)]));
+}
 async function desktopApi(name: string, payload: Bag) {
   try { return await request(name, payload); }
   catch (error) { return { error: error instanceof Error ? error.message : String(error) }; }
@@ -526,7 +632,10 @@ async function desktopApi(name: string, payload: Bag) {
 async function request(name: string, payload: Bag) {
   switch (name) {
     case "state": {
+      await loadNativeConfig();
       const s = await status();
+      const mods = await service("mods_list");
+      haveMods = Array.isArray(mods.mods) && mods.mods.some((mod: Bag) => mod.loaded === true);
       let biome = await biomeStatus();
       if (!localStorage.getItem("acrux.desktop.biome-migrated")) {
         if (!biome.settings.enabled && !biome.settings.player && !biome.settings.webhooks.length && config.biome) {
@@ -542,31 +651,68 @@ async function request(name: string, payload: Bag) {
       const online = await invoke<{ share: boolean }>("online_status");
       config.online_share = online.share;
       applyStatus(s);
-      return { ...saved(), version: s.version, status: desktopStatus(s), dua: s.dua, session: s.session, mods: [], mods_error: modsError };
+      const output = { ...saved(), version: s.version, status: desktopStatus(s), dua: s.dua, session: s.session, mods: mods.mods ?? [], mods_error: mods.error };
+      const changed = await hook("state", [output]);
+      return Array.isArray(changed.args) && changed.args[0] && typeof changed.args[0] === "object" ? changed.args[0] : output;
     }
     case "poll": {
       const s = await status();
       const biome = await biomeStatus();
       const online = await invoke<{ online: number | null }>("online_status");
-      const move = { running: false, msg: pendingNavigation, measuring: null };
-      if (!s.dua.running && s.phase === "idle" && config.macro_on) config.macro_on = false;
+      const automation = (s as Status & { automation?: Bag }).automation ?? {};
+      const native = await service("runtime_metadata");
+      const active = automation.active as Bag | null;
+      const activity = (kind: string) => ({ running: !!automation.running && active?.kind === kind, msg: String(automation.message ?? s.message) });
+      const move = { ...activity("go"), running: s.phase === "moving" || active?.kind === "go", measuring: null };
+      if (!s.dua.running && s.phase === "idle" && config.macro_on && !desktopPending) { desiredMacro = false; config.macro_on = false; }
       const message = s.dua.running ? `DUA · ${s.dua.route ?? "대기"} · ${s.dua.reason} · ${s.message}` : s.message;
       const logs = message === last ? [] : [{ seq: ++seq, time: Date.now() / 1000, msg: message, color: "d" }];
       last = message;
-      return {
+      for (const line of native.logs as { time: number; msg: string }[] ?? []) {
+        const id = `${line.time}:${line.msg}`;
+        if (!seenNativeLogs.has(id)) { logs.push({ seq: ++seq, time: line.time, msg: line.msg, color: "d" }); seenNativeLogs.add(id); }
+      }
+      while (seenNativeLogs.size > 600) seenNativeLogs.delete(seenNativeLogs.values().next().value!);
+      const used = automation.used as Bag ?? {};
+      const bought = Object.values(automation.bought as Bag ?? {}).reduce<number>((sum, value) => sum + Number(value), 0);
+      const sessionStats: Record<string, number> = {
+        fish_success: s.stats.success, fish_junk: s.stats.junk, fish_fail: s.stats.fail, fish_full: s.stats.full,
+        item_strange: Number(used["Strange Controller"] ?? 0), item_randomizer: Number(used["Biome Randomizer"] ?? 0),
+        blood_used: Number(used["Cursed Rune Fragment"] ?? 0), merch_bought: bought,
+        crafted: Number(automation.crafted ?? 0), match_played: Number(automation.played ?? 0), match_ads: Number(automation.ads ?? 0),
+      };
+      const statsHook = await hook("stats");
+      for (const extra of statsHook.results as unknown[] ?? []) Object.assign(sessionStats, numberStats(extra));
+      const output: Bag = {
         biome: { current: biome.current, history: biome.history, owner: biome.owner, log: biome.watching },
         online: online.online, online_on: true,
         seq, logs, status: desktopStatus(s), dua: s.dua, session: s.session,
         roblox: s.gameAvailable, macro_on: config.macro_on, move,
-        mfish: { running: s.phase !== "idle", msg: s.message, stats: s.stats },
+        mfish: { running: ["searching", "casting", "waiting", "reeling", "result", "selling"].includes(s.phase), msg: s.message, stats: s.stats },
+        mpop: activity("pop"), mblood: { ...activity("blood"), used: sessionStats.blood_used },
+        mitem: { ...activity("items"), items: Object.fromEntries(["strange", "randomizer"].map(key => [key, { on: (config.mitem as Bag)[key], used: key === "strange" ? sessionStats.item_strange : sessionStats.item_randomizer, left: Math.max(0, Number((automation.itemNext as Bag ?? {})[key] ?? 0) - Number(automation.clock ?? 0)) }])) },
+        mmerch: { ...activity("merchant"), bought },
+        mcraft: { ...activity("craft"), crafted: automation.crafted ?? 0 },
+        mmatch: { ...activity("match"), played: automation.played ?? 0, ads: automation.ads ?? 0, next_in: Math.max(0, Number(automation.nextMatch ?? 0) - Number(automation.clock ?? 0)) },
+        play: activity("play"), ret: activity("return"), automation,
+        crash: automation.recoveryLeft == null ? null : { left: Number(automation.recoveryLeft) },
+        stats: { session: sessionStats, all: { ...numberStats(native.stats), fish_success: s.totals.success, fish_junk: s.totals.junk, fish_fail: s.totals.fail, fish_full: s.totals.full }, since: (native.stats as Bag | undefined)?.since, started: openedAt },
       };
+      if (haveMods) {
+        const hooked = await hook("poll", [output, Number(payload.since ?? 0)]);
+        if (Array.isArray(hooked.args) && hooked.args[0] && typeof hooked.args[0] === "object") return hooked.args[0];
+      }
+      return output;
     }
-    case "mods_list":
     case "mods_install":
-    case "mods_toggle":
-    case "mods_remove":
-    case "mods_folder":
-      return { error: modsError };
+      return payload.path || payload.bytes ? service(name, payload) : pickFile();
+    case "mods_list": case "mods_toggle": case "mods_remove": case "mods_folder":
+    case "open_web": case "open_folder": case "restart": case "changelog":
+    case "update_state": case "update_check": case "update_download": case "update_install":
+      return service(name, payload);
+    case "uninstall":
+      // The existing PC confirmation dialog calls this only after confirmYes.
+      return service(name, { confirm: true });
     case "webhook_test":
       await invoke("biome_test");
       return { queued: true };
@@ -596,17 +742,20 @@ async function request(name: string, payload: Bag) {
       applyStatus(s);
       return { mfish: { ...config.mfish }, done: "낚시 대기 창 · 미니게임 창" };
     }
-    case "move_base":
-    case "move_place":
-    case "move_test":
+    case "move_base": case "move_base_rev": case "move_place": case "move_test":
+      return nativeAction(name, { ...payload, i: payload.place ?? payload.i });
     case "move_pick":
+      return nativeAction("waypoint_mark", { destination: payload.destination ?? "coast" });
     case "move_arrive":
-    case "sell_test":
-      return { error: pendingNavigation };
+      return nativeAction("waypoint_cancel");
+    case "move_quest_pick":
+      return pickSetting("move", "quest_exit_pos", false);
     case "move_get":
+      Object.assign(config, await invoke<Config>("macro_settings"), { macro_on: config.macro_on });
       return { move: structuredClone(config.move) };
     case "move_stop":
       ++desktopRevision;
+      desiredMacro = false;
       config.macro_on = false;
       await cancelDesktopPick();
       await control("stop");
@@ -622,6 +771,7 @@ async function request(name: string, payload: Bag) {
       await gameInputCleanup;
       await cancelDesktopPick();
       ++desktopRevision;
+      desiredMacro = false;
       config.macro_on = false;
       return { session: await invoke<SessionStatus>("desktop_session_stop") };
     case "game_view":
@@ -631,37 +781,40 @@ async function request(name: string, payload: Bag) {
       ++gameViewRevision;
       closeGameView?.();
       return {};
-    case "mpos_point": {
-      const feat = String(payload.feat);
-      const key = String(payload.key);
-      if (!["base", "mfish", "mmerch", "mcraft", "mmatch"].includes(feat) || !/^[a-z_]+$/.test(key)) {
-        return { error: "저장할 위치를 확인하세요." };
-      }
-      if (feat === "mfish" && ["fish_btn", "close_pos", "title_pos"].includes(key)) {
-        return { error: "낚시 위치는 자동 보정을 사용하세요." };
-      }
-      const pos = await pickDesktop();
-      const group = config[feat] as Bag;
-      group[key] = pos;
-      persist();
-      return { [feat]: structuredClone(group), pos };
-    }
+    case "mpos_point": case "mpos_region":
+      return pickSetting(String(payload.feat), String(payload.key), name === "mpos_region");
+    case "play_pos":
+      return pickSetting("play", payload.which === "play" ? "pos" : payload.which === "skip" ? "skip_pos" : "", false);
     case "mfish_stop": {
       ++desktopRevision;
+      desiredMacro = false;
       config.macro_on = false;
       const current = await status();
       if (current.dua.running || current.phase !== "calibrating") await control("stop");
       return {};
     }
     case "mfish_check":
-      return (await status()).calibrated ? { bar: "보정됨" } : { error: "자동 보정을 먼저 실행하세요." };
-    case "mpop_stop":
-      return {};
-    default: {
-      const error = "이 기능의 실행은 아직 Tauri 미리보기에 연결되지 않았습니다.";
-      reportError(error);
-      return { error };
+      return nativeAction(name, payload);
+    case "sell_autocal": return calibration(name, "mfish");
+    case "mmerch_autocal": return calibration(name, "mmerch");
+    case "mcraft_autocal": return calibration(name, "mcraft");
+    case "mmatch_autocal": case "mmatch_boardcal": return calibration(name, "mmatch");
+    case "mpop_default": {
+      const result = await nativeAction(name, payload);
+      ((config.mpop as Bag).templates as Bag)[String(payload.biome).toUpperCase()] = result.template;
+      persist();
+      return result;
     }
+    case "mpop_test": case "mpop_stop": case "mpop_ocr_test":
+    case "mitem_test": case "mitem_stop": case "mblood_test": case "mblood_stop":
+    case "mmerch_check": case "mmerch_buy_test": case "mmerch_stop":
+    case "mcraft_test": case "mcraft_stop": case "mmatch_test": case "mmatch_stop":
+    case "go": case "waypoint_mark": case "waypoint_cancel":
+    case "sell_test": case "ret_join": case "ret_test": case "play_test": case "play_stop":
+    case "crash_cancel": case "ocr_info": case "ocr_test":
+      return nativeAction(name, payload);
+    default:
+      return service("mods_call", { name, payload });
   }
 }
 

@@ -6,7 +6,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: apple-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   macos:
@@ -47,3 +51,15 @@ jobs:
           name: Acrux-macos-universal
           path: Acrux-macos-universal.zip
           if-no-files-found: error
+      - name: Publish macOS alpha update
+        if: github.ref == 'refs/heads/dev'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shasum -a 256 Acrux-macos-universal.zip | cut -d' ' -f1 > Acrux-macos-universal.zip.sha256
+          short=${GITHUB_SHA::7}
+          gh release view alpha --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create alpha --prerelease --latest=false --target "$GITHUB_SHA" --title "Acrux Alpha ($short)" --notes "Acrux alpha · experimental dev build" --repo "$GITHUB_REPOSITORY" || \
+            gh release view alpha --repo "$GITHUB_REPOSITORY"
+          gh release upload alpha Acrux-macos-universal.zip Acrux-macos-universal.zip.sha256 --clobber --repo "$GITHUB_REPOSITORY"

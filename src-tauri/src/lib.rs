@@ -1,19 +1,30 @@
 #[cfg(target_os = "android")]
 mod android;
+mod automation;
 mod biome;
+mod device;
 mod discord;
 mod fishing;
 #[cfg(target_os = "linux")]
 mod linux;
 mod navigation;
+mod navigator;
 mod online;
 pub mod pathfinding;
 mod phone;
+mod scene;
+mod sdk;
+mod services;
 pub mod travel;
 mod vision;
+mod wayfinder;
 
 #[cfg(target_os = "linux")]
 use linux as desktop;
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+mod desktop_native;
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+use desktop_native as desktop;
 
 use fishing::{Calibration, CalibrationPositions, Fishing, Phase, Stats, Tuning};
 use navigation::{Job, Motion, Navigation, Options, Place, Task, Tick};
@@ -48,9 +59,9 @@ struct Runtime {
     capture: bool,
     input: bool,
     totals: Stats,
-    log: VecDeque<(i64, &'static str)>,
+    log: VecDeque<(i64, String)>,
     macro_since: Option<i64>,
-    logged: Option<&'static str>,
+    logged: Option<String>,
     navigation: Navigation,
     job: Option<Job>,
     empty_sales: u8,
@@ -60,6 +71,23 @@ struct Runtime {
     dua: DuaStatus,
     resume_after_calibration: bool,
     phone: phone::State,
+    device_action: Option<device::Action>,
+    automation: Option<automation::Runner>,
+    wayfinder: Option<wayfinder::Wayfinder>,
+    macro_settings: serde_json::Value,
+    macro_message: Option<String>,
+    ocr_words: Vec<automation::Word>,
+    request_ocr: bool,
+    observed_biome: Option<(String, u64)>,
+    wayfinding: wayfinder::Settings,
+    game_observed: bool,
+    game_disconnected: bool,
+    last_automation: serde_json::Value,
+    last_geometry: Option<(usize, usize)>,
+    sdk_request: Option<sdk::Request>,
+    fishing_settings_dirty: bool,
+    target_missing: bool,
+    frame_expires: Option<f64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -86,7 +114,12 @@ struct DuaStatus {
 impl Default for DuaStatus {
     fn default() -> Self {
         Self {
-            supported: cfg!(any(target_os = "linux", target_os = "android")),
+            supported: cfg!(any(
+                target_os = "linux",
+                target_os = "windows",
+                target_os = "macos",
+                target_os = "android"
+            )),
             running: false,
             route: None,
             reason: "DUA 대기 중",
@@ -129,9 +162,9 @@ impl Default for BackgroundStatus {
     }
 }
 fn background_status() -> BackgroundStatus {
-    #[cfg(target_os = "linux")]
-    return linux::session_status();
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(desktop)]
+    return desktop::session_status();
+    #[cfg(not(desktop))]
     BackgroundStatus::default()
 }
 pub fn session_helper() -> Option<i32> {
@@ -172,6 +205,8 @@ struct Profile {
     navigation: Navigation,
     #[serde(rename = "discordLink")]
     discord_link: discord::Settings,
+    macro_settings: serde_json::Value,
+    wayfinding: wayfinder::Settings,
 }
 
 #[derive(Serialize)]
@@ -186,7 +221,7 @@ struct Status {
     calibrated: bool,
     positions: Option<CalibrationPositions>,
     phase: Phase,
-    message: &'static str,
+    message: String,
     settings_error: Option<String>,
     stats: Stats,
     totals: Stats,
@@ -195,6 +230,7 @@ struct Status {
     measured_seconds: Option<f64>,
     dua: DuaStatus,
     generation: i32,
+    automation: serde_json::Value,
 }
 
 #[derive(Serialize)]
@@ -209,6 +245,8 @@ struct NavigationStatus<'a> {
 enum GameInput {
     Tap(fishing::Tap),
     Motion(Motion),
+    Gesture(device::Gesture),
+    Command(automation::Command),
 }
 
 enum DeviceTick {
@@ -218,6 +256,39 @@ enum DeviceTick {
 }
 
 impl Runtime {
+    fn macro_config(&self) -> serde_json::Value {
+        let mut config: serde_json::Value = if self.macro_settings.is_object() {
+            self.macro_settings.clone()
+        } else {
+            let mut defaults: serde_json::Value =
+                serde_json::from_str(include_str!("../../frontend/desktop-defaults.json"))
+                    .expect("bundled macro defaults");
+            defaults["useMove"] = true.into();
+            defaults["useSell"] = true.into();
+            defaults
+        };
+        for key in [
+            "stick_center",
+            "stick_edge",
+            "jump_btn",
+            "talk_btn",
+            "chat_pos",
+            "collection_pos",
+            "collection_close",
+            "dialog_pos",
+        ] {
+            if config["base"][key].is_null() {
+                config["base"][key] = self
+                    .navigation
+                    .positions
+                    .get(key)
+                    .map(|p| serde_json::json!([p.0, p.1]))
+                    .unwrap_or(serde_json::Value::Null);
+            }
+        }
+        config
+    }
+
     fn status(&self) -> Status {
         Status {
             platform: std::env::consts::OS,
@@ -233,7 +304,7 @@ impl Runtime {
             calibrated: self.fishing.calibration.is_some(),
             positions: self.fishing.calibration.map(Calibration::positions),
             phase: self.phase(),
-            message: self.message(),
+            message: self.message().to_owned(),
             settings_error: self.settings_error.clone(),
             stats: self.fishing.stats,
             totals: self.totals,
@@ -242,6 +313,11 @@ impl Runtime {
             measured_seconds: self.measured_seconds,
             dua: self.dua,
             generation: self.generation,
+            automation: self
+                .automation
+                .as_ref()
+                .map(|runner| serde_json::to_value(runner.status()).unwrap_or_default())
+                .unwrap_or_else(|| self.last_automation.clone()),
         }
     }
 
@@ -255,6 +331,8 @@ impl Runtime {
                     self.fishing.calibration = profile.calibration;
                     self.totals = profile.totals;
                     self.navigation = profile.navigation;
+                    self.macro_settings = profile.macro_settings;
+                    self.wayfinding = profile.wayfinding;
                     self.navigation.fit_positions();
                     #[cfg(any(
                         target_os = "windows",
@@ -265,8 +343,8 @@ impl Runtime {
                     {
                         // Retain saved positions, but never resume retired timed
                         // travel when upgrading to the private game runtime.
-                        self.navigation.options.use_move = false;
-                        self.navigation.options.use_sell = false;
+                        // Old timed routes stay as data; the DUA reads the
+                        // user's movement/sale choices from macro settings.
                     }
                     if let Err(error) = self.navigation.options.validate() {
                         self.navigation.options = Options::default();
@@ -315,6 +393,8 @@ impl Runtime {
             totals: self.totals,
             navigation: self.navigation.clone(),
             discord_link,
+            macro_settings: self.macro_config(),
+            wayfinding: self.wayfinding.clone(),
         })
         .map_err(|error| error.to_string())?;
         let temporary = path.with_extension("tmp");
@@ -346,6 +426,10 @@ impl Runtime {
         geometry: (usize, usize),
         frame: Option<&vision::Frame<'_>>,
     ) -> DeviceTick {
+        self.request_ocr = false;
+        if frame.is_none() {
+            self.frame_expires = None;
+        }
         if !self.active() {
             return DeviceTick::Wait;
         }
@@ -355,6 +439,54 @@ impl Runtime {
         {
             self.stop("게임 화면 크기를 확인할 수 없어 DUA를 중지했습니다.");
             return DeviceTick::Wait;
+        }
+        let resized = self.last_geometry != Some(geometry);
+        self.target_missing = false;
+        self.last_geometry = Some(geometry);
+        if resized || self.fishing_settings_dirty {
+            if let Err(error) = self
+                .fishing
+                .configure(&self.macro_config()["mfish"], geometry)
+            {
+                self.stop_automation(error);
+                return DeviceTick::Wait;
+            }
+        }
+        if self.fishing_settings_dirty {
+            self.fishing_settings_dirty = false;
+            match Calibration::manual(&self.macro_config()["mfish"], geometry) {
+                Ok(calibration) => self.fishing.calibration = calibration,
+                Err(error) => {
+                    self.stop_automation(error);
+                    return DeviceTick::Wait;
+                }
+            }
+        }
+        if let Some(step) = sdk::inspect(self, geometry, frame) {
+            return step;
+        }
+        if let Some(action) = self.device_action.take() {
+            let requested = match &action {
+                device::Action::Queued(_, geometry) | device::Action::Pending(geometry) => {
+                    *geometry
+                }
+            };
+            if requested != geometry {
+                self.stop("화면 크기가 바뀌어 기기 동작을 중지했습니다.");
+                self.record();
+                return DeviceTick::Wait;
+            }
+            self.device_action = Some(device::Action::Pending(requested));
+            self.route(Route::Headless, "기기의 짧은 입력을 실행합니다.", false);
+            return match action {
+                device::Action::Queued(gesture, _) => {
+                    DeviceTick::Input(GameInput::Gesture(gesture))
+                }
+                device::Action::Pending(_) => DeviceTick::Wait,
+            };
+        }
+        if let Some(step) = self.automation_tick(at, geometry, frame) {
+            return step;
         }
         if self.resume_after_calibration && self.fishing.phase == Phase::Idle {
             self.resume_after_calibration = false;
@@ -450,12 +582,42 @@ impl Runtime {
             return DeviceTick::Observe(observation.region);
         };
         let before = self.fishing.stats;
-        let tap = self.fishing.frame(at, frame);
+        let debug_log = self.macro_config()["mfish"]["debug_log"]
+            .as_bool()
+            .unwrap_or(false);
+        self.fishing.configure_log(
+            self.settings.as_deref().and_then(std::path::Path::parent),
+            debug_log,
+        );
+        let captured_at = self
+            .frame_expires
+            .map(|expires| expires - 0.300)
+            .unwrap_or(at);
+        let tap = self.fishing.frame(captured_at, frame);
+        if let Some(error) = self.fishing.log_error() {
+            if self.log.len() == 300 {
+                self.log.pop_front();
+            }
+            services::emit_hook("log", vec![serde_json::json!(error), serde_json::json!("")]);
+            self.log
+                .push_back((chrono::Utc::now().timestamp_millis(), error));
+        }
         let changed = before != self.fishing.stats;
         if changed {
             self.totals.record_delta(before, self.fishing.stats);
         }
-        if self.navigation.options.use_sell && self.fishing.stats.inventory_increased(before) {
+        if self.fishing.stats.inventory_increased(before) && self.automation.is_some() {
+            self.automation
+                .as_mut()
+                .unwrap()
+                .trigger(automation::Event::InventoryFull, at);
+            self.fishing.stop("인벤토리 판매를 확인합니다.");
+            return DeviceTick::Wait;
+        }
+        if self.automation.is_none()
+            && self.navigation.options.use_sell
+            && self.fishing.stats.inventory_increased(before)
+        {
             match self.navigation.job(Task::Sell, at, true) {
                 Ok(job) => {
                     self.generation = self.generation.wrapping_add(1);
@@ -464,7 +626,23 @@ impl Runtime {
                 Err(error) => self.stop(error),
             }
         }
-        if self.navigation.options.use_move && self.fishing.needs_relocation(at) {
+        if self.fishing.needs_relocation(at) && self.automation.is_some() {
+            if self.relocations >= 3 {
+                self.stop("낚시 장소 확인 3회 실패 · 화면과 위치를 확인하세요.");
+            } else {
+                self.relocations += 1;
+                self.automation
+                    .as_mut()
+                    .unwrap()
+                    .trigger(automation::Event::Coast, at);
+                self.fishing.stop("접근 가능한 해안을 다시 확인합니다.");
+            }
+            return DeviceTick::Wait;
+        }
+        if self.automation.is_none()
+            && self.navigation.options.use_move
+            && self.fishing.needs_relocation(at)
+        {
             self.fishing.stop("낚시 장소로 다시 이동 중");
             if self.relocations >= 3 {
                 self.stop("낚시 장소 이동 3회 실패 · 길과 위치를 확인하세요.");
@@ -483,10 +661,17 @@ impl Runtime {
             }
         }
         self.record();
-        if std::mem::take(&mut self.fishing.calibration_changed) || changed {
+        let calibrated = std::mem::take(&mut self.fishing.calibration_changed);
+        if calibrated {
+            self.sync_calibration();
+        }
+        if calibrated || changed {
             self.settings_error = self.save(self.fishing.tuning).err();
         }
-        if self.fishing.phase == Phase::Idle && self.job.is_none() && !self.resume_after_calibration
+        if self.fishing.phase == Phase::Idle
+            && self.job.is_none()
+            && self.automation.is_none()
+            && !self.resume_after_calibration
         {
             self.stop(self.fishing.message);
         }
@@ -494,6 +679,11 @@ impl Runtime {
         if self.job.is_some() || !self.fishing.phase.active() {
             DeviceTick::Wait
         } else {
+            if tap.is_some() {
+                if let Some(runner) = self.automation.as_mut() {
+                    runner.trigger(automation::Event::Activity, at);
+                }
+            }
             tap.map_or(DeviceTick::Wait, |tap| {
                 DeviceTick::Input(GameInput::Tap(tap))
             })
@@ -514,7 +704,336 @@ impl Runtime {
     }
 
     fn active(&self) -> bool {
-        self.dua.running || self.phase().active()
+        self.dua.running
+            || self.device_action.is_some()
+            || self.sdk_request.is_some()
+            || self.phase().active()
+    }
+
+    fn start_device_action(
+        &mut self,
+        gesture: device::Gesture,
+        geometry: (usize, usize),
+    ) -> Result<(), String> {
+        if self.active() {
+            return Err("실행 중인 작업을 먼저 중지하세요.".into());
+        }
+        if !self.capture || !self.input {
+            return Err("화면 캡처와 입력을 먼저 준비하세요.".into());
+        }
+        #[cfg(target_os = "android")]
+        if !self.phone.foreground {
+            return Err("Roblox 화면에서 실행하세요.".into());
+        }
+        #[cfg(target_os = "linux")]
+        validate_desktop_entry(self)?;
+        gesture.packet(geometry, 1, self.generation)?;
+        self.generation = self.generation.wrapping_add(1);
+        self.phone.cancel();
+        self.device_action = Some(device::Action::Queued(gesture, geometry));
+        self.fishing.message = "기기 동작 확인 중";
+        self.record();
+        Ok(())
+    }
+
+    fn device_ack(&mut self) {
+        self.device_ack_at(now());
+    }
+    fn device_ack_at(&mut self, at: f64) {
+        if matches!(self.device_action, Some(device::Action::Pending(_))) {
+            self.stop("기기 동작 완료");
+            self.record();
+        } else if let Some(navigation) = self.wayfinder.as_mut() {
+            navigation.ack(true, at);
+        } else if let Some(runner) = self.automation.as_mut() {
+            runner.ack(true, at);
+        }
+    }
+
+    fn movement_settings(&self) -> wayfinder::Settings {
+        let mut settings = self.wayfinding.clone();
+        if let (Some(center), Some(edge)) = (
+            self.macro_point("stick_center"),
+            self.macro_point("stick_edge"),
+        ) {
+            settings.controls = Some(navigator::Controls {
+                stick_center: center,
+                stick_edge: edge,
+            });
+        }
+        settings.jump = self.macro_point("jump_btn").or(settings.jump);
+        let config = self.macro_config();
+        settings.player_label = config["player_label"]
+            .as_str()
+            .filter(|s| !s.trim().is_empty())
+            .or_else(|| {
+                config["biome"]["player"]
+                    .as_str()
+                    .filter(|s| !s.trim().is_empty())
+            })
+            .map(|s| s.trim().to_owned())
+            .unwrap_or_else(|| biome::settings().player);
+        settings
+    }
+
+    fn macro_point(&self, key: &str) -> Option<vision::Point> {
+        serde_json::from_value::<vision::Point>(self.macro_settings["base"][key].clone())
+            .ok()
+            .filter(|p| {
+                p.0.is_finite()
+                    && p.1.is_finite()
+                    && (0.0..=1.0).contains(&p.0)
+                    && (0.0..=1.0).contains(&p.1)
+            })
+            .or_else(|| self.navigation.positions.get(key).copied())
+    }
+
+    fn start_travel(&mut self, destination: navigator::Destination, at: f64) -> Result<(), String> {
+        let settings = self.movement_settings();
+        self.wayfinder = Some(wayfinder::Wayfinder::start(destination, settings, at)?);
+        self.fishing.stop("목적지로 이동 중");
+        self.resume_after_calibration = false;
+        self.generation = self.generation.wrapping_add(1);
+        self.phone.cancel();
+        Ok(())
+    }
+
+    fn automation_tick(
+        &mut self,
+        at: f64,
+        geometry: (usize, usize),
+        frame: Option<&vision::Frame<'_>>,
+    ) -> Option<DeviceTick> {
+        if let Some(mut navigation) = self.wayfinder.take() {
+            let step = navigation.tick(
+                at,
+                geometry,
+                frame,
+                &self.ocr_words,
+                self.frame_expires.map(|expires| expires - 0.300),
+            );
+            self.macro_message = Some(navigation.status().message.clone());
+            let result = match step {
+                wayfinder::Tick::Observe { region, ocr } => {
+                    self.request_ocr = ocr;
+                    self.route(
+                        Route::Screenshot,
+                        "이동할 지면과 목적지를 확인합니다.",
+                        frame.is_some(),
+                    );
+                    DeviceTick::Observe(region)
+                }
+                wayfinder::Tick::Command(command) => {
+                    self.route(
+                        Route::Headless,
+                        "관측한 경로의 짧은 동작을 실행합니다.",
+                        false,
+                    );
+                    DeviceTick::Input(GameInput::Command(command))
+                }
+                wayfinder::Tick::Wait(_) => DeviceTick::Wait,
+                wayfinder::Tick::Arrived => {
+                    self.wayfinding.memory = navigation.memory();
+                    if let Some(runner) = self.automation.as_mut() {
+                        runner.travel_result(true, at);
+                    }
+                    self.settings_error = self.save(self.fishing.tuning).err();
+                    self.record();
+                    return Some(DeviceTick::Wait);
+                }
+                wayfinder::Tick::Stopped(error) => {
+                    self.wayfinding.memory = navigation.memory();
+                    if let Some(runner) = self.automation.as_mut() {
+                        runner.travel_result(false, at);
+                    }
+                    self.stop_automation(error);
+                    return Some(DeviceTick::Wait);
+                }
+            };
+            self.wayfinder = Some(navigation);
+            self.record();
+            return Some(result);
+        }
+        sdk::before_tick(self);
+        let mut runner = self.automation.take()?;
+        let biome = biome::status();
+        if let Some(name) = biome.current {
+            let occurrence = biome.history.last().map_or(0, |(at, _)| *at as u64);
+            if self.observed_biome.as_ref() != Some(&(name.clone(), occurrence)) {
+                runner.trigger(
+                    automation::Event::Biome {
+                        name: name.clone(),
+                        occurrence,
+                    },
+                    at,
+                );
+                self.observed_biome = Some((name, occurrence));
+            }
+        }
+        if !self.ocr_words.is_empty() {
+            let text = self
+                .ocr_words
+                .iter()
+                .map(|w| w.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ")
+                .to_lowercase();
+            let in_game = (text.contains("auto") && text.contains("roll"))
+                || (text.contains("자동") && (text.contains("뽑기") || text.contains("롤")))
+                || self.fishing.phase == Phase::Reeling;
+            if in_game {
+                self.game_observed = true;
+                self.game_disconnected = false;
+            }
+        }
+        runner.trigger(
+            automation::Event::Game {
+                available: self.capture && self.input && !self.target_missing,
+                in_game: self.game_observed,
+            },
+            at,
+        );
+        let failed_before = runner.status().failed;
+        let step = runner.tick(at, geometry, frame, &self.ocr_words);
+        self.macro_message = Some(runner.status().message.clone());
+        for message in runner.drain_logs() {
+            if self.log.len() == 300 {
+                self.log.pop_front();
+            }
+            self.log
+                .push_back((chrono::Utc::now().timestamp_millis(), message));
+        }
+        if runner.config() != &self.macro_settings {
+            self.macro_settings = runner.config().clone();
+            self.settings_error = self.save(self.fishing.tuning).err();
+        }
+        let finished = runner.finished();
+        let failed = runner.status().failed > failed_before;
+        self.automation = Some(runner);
+        sdk::after_tick(
+            self,
+            matches!(step, automation::Tick::Done | automation::Tick::Stopped(_)),
+            failed,
+        );
+        let result = match step {
+            automation::Tick::Observe { region, ocr } => {
+                self.request_ocr = ocr;
+                self.fishing.stop("자동 작업 화면 확인 중");
+                self.route(
+                    Route::Screenshot,
+                    "자동 작업의 실제 화면을 확인합니다.",
+                    frame.is_some(),
+                );
+                DeviceTick::Observe(region)
+            }
+            automation::Tick::Command(command) => {
+                if matches!(command, automation::Command::Launch { .. }) {
+                    self.game_observed = false;
+                    if let Some(runner) = self.automation.as_mut() {
+                        runner.trigger(
+                            automation::Event::Game {
+                                available: false,
+                                in_game: false,
+                            },
+                            at,
+                        );
+                    }
+                }
+                self.fishing.stop("자동 작업 실행 중");
+                self.route(
+                    Route::Headless,
+                    "확인된 자동 작업의 입력을 실행합니다.",
+                    false,
+                );
+                DeviceTick::Input(GameInput::Command(command))
+            }
+            automation::Tick::Travel(destination) => {
+                if let Err(error) = self.start_travel(destination, at) {
+                    self.stop_automation(error);
+                }
+                DeviceTick::Wait
+            }
+            automation::Tick::Fishing => {
+                self.macro_message = None;
+                if self.fishing.phase == Phase::Idle && !self.resume_after_calibration {
+                    if let Err(error) = self.begin_fishing(at) {
+                        self.stop(error);
+                    }
+                }
+                return None;
+            }
+            automation::Tick::Done if finished => {
+                self.stop("자동 작업 완료");
+                DeviceTick::Wait
+            }
+            automation::Tick::Done | automation::Tick::Wait(_) => DeviceTick::Wait,
+            automation::Tick::Stopped(error) => {
+                self.stop_automation(error);
+                DeviceTick::Wait
+            }
+        };
+        self.record();
+        Some(result)
+    }
+
+    fn device_command(&mut self, action: &str, geometry: (usize, usize)) -> Result<(), String> {
+        use device::Gesture;
+        use vision::Point;
+        let point = |key: &str| {
+            self.navigation
+                .positions
+                .get(key)
+                .copied()
+                .ok_or_else(|| format!("먼저 {key} 위치를 지정하세요."))
+        };
+        let gesture = match action {
+            "camera_up" => Gesture::Drag {
+                from: Point(0.62, 0.25),
+                to: Point(0.62, 0.52),
+                ms: 350,
+            },
+            "zoom_out" => Gesture::Pinch {
+                from: [Point(0.40, 0.30), Point(0.64, 0.30)],
+                to: [Point(0.49, 0.30), Point(0.55, 0.30)],
+                ms: 350,
+            },
+            "jump" => Gesture::Tap {
+                at: point("jump_btn")?,
+                ms: 50,
+            },
+            "left" | "right" | "forward" | "back" | "moving_jump" => {
+                let center = point("stick_center")?;
+                let edge = point("stick_edge")?;
+                let (width, height) = (geometry.0 as f64, geometry.1 as f64);
+                if width < 1.0 || height < 1.0 {
+                    return Err("화면 크기를 확인하세요.".into());
+                }
+                let radius = ((edge.0 - center.0) * width).hypot((edge.1 - center.1) * height);
+                if !(8.0..=width.min(height) * 0.35).contains(&radius) {
+                    return Err("조이스틱 가운데와 가장자리를 다시 지정하세요.".into());
+                }
+                let (dx, dy) = match action {
+                    "left" => (-1.0, 0.0),
+                    "right" => (1.0, 0.0),
+                    "back" => (0.0, 1.0),
+                    _ => (0.0, -1.0),
+                };
+                let x = (center.0 * width + dx * radius * 1.6).clamp(1.0, width - 1.0);
+                let y = (center.1 * height + dy * radius * 1.6).clamp(1.0, height - 1.0);
+                Gesture::Stick {
+                    from: center,
+                    to: Point(x / width, y / height),
+                    jump: if action == "moving_jump" {
+                        Some(point("jump_btn")?)
+                    } else {
+                        None
+                    },
+                    ms: 200,
+                }
+            }
+            _ => return Err("알 수 없는 기기 동작입니다.".into()),
+        };
+        self.start_device_action(gesture, geometry)
     }
 
     fn macro_running(&self) -> bool {
@@ -543,8 +1062,13 @@ impl Runtime {
         if features.is_empty() {
             return Err("실행할 매크로 기능을 켜 주세요.");
         }
-        if features.iter().any(|feature| feature != "mfish") {
-            return Err("현재 DUA는 자동 낚시만 지원합니다. 이동과 판매를 포함한 다른 기능은 준비 중입니다.");
+        if features.iter().any(|feature| {
+            ![
+                "mfish", "mpop", "mitem", "mmerch", "mcraft", "mmatch", "mblood",
+            ]
+            .contains(&feature.as_str())
+        }) {
+            return Err("실행할 매크로 기능을 확인하세요.");
         }
         if self.active() {
             return Err("실행 중인 작업을 먼저 중지하세요.");
@@ -555,16 +1079,14 @@ impl Runtime {
         if !self.capture || !self.input {
             return Err("화면 캡처와 입력을 먼저 준비하세요.");
         }
-        if foreground_required {
-            self.navigation.options.use_move = false;
-            self.navigation.options.use_sell = false;
+        let mut runner = automation::Runner::start_settings(self.macro_config(), features, at)
+            .map_err(|_| "자동 매크로 설정의 값과 필수 위치를 확인하세요.")?;
+        runner.restore_session(&self.last_automation);
+        if let Some(geometry) = self.last_geometry {
+            self.fishing
+                .configure(&self.macro_config()["mfish"], geometry)
+                .map_err(|_| "낚시 결과창의 수동 위치를 확인하세요.")?;
         }
-        // Construct the first job before committing the session so invalid routes cannot half-start.
-        let job = if self.navigation.options.use_move {
-            Some(self.navigation.job(Task::Fish, at, true)?)
-        } else {
-            None
-        };
         self.dua = DuaStatus {
             running: true,
             background: self.dua.background,
@@ -576,17 +1098,16 @@ impl Runtime {
         self.empty_sales = 0;
         self.relocations = 0;
         self.route(Route::Headless, "설정과 실행할 작업을 확인합니다.", false);
-        self.job = job;
+        self.job = None;
+        self.wayfinder = None;
+        self.macro_message = None;
+        self.automation = Some(runner);
         if foreground_required && !self.phone.foreground {
             self.fishing.stop("Roblox가 앞에 오기를 기다립니다.");
             self.route(Route::Headless, "Roblox가 앞에 오기를 기다립니다.", false);
-        } else if self.job.is_none() {
-            if let Err(error) = self.begin_fishing(at) {
-                self.stop(error);
-                return Err(error);
-            }
         }
         self.record();
+        services::emit_hook("macro", vec![true.into()]);
         Ok(())
     }
 
@@ -600,7 +1121,29 @@ impl Runtime {
         }
     }
 
+    fn reset_popping_template(&mut self, biome: &str) -> Result<serde_json::Value, String> {
+        let biome = biome.to_ascii_uppercase();
+        let template = automation::default_template(&biome)?;
+        if self.active() {
+            return Err("템플릿을 바꾸기 전에 작업을 중지하세요.".into());
+        }
+        let mut config = self.macro_config();
+        config["mpop"]["templates"][&biome] = template.clone();
+        let previous = std::mem::replace(&mut self.macro_settings, config);
+        if let Err(error) = self.save(self.fishing.tuning) {
+            self.macro_settings = previous;
+            return Err(error);
+        }
+        Ok(template)
+    }
+
     fn phase(&self) -> Phase {
+        if self.device_action.is_some()
+            || self.wayfinder.is_some()
+            || self.automation.is_some() && self.fishing.phase == Phase::Idle && self.dua.running
+        {
+            return Phase::Moving;
+        }
         match self.job.as_ref() {
             Some(job) if job.recording_at.is_some() && job.action != Task::Measure => {
                 Phase::Recording
@@ -611,27 +1154,134 @@ impl Runtime {
         }
     }
 
-    fn message(&self) -> &'static str {
-        self.job.as_ref().map_or(self.fishing.message, Job::message)
+    fn message(&self) -> &str {
+        self.macro_message
+            .as_deref()
+            .unwrap_or_else(|| self.job.as_ref().map_or(self.fishing.message, Job::message))
     }
 
     fn stop(&mut self, message: &'static str) {
+        let was_running = self.dua.running;
+        if let Some(request) = self.sdk_request.take() {
+            request.cancel(message);
+        }
         self.dua.running = false;
         self.dua.route = None;
         self.dua.reason = message;
         self.resume_after_calibration = false;
+        if let Some(mut runner) = self.automation.take() {
+            runner.stop_all();
+            self.macro_settings = runner.config().clone();
+            self.last_automation = serde_json::to_value(runner.status()).unwrap_or_default();
+            if self.settings.is_some() {
+                self.settings_error = self.save(self.fishing.tuning).err();
+            }
+        }
+        self.wayfinder = None;
         self.finish_tool(message);
+        if was_running {
+            services::emit_hook("macro", vec![false.into()]);
+            services::emit_hook("stop", vec![]);
+        }
+    }
+
+    fn stop_automation(&mut self, message: String) {
+        self.stop("자동 작업을 중지했습니다.");
+        self.macro_message = Some(message);
+        self.record();
+    }
+
+    fn cancel_feature(&mut self, feature: &str) {
+        let owns = feature == "mfish"
+            && (self.fishing.phase.active() || self.resume_after_calibration)
+            || self.automation.as_ref().is_some_and(|r| {
+                r.status()
+                    .active
+                    .as_ref()
+                    .is_some_and(|job| job.feature() == feature)
+                    || feature == "mfish" && r.status().active.is_none() && self.wayfinder.is_some()
+            });
+        if let Some(runner) = self.automation.as_mut() {
+            runner.stop_feature(feature);
+        }
+        if feature == "ret" {
+            self.phone.cancel_return();
+        }
+        if owns {
+            self.wayfinder = None;
+            self.generation = self.generation.wrapping_add(1);
+            self.phone.cancel();
+            if let Some(request) = self.sdk_request.take() {
+                request.cancel("입력 소유 작업이 중지됐습니다.");
+            }
+            self.fishing.stop("현재 작업을 중지했습니다.");
+            self.resume_after_calibration = false;
+        }
+        if feature == "mfish" {
+            self.fishing.stop("낚시를 중지했습니다.");
+            self.resume_after_calibration = false;
+        }
+        self.record();
+    }
+
+    fn sync_calibration(&mut self) {
+        let Some(calibration) = self.fishing.calibration else {
+            return;
+        };
+        let positions = serde_json::to_value(calibration.positions()).unwrap_or_default();
+        let mut config = self.macro_config();
+        for (to, from) in [
+            ("panel_region", "panel"),
+            ("reel_region", "reel"),
+            ("fish_btn", "fish"),
+            ("bar_region", "bar"),
+        ] {
+            config["mfish"][to] = positions[from].clone();
+        }
+        config["mfish"]["cal_win"] = true.into();
+        if let Some(runner) = self.automation.as_mut() {
+            runner.update_fishing_calibration(&config["mfish"]);
+        }
+        self.macro_settings = config;
     }
 
     fn finish_tool(&mut self, message: &'static str) {
+        if let Some(request) = self.sdk_request.take() {
+            request.cancel(message);
+            if let Some(runner) = self.automation.as_mut() {
+                runner.stop_feature("sdk");
+            }
+        }
         self.generation = self.generation.wrapping_add(1);
         self.phone.cancel();
+        self.device_action = None;
         self.job = None;
+        self.macro_message = None;
+        self.ocr_words.clear();
         self.fishing.stop(message);
     }
 
     fn input_rejected(&mut self, message: &'static str) {
         if !self.phase().active() {
+            return;
+        }
+        if self.device_action.is_none() && self.automation.is_some() {
+            if let Some(navigation) = self.wayfinder.as_mut() {
+                navigation.ack(false, now());
+            } else {
+                if self.sdk_request.is_some() {
+                    if let Some(request) = self.sdk_request.take() {
+                        request.cancel(message);
+                    }
+                    self.automation.as_mut().unwrap().stop_feature("sdk");
+                }
+                self.automation.as_mut().unwrap().ack(false, now());
+            }
+            self.generation = self.generation.wrapping_add(1);
+            self.phone.cancel();
+            self.fishing.stop(message);
+            self.macro_message = Some(message.into());
+            self.record();
             return;
         }
         if self.job.as_mut().is_some_and(Job::retry_input) {
@@ -654,6 +1304,40 @@ impl Runtime {
     }
 
     fn no_target(&mut self) {
+        if self.device_action.is_some() {
+            self.stop("Roblox 화면이 바뀌어 기기 동작을 중지했습니다.");
+            self.record();
+            return;
+        }
+        if let Some(runner) = self.automation.as_mut() {
+            self.game_observed = false;
+            self.game_disconnected = true;
+            runner.trigger(
+                automation::Event::Game {
+                    available: false,
+                    in_game: false,
+                },
+                now(),
+            );
+            if self.target_missing {
+                return;
+            }
+            self.target_missing = true;
+            if self.wayfinder.take().is_some() {
+                runner.travel_result(false, now());
+            }
+            runner.suspend(now());
+            runner.resume(now());
+            self.generation = self.generation.wrapping_add(1);
+            self.phone.cancel();
+            if let Some(request) = self.sdk_request.take() {
+                request.cancel("게임 대상을 잃어 이전 요청을 취소했습니다.");
+                runner.stop_feature("sdk");
+            }
+            self.fishing.stop("게임 연결을 기다립니다.");
+            self.route(Route::Headless, "게임 연결을 다시 확인합니다.", false);
+            return;
+        }
         if let Some(job) = self.job.as_ref() {
             if job.action == Task::Measure
                 && job.recording_at.is_some_and(|start| now() - start < 300.0)
@@ -680,6 +1364,66 @@ impl Runtime {
         }
     }
 
+    fn game_line(&mut self, line: &str, at: f64) {
+        if line.len() > 32768 || !at.is_finite() {
+            return;
+        }
+        if automation::game_disconnected(line) {
+            self.game_observed = false;
+            self.game_disconnected = true;
+        }
+        if line.contains("\"state\":\"Equipped") {
+            self.game_observed = true;
+            self.game_disconnected = false;
+        }
+        if let Some(runner) = self.automation.as_mut() {
+            runner.log(line, at);
+        }
+    }
+
+    fn headless_missing(&mut self, at: f64) -> Option<(i32, automation::Command)> {
+        if !self.dua.running || self.automation.is_none() {
+            return None;
+        }
+        let mut runner = self.automation.take().unwrap();
+        let step = runner.headless_missing(at);
+        self.macro_message = Some(runner.status().message.clone());
+        for message in runner.drain_logs() {
+            if self.log.len() == 300 {
+                self.log.pop_front();
+            }
+            self.log
+                .push_back((chrono::Utc::now().timestamp_millis(), message));
+        }
+        if runner.config() != &self.macro_settings {
+            self.macro_settings = runner.config().clone();
+            self.settings_error = self.save(self.fishing.tuning).err();
+        }
+        self.automation = Some(runner);
+        self.record();
+        match step {
+            automation::Tick::Command(command @ automation::Command::Launch { .. }) => {
+                self.game_observed = false;
+                if let Some(runner) = self.automation.as_mut() {
+                    runner.trigger(
+                        automation::Event::Game {
+                            available: false,
+                            in_game: false,
+                        },
+                        at,
+                    );
+                }
+                self.route(Route::Headless, "게임 실행을 다시 요청합니다.", false);
+                Some((self.generation, command))
+            }
+            automation::Tick::Stopped(error) => {
+                self.stop_automation(error);
+                None
+            }
+            _ => None,
+        }
+    }
+
     fn input_current(&self, generation: i32) -> bool {
         self.generation == generation && self.active()
     }
@@ -692,16 +1436,27 @@ impl Runtime {
         } else {
             self.macro_since = None;
         }
-        let message = self.message();
-        if self.logged == Some(message) {
+        let message = self.message().to_owned();
+        if self.logged.as_deref() == Some(message.as_str()) {
             return;
         }
         if self.log.len() == 300 {
             self.log.pop_front();
         }
         self.log
-            .push_back((chrono::Utc::now().timestamp_millis(), message));
+            .push_back((chrono::Utc::now().timestamp_millis(), message.clone()));
         self.logged = Some(message);
+        services::emit_hook(
+            "log",
+            vec![serde_json::json!(self.message()), serde_json::json!("")],
+        );
+        services::emit_hook(
+            "status",
+            vec![
+                serde_json::json!(if self.dua.running { "running" } else { "idle" }),
+                serde_json::json!(self.message()),
+            ],
+        );
         discord::wake();
     }
 
@@ -710,11 +1465,16 @@ impl Runtime {
             self.stop("중지됨");
             return Ok(());
         }
-        #[cfg(any(target_os = "windows", target_os = "linux", target_os = "android"))]
         if action == Action::Start {
-            return self
-                .start_dua(&["mfish".into()], now())
-                .map_err(str::to_owned);
+            let config = self.macro_config();
+            let features: Vec<String> = [
+                "mfish", "mpop", "mitem", "mmerch", "mcraft", "mmatch", "mblood",
+            ]
+            .into_iter()
+            .filter(|key| config[*key]["enabled"].as_bool() == Some(true))
+            .map(str::to_owned)
+            .collect();
+            return self.start_dua(&features, now()).map_err(str::to_owned);
         }
         if self.dua.running {
             return Err("실행 중인 DUA를 먼저 중지하세요.".into());
@@ -729,17 +1489,6 @@ impl Runtime {
         if self.job.is_some() {
             return Err("실행 중인 작업을 먼저 중지하세요.".into());
         }
-        if action == Action::Start {
-            self.empty_sales = 0;
-            self.relocations = 0;
-        }
-        if action == Action::Start && self.navigation.options.use_move {
-            if self.fishing.calibration.is_none() {
-                return Err("낚시 자동 보정을 먼저 실행하세요.".into());
-            }
-            self.job = Some(self.navigation.job(Task::Fish, now(), true)?);
-            return Ok(());
-        }
         match action {
             Action::Calibrate => {
                 self.fishing.calibrate(now())?;
@@ -747,8 +1496,7 @@ impl Runtime {
                 self.phone.cancel();
                 Ok(())
             }
-            Action::Start => self.fishing.start(now()),
-            Action::Stop => unreachable!(),
+            Action::Start | Action::Stop => unreachable!(),
         }
         .map_err(str::to_owned)
     }
@@ -769,6 +1517,7 @@ impl Runtime {
         true
     }
 
+    #[cfg(test)]
     fn task(&mut self, task: Task) -> Result<(), &'static str> {
         if cfg!(target_os = "android") {
             return Err("시간 기반 이동과 판매는 사용할 수 없습니다. 지도 관측 연결이 필요합니다.");
@@ -798,9 +1547,9 @@ impl Runtime {
 }
 
 fn game_available() -> bool {
-    #[cfg(target_os = "linux")]
+    #[cfg(desktop)]
     return desktop::game_available();
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(desktop))]
     false
 }
 
@@ -832,7 +1581,12 @@ fn control(action: Action) -> Result<Status, String> {
 
 #[tauri::command]
 fn dua_start(features: Vec<String>, generation: i32) -> Result<Status, String> {
-    if !cfg!(any(target_os = "linux", target_os = "android")) {
+    if !cfg!(any(
+        target_os = "linux",
+        target_os = "windows",
+        target_os = "macos",
+        target_os = "android"
+    )) {
         return Err("이 운영체제의 DUA 입력 연결은 아직 준비되지 않았습니다.".into());
     }
     let mut state = runtime();
@@ -854,8 +1608,35 @@ fn dua_stop() -> Status {
 }
 
 #[tauri::command]
+fn device_action(
+    action: String,
+    width: usize,
+    height: usize,
+    generation: i32,
+) -> Result<Status, String> {
+    if !cfg!(any(
+        target_os = "android",
+        target_os = "linux",
+        target_os = "windows",
+        target_os = "macos"
+    )) {
+        return Err("이 기기의 독립 입력 연결이 아직 준비되지 않았습니다.".into());
+    }
+    let mut state = runtime();
+    if state.generation != generation {
+        return Err("이전 입력 요청이 취소됐습니다.".into());
+    }
+    state.device_command(&action, (width, height))?;
+    Ok(state.status())
+}
+
+#[tauri::command]
 fn desktop_start(features: Vec<String>, generation: i32) -> Result<Status, String> {
-    if !cfg!(any(target_os = "windows", target_os = "linux")) {
+    if !cfg!(any(
+        target_os = "windows",
+        target_os = "macos",
+        target_os = "linux"
+    )) {
         return Err("데스크톱 DUA의 게임 캡처 · 입력은 Windows와 Linux에서 지원합니다.".into());
     }
     let mut state = runtime();
@@ -878,36 +1659,33 @@ fn validate_desktop_entry(state: &Runtime) -> Result<(), String> {
     if !state.dua.background {
         return Err("백그라운드 게임을 먼저 열어 주세요.".into());
     }
-    if state.navigation.options.use_move || state.navigation.options.use_sell {
-        return Err("지도 관측과 해안·판매 목표가 준비돼야 이동할 수 있습니다. 시간 기반 경로는 사용하지 않습니다.".into());
-    }
     Ok(())
 }
 
 #[tauri::command]
 fn desktop_session_start() -> Result<BackgroundStatus, String> {
-    #[cfg(target_os = "linux")]
-    return linux::launch_session();
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(desktop)]
+    return desktop::launch_session();
+    #[cfg(not(desktop))]
     Err("이 운영체제의 독립 입력 연결은 아직 준비되지 않았습니다.".into())
 }
 #[tauri::command]
 async fn desktop_session_stop() -> BackgroundStatus {
-    #[cfg(target_os = "linux")]
-    let _ = tauri::async_runtime::spawn_blocking(linux::stop_session).await;
+    #[cfg(desktop)]
+    let _ = tauri::async_runtime::spawn_blocking(desktop::stop_session).await;
     background_status()
 }
 #[tauri::command]
 async fn desktop_manual(event: serde_json::Value, generation: i32) -> Result<(), String> {
-    #[cfg(target_os = "linux")]
+    #[cfg(desktop)]
     {
-        let event = serde_json::from_value::<linux::ManualEvent>(event)
+        let event = serde_json::from_value::<desktop::ManualEvent>(event)
             .map_err(|_| "게임 입력 요청이 올바르지 않습니다.".to_owned())?;
-        return tauri::async_runtime::spawn_blocking(move || linux::manual(event, generation))
+        return tauri::async_runtime::spawn_blocking(move || desktop::manual(event, generation))
             .await
             .map_err(|e| e.to_string())?;
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(desktop))]
     {
         let _ = (event, generation);
         Err("독립 게임 입력이 준비되지 않았습니다.".into())
@@ -925,12 +1703,12 @@ async fn navigation_plan(
 
 #[tauri::command]
 async fn desktop_snapshot() -> Result<tauri::ipc::Response, String> {
-    #[cfg(target_os = "linux")]
-    return tauri::async_runtime::spawn_blocking(linux::snapshot)
+    #[cfg(desktop)]
+    return tauri::async_runtime::spawn_blocking(desktop::snapshot)
         .await
         .map_err(|error| error.to_string())?
         .map(tauri::ipc::Response::new);
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(desktop))]
     Err("이 환경에서는 앱 미리보기 위치 지정을 사용할 수 없습니다.".into())
 }
 
@@ -941,7 +1719,27 @@ fn save_tuning(tuning: Tuning) -> Result<Status, String> {
         return Err("실행 중인 작업을 먼저 중지하세요.".into());
     }
     let tuning = tuning.validate()?;
-    state.save(tuning)?;
+    let old = state.macro_settings.clone();
+    let mut config = state.macro_config();
+    let value = serde_json::to_value(tuning).map_err(|e| e.to_string())?;
+    for (to, from) in [
+        ("bite_max", "biteSeconds"),
+        ("lead_ms", "leadMs"),
+        ("target_pct", "targetPercent"),
+        ("click_ms", "clickMs"),
+        ("click_gap_ms", "clickGapMs"),
+        ("cast_retry", "castRetries"),
+        ("adaptive", "adaptive"),
+        ("tap_above", "tapAbove"),
+        ("deadband", "deadband"),
+    ] {
+        config["mfish"][to] = value[from].clone();
+    }
+    state.macro_settings = config;
+    if let Err(error) = state.save(tuning) {
+        state.macro_settings = old;
+        return Err(error);
+    }
     state.fishing.tuning = tuning;
     state.settings_error = None;
     Ok(state.status())
@@ -980,69 +1778,56 @@ fn save_navigation(options: Options) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn desktop_navigation(setup: navigation::DesktopSetup) -> Result<(), String> {
-    if !cfg!(any(target_os = "windows", target_os = "linux")) {
-        return Err("Windows와 Linux에서 게임 입력을 사용할 수 있습니다.".into());
-    }
-    let mut state = runtime();
-    if state.active() {
-        return Err("실행 중인 작업을 먼저 중지하세요.".into());
-    }
-    // Preserve useful interaction positions without reviving timed desktop travel.
-    let previous = Navigation::desktop(setup)?;
-    let mut navigation = Navigation {
-        positions: previous.positions,
-        options: previous.options,
-        ..Navigation::default()
-    };
-    navigation.options.use_move = false;
-    navigation.options.use_sell = false;
-    state.navigation = navigation;
-    Ok(())
-}
-
-#[tauri::command]
 fn desktop_task(task: Task) -> Result<(), String> {
-    if !cfg!(any(target_os = "windows", target_os = "linux")) {
+    if !cfg!(any(
+        target_os = "windows",
+        target_os = "macos",
+        target_os = "linux"
+    )) {
         return Err("Windows와 Linux에서 게임 입력을 사용할 수 있습니다.".into());
     }
-    let _ = task;
-    Err("시간 기반 이동은 지도 기반 경로로 교체 중입니다.".into())
+    task_call(task)
 }
 
-#[tauri::command]
-fn desktop_waypoint(
-    place: Place,
-    index: usize,
-    measure: bool,
-    from_base: bool,
-) -> Result<(), String> {
-    let _ = (place, index, measure, from_base);
-    Err("시간 측정 이동은 지도 기반 경로로 교체 중입니다.".into())
-}
-
-#[tauri::command]
-fn desktop_arrive() -> Result<(), String> {
-    if runtime().arrive_desktop() {
-        Ok(())
-    } else {
-        Err("이동 시간을 재는 중에 눌러 주세요.".into())
-    }
+pub(crate) fn task_call(task: Task) -> Result<(), String> {
+    use serde_json::json;
+    let (action, payload) = match task {
+        Task::Base => ("move_base", json!({})),
+        Task::Fish => ("move_place", json!({"place":"fish_spot"})),
+        Task::Shop => ("move_place", json!({"place":"sell_spot"})),
+        Task::Sell => ("sell_test", json!({})),
+        Task::RecordFish => ("waypoint_mark", json!({"destination":"coast"})),
+        Task::RecordSell => ("waypoint_mark", json!({"destination":"sell"})),
+        Task::Measure => ("waypoint_mark", json!({"destination":"base"})),
+        Task::StickTest | Task::JumpTest => {
+            let mut state = runtime();
+            let geometry = state.last_geometry.ok_or("관측한 게임 화면이 없습니다.")?;
+            return state.device_command(
+                if task == Task::StickTest {
+                    "forward"
+                } else {
+                    "jump"
+                },
+                geometry,
+            );
+        }
+    };
+    automation_call(action.into(), payload, current_generation()).map(|_| ())
 }
 
 #[tauri::command]
 async fn desktop_pick() -> Result<vision::Point, String> {
-    #[cfg(target_os = "linux")]
+    #[cfg(desktop)]
     return tauri::async_runtime::spawn_blocking(desktop::pick)
         .await
         .map_err(|e| e.to_string())?;
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(desktop))]
     Err("독립 입력 연결이 준비된 환경에서 위치를 지정할 수 있습니다.".into())
 }
 
 #[tauri::command]
 fn desktop_cancel_pick() {
-    #[cfg(target_os = "linux")]
+    #[cfg(desktop)]
     desktop::cancel_pick();
 }
 
@@ -1108,11 +1893,352 @@ fn fishing_log() -> Vec<String> {
         .log
         .iter()
         .rev()
-        .map(|(_, line)| (*line).into())
+        .map(|(_, line)| line.clone())
         .collect();
     lines.extend(biome::status().logs);
     lines.truncate(300);
     lines
+}
+
+pub(crate) fn current_generation() -> i32 {
+    runtime().generation
+}
+
+pub(crate) fn game_line(line: &str) {
+    runtime().game_line(line, now());
+}
+
+#[tauri::command]
+fn macro_settings() -> serde_json::Value {
+    runtime().macro_config()
+}
+
+#[tauri::command]
+fn save_macro_settings(mut config: serde_json::Value) -> Result<serde_json::Value, String> {
+    if !config.is_object()
+        || serde_json::to_vec(&config)
+            .map_err(|e| e.to_string())?
+            .len()
+            > 2 * 1024 * 1024
+    {
+        return Err("매크로 설정의 형식과 크기를 확인하세요.".into());
+    }
+    config["macro_on"] = false.into();
+    let _ = automation::Runner::new(config.clone(), now())?;
+    let mut state = runtime();
+    if state.active() && state.macro_config() != config {
+        return Err("설정을 바꾸기 전에 실행 중인 작업을 중지하세요.".into());
+    }
+    config["stats"] = state.macro_config()["stats"].clone();
+    let prior = state.macro_config();
+    let regions_changed = ["panel_region", "reel_region", "fish_btn", "bar_region"]
+        .iter()
+        .any(|key| prior["mfish"][*key] != config["mfish"][*key]);
+    let mut value = serde_json::to_value(state.fishing.tuning).map_err(|e| e.to_string())?;
+    for (from, to) in [
+        ("bite_max", "biteSeconds"),
+        ("lead_ms", "leadMs"),
+        ("target_pct", "targetPercent"),
+        ("click_ms", "clickMs"),
+        ("click_gap_ms", "clickGapMs"),
+        ("cast_retry", "castRetries"),
+        ("adaptive", "adaptive"),
+        ("tap_above", "tapAbove"),
+        ("deadband", "deadband"),
+    ] {
+        if !config["mfish"][from].is_null() {
+            value[to] = config["mfish"][from].clone();
+        }
+    }
+    let tuning: Tuning = serde_json::from_value(value).map_err(|e| e.to_string())?;
+    let tuning = tuning.validate()?;
+    if let Some(geometry) = state.last_geometry {
+        let mut check = Fishing::default();
+        check.configure(&config["mfish"], geometry)?;
+    }
+    let previous = std::mem::replace(&mut state.macro_settings, config.clone());
+    let previous_tuning = std::mem::replace(&mut state.fishing.tuning, tuning);
+    if let Err(error) = state.save(tuning) {
+        state.macro_settings = previous;
+        state.fishing.tuning = previous_tuning;
+        return Err(error);
+    }
+    state.fishing_settings_dirty |= regions_changed;
+    if let Some(geometry) = state.last_geometry {
+        state.fishing.configure(&config["mfish"], geometry)?;
+    }
+    Ok(config)
+}
+
+#[tauri::command]
+async fn pick_macro_position(
+    app: tauri::AppHandle,
+    feat: String,
+    key: String,
+    region: bool,
+    generation: Option<i32>,
+) -> Result<serde_json::Value, String> {
+    let (expected, initial) = {
+        let state = runtime();
+        if state.active() {
+            return Err("작업을 중지한 뒤 위치를 지정하세요.".into());
+        }
+        if generation.is_some_and(|g| g != state.generation) {
+            return Err("이전 위치 지정 요청이 취소됐습니다.".into());
+        }
+        let config = state.macro_config();
+        if !config[&feat].is_object() || !config[&feat].as_object().unwrap().contains_key(&key) {
+            return Err("저장할 매크로 위치를 확인하세요.".into());
+        }
+        (state.generation, config[&feat][&key].clone())
+    };
+    #[cfg(target_os = "android")]
+    let result = {
+        let label = key.clone();
+        tauri::async_runtime::spawn_blocking(move||android::pick_macro(&app,serde_json::json!({"label":label,"region":region,"initial":initial.as_array().cloned().unwrap_or_default()}))).await.map_err(|e|e.to_string())??
+    };
+    #[cfg(desktop)]
+    let result = {
+        let _ = (app, initial);
+        tauri::async_runtime::spawn_blocking(move || {
+            let a = desktop::pick()?;
+            let pos = if region {
+                let b = desktop::pick()?;
+                serde_json::json!([a.0.min(b.0), a.1.min(b.1), a.0.max(b.0), a.1.max(b.1)])
+            } else {
+                serde_json::json!([a.0, a.1])
+            };
+            Ok::<_, String>(serde_json::json!({"pos":pos}))
+        })
+        .await
+        .map_err(|e| e.to_string())??
+    };
+    let mut state = runtime();
+    if state.active() || state.generation != expected {
+        return Err("실행 상태가 바뀌어 위치를 저장하지 않았습니다.".into());
+    }
+    let pos = result["pos"].clone();
+    let a = pos
+        .as_array()
+        .filter(|a| a.len() == if region { 4 } else { 2 })
+        .ok_or("선택한 좌표가 올바르지 않습니다.")?;
+    if a.iter().any(|v| {
+        v.as_f64()
+            .is_none_or(|n| !n.is_finite() || !(0.0..1.0).contains(&n))
+    }) || region && (a[0].as_f64() >= a[2].as_f64() || a[1].as_f64() >= a[3].as_f64())
+    {
+        return Err("좌표가 화면 밖이거나 영역이 비어 있습니다.".into());
+    }
+    let previous = state.macro_config();
+    let nav = state.navigation.clone();
+    let calibration = state.fishing.calibration;
+    let mut config = previous.clone();
+    config[&feat][&key] = pos.clone();
+    state.macro_settings = config.clone();
+    if !region {
+        state.navigation.positions.insert(
+            key.clone(),
+            vision::Point(a[0].as_f64().unwrap(), a[1].as_f64().unwrap()),
+        );
+    }
+    if let Some(g) = result["geometry"].as_array().filter(|g| g.len() == 2) {
+        state.last_geometry = g[0]
+            .as_u64()
+            .zip(g[1].as_u64())
+            .map(|(w, h)| (w as usize, h as usize));
+    }
+    if feat == "mfish" {
+        if let Some(geometry) = state.last_geometry {
+            state.fishing.configure(&config["mfish"], geometry)?;
+            if let Some(manual) = Calibration::manual(&config["mfish"], geometry)? {
+                state.fishing.calibration = Some(manual);
+            }
+        }
+    }
+    if let Err(error) = state.save(state.fishing.tuning) {
+        state.macro_settings = previous;
+        state.navigation = nav;
+        state.fishing.calibration = calibration;
+        return Err(error);
+    }
+    Ok(serde_json::json!({"pos":pos,"config":config}))
+}
+
+#[tauri::command]
+async fn automation_action(
+    app: tauri::AppHandle,
+    action: String,
+    payload: serde_json::Value,
+    generation: i32,
+) -> Result<serde_json::Value, String> {
+    #[cfg(target_os = "android")]
+    if ![
+        "ocr_info",
+        "mpop_default",
+        "ret_join",
+        "ret_test",
+        "crash_cancel",
+    ]
+    .contains(&action.as_str())
+        && !action.ends_with("_stop")
+    {
+        android::setup(&app, "returnGame", None)?;
+    }
+    #[cfg(not(target_os = "android"))]
+    let _ = app;
+    tauri::async_runtime::spawn_blocking(move || automation_call(action, payload, generation))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+pub(crate) fn automation_call(
+    action: String,
+    payload: serde_json::Value,
+    generation: i32,
+) -> Result<serde_json::Value, String> {
+    use serde_json::json;
+    if action == "sdk_call" {
+        return sdk::call(payload, generation);
+    }
+    if action == "mfish_check" {
+        return sdk::call(
+            json!({"module":"macro","method":"fishing_check","args":[]}),
+            generation,
+        );
+    }
+    if ["ocr_test", "mpop_ocr_test", "mpop_ocr"].contains(&action.as_str()) {
+        let region = if action == "ocr_test" {
+            payload["region"].clone()
+        } else {
+            macro_settings()["base"]["ocr_region"].clone()
+        };
+        if region.is_null() {
+            return Err("읽을 글자 영역을 먼저 지정하세요.".into());
+        }
+        let value = sdk::call(
+            json!({"module":"macro","method":if action=="ocr_test"{"ocr_region"}else{"ocr_inventory"},"args":[region]}),
+            generation,
+        )?;
+        return Ok(if action == "ocr_test" {
+            json!({"text":value,"engine":sdk::engine_name()})
+        } else {
+            value
+        });
+    }
+    if action == "waypoint_mark" {
+        return sdk::call(
+            json!({"module":"macro","method":"waypoint_mark","args":[payload["destination"]]}),
+            generation,
+        );
+    }
+    let mut state = runtime();
+    if generation != state.generation {
+        return Err("이전 실행 요청이 취소됐습니다.".into());
+    }
+    if action == "waypoint_cancel" {
+        if let Some(request) = state.sdk_request.take() {
+            request.cancel("목적지 등록을 취소했습니다.");
+        }
+        return Ok(json!({"ok":true}));
+    }
+    if action == "ocr_info" {
+        return Ok(
+            json!({"engine":sdk::engine_name(),"local":true,"info":"화면 글자 읽기는 기기에서만 처리합니다."}),
+        );
+    }
+    if action == "mpop_default" {
+        let template = state.reset_popping_template(payload["biome"].as_str().unwrap_or(""))?;
+        return Ok(json!({"template":template}));
+    }
+    if action == "crash_cancel" {
+        state.cancel_feature("ret");
+        state.cancel_feature("play");
+        if let Some(runner) = state.automation.as_mut() {
+            runner.trigger(automation::Event::CancelRecovery, now());
+        }
+        return Ok(json!({"ok":true}));
+    }
+    if action.ends_with("_stop") || action == "move_stop" {
+        if action == "move_stop" {
+            state.stop("중지됨");
+        } else {
+            state.cancel_feature(action.trim_end_matches("_stop"));
+        }
+        return Ok(json!({"ok":true}));
+    }
+    let job =
+        if ["move_base", "move_base_rev", "move_place", "move_test"].contains(&action.as_str()) {
+            let destination = if action == "move_base" || action == "move_base_rev" {
+                navigator::Destination::Base
+            } else {
+                let config = state.macro_config();
+                let index = payload["i"]
+                    .as_u64()
+                    .or_else(|| payload["index"].as_u64())
+                    .unwrap_or(0) as usize;
+                let name = payload["place"]
+                    .as_str()
+                    .or_else(|| config["move"]["places"][index]["key"].as_str())
+                    .unwrap_or("fish_spot");
+                match name {
+                    "sell" | "sell_spot" => navigator::Destination::Sell,
+                    "craft" | "craft_spot" => navigator::Destination::Craft,
+                    "match" | "match_spot" => navigator::Destination::Match,
+                    _ => navigator::Destination::Coast,
+                }
+            };
+            automation::Job::Go { destination }
+        } else {
+            automation::Runner::action(&action, &payload)?
+                .ok_or_else(|| format!("알 수 없는 매크로 작업: {action}"))?
+        };
+    if !state.capture || !state.input {
+        return Err("화면 캡처와 입력을 먼저 준비하세요.".into());
+    }
+    #[cfg(not(target_os = "android"))]
+    validate_desktop_entry(&state)?;
+    if state.automation.is_none() {
+        if state.active() {
+            return Err("실행 중인 작업을 먼저 중지하세요.".into());
+        }
+        state.automation = Some(automation::Runner::new(state.macro_config(), now())?);
+        let previous = state.last_automation.clone();
+        state
+            .automation
+            .as_mut()
+            .unwrap()
+            .restore_session(&previous);
+        state.dua.running = true;
+        state.generation = state.generation.wrapping_add(1);
+        state.phone.cancel();
+        #[cfg(target_os = "android")]
+        if !state.phone.foreground {
+            state.automation.as_mut().unwrap().suspend(now());
+        }
+    }
+    #[cfg(target_os = "android")]
+    let phone_return = matches!(&job, automation::Job::Return { .. });
+    state.automation.as_mut().unwrap().queue(job)?;
+    #[cfg(target_os = "android")]
+    if phone_return {
+        phone::request_return(&mut state, now());
+    }
+    state.macro_message = Some("자동 작업을 시작합니다.".into());
+    state.record();
+    Ok(
+        json!({"ok":true,"queued":true,"running":true,"generation":state.generation,"automation":state.status().automation}),
+    )
+}
+
+#[tauri::command]
+fn android_input_status(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    #[cfg(target_os = "android")]
+    return android::input_status(&app);
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+        Ok(serde_json::json!({"enabled":true,"selected":true}))
+    }
 }
 
 #[tauri::command]
@@ -1233,19 +2359,21 @@ pub fn run() {
     #[cfg(target_os = "android")]
     let builder = builder.plugin(android::plugin());
     builder
+        .register_uri_scheme_protocol("acruxmod", services::mod_protocol)
         .setup(|app| {
             let dir = app.path().app_config_dir()?;
             fs::create_dir_all(&dir)?;
             runtime().load(dir.join("profile.json"));
+            services::init(app.handle()).map_err(std::io::Error::other)?;
             {
                 let mut state = runtime();
                 if state.settings_error.is_none() {
                     state.settings_error = state.save(state.fishing.tuning).err();
                 }
             }
-            #[cfg(target_os = "windows")]
-            biome::watch_windows();
-            #[cfg(target_os = "linux")]
+            #[cfg(desktop)]
+            biome::watch_desktop();
+            #[cfg(desktop)]
             desktop::start()?;
             discord::start();
             Ok(())
@@ -1265,6 +2393,7 @@ pub fn run() {
             control,
             dua_start,
             dua_stop,
+            device_action,
             desktop_start,
             desktop_snapshot,
             desktop_session_start,
@@ -1275,22 +2404,29 @@ pub fn run() {
             android_setup,
             reset,
             fishing_log,
+            macro_settings,
+            save_macro_settings,
+            automation_action,
+            android_input_status,
+            pick_macro_position,
+            services::service_action,
             navigation_status,
             save_navigation,
             clear_navigation,
-            desktop_navigation,
             desktop_task,
-            desktop_waypoint,
-            desktop_arrive,
             desktop_pick,
             desktop_cancel_pick
         ])
         .build(tauri::generate_context!())
         .expect("could not launch Acrux")
         .run(|_app, event| {
-            #[cfg(target_os = "linux")]
             if matches!(event, tauri::RunEvent::Exit) {
-                linux::shutdown();
+                runtime().stop("앱을 종료합니다.");
+                #[cfg(desktop)]
+                desktop::shutdown();
+                if let Err(error) = services::shutdown_worker() {
+                    eprintln!("{error}");
+                }
             }
         });
 }
@@ -1298,6 +2434,42 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explicit_template_reset_replaces_custom_rows_persists_and_rolls_back_on_write_failure() {
+        let folder = std::env::temp_dir().join(format!("acrux-template-{}", uuid::Uuid::new_v4()));
+        fs::create_dir(&folder).unwrap();
+        let path = folder.join("settings.json");
+        let mut state = Runtime {
+            settings: Some(path.clone()),
+            ..Runtime::default()
+        };
+        let mut config = state.macro_config();
+        config["mpop"]["templates"]["GLITCHED"] = serde_json::json!({"mode":"one","items":[]});
+        config["mpop"]["templates"]["CYBERSPACE"] = serde_json::json!({"mode":"custom","items":[]});
+        state.macro_settings = config;
+        let expected = automation::default_template("GLITCHED").unwrap();
+        assert_eq!(state.reset_popping_template("glitched").unwrap(), expected);
+        let saved: Profile = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        assert_eq!(
+            saved.macro_settings["mpop"]["templates"]["GLITCHED"],
+            expected
+        );
+        assert_eq!(
+            saved.macro_settings["mpop"]["templates"]["CYBERSPACE"]["mode"],
+            "custom"
+        );
+        state.dua.running = true;
+        assert!(state.reset_popping_template("CYBERSPACE").is_err());
+        state.dua.running = false;
+        let blocker = folder.join("blocker");
+        fs::write(&blocker, b"file").unwrap();
+        state.settings = Some(blocker.join("settings.json"));
+        let previous = state.macro_settings.clone();
+        assert!(state.reset_popping_template("CYBERSPACE").is_err());
+        assert_eq!(state.macro_settings, previous);
+        fs::remove_dir_all(folder).unwrap();
+    }
 
     #[test]
     fn private_account_settings_round_trip_without_entering_public_status() {
@@ -1353,7 +2525,7 @@ mod tests {
     }
 
     #[test]
-    fn desktop_runtime_refuses_shared_input_and_production_rejects_timed_travel() {
+    fn desktop_runtime_refuses_shared_input_but_accepts_observed_travel_and_sale() {
         let mut state = Runtime {
             capture: true,
             input: true,
@@ -1362,12 +2534,20 @@ mod tests {
         assert!(state.start_desktop(&["mfish".into()], 0.0).is_err());
         assert!(!state.active());
         state.dua.background = true;
-        assert!(validate_desktop_entry(&state).is_ok());
         state.navigation.options.use_move = true;
-        assert!(validate_desktop_entry(&state).is_err());
-        state.navigation.options.use_move = false;
         state.navigation.options.use_sell = true;
-        assert!(validate_desktop_entry(&state).is_err());
+        assert!(validate_desktop_entry(&state).is_ok());
+        state.start_desktop(&["mfish".into()], 0.1).unwrap();
+        assert!(state.automation.is_some() && state.job.is_none());
+        assert!(matches!(
+            state.tick(0.2, (480, 270), None),
+            DeviceTick::Wait
+        ));
+        assert!(state.wayfinder.is_some() && state.job.is_none());
+        assert!(
+            matches!(state.tick(0.3, (480, 270), None), DeviceTick::Observe(_)),
+            "fresh screen precedes all movement; legacy timing cannot emit input"
+        );
     }
 
     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
@@ -1391,7 +2571,7 @@ mod tests {
         let mut state = desktop_runtime();
         state.load(path.clone());
         assert!(state.settings_error.is_none());
-        assert!(!state.navigation.options.use_move && !state.navigation.options.use_sell);
+        assert!(state.navigation.options.use_move && state.navigation.options.use_sell);
         let loaded = serde_json::to_value(&state.navigation).unwrap();
         for key in ["positions", "fish", "sell"] {
             assert_eq!(loaded[key], profile["navigation"][key]);
@@ -1400,7 +2580,40 @@ mod tests {
         assert!(validate_desktop_entry(&state).is_ok());
         state.start_desktop(&["mfish".into()], 10.0).unwrap();
         assert!(state.dua.running && state.job.is_none());
-        assert!(state.fishing.phase == Phase::Calibrating);
+        assert!(state.automation.is_some() && state.wayfinder.is_none());
+        assert!(matches!(
+            state.tick(10.1, (480, 270), None),
+            DeviceTick::Wait
+        ));
+        assert!(matches!(
+            state.tick(10.15, (480, 270), None),
+            DeviceTick::Observe(_)
+        ));
+        let pixels = fishing_screen();
+        let frame = vision::Frame::new(&pixels, 480, 270, 1920, 4, false).unwrap();
+        state.frame_expires = Some(10.2 + 0.300);
+        assert!(!matches!(
+            state.tick(10.2, (480, 270), Some(&frame)),
+            DeviceTick::Input(GameInput::Motion(_))
+        ));
+        assert!(
+            state.wayfinder.is_none() && state.job.is_none() && state.automation.is_some(),
+            "the actual Fish UI confirms coast arrival without replaying timed routes"
+        );
+        assert!(matches!(
+            state.tick(10.3, (480, 270), None),
+            DeviceTick::Observe(_)
+        ));
+        assert!(
+            state.fishing.phase == Phase::Idle && state.fishing.calibration.is_none(),
+            "arrival still requires a fresh tool observation"
+        );
+        state.frame_expires = Some(10.31 + 0.300);
+        assert!(matches!(
+            state.tick(10.31, (480, 270), Some(&frame)),
+            DeviceTick::Wait
+        ));
+        assert!(state.fishing.calibration.is_some() && state.resume_after_calibration);
         state.save(state.fishing.tuning).unwrap();
         let mut reloaded = desktop_runtime();
         reloaded.load(path.clone());
@@ -1408,7 +2621,7 @@ mod tests {
         online::load(previous_online);
         fs::remove_file(path).unwrap();
         assert!(reloaded.settings_error.is_none());
-        assert!(!reloaded.navigation.options.use_move && !reloaded.navigation.options.use_sell);
+        assert!(reloaded.navigation.options.use_move && reloaded.navigation.options.use_sell);
         let restored = serde_json::to_value(&reloaded.navigation).unwrap();
         for key in ["positions", "fish", "sell"] {
             assert_eq!(restored[key], profile["navigation"][key]);
@@ -1418,7 +2631,7 @@ mod tests {
     }
 
     fn desktop_runtime() -> Runtime {
-        Runtime {
+        let mut state = Runtime {
             dua: DuaStatus {
                 background: true,
                 ..DuaStatus::default()
@@ -1426,7 +2639,63 @@ mod tests {
             capture: true,
             input: true,
             ..Runtime::default()
-        }
+        };
+        let mut config = state.macro_config();
+        config["useMove"] = false.into();
+        config["useSell"] = false.into();
+        state.macro_settings = config;
+        state
+    }
+
+    #[test]
+    fn device_action_never_rescales_a_queued_gesture_after_rotation() {
+        let mut state = desktop_runtime();
+        state
+            .start_device_action(
+                device::Gesture::Tap {
+                    at: vision::Point(0.2, 0.8),
+                    ms: 50,
+                },
+                (480, 270),
+            )
+            .unwrap();
+        let generation = state.generation;
+        assert!(matches!(
+            state.tick(0.1, (270, 480), None),
+            DeviceTick::Wait
+        ));
+        assert!(!state.active());
+        assert_ne!(state.generation, generation);
+        assert!(state.device_action.is_none());
+    }
+
+    #[test]
+    fn losing_target_cancels_device_action_and_cannot_accept_a_late_success() {
+        let mut state = desktop_runtime();
+        state
+            .start_device_action(
+                device::Gesture::Tap {
+                    at: vision::Point(0.2, 0.8),
+                    ms: 50,
+                },
+                (480, 270),
+            )
+            .unwrap();
+        let generation = state.generation;
+        assert!(matches!(
+            state.tick(0.1, (480, 270), None),
+            DeviceTick::Input(GameInput::Gesture(_))
+        ));
+        assert!(matches!(
+            state.tick(0.11, (480, 270), None),
+            DeviceTick::Wait
+        ));
+        state.no_target();
+        assert!(!state.active());
+        assert!(!state.input_current(generation));
+        let message = state.message().to_owned();
+        state.device_ack();
+        assert_eq!(state.message(), message);
     }
 
     fn calibrated_runtime() -> Runtime {
@@ -1489,7 +2758,7 @@ mod tests {
         let pixels = fishing_screen();
         let frame = vision::Frame::new(&pixels, 480, 270, 1920, 4, false).unwrap();
         state.start_desktop(&["mfish".into()], 0.0).unwrap();
-        assert!(state.dua.running && state.resume_after_calibration);
+        assert!(state.dua.running && state.automation.is_some());
         assert!(matches!(
             state.tick(0.1, (480, 270), None),
             DeviceTick::Observe(_)
@@ -1499,11 +2768,8 @@ mod tests {
             state.tick(0.1, (480, 270), Some(&frame)),
             DeviceTick::Wait
         ));
-        assert!(state.fishing.calibration.is_some());
-        assert!(state.dua.running && state.phase() == Phase::Idle);
+        assert!(state.fishing.calibration.is_some() && state.resume_after_calibration);
         assert!(state.task(Task::Base).is_err());
-        state.no_target();
-        assert!(state.dua.running && state.resume_after_calibration);
         assert!(matches!(
             state.tick(0.2, (480, 270), None),
             DeviceTick::Observe(_)
@@ -1511,7 +2777,7 @@ mod tests {
         assert!(!state.resume_after_calibration);
         let DeviceTick::Input(GameInput::Tap(tap)) = state.tick(0.2, (480, 270), Some(&frame))
         else {
-            panic!("calibrated DUA must cast using the screenshot");
+            panic!("fresh calibrated Fish must cast");
         };
         assert!((170..179).contains(&tap.x) && (164..168).contains(&tap.y));
         assert_eq!(state.dua.route, Some(Route::Screenshot));
@@ -1519,8 +2785,9 @@ mod tests {
         let generation = state.generation;
         assert!(state.input_current(generation));
         state.control(Action::Stop).unwrap();
-        assert!(!state.input_current(generation));
-        assert!(!state.dua.running && state.dua.route.is_none());
+        assert!(
+            !state.input_current(generation) && !state.dua.running && state.dua.route.is_none()
+        );
         assert!(matches!(
             state.tick(1.0, (480, 270), Some(&frame)),
             DeviceTick::Wait
@@ -1529,63 +2796,67 @@ mod tests {
     }
 
     #[test]
-    fn dua_routes_movement_to_headless_and_escalates_to_screenshot_for_fishing() {
+    fn dua_requests_observed_coast_travel_without_replaying_legacy_timing() {
         let mut state = desktop_runtime();
         state.navigation = desktop_navigation();
+        state.macro_settings["useMove"] = true.into();
         state.start_desktop(&["mfish".into()], 0.0).unwrap();
-        let mut inputs = 0;
-        for step in 0..100 {
-            match state.tick(step as f64 * 10.0, (480, 270), None) {
-                DeviceTick::Input(GameInput::Motion(_)) => inputs += 1,
-                DeviceTick::Observe(_) => break,
-                DeviceTick::Wait => {}
-                _ => panic!("movement must not produce a screenshot-dependent fishing tap"),
-            }
-        }
-        assert!(inputs > 10);
-        assert!(state.dua.running && state.phase() == Phase::Calibrating);
+        let generation = state.generation;
+        assert!(matches!(
+            state.tick(0.1, (480, 270), None),
+            DeviceTick::Wait
+        ));
+        assert!(matches!(
+            state.tick(0.2, (480, 270), None),
+            DeviceTick::Observe(_)
+        ));
+        assert!(state.wayfinder.is_some() && state.job.is_none());
+        assert!(
+            !state.input_current(generation),
+            "handoff invalidates the previous tool generation"
+        );
+        assert!(
+            state.fishing.calibration.is_none(),
+            "fishing cannot begin before actual coast arrival"
+        );
+        assert!(matches!(
+            state.tick(0.3, (480, 270), None),
+            DeviceTick::Observe(_)
+        ));
+        assert!(state.request_ocr);
         assert_eq!(state.dua.route, Some(Route::Screenshot));
-        assert_eq!(state.dua.screenshot_frames, 0);
-        assert!(state.dua.headless_ticks > 10 && state.dua.transitions >= 2);
     }
 
     #[test]
-    fn dua_inventory_full_hands_off_to_headless_sale_and_requires_visual_confirmation() {
+    fn inventory_full_hands_off_to_sale_travel_and_keeps_inputs_generation_bound() {
         let mut state = calibrated_runtime();
-        state.navigation = desktop_navigation();
-        state.navigation.options.use_move = false;
+        state.macro_settings["useSell"] = true.into();
         state.start_desktop(&["mfish".into()], 0.0).unwrap();
-        let pixels = fishing_screen();
-        let frame = vision::Frame::new(&pixels, 480, 270, 1920, 4, false).unwrap();
-        for at in [0.1, 3.2, 6.3, 9.4] {
-            state.tick(at, (480, 270), Some(&frame));
-        }
-        assert!(state
-            .job
-            .as_ref()
-            .is_some_and(|job| job.action == Task::Sell));
-        assert!(state.dua.running);
+        state
+            .automation
+            .as_mut()
+            .unwrap()
+            .trigger(automation::Event::InventoryFull, 0.1);
+        assert_eq!(state.automation.as_ref().unwrap().status().queued, 1);
         let generation = state.generation;
-        let before = state.dua.screenshot_frames;
-        let mut inputs = 0;
-        for step in 1..100 {
-            match state.tick(10.0 + step as f64 * 10.0, (480, 270), None) {
-                DeviceTick::Input(GameInput::Motion(_)) => inputs += 1,
-                DeviceTick::Observe(_) => break,
-                DeviceTick::Wait => {}
-                _ => panic!("sale movement requires structured commands"),
-            }
-        }
-        assert!(inputs > 10);
-        assert_eq!(state.dua.screenshot_frames, before);
-        assert_eq!(state.dua.route, Some(Route::Screenshot));
-        assert!(state
-            .job
-            .as_ref()
-            .is_some_and(|job| job.action == Task::Sell));
+        assert!(matches!(
+            state.tick(0.2, (480, 270), None),
+            DeviceTick::Wait
+        ));
+        assert!(matches!(
+            state.automation.as_ref().unwrap().status().active,
+            Some(automation::Job::Sell { test: false })
+        ));
+        assert!(state.wayfinder.is_some() && state.job.is_none());
+        assert!(!state.input_current(generation));
+        assert!(
+            matches!(state.tick(0.4, (480, 270), None), DeviceTick::Observe(_)),
+            "selling must inspect actual ground before moving"
+        );
+        let generation = state.generation;
         state.control(Action::Stop).unwrap();
         assert!(!state.input_current(generation));
-        assert!(state.job.is_none());
+        assert!(state.wayfinder.is_none() && state.automation.is_none());
     }
 
     #[test]
@@ -1658,57 +2929,75 @@ mod tests {
     }
 
     #[test]
-    fn losing_the_target_during_headless_movement_cancels_the_session() {
+    fn losing_target_invalidates_travel_and_keeps_only_the_recovery_runner() {
         let mut state = desktop_runtime();
-        state.navigation = desktop_navigation();
-        state.start_desktop(&["mfish".into()], 0.0).unwrap();
-        assert!(matches!(
-            state.tick(0.0, (480, 270), None),
-            DeviceTick::Input(_)
-        ));
+        state.macro_settings["useMove"] = true.into();
+        let at = now();
+        state.start_desktop(&["mfish".into()], at).unwrap();
+        let pixels = fishing_screen();
+        let frame = vision::Frame::new(&pixels, 480, 270, 1920, 4, false).unwrap();
+        state.tick(at, (480, 270), Some(&frame));
+        assert!(state.wayfinder.is_some());
         let generation = state.generation;
         state.no_target();
-        assert!(!state.active() && !state.input_current(generation));
-        assert!(matches!(
-            state.tick(0.1, (480, 270), None),
-            DeviceTick::Wait
-        ));
+        assert!(state.dua.running && state.automation.is_some());
+        assert!(state.wayfinder.is_none() && state.job.is_none());
+        assert!(!state.input_current(generation));
+        assert_eq!(state.dua.route, Some(Route::Headless));
+        state.stop("test recovery canceled");
+        assert!(!state.active());
     }
 
     #[test]
-    fn dua_refuses_unsupported_features_and_failed_calibration_does_not_start_fishing() {
+    fn dua_supports_all_seven_features_and_failed_calibration_never_starts_fishing() {
+        for feature in [
+            "mfish", "mpop", "mitem", "mblood", "mmerch", "mcraft", "mmatch",
+        ] {
+            let mut state = desktop_runtime();
+            state.start_desktop(&[feature.into()], 0.0).unwrap();
+            assert!(state.dua.running && state.automation.is_some());
+            state.stop("next feature");
+            assert!(!state.active());
+        }
         let mut state = desktop_runtime();
         assert!(state.start_desktop(&[], 0.0).is_err());
-        assert!(state
-            .start_desktop(&["mfish".into(), "mitem".into()], 0.0)
-            .is_err());
+        assert!(state.start_desktop(&["unknown".into()], 0.0).is_err());
         assert!(!state.active());
         state.start_desktop(&["mfish".into()], 0.0).unwrap();
         let pixels = vec![0; 480 * 270 * 4];
         let frame = vision::Frame::new(&pixels, 480, 270, 1920, 4, false).unwrap();
+        state.tick(0.1, (480, 270), Some(&frame));
+        assert!(state.fishing.phase == Phase::Calibrating);
         state.tick(31.0, (480, 270), Some(&frame));
         state.tick(31.1, (480, 270), None);
-        assert!(!state.dua.running && !state.active());
-        assert!(state.fishing.calibration.is_none());
-        assert!(!state.resume_after_calibration);
+        assert!(
+            !state.dua.running
+                && !state.active()
+                && state.fishing.calibration.is_none()
+                && !state.resume_after_calibration
+        );
     }
 
     #[test]
-    fn dua_movement_resize_stops_and_restart_rejects_old_generation() {
+    fn dua_observed_travel_resize_stops_and_restart_rejects_old_generation() {
         let mut state = desktop_runtime();
-        state.navigation = desktop_navigation();
+        state.macro_settings["useMove"] = true.into();
+        let pixels = fishing_screen();
+        let frame = vision::Frame::new(&pixels, 480, 270, 1920, 4, false).unwrap();
         state.start_desktop(&["mfish".into()], 0.0).unwrap();
+        state.tick(0.0, (480, 270), Some(&frame));
+        assert!(state.wayfinder.is_some());
         assert!(matches!(
-            state.tick(0.0, (480, 270), None),
-            DeviceTick::Input(_)
+            state.tick(0.01, (480, 270), None),
+            DeviceTick::Observe(_)
         ));
         let generation = state.generation;
-        state.tick(0.01, (640, 360), None);
+        state.tick(0.02, (640, 360), None);
         assert!(!state.active() && !state.input_current(generation));
         state.start_desktop(&["mfish".into()], 1.0).unwrap();
         assert!(!state.input_current(generation));
         state.control(Action::Stop).unwrap();
-        state.input_rejected("늦은 입력 실패");
+        state.input_rejected("late input failure");
         assert!(!state.active());
     }
 
@@ -1756,5 +3045,36 @@ mod tests {
         state.input_rejected("늦게 도착한 입력 오류");
         assert!(matches!(state.phase(), Phase::Idle));
         assert_eq!(state.message(), "중지됨");
+    }
+    #[test]
+    fn disabled_fishing_recovery_leaves_other_features_running() {
+        for event in [automation::Event::InventoryFull, automation::Event::Coast] {
+            let mut state = desktop_runtime();
+            state
+                .start_desktop(&["mfish".into(), "mmatch".into()], 0.0)
+                .unwrap();
+            state.automation.as_mut().unwrap().trigger(event, 0.1);
+            assert_eq!(state.automation.as_ref().unwrap().status().queued, 0);
+            let pixels = fishing_screen();
+            let frame = vision::Frame::new(&pixels, 480, 270, 1920, 4, false).unwrap();
+            state.tick(0.2, (480, 270), Some(&frame));
+            assert!(state.dua.running && state.automation.is_some());
+            assert!(state.fishing.phase == Phase::Idle && state.job.is_none());
+            assert!(
+                matches!(
+                    state.automation.as_ref().unwrap().status().active,
+                    Some(automation::Job::Match { .. })
+                ) && state.wayfinder.is_some(),
+                "the unrelated memory-match feature still starts its own journey"
+            );
+            assert!(
+                !state.resume_after_calibration,
+                "disabled fishing cannot restart while another feature waits"
+            );
+            assert!(
+                state.log.iter().any(|(_, line)| line.contains("꺼져")),
+                "the disabled recovery reason is retained in the app log"
+            );
+        }
     }
 }

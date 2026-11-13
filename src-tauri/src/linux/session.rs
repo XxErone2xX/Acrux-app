@@ -82,6 +82,8 @@ struct Config {
     xwayland: PathBuf,
     gamescope: PathBuf,
     mode: Mode,
+    #[serde(default)]
+    url: Option<String>,
 }
 
 #[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
@@ -171,7 +173,17 @@ pub(super) struct Session {
 
 impl Session {
     pub(super) fn launch_with_cancel(cancel: &AtomicBool) -> Result<Self, String> {
-        Self::launch_mode(Mode::Sober, cancel)
+        Self::launch_mode(Mode::Sober, cancel, None, || true)
+    }
+    pub(super) fn launch_url_with_cancel(
+        url: &str,
+        cancel: &AtomicBool,
+        current: impl Fn() -> bool,
+    ) -> Result<Self, String> {
+        if !url.starts_with("roblox://") || url.len() > 8192 || url.chars().any(char::is_control) {
+            return Err("Roblox 재실행 주소가 잘못됐습니다.".into());
+        }
+        Self::launch_mode(Mode::Sober, cancel, Some(url.into()), current)
     }
 
     /// Only the explicit diagnostic command can create this non-game fixture.
@@ -179,10 +191,18 @@ impl Session {
         if env::var("ACRUX_SESSION_TEST").as_deref() != Ok("1") {
             return Err("전용 세션 진단은 명시적으로 허용한 실행에서만 가능합니다.".into());
         }
-        Self::launch_mode(Mode::Fixture, cancel)
+        Self::launch_mode(Mode::Fixture, cancel, None, || true)
     }
 
-    fn launch_mode(mode: Mode, cancel: &AtomicBool) -> Result<Self, String> {
+    fn launch_mode(
+        mode: Mode,
+        cancel: &AtomicBool,
+        url: Option<String>,
+        current: impl Fn() -> bool,
+    ) -> Result<Self, String> {
+        if cancel.load(Ordering::Acquire) || !current() {
+            return Err("게임 세션 시작을 취소했습니다.".into());
+        }
         let started = Instant::now();
         let deadline = started
             + if mode == Mode::Fixture {
@@ -198,7 +218,7 @@ impl Session {
         } else {
             PathBuf::new()
         };
-        if cancel.load(Ordering::Acquire) {
+        if cancel.load(Ordering::Acquire) || !current() {
             return Err("게임 세션 시작을 취소했습니다.".into());
         }
         let app = env::current_exe().map_err(|error| error.to_string())?;
@@ -222,6 +242,7 @@ impl Session {
             xwayland,
             gamescope: gamescope.clone(),
             mode,
+            url,
         };
         write_json(&directory.path().join("config.json"), &config)?;
         let wrapper = directory.path().join("Xwayland");
@@ -284,6 +305,9 @@ impl Session {
                 }
             }
         }
+        if cancel.load(Ordering::Acquire) || !current() {
+            return Err("게임 세션 시작을 취소했습니다.".into());
+        }
         let mut child = command
             .spawn()
             .map_err(|error| format!("백그라운드 게임 세션을 시작하지 못했습니다. {error}"))?;
@@ -303,13 +327,18 @@ impl Session {
             endpoint: None,
             stopped: false,
         };
-        session.wait_ready(deadline, cancel)?;
+        session.wait_ready(deadline, cancel, current)?;
         Ok(session)
     }
 
-    fn wait_ready(&mut self, deadline: Instant, cancel: &AtomicBool) -> Result<(), String> {
+    fn wait_ready(
+        &mut self,
+        deadline: Instant,
+        cancel: &AtomicBool,
+        current: impl Fn() -> bool,
+    ) -> Result<(), String> {
         loop {
-            if cancel.load(Ordering::Acquire) {
+            if cancel.load(Ordering::Acquire) || !current() {
                 return Err("게임 세션 시작을 취소했습니다.".into());
             }
             if let Ok(error) = read_small(&self.directory.path().join("error.txt"), 4096) {
@@ -395,6 +424,85 @@ impl Session {
                 .endpoint
                 .as_ref()
                 .is_some_and(|(ready, server)| self.verify(ready, server).is_ok())
+    }
+
+    /// Send a protocol URL only inside the token-bound Flatpak instance we own.
+    /// Never invoke the host's default URL handler or start another Flatpak app.
+    pub(super) fn launch_url(
+        &mut self,
+        url: &str,
+        cancel: &AtomicBool,
+        current: impl Fn() -> bool,
+    ) -> Result<(), String> {
+        if !url.starts_with("roblox://")
+            || url.len() > 8192
+            || url.chars().any(char::is_control)
+            || self.config.mode != Mode::Sober
+            || !self.healthy()
+            || !current()
+        {
+            return Err("재접속 주소나 소유 게임 세션이 올바르지 않습니다.".into());
+        }
+        let (ready, _) = self.endpoint.as_ref().ok_or("소유 게임 세션이 없습니다.")?;
+        let instance = ready
+            .instance
+            .as_deref()
+            .filter(|id| valid_instance(id))
+            .ok_or("소유 Flatpak 인스턴스가 없습니다.")?;
+        let mut command = Command::new(&self.config.flatpak);
+        command
+            .args([
+                "enter",
+                instance,
+                "/usr/bin/env",
+                "-u",
+                "WAYLAND_DISPLAY",
+                "-u",
+                "WAYLAND_SOCKET",
+            ])
+            .arg(format!("DISPLAY=:{}", ready.display))
+            .arg(format!(
+                "XAUTHORITY={}",
+                self.directory.path().join("Xauthority").display()
+            ))
+            .args([
+                "SDL_VIDEO_DRIVER=x11",
+                "SDL_VIDEODRIVER=x11",
+                "/app/bin/sober",
+                "--",
+                url,
+            ])
+            .env_remove("DISPLAY")
+            .env_remove("WAYLAND_DISPLAY")
+            .env_remove("WAYLAND_SOCKET")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        let mut child = command
+            .spawn()
+            .map_err(|e| format!("소유 게임에 재접속 주소를 전달하지 못했습니다: {e}"))?;
+        let deadline = Instant::now() + Duration::from_secs(3);
+        loop {
+            if cancel.load(Ordering::Acquire)
+                || !current()
+                || !self.healthy()
+                || Instant::now() >= deadline
+            {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err("재접속 주소 전달을 취소했거나 시간이 초과됐습니다.".into());
+            }
+            match child.try_wait() {
+                Ok(Some(status)) if status.success() => return Ok(()),
+                Ok(Some(_)) => return Err("소유 게임이 재접속 주소를 받지 못했습니다.".into()),
+                Ok(None) => thread::sleep(POLL),
+                Err(error) => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(error.to_string());
+                }
+            }
+        }
     }
 
     pub(super) fn stop_handle(&self) -> StopHandle {
@@ -663,6 +771,12 @@ fn run_helper(directory: &Path, token: &OsStr) -> Result<i32, String> {
         .stdin(Stdio::null())
         .stdout(log.try_clone().map_err(|error| error.to_string())?)
         .stderr(log);
+    if let Some(url) = config.url.as_deref() {
+        if !url.starts_with("roblox://") || url.len() > 8192 || url.chars().any(char::is_control) {
+            return Err("소유 게임의 재실행 주소가 잘못됐습니다.".into());
+        }
+        command.args(["--", url]);
+    }
     // This internal helper is single-threaded. Inherit only the dedicated ID
     // descriptor; neither Flatpak's stdout nor Sober's logs can write into it.
     rustix::io::fcntl_setfd(&output, rustix::io::FdFlags::empty())
@@ -977,6 +1091,13 @@ fn redact(value: &str, config: &Config) -> String {
         .map(|byte| format!("{byte:02x}"))
         .collect();
     let mut value = value.replace(&config.token, "[redacted]");
+    if let Some(url) = config.url.as_deref().filter(|url| !url.is_empty()) {
+        value = value.replace(url, "[redacted]");
+        let credentials = regex::Regex::new(r"(?i)(?:[?&]|://)(?:linkCode|privateServerLinkCode|privateServerLink|code)=([A-Za-z0-9_-]+)").unwrap();
+        for captures in credentials.captures_iter(url) {
+            value = value.replace(&captures[1], "[redacted]");
+        }
+    }
     for secret in [
         hex.clone(),
         hex.to_uppercase(),
@@ -1108,7 +1229,40 @@ mod tests {
             xwayland: "/usr/bin/Xwayland".into(),
             gamescope: "/usr/bin/gamescope".into(),
             mode: Mode::Sober,
+            url: None,
         }
+    }
+
+    #[test]
+    fn recovery_link_and_its_server_code_never_reach_diagnostics() {
+        let mut cfg = config(Identity::read(std::process::id()).unwrap());
+        cfg.url =
+            Some("roblox://navigation/share_links?code=private-server-code&type=Server".into());
+        let diagnostic = redact(
+            &format!(
+                "launch failed: {}; server code: private-server-code",
+                cfg.url.as_ref().unwrap()
+            ),
+            &cfg,
+        );
+        assert!(!diagnostic.contains("private-server-code"));
+        assert!(!diagnostic.contains("roblox://"));
+    }
+
+    #[test]
+    fn canceled_recovery_generation_cannot_start_a_private_session() {
+        let cancel = AtomicBool::new(false);
+        let result = Session::launch_url_with_cancel("roblox://placeId=1", &cancel, || false);
+        assert!(matches!(result, Err(error) if error == "게임 세션 시작을 취소했습니다."));
+        cancel.store(true, Ordering::Release);
+        let result = Session::launch_url_with_cancel("roblox://placeId=1", &cancel, || true);
+        assert!(matches!(result, Err(error) if error == "게임 세션 시작을 취소했습니다."));
+        assert!(Session::launch_url_with_cancel(
+            "https://example.com",
+            &AtomicBool::new(false),
+            || true
+        )
+        .is_err());
     }
 
     #[test]

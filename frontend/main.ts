@@ -1,14 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
-import { duaStart, duaStop, saveTuning, status, type Status, type Stats, type Tuning } from "./engine";
+import { duaStop, saveTuning, status, type Status, type Stats, type Tuning } from "./engine";
 import mobileDictionary from "../android/app/src/main/assets/i18n/mobile.tsv?raw";
 import desktopDictionary from "../android/app/src/main/assets/i18n/pc.tsv?raw";
 
+import defaults from "./desktop-defaults.json";
 import { biomeStatus, saveBiome, defaultBiome, type BiomeStatus } from "./biome";
 
 type Language = "ko" | "en" | "ja";
 type Page = "home" | "fish" | "biome" | "log" | "settings";
 type Overlay = { visible: boolean; hideOnApp: boolean; alpha: number; lang: Language };
-type Setup = "biome" | "accessibility" | "capture" | "stopCapture" | "appInfo" | "donate" | "overlay";
+type Setup = "biome" | "accessibility" | "capture" | "stopCapture" | "appInfo" | "donate" | "overlay" | "inputSetup";
 type Reset = "calibration" | "session" | "total" | "log";
 type GuideId = "ready" | "fish" | "move" | "sell";
 
@@ -17,7 +18,7 @@ for (const dictionary of [desktopDictionary, mobileDictionary]) {
   for (const line of dictionary.split(/\r?\n/)) {
     if (!line || line.startsWith("#")) continue;
     const [ko, ...other] = line.split("\t");
-    translations.set(ko, other.map(value => value.replaceAll("\\n", "\n")));
+    translations.set(ko.replaceAll("\\n", "\n"), other.map(value => value.replaceAll("\\n", "\n")));
   }
 }
 
@@ -45,22 +46,71 @@ function escape(text: string) {
 const tr = (text: string) => escape(t(text));
 const element = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const tabs: readonly [Page, string][] = [["home", "홈"], ["fish", "낚시"], ["biome", "바이옴"], ["log", "기록"], ["settings", "설정"]];
-const unsupported = "이 기능의 실행은 아직 Tauri 미리보기에 연결되지 않았습니다.";
-interface NavigationOptions {
-  useMove: boolean; useSell: boolean; resetWait: number; wa: number; a: number; aw: number;
-  pause: number; d: number; tilt: number; zoom: number; margin: number; sellMax: number; sellDelay: number;
+type Bag = Record<string, unknown>;
+const features = [["mfish", "자동 낚시"], ["mpop", "오토 팝핑"], ["mitem", "오토 아이템"], ["mmerch", "상인 자동 구매"], ["mcraft", "자동 포션 제작"], ["mmatch", "자동 메모리 매치"], ["mblood", "블러드 레인 자동 생성"]] as const;
+let macro: Bag = structuredClone(defaults);
+let macroLoaded = false;
+let inputMethod = { enabled: false, selected: false };
+let update: Bag = { available: false, ready: false, message: "확인 전" };
+let macroSaves = Promise.resolve();
+let macroRestartRevision: number | null = null;
+let macroSaving = 0;
+const group = (name: string) => macro[name] as Bag;
+const selectedFeatures = () => features.filter(([name]) => group(name)?.enabled === true).map(([name]) => name);
+async function loadMacro() {
+  const next = await invoke<Bag>("macro_settings");
+  macro = { ...structuredClone(defaults), ...next };
+  for (const [key, value] of Object.entries(defaults)) if (value && typeof value === "object" && !Array.isArray(value)) macro[key] = { ...value, ...(next[key] as Bag ?? {}) };
+  macroLoaded = true;
 }
-interface NavigationState {
-  options: NavigationOptions;
-  positions: Record<string, [number, number]>;
-  fish: number;
-  sell: number;
+async function automationAction(action: string, payload: Bag = {}) {
+  const observed = await status();
+  return invoke<Bag>("automation_action", { action, payload, generation: observed.generation });
 }
-const navigationDefaults: NavigationOptions = {
-  useMove: false, useSell: false, resetWait: 3.5, wa: 3.5, a: 3, aw: 2, pause: .5,
-  d: 1, tilt: 3, zoom: 4, margin: .3, sellMax: 100, sellDelay: 0,
+async function serviceAction(action: string, payload: Bag = {}) {
+  return invoke<Bag>("service_action", { action, payload });
+}
+async function saveMacro(edit: (next: Bag) => void, tuning?: Partial<Tuning>) {
+  ++request;
+  ++macroSaving;
+  const revision = macroRevision;
+  const pending = macroSaves.then(async () => {
+    if (!macroLoaded) await loadMacro();
+    const next = structuredClone(macro);
+    edit(next);
+    const observed = await status();
+    const restart = macroPending !== "stop" && (observed.dua.running || macroRestartRevision === revision) && revision === macroRevision;
+    if (restart) { macroRestartRevision = revision; applyDua(); }
+    if (observed.dua.running || observed.phase !== "idle") {
+      const stopped = await duaStop();
+      if (revision === macroRevision) current = stopped;
+    }
+    if (tuning) {
+      const tuned = await saveTuning({ ...observed.tuning, ...tuning });
+      if (revision === macroRevision) current = tuned;
+    }
+    next.macro_on = false;
+    macro = await invoke<Bag>("save_macro_settings", { config: next });
+    if (restart && revision === macroRevision && macroPending !== "stop") {
+      const fresh = await status();
+      if (revision === macroRevision) current = await invoke<Status>("dua_start", { features: selectedFeatures(), generation: fresh.generation });
+    }
+  });
+  const settled = pending.finally(() => {
+    --macroSaving;
+    if (macroRestartRevision === revision) macroRestartRevision = null;
+    applyStatus();
+  });
+  macroSaves = settled.catch(() => undefined);
+  return settled;
+}
+const tuningNames: Record<keyof Tuning, string> = {
+  biteSeconds: "bite_max", leadMs: "lead_ms", targetPercent: "target_pct", clickMs: "click_ms", clickGapMs: "click_gap_ms", castRetries: "cast_retry", deadband: "deadband", adaptive: "adaptive", tapAbove: "tap_above",
 };
-let nav: NavigationState = { options: navigationDefaults, positions: {}, fish: 0, sell: 0 };
+async function changeTuning(key: keyof Tuning, value: number | boolean) {
+  await saveMacro(next => { (next.mfish as Bag)[tuningNames[key]] = value; }, { [key]: value });
+}
+
 const zero: Stats = { success: 0, junk: 0, fail: 0, full: 0 };
 const pageMemory = new Map<Page, number>();
 const tabKey = "acrux.mobile.tab";
@@ -129,24 +179,28 @@ function home() {
     row("① 접근성 권한", "Acrux가 로블록스 화면을 대신 터치함 · 설정 → 접근성 → 설치된 앱 → Acrux Mobile", button("켜기", "accessibility", "accent", "access-button"), "access-state")
     + `<button class="tip" data-action="appInfo">${tr("안드로이드 13 이상에서 '제한된 설정'이라며 켜지지 않으면: 설정 → 앱 → Acrux Mobile → 오른쪽 위 ⋮ → '제한된 설정 허용' 후 다시 켜기")}</button>`
     + row("② 화면 캡처", "매크로가 화면을 보고 상태를 판단함 · 녹화 · 저장은 하지 않음 · '전체 화면' 공유를 고르기", button("시작", "capture", "accent", "capture-button"), "capture-state")
+    + row("③ 글자 입력", "검색어와 수량을 게임에 입력 · 기기에 따라 입력기 설정이 필요함", button("설정", "inputSetup", "accent", "input-button"), "input-state")
     + text("Roblox 화면에서만 터치 · 다른 앱에서는 대기", 12, "warning"))
   + card("state", "상태",
     '<p id="run-state" class="readout"></p><p id="cal-state" class="muted readout"></p>'
     + `<div class="buttons">${button("시작", "macro-toggle", "accent", "macro-toggle")}</div>`
     + `<div class="buttons">${button("보정 초기화", "reset:calibration", "danger")}</div>`)
+  + card("features", "실행할 기능", features.map(([key, name]) => toggle(name, `data-macro="${key}.enabled"`, !!group(key)?.enabled)).join("")
+    + text("기능별 설정과 위치 지정은 설정 칸에서 할 수 있습니다.", 12)
+    + '<p id="automation-state" class="muted readout"></p>')
   + card("dua", "DUA 실행 경로",
     '<p id="dua-state" class="readout"></p><p id="dua-reason" class="muted readout"></p><p id="dua-counts" class="muted readout"></p><p id="dua-guard" class="warning readout"></p>'
     + text("상태와 명령을 우선 사용하고, 화면 확인이 필요할 때 캡처", 12))
   + card("how", "사용법",
     [
-      "1. 로블록스(Sol's RNG)를 전체 화면 가로로 켜고 낚시 자리로 가서 Fish 버튼이 보이게 하기",
-      "2. [시작] — 저장된 보정이 없으면 자동 보정한 뒤 낚시를 시작함",
+      "1. 홈에서 실행할 기능을 켜고 로블록스 (Sol's RNG)를 가로 전체 화면으로 열기",
+      "2. [시작] — 이동 설정에 따라 목적지를 찾고, 낚시는 실제 패널을 보정한 뒤 진행",
       "3. Roblox가 앞에 있을 때만 터치 · 다른 앱에서는 대기 · 잠기면 정지",
       "4. Acrux 창은 어디든 잡고 끌어서 낚시 창 · 결과창을 가리지 않는 곳으로 옮기기",
-      "5. 멈출 때는 앱 또는 떠 있는 Acrux 창의 [정지] · 이동과 판매는 준비 중",
+      "5. 멈출 때는 앱 또는 떠 있는 Acrux 창의 [정지] · 이동은 매번 지형을 확인하고 판매 후 돌아옴",
       "6. 바이옴 알림: 바이옴 칸 → 무선 디버깅 연결 → 웹후크 입력 → Acrux 창의 [바이옴] 버튼으로 켜고 끄기",
     ].map(step => text(step)).join("")
-    + `<strong class="guide-heading">${tr("설정 안내 — 기능별로 하나씩 따라 하기 (PC 튜토리얼과 같음)")}</strong><div class="guide-buttons">${Object.entries(guideNames).map(([id, name]) => button(name, "guide:" + id, "accent", "", id === "move" || id === "sell")).join("")}</div>`)
+    + `<strong class="guide-heading">${tr("설정 안내 — 기능별로 하나씩 따라 하기 (PC 튜토리얼과 같음)")}</strong><div class="guide-buttons">${Object.entries(guideNames).map(([id, name]) => button(name, "guide:" + id, "accent")).join("")}</div>`)
   + card("donate", "후원", text("Acrux 가 도움이 됐다면 후원으로 응원해 주세요", 12)
     + `<div class="buttons">${button("후원하기", "donate", "gold")}</div>`);
 }
@@ -169,62 +223,119 @@ function fishing() {
     + text("모바일은 미니게임 창 바로 아래가 Roll 버튼이라 위쪽 빈 화면 (캐릭터 쪽) 을 누름 · 끄면 창 아래를 누름", 12)) + move();
 }
 
-const baseFields: [keyof NavigationOptions, string, string, number, number, number][] = [
-  ["resetWait", "리셋 후 대기", "기본 3.5", .5, 30, .1],
-  ["wa", "W + A", "기본 3.5", 0, 30, .1], ["a", "A", "기본 3", 0, 30, .1],
-  ["aw", "A + W", "기본 2", 0, 30, .1], ["pause", "쉼", "D 누르기 전에 기다림 · 기본 0.5", 0, 10, .1],
-  ["d", "D", "기본 1", 0, 30, .1], ["tilt", "내려다보기 (번)", "화면을 아래로 끄는 횟수 · 기본 3", 0, 10, 1],
-  ["zoom", "줌 아웃 (번)", "두 손가락 오므리는 횟수 · 기본 4", 0, 10, 1],
-  ["margin", "도착 뒤 여유", "길을 다 걸은 뒤 기다림 · 기본 0.3", 0, 5, .1],
-];
-const savedPlaces = [
-  ["stick_edge", "조이스틱"], ["menu_btn", "로블록스 메뉴 버튼 (왼쪽 위)"],
-  ["reset_btn", "캐릭터 재설정 버튼 (메뉴 안)"], ["reset_confirm", "재설정 확인 버튼"],
-  ["collection_pos", "도감 버튼"], ["collection_close", "도감 Exit"], ["jump_btn", "점프 버튼 (오른쪽 아래)"],
-  ["talk_btn", "대화 버튼 (E)"], ["dialog_pos", "대화창 (판매)"], ["sell_fish_pos", "Sell Fish 버튼 (판매)"],
-  ["first_fish_pos", "첫 번째 물고기 칸 (판매)"], ["sell_all_pos", "Sell All 버튼 (판매)"],
-  ["confirm_sell_pos", "확인 Sell (판매)"], ["shop_close_pos", "상점 닫기 X (판매)"],
-];
-function navigationField(key: keyof NavigationOptions, name: string, desc: string, min: number, max: number, step: number) {
-  return row(name, desc, `<input type="number" data-navigation="${key}" aria-label="${tr(name)}" value="${nav.options[key]}" min="${min}" max="${max}" step="${step}" disabled>`);
-}
 function move() {
+  const fish = group("mfish");
   return card("movement", "이동 · 판매",
-    text("지도 기반 이동과 판매는 준비 중입니다. 직접 낚시 자리를 맞춰 주세요. 가득 차면 정지합니다.", 12, "warning")
-    + toggle("시작할 때 낚시 장소로 이동", 'data-navigation="useMove"', nav.options.useMove, true)
-    + toggle("가득 차면 판매하러 가기", 'data-navigation="useSell"', nav.options.useSell, true))
-  + card("base", "저장된 이전 이동 설정", text("이전 위치 · 길 · 시간 설정은 보존하며 실행하지 않습니다.", 12)
-    + baseFields.map(args => navigationField(...args)).join(""))
-  + card("sell", "판매", navigationField("sellMax", "판매 최대 종류", "한 번에 파는 최대 종류 수 · 기본 100", 1, 500, 1)
-    + navigationField("sellDelay", "판매 클릭 추가 대기 (초)", "렉이 있으면 늘림 · 기본 0", 0, 5, .1))
-  + card("places", "저장된 위치 · 길", '<pre id="saved-places"></pre>'
-    + `<div class="buttons">${button("위치 · 길 모두 지우기", "clear-navigation", "danger")}</div>`);
-}
-function applyNavigation() {
-  const labels = savedPlaces.map(([key, label]) => {
-    const at = nav.positions[key];
-    return at ? "✓ " + t(label) + "  " + at.map(value => value.toFixed(4)).join(", ") : "· " + t(label);
-  });
-  labels.push(...([["fish", "낚시 장소 길"], ["sell", "판매 장소 길"]] as const)
-    .map(([key, label]) => (nav[key] ? "✓ " : "· ") + t(label) + (nav[key] ? " · " + nav[key] + " " + t("조각") : "")));
-  setText("saved-places", labels.join("\n"));
-  for (const field of document.querySelectorAll<HTMLInputElement>("[data-navigation]")) {
-    if (document.activeElement === field) continue;
-    const value = nav.options[field.dataset.navigation as keyof NavigationOptions];
-    if (field.type === "checkbox") field.checked = !!value;
-    else field.value = String(value);
-  }
+    text("위에서 내려다보며 현재 위치와 장애물을 확인해 이동합니다. 바닷가는 낚시 버튼이 보이는 곳까지 찾습니다.", 12)
+    + row("캐릭터 이름 (표시명|계정명)", "비우면 바이옴 설정의 플레이어 이름을 사용합니다.", `<input data-macro="player_label" aria-label="${tr("캐릭터 이름 (표시명|계정명)")}" maxlength="160" value="${escape(String(macro.player_label ?? ""))}">`)
+    + toggle("시작할 때 낚시 장소로 이동", 'data-macro="useMove"', macro.useMove !== false && fish.useMove !== false)
+    + toggle("가득 차면 판매하러 가기", 'data-macro="useSell"', macro.useSell !== false && fish.useSell !== false)
+    + [ ["base", "기준 장소"], ["coast", "낚시 장소"], ["sell", "판매 장소"], ["craft", "포션 제작 장소"], ["match", "메모리 매치 장소"] ].map(([destination, name]) => row(name, "목적지 앞에서 현재 장소 기억 · 다음 이동에 실제 화면 사용", `<div class="buttons">${button("이동", "go:" + destination)}${button("현재 장소 기억", "mark:" + destination)}</div>`)).join("")
+    + `<div class="buttons">${button("관측 취소", "task:waypoint_cancel")}${button("이동 정지", "task:move_stop", "danger")}</div>`)
+  + card("sell", "판매", macroNumber("mfish", "e_wait", "대화 후 대기 (초)", .1, 30, .1)
+    + macroNumber("mfish", "sell_max", "판매 최대 종류", 1, 500, 1)
+    + macroNumber("mfish", "sell_delay", "판매 클릭 추가 대기 (초)", 0, 5, .1)
+    + `<div class="buttons">${button("판매 위치 자동 보정", "task:sell_autocal")}${button("판매 테스트", "task:sell_test")}</div>`)
+  + card("places", "이동 조작 위치", positionRows("base", [["stick_center", "조이스틱 가운데"], ["stick_edge", "조이스틱 바깥쪽"], ["jump_btn", "점프 버튼"]])
+    + text("지형과 목적지는 실제 화면에서 확인하며, 벽에 닿았다는 이유만으로 점프하지 않습니다.", 12)
+    + `<div class="buttons">${button("제작 장소", "go:craft")}${button("메모리 매치 장소", "go:match")}${button("위치 · 길 모두 지우기", "clear-navigation", "danger")}</div>`);
 }
 function logs() {
   return card("recent", "기록", text("최근 기록 (최대 300줄)", 12)
     + `<pre id="records">${tr("아직 기록 없음")}</pre><div class="buttons">${button("기록 지우기", "reset:log")}</div>`);
 }
 
+function macroNumber(feat: string, key: string, label: string, min = 0, max = 600, step = .1) {
+  return row(label, "", `<input type="number" data-macro="${feat}.${key}" aria-label="${tr(label)}" value="${Number(group(feat)[key] ?? 0)}" min="${min}" max="${max}" step="${step}">`);
+}
+function macroText(feat: string, key: string, label: string) {
+  return row(label, "", `<input type="text" data-macro="${feat}.${key}" aria-label="${tr(label)}" value="${escape(String(group(feat)[key] ?? ""))}" maxlength="500">`);
+}
+function positionRows(feat: string, fields: readonly (readonly [string, string])[]) {
+  return fields.map(([key, label]) => row(label, Array.isArray(group(feat)[key]) ? "✓ " + (group(feat)[key] as number[]).map(v => v.toFixed(3)).join(", ") : "미지정 · 화면에서 글자로 먼저 찾음",
+    button(key.endsWith("_region") ? "영역 지정" : "위치 지정", `position:${feat}.${key}`))).join("");
+}
+const merchantItems: Record<string, string[]> = {
+  Mari: ["Void Coin", "Lucky Penny", "Gear A", "Gear B", "Mixed Potion", "Speed Potion", "Lucky Potion", "Fortune Spoid I"],
+  Jester: ["Oblivion Potion", "Heavenly Potion", "Potion of Bound", "Rune of Everything", "Random Potion Sack", "Stella's Candle", "Lucky Potion"],
+};
+const potionBiomes = ["CYBERSPACE", "GLITCHED", "DREAMSPACE"];
+function potionTemplate(biome: string) {
+  const pop = group("mpop");
+  const template = (pop.templates as Bag)[biome] as Bag | undefined;
+  const enabled = (pop.biomes_on as Bag)[biome] === true;
+  return `<details><summary>${biome}</summary>`
+    + toggle("이 바이옴에서 사용", `data-macro="mpop.biomes_on.${biome}"`, enabled)
+    + `<div class="buttons">${button("기본 템플릿", "template:" + biome)}${button("테스트", "pop-test:" + biome)}</div>`
+    + (template ? `<label class="row"><span>${tr("사용 방식")}</span><select data-template="${biome}.mode"><option value="one" ${template.mode === "one" ? "selected" : ""}>${tr("순서대로 하나씩")}</option><option value="all" ${template.mode === "all" ? "selected" : ""}>${tr("전부 사용")}</option></select></label>`
+      + ((template.items as Bag[]) ?? []).map((item, index) => `<div class="card">`
+        + row("포션 이름", "", `<input data-template="${biome}.${index}.name" value="${escape(String(item.name ?? ""))}" aria-label="${tr("포션 이름")}">`)
+        + row("사용 수량", "ALL = 전부", `<input data-template="${biome}.${index}.amount" value="${escape(String(item.amount ?? "ALL"))}" aria-label="${tr("사용 수량")}">`)
+        + row("최소 보유 수량", "", `<input type="number" min="0" max="1000000000" step="1" data-template="${biome}.${index}.min_have" value="${Number(item.min_have ?? 1)}" aria-label="${tr("최소 보유 수량")}">`)
+        + button("삭제", `template-delete:${biome}.${index}`, "danger") + `</div>`).join("")
+      + button("포션 추가", "template-add:" + biome) : text("기본 템플릿을 불러온 뒤 사용할 포션과 수량을 바꿀 수 있습니다.", 12))
+    + "</details>";
+}
+function macroSettings() {
+  const enabled = (feat: string) => toggle("사용", `data-macro="${feat}.enabled"`, group(feat).enabled === true);
+  const close = (feat: string) => toggle("사용 후 인벤토리 닫기", `data-macro="${feat}.close_inventory"`, group(feat).close_inventory !== false);
+  const tasks = (feat: string, extra = "") => `<div class="buttons">${button("테스트", "task:" + feat + "_test")}${extra}${button("중지", "task:" + feat + "_stop", "danger")}</div>`;
+  return card("inventory", "공통 위치 · 인벤토리",
+    text("Android 13 이상은 기존 키보드를 유지해 검색어와 수량을 입력합니다. 구형 Android는 홈에서 Acrux 입력기를 준비하세요. 위치가 비어 있으면 화면 글자를 먼저 찾습니다.", 12)
+    + positionRows("base", [["inventory_pos", "Inventory 버튼"], ["items_pos", "Items 버튼"], ["search_pos", "Search 입력칸"], ["item_pos", "검색 결과 첫 칸"], ["amount_pos", "수량 입력칸"], ["use_pos", "Use 버튼"], ["ocr_region", "아이템 이름 · 수량 영역"], ["notice_region", "알림 영역"], ["chat_pos", "채팅 버튼"], ["dialog_pos", "대화창"]])
+    + macroNumber("pop", "match_threshold", "아이템 이름 일치율 (%)", 0, 100, 1)
+    + `<details><summary>${tr("인벤토리 대기 시간")}</summary>${["inventory", "items", "search", "typing", "item_click", "dbl_gap", "after_dbl", "after_enter"].map(key => row(key, "초", `<input type="number" min="0" max="60" step="0.05" data-macro="pop.delays.${key}" value="${Number((group("pop").delays as Bag)[key] ?? .5)}">`)).join("")}</details>`
+    + `<div class="buttons">${button("아이템 OCR 확인", "task:mpop_ocr_test")}${button("OCR 정보", "task:ocr_info")}</div>`)
+  + card("popping", "오토 팝핑", enabled("mpop")
+    + macroNumber("mpop", "start_delay", "바이옴 감지 후 대기 (초)", 0, 60, .1) + close("mpop")
+    + potionBiomes.map(potionTemplate).join("")
+    + `<div class="buttons">${button("중지", "task:mpop_stop", "danger")}</div>`)
+  + card("items", "오토 아이템", enabled("mitem")
+    + toggle("Strange Controller", 'data-macro="mitem.strange"', group("mitem").strange !== false)
+    + macroNumber("mitem", "strange_min", "Strange Controller 간격 (분)", 1, 1440, .1)
+    + toggle("Biome Randomizer", 'data-macro="mitem.randomizer"', group("mitem").randomizer !== false)
+    + macroNumber("mitem", "randomizer_min", "Biome Randomizer 간격 (분)", 1, 1440, .1)
+    + close("mitem") + tasks("mitem"))
+  + card("blood", "블러드 레인 자동 생성", enabled("mblood")
+    + text("PUMPKIN MOON · GRAVEYARD 감지 시 Cursed Rune Fragment를 한 번 사용합니다.", 12)
+    + macroNumber("mblood", "start_delay", "바이옴 감지 후 대기 (초)", 0, 60, .1) + close("mblood") + tasks("mblood"))
+  + card("merchant", "상인 자동 구매", enabled("mmerch")
+    + macroNumber("mmerch", "check_sec", "채팅 확인 간격 (초)", 10, 600, 1)
+    + macroNumber("mmerch", "teleport_wait", "순간이동 후 대기 (초)", .5, 60, .1)
+    + toggle("상점 자동 보정", 'data-macro="mmerch.auto_cal"', group("mmerch").auto_cal !== false)
+    + Object.entries(merchantItems).map(([who, items]) => `<details><summary>${who}</summary>`
+      + items.map(item => toggle(item, `data-buy="${escape(who + "_" + item)}"`, Number((group("mmerch").buy as Bag)[who + "_" + item]) > 0)).join("")
+      + button("구매 테스트", "merchant:" + who) + "</details>").join("")
+    + positionRows("mmerch", [["chat_region", "채팅 글자 영역"], ["open_pos", "Open 선택지"], ["first_slot", "첫 번째 칸"], ["second_slot", "두 번째 칸"], ["item_region", "아이템 이름 영역"], ["max_pos", "Set to Max 버튼"], ["purchase_pos", "Purchase 버튼"], ["close_pos", "상점 닫기 X"]])
+    + `<div class="buttons">${button("채팅 확인", "task:mmerch_check")}${button("자동 보정", "task:mmerch_autocal")}${button("중지", "task:mmerch_stop", "danger")}</div>`)
+  + card("crafting", "자동 포션 제작", enabled("mcraft") + macroText("mcraft", "potion", "제작할 포션 이름")
+    + macroNumber("mcraft", "f_wait", "제작 창 열기 후 대기 (초)", .1, 60, .1)
+    + positionRows("mcraft", [["search_pos", "Search 입력칸"], ["list_region", "검색 결과 목록"], ["shop_close_pos", "제작 창 X"], ["open_recipe_pos", "Open Recipe 버튼"], ["add_all_pos", "Add Everything 버튼"], ["craft_pos", "Craft 버튼"], ["add_close_pos", "재료 창 X"]])
+    + tasks("mcraft", button("자동 보정", "task:mcraft_autocal")))
+  + card("memory", "자동 메모리 매치", enabled("mmatch")
+    + macroNumber("mmatch", "e_wait", "보드 열기 후 대기 (초)", .5, 60, .1)
+    + macroNumber("mmatch", "flip_wait", "카드 뒤집힌 뒤 대기 (초)", .1, 5, .05)
+    + positionRows("mmatch", [["note_region", "알림 창 영역"], ["note_close_pos", "알림 창 X"], ["note_btn_pos", "Start / Available 버튼"], ["ad_pos", "Watch AD 버튼"], ["board_close_pos", "카드 판 Close 버튼"]])
+    + tasks("mmatch", button("알림 창 자동 보정", "task:mmatch_autocal") + button("카드 판 자동 보정", "task:mmatch_boardcal")))
+  + card("fish-positions", "낚시 · 판매 위치",
+    positionRows("mfish", [["panel_region", "낚시 대기 창 영역"], ["reel_region", "미니게임 창 영역"], ["bar_region", "릴링 바 영역"], ["result_region", "결과창 영역"], ["fish_btn", "Fish / Exit 버튼"], ["close_pos", "결과창 X"], ["title_pos", "결과창 제목"], ["sell_fish_pos", "Sell Fish 버튼"], ["first_fish_pos", "첫 번째 물고기 칸"], ["sell_all_pos", "Sell All 버튼"], ["confirm_sell_pos", "확인 Sell 버튼"], ["shop_close_pos", "상점 닫기 X"]]))
+  + card("recovery", "게임 입장 · 복귀", macroText("ret", "ps_link", "비공개 서버 링크")
+    + macroNumber("ret", "start_wait", "입장 후 대기 (초)", 0, 600, .5)
+    + macroNumber("play", "load_wait", "Play 클릭 전 대기 (초)", 0, 120, .5)
+    + macroNumber("play", "interval", "Play / Skip 클릭 간격 (초)", .05, 10, .05)
+    + macroNumber("play", "max_time", "입장 최대 대기 (초)", 5, 1800, 1)
+    + positionRows("play", [["pos", "Play 버튼"], ["skip_pos", "Click to skip 버튼"]])
+    + `<div class="buttons">${button("서버 접속", "task:ret_join")}${button("복귀 테스트", "task:ret_test")}${button("Play 테스트", "task:play_test")}${button("Play 중지", "task:play_stop", "danger")}${button("자동 복귀 취소", "task:crash_cancel")}</div>`);
+}
+
 function settings() {
   const version = current?.version || "0.1.0";
   return card("update", "업데이트",
-    row("Acrux Mobile V" + version, `지금 V${version} · 새 버전이 나오면 받아서 바로 설치 (설정은 그대로)`, button("확인", "unsupported", "accent"))
-    + toggle("앱을 켤 때 자동으로 업데이트", "", false, true))
+    row("Acrux Mobile V" + version, `지금 V${version} · 새 버전이 나오면 받아서 바로 설치 (설정은 그대로)`, button("확인", "update:check", "accent"))
+    + toggle("앱을 켤 때 자동으로 업데이트", 'data-macro="auto_update"', macro.auto_update === true)
+    + '<p id="update-state" class="readout"></p>'
+    + `<div class="buttons">${button("업데이트 받기", "update:download", "accent", "update-download")}${button("설치", "update:install", "accent", "update-install")}</div>`)
+  + macroSettings()
   + card("discord-link", "디스코드 연결",
     text("연결하면 디스코드 봇 (/상태 · /통계 · /로그) 으로 이 매크로를 볼 수 있음", 12)
     + row("디스코드 계정", "", '<strong id="discord-name">-</strong>')
@@ -240,6 +351,7 @@ function settings() {
     + `<div class="buttons">${button("조작 창 위치 되돌리기", "reset-overlay")}</div>`)
   + card("info", "정보",
     text("사용자 수 집계: 켜져 있다는 신호만 보냄 (무작위 번호 · 개인 정보 없음)", 12)
+    + toggle("사용자 수 집계 참여", 'id="online-share"', online.share)
     + text("Acrux Mobile V" + version, 13, "fg") + text("Made by 얼로니", 12));
 }
 
@@ -255,6 +367,7 @@ function biomePage() {
     + `<div class="buttons">${button("페어링 시작", "biome:pair", "accent")}${button("연결", "biome:connect")}${button("개발자 옵션", "biome:developer")}</div>`)
   + card("biome-macro", "바이옴 매크로", '<p id="biome-state" class="readout"></p>'
     + toggle("바이옴 매크로 켜기", 'data-biome="enabled"', cfg.enabled)
+    + row("플레이어 이름", "게임 로그에 표시되는 계정 이름", `<input data-biome="player" aria-label="${tr("플레이어 이름")}" value="${escape(cfg.player)}">`)
     + text("디스코드 웹후크 (여러 개면 줄바꿈)", 13, "fg")
     + `<textarea data-biome="webhooks" rows="2" spellcheck="false" aria-label="${tr("디스코드 웹후크")}" placeholder="https://discord.com/api/webhooks/…">${escape(cfg.webhooks.join("\n"))}</textarea>`
     + text("비공개 서버 링크", 13, "fg")
@@ -317,7 +430,7 @@ function setText(id: string, value: string) {
 }
 
 function macroActive() {
-  return macroPending === "start" || !!current?.dua.running || !!current && current.phase !== "idle";
+  return macroPending === "start" || macroRestartRevision !== null || !!current?.dua.running || !!current && current.phase !== "idle";
 }
 
 function applyDua() {
@@ -347,11 +460,24 @@ async function changeMacro() {
     return;
   }
   const revision = ++macroRevision;
+  if (stopping) macroRestartRevision = null;
   ++request;
   macroPending = stopping ? "stop" : "start";
   applyDua();
   try {
-    const next = stopping ? await duaStop() : await duaStart(current!.generation);
+    let next: Status;
+    if (stopping) next = await duaStop();
+    else {
+      await macroSaves;
+      await numberSaves;
+      if (!macroLoaded) await loadMacro();
+      if (revision !== macroRevision) return;
+      const selected = selectedFeatures();
+      if (!selected.length) throw new Error("홈에서 실행할 기능을 하나 이상 켜세요.");
+      const fresh = await status();
+      if (revision !== macroRevision) return;
+      next = await invoke<Status>("dua_start", { features: selected, generation: fresh.generation });
+    }
     if (revision === macroRevision) { current = next; ++request; }
   } catch (error) {
     if (revision === macroRevision) message(String(error));
@@ -436,6 +562,15 @@ function applyStatus() {
   setText("access-button", t(s?.inputReady ? "설정" : "켜기"));
   setText("capture-state", t(s?.captureReady ? "✓ 캡처 중" : "꺼짐"));
   setText("capture-button", t(s?.captureReady ? "중지" : "시작"));
+  setText("input-state", t(inputMethod.selected ? "✓ 선택됨" : inputMethod.enabled ? "입력기 선택 필요" : "꺼짐"));
+  setText("input-button", t(inputMethod.enabled && !inputMethod.selected ? "선택" : "설정"));
+  const auto = (s as (Status & { automation?: Bag }) | undefined)?.automation;
+  setText("automation-state", auto ? String(auto.message ?? "") + ` · ${t("완료")} ${auto.completed ?? 0} · ${t("실패")} ${auto.failed ?? 0}` : "");
+  setText("update-state", String(update.error ?? update.message ?? ""));
+  const download = document.getElementById("update-download") as HTMLButtonElement | null;
+  const install = document.getElementById("update-install") as HTMLButtonElement | null;
+  if (download) download.disabled = !update.available || !!update.busy;
+  if (install) install.disabled = !update.ready || !!update.busy;
   document.getElementById("access-state")?.classList.toggle("ok", !!s?.inputReady);
   document.getElementById("capture-state")?.classList.toggle("ok", !!s?.captureReady);
   setText("run-state", t(s?.message === "대기 중" || !s ? "대기" : s.message) + "\n"
@@ -445,8 +580,9 @@ function applyStatus() {
   applyDua();
   statsText("run", session);
   statsText("total", s?.totals ?? zero);
-  if (page === "fish") applyNavigation();
   setText("online-count", online.online === null ? "--" : String(online.online));
+  const share = document.getElementById("online-share") as HTMLInputElement | null;
+  if (share) share.checked = online.share;
   setText("adb-state", t(transport.connection === "ok" ? "✓ 무선 디버깅 연결됨" : transport.connection === "pair" ? "무선 디버깅 페어링 필요" : "무선 디버깅 연결 안 됨"));
   setText("biome-state", t("지금 바이옴: ") + (biome.current ?? "-") + " · " + t(biome.message));
   setText("biome-test-output", transport.testOutput || t("아직 기록 없음"));
@@ -470,21 +606,35 @@ async function syncOverlay(reset = false) {
   localStorage.setItem(prefsKey, JSON.stringify(overlay));
 }
 
+async function autoUpdateOnLaunch() {
+  if (macro.auto_update !== true) return;
+  try {
+    update = await serviceAction("update_check");
+    if (update.available) {
+      update = await serviceAction("update_download");
+      if (update.ready) update = { ...update, ...await serviceAction("update_install") };
+    }
+    applyStatus();
+  } catch (error) { update = { ...update, error: String(error) }; applyStatus(); }
+}
+
 async function refresh() {
-  if (document.hidden || busy) return;
+  if (document.hidden || busy || macroSaving) return;
   const ticket = ++request;
   try {
     const next = await status();
+    if (!macroLoaded) await loadMacro();
+    inputMethod = await invoke<typeof inputMethod>("android_input_status");
+    if (page === "settings") update = await serviceAction("update_state");
     biome = await biomeStatus();
     transport = await invoke<typeof transport>("biome_transport");
     online = await invoke<typeof online>("online_status");
-    const nextNavigation = page === "fish" ? await invoke<NavigationState>("navigation_status") : undefined;
     if (ticket !== request) return;
     const initial = !current;
     current = next;
-    if (nextNavigation) nav = nextNavigation;
     if (initial) {
       render();
+      void autoUpdateOnLaunch();
       if (page === "settings") void refreshDiscord();
       if (next.platform === "android") {
         void setup("biome", { action: "refresh" }).catch(error => message(String(error)));
@@ -503,8 +653,8 @@ async function refresh() {
 interface Step {
   title: string;
   body: string;
-  check?: "inputReady" | "captureReady" | "calibrated";
-  action?: "accessibility" | "capture";
+  check?: "inputReady" | "captureReady" | "calibrated" | "textInputReady";
+  action?: "accessibility" | "capture" | "inputSetup";
   optional?: boolean;
 }
 
@@ -513,26 +663,27 @@ const guideSteps: Record<GuideId, Step[]> = {
     { title: "Acrux Mobile 에 오신 걸 환영합니다.", body: "이 매크로는 Sol's RNG 전용 매크로이며, 다양한 모바일 기능을 지원합니다.\n\n시작하기 전에, 매크로가 작동할 때 필요한 필수 권한 두 개를 켜야 합니다." },
     { title: "접근성 권한 켜기", body: "매크로가 로블록스 화면을 터치하는 데 필요한 권한입니다.\n\n설정 → 접근성 → 설치된 앱 → Acrux Mobile → 켜기\n\n'제한된 설정' 으로 켜지지 않는다면, 설정 → 앱 → Acrux Mobile → 오른쪽 위 ⋮ → '제한된 설정 허용' 후 다시 켜 주세요.", check: "inputReady", action: "accessibility" },
     { title: "화면 캡처 시작", body: "매크로가 화면을 보고 낚시 상태와 버튼을 찾는 데 필요합니다. 화면은 녹화되거나 저장되지 않습니다.\n\n공유 창이 뜨면 '전체 화면' 을 선택해 주세요.", check: "captureReady", action: "capture" },
-    { title: "로블록스 준비", body: "로블록스 (Sol's RNG) 를 가로 전체 화면으로 열고 Fish 버튼이 보이는 낚시 자리를 직접 맞춰 주세요.\n\n다른 앱에서는 터치하지 않고 기다리며, 화면이 잠기면 정지합니다." },
-    { title: "준비 완료", body: "이제 로블록스를 열어 주세요. 다음 안내 (낚시 보정) 가 이어서 표시됩니다." },
+    { title: "글자 입력 준비", body: "Android 13 이상은 기존 키보드를 그대로 사용합니다. 구형 Android에서 아이템 검색과 수량 입력을 사용할 때만 Acrux 입력기를 켜고 선택하세요. 낚시만 사용하면 이 단계를 건너뛰어도 됩니다.", check: "textInputReady", action: "inputSetup", optional: true },
+    { title: "로블록스 준비", body: "홈에서 실행할 기능을 켜고 로블록스 (Sol's RNG)를 가로 전체 화면으로 여세요. 이동을 켰다면 실제 화면에서 해안과 목적지를 찾고, 위치나 지형이 모호하면 멈춥니다.\n\n이동을 끈 낚시는 Fish 버튼이 보이는 바닷가에서 시작하세요. 다른 앱에서는 입력을 기다리고 화면이 잠기면 정지합니다." },
+    { title: "준비 완료", body: "선택한 기능의 설정과 위치를 확인한 뒤 로블록스를 열어 시작하세요. 낚시가 선택돼 있으면 다음 보정 안내가 이어집니다." },
   ],
   fish: [
     { title: "낚시 보정", body: "[시작] 을 누르면 저장된 보정이 없을 때 자동으로 보정한 뒤 낚시합니다. 수동 보정은 Acrux 창 ⚙ → [낚시] 에서 할 수 있습니다." },
     { title: "낚시 자리로 이동", body: "로블록스에서 낚시 자리로 이동해 Fish 버튼이 보이게 해 주세요.\n\nAcrux 창이 낚시 창을 가린다면 위쪽 구석으로 옮겨 주세요." },
-    { title: "낚시 자동 보정", body: "로블록스 위 Acrux 창의 [시작] 을 누르세요. 저장된 보정이 없으면 Fish 를 한 번 던져 보정하고 낚시를 이어갑니다.\n\n진행 상태와 중지 버튼은 Acrux 창에서 확인하세요.", check: "calibrated" },
-    { title: "낚시 보정 완료", body: "자동 낚시는 [정지] 로 멈출 수 있습니다. 인벤토리가 가득 차면 정지합니다.\n\n지도 기반 이동과 판매는 준비 중입니다." },
+    { title: "낚시 자동 보정", body: "로블록스 위 Acrux 창의 [시작] 을 누르세요. 저장된 보정이 없으면 실제 버튼과 낚시 패널을 읽어 보정한 뒤 낚시를 시작합니다.\n\n진행 상태와 정지 버튼은 Acrux 창에서 확인하세요.", check: "calibrated" },
+    { title: "낚시 보정 완료", body: "자동 낚시는 [정지] 로 멈출 수 있습니다. 판매가 켜져 있으면 인벤토리가 가득 찼을 때 판매하러 이동합니다." },
   ],
   move: [
-    { title: "이동 설정", body: "지도 기반 이동과 판매는 준비 중입니다. 직접 낚시 자리를 맞춰 주세요. 가득 차면 정지합니다." },
+    { title: "이동 설정", body: "낚시 칸에서 이동과 판매를 켜고 조이스틱과 점프 위치를 지정하세요. 화면에서 현재 위치와 장애물을 확인해 목적지로 이동합니다." },
   ],
   sell: [
-    { title: "판매 설정", body: "지도 기반 이동과 판매는 준비 중입니다. 직접 낚시 자리를 맞춰 주세요. 가득 차면 정지합니다." },
+    { title: "판매 설정", body: "판매 위치를 자동 보정하거나 판매 버튼 위치를 지정하세요. 판매 테스트는 판매 장소로 이동해 판매한 뒤 낚시를 재개합니다." },
   ],
 };
 let guide: { id: GuideId; index: number; wasReady: boolean } | null = null;
 
 function ready(step: Step) {
-  return !step.check || !!current?.[step.check];
+  return !step.check || (step.check === "textInputReady" ? inputMethod.selected : !!current?.[step.check]);
 }
 
 function startGuide(id: GuideId) {
@@ -579,7 +730,7 @@ function moveGuide(direction: number, skip = false) {
   if (next === steps.length) {
     const id = guide.id;
     closeGuide();
-    if (id === "ready" && !current?.calibrated) startGuide("fish");
+    if (id === "ready" && selectedFeatures().includes("mfish") && !current?.calibrated) startGuide("fish");
     return;
   }
   guide.index = next;
@@ -611,7 +762,6 @@ async function perform(action: string) {
   if (name === "guide-prev") return moveGuide(-1);
   if (name === "guide-skip") return moveGuide(1, true);
   if (name === "guide-close") return closeGuide();
-  if (name === "unsupported") return message(unsupported);
   if (name === "discord-link") return changeDiscord();
   if (name === "macro-toggle") return changeMacro();
 
@@ -633,10 +783,38 @@ async function perform(action: string) {
     } else if (name === "webhook-test") {
       await invoke("biome_test");
       message("테스트 전송 대기열에 추가됨");
+    } else if (name === "update") {
+      update = await serviceAction("update_" + arg);
+      message(String(update.message ?? (arg === "check" ? update.available ? "새 업데이트가 있습니다." : "최신 버전입니다." : "완료")));
+      applyStatus();
+    } else if (name === "task" || name === "go" || name === "mark" || name === "merchant" || name === "template" || name === "pop-test") {
+      await macroSaves;
+      const payload: Bag = (name === "go" || name === "mark") ? { destination: arg } : name === "merchant" ? { name: arg } : name === "template" || name === "pop-test" ? { biome: arg } : arg === "mcraft_test" ? { name: group("mcraft").potion } : {};
+      const action = name === "go" ? "go" : name === "mark" ? "waypoint_mark" : name === "merchant" ? "mmerch_buy_test" : name === "template" ? "mpop_default" : name === "pop-test" ? "mpop_test" : arg;
+      const result = await automationAction(action, payload);
+      if (name === "template") { await loadMacro(); renderPage(); }
+      message(String(result.message ?? result.info ?? result.engine ?? (name === "template" ? "기본 템플릿을 불러왔습니다." : "작업을 요청했습니다. 게임 위 Acrux 창에서 진행 상태를 확인하세요.")));
+    } else if (name === "position") {
+      const [feat, key] = arg.split(".");
+      await macroSaves;
+      await invoke("pick_macro_position", { feat, key, region: key.endsWith("_region") });
+      await loadMacro();
+      renderPage();
+    } else if (name === "template-add" || name === "template-delete") {
+      const [biome, index] = arg.split(".");
+      await saveMacro(next => {
+        const pop = next.mpop as Bag;
+        const templates = pop.templates as Bag;
+        const template = templates[biome] as Bag;
+        const items = template.items as Bag[];
+        if (name === "template-add") items.push({ name: "", amount: "ALL", min_have: 1 });
+        else items.splice(Number(index), 1);
+      });
+      renderPage();
     } else if (name === "clear-navigation") {
       await invoke("clear_navigation");
-      nav = await invoke<NavigationState>("navigation_status");
-      applyNavigation();
+      await loadMacro();
+      renderPage();
     } else if (name === "reset") {
       current = await invoke<Status>("reset", { kind: arg as Reset });
       applyStatus();
@@ -682,19 +860,48 @@ document.addEventListener("input", event => {
     ++request;
     try {
       if (current) {
-        const revision = macroRevision;
-        const next = await saveTuning({ ...current.tuning, [tuning]: value });
-        if (revision === macroRevision) current = next;
+        await changeTuning(tuning, value);
       }
     } catch (error) { message(String(error)); }
     finally { busy = false; }
   });
 });
 
+async function changeMacroSetting(input: HTMLInputElement) {
+  if (input.disabled || !input.dataset.macro && !input.dataset.buy && !input.dataset.template) return;
+  if (input.type === "number" && (!Number.isFinite(input.valueAsNumber) || !input.validity.valid)) { message("입력 범위를 확인하세요."); return; }
+  const value: unknown = input.type === "checkbox" ? input.checked : input.type === "number" ? input.valueAsNumber : input.value.trim();
+  ++request;
+  try {
+    await saveMacro(next => {
+      if (input.dataset.macro) {
+        const path = input.dataset.macro.split(".");
+        let target = next;
+        for (const key of path.slice(0, -1)) { if (!target[key] || typeof target[key] !== "object") target[key] = {}; target = target[key] as Bag; }
+        target[path.at(-1)!] = value;
+        if (path.length === 1 && ["useMove", "useSell"].includes(path[0])) (next.mfish as Bag)[path[0]] = value;
+      } else if (input.dataset.buy) {
+        const buy = (next.mmerch as Bag).buy as Bag;
+        if (value) buy[input.dataset.buy] = 1; else delete buy[input.dataset.buy];
+      } else {
+        const [biome, index, field] = input.dataset.template!.split(".");
+        const template = ((next.mpop as Bag).templates as Bag)[biome] as Bag;
+        if (index === "mode") template.mode = value;
+        else {
+          if (field === "amount" && value !== "ALL" && (!/^\d+$/.test(String(value)) || Number(value) < 1)) throw new Error("사용 수량은 양의 정수 또는 ALL로 입력하세요.");
+          (template.items as Bag[])[Number(index)][field] = field === "amount" && value !== "ALL" ? Number(value) : value;
+        }
+      }
+    });
+    applyStatus();
+  } catch (error) { message(String(error)); renderPage(); }
+}
+
 document.addEventListener("change", async event => {
   const input = event.target as HTMLInputElement;
+  if (input.dataset.macro || input.dataset.buy || input.dataset.template) return changeMacroSetting(input);
   const key = input.dataset.tuning as keyof Tuning | undefined;
-  if (input.disabled || input.dataset.navigation || input.type === "number" && key) return;
+  if (input.disabled || input.dataset.macro || input.dataset.buy || input.dataset.template || input.dataset.navigation || input.type === "number" && key) return;
   if (busy) return;
   if (input.dataset.biome) {
     busy = true;
@@ -716,9 +923,7 @@ document.addEventListener("change", async event => {
     busy = true;
     ++request;
     try {
-      const revision = macroRevision;
-      const next = await saveTuning({ ...current.tuning, [key]: value });
-      if (revision === macroRevision) current = next;
+      await changeTuning(key, value);
     } catch (error) {
       if (input.type === "checkbox") input.checked = !!current.tuning[key];
       else input.value = String(current.tuning[key]);
@@ -727,6 +932,12 @@ document.addEventListener("change", async event => {
       busy = false;
       void refresh();
     }
+  } else if (input.id === "online-share") {
+    try {
+      await invoke("save_online", { share: input.checked });
+      online = await invoke<typeof online>("online_status");
+      applyStatus();
+    } catch (error) { input.checked = online.share; message(String(error)); }
   } else if (input.id === "opacity" || input.id === "hide-on-app") {
     const previous = { ...overlay };
     if (input.id === "opacity") overlay.alpha = input.valueAsNumber;

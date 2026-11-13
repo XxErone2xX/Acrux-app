@@ -35,7 +35,7 @@ export interface DuaStatus {
 
 export interface SessionStatus {
   supported: boolean;
-  state: "stopped" | "starting" | "ready" | "error" | "unsupported";
+  state: "stopped" | "starting" | "recovering" | "ready" | "error" | "unsupported";
   message: string;
   width: number;
   height: number;

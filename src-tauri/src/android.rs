@@ -36,11 +36,28 @@ pub fn setup(
         "donate" => "donate",
         "discordLink" => "discordLink",
         "biome" => "biome",
+        "inputSetup" => "inputSetup",
+        "serviceAction" => "serviceAction",
+        "returnGame" => "returnGame",
         _ => return Err("알 수 없는 준비 작업입니다.".into()),
     };
     app.state::<PluginHandle<Wry>>()
         .run_mobile_plugin::<()>(command, options)
         .map_err(|err| err.to_string())
+}
+
+pub fn input_status(app: &tauri::AppHandle) -> Result<serde_json::Value, String> {
+    app.state::<PluginHandle<Wry>>()
+        .run_mobile_plugin("inputStatus", serde_json::json!({}))
+        .map_err(|e| e.to_string())
+}
+pub fn pick_macro(
+    app: &tauri::AppHandle,
+    options: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    app.state::<PluginHandle<Wry>>()
+        .run_mobile_plugin("pickMacro", options)
+        .map_err(|e| e.to_string())
 }
 
 #[no_mangle]
@@ -76,10 +93,32 @@ extern "system" fn Java_com_acrux_next_Native_inputCurrent(
 }
 
 #[no_mangle]
+extern "system" fn Java_com_acrux_next_Native_agentInputCurrent(
+    _: JNIEnv,
+    _: JClass,
+    generation: jint,
+    id: jint,
+) -> jboolean {
+    let state = runtime();
+    (state.input_current(generation) && state.phone.can_start(generation, id, crate::now())).into()
+}
+
+#[no_mangle]
+extern "system" fn Java_com_acrux_next_Native_agentLaunchStart(
+    _: JNIEnv,
+    _: JClass,
+    generation: jint,
+    id: jint,
+    unlocked: jboolean,
+) -> jboolean {
+    crate::phone::claim_launch(&mut runtime(), generation, id, unlocked != 0, crate::now()).into()
+}
+
+#[no_mangle]
 extern "system" fn Java_com_acrux_next_Native_overlayPhase(_: JNIEnv, _: JClass) -> jint {
     let state = runtime();
     match state.phase() {
-        crate::Phase::Idle if state.dua.running => 2,
+        crate::Phase::Idle if state.active() => 2,
         crate::Phase::Idle => 0,
         crate::Phase::Calibrating => 1,
         crate::Phase::Recording => 3,
@@ -114,7 +153,7 @@ extern "system" fn Java_com_acrux_next_Native_control(
 
 #[no_mangle]
 extern "system" fn Java_com_acrux_next_Native_message(env: JNIEnv, _: JClass) -> jstring {
-    let message = runtime().message();
+    let message = runtime().message().to_owned();
     env.new_string(message)
         .map_or(std::ptr::null_mut(), |s| s.into_raw())
 }
@@ -142,6 +181,30 @@ fn reply(env: &JNIEnv, result: Result<(), String>) -> jstring {
 }
 
 #[no_mangle]
+extern "system" fn Java_com_acrux_next_Native_macroAction(
+    mut env: JNIEnv,
+    _: JClass,
+    action: JString,
+    payload: JString,
+) -> jstring {
+    let result = (|| {
+        let action: String = env.get_string(&action).map_err(|e| e.to_string())?.into();
+        let payload: String = env.get_string(&payload).map_err(|e| e.to_string())?.into();
+        if payload.len() > 1024 * 1024 {
+            return Err("작업 요청이 너무 큽니다.".into());
+        }
+        let payload: serde_json::Value =
+            serde_json::from_str(&payload).map_err(|e| e.to_string())?;
+        let generation = payload["_generation"]
+            .as_i64()
+            .and_then(|n| i32::try_from(n).ok())
+            .ok_or("작업의 실행 세대가 없습니다.")?;
+        crate::automation_call(action, payload, generation).map(|_| ())
+    })();
+    reply(&env, result)
+}
+
+#[no_mangle]
 extern "system" fn Java_com_acrux_next_Native_task(
     mut env: JNIEnv,
     _: JClass,
@@ -153,7 +216,7 @@ extern "system" fn Java_com_acrux_next_Native_task(
     };
     let result = serde_json::from_value::<Task>(name.into())
         .map_err(|_| "알 수 없는 이동 작업입니다.".to_owned())
-        .and_then(|task| runtime().task(task).map_err(str::to_owned));
+        .and_then(crate::task_call);
     reply(&env, result)
 }
 
@@ -170,10 +233,31 @@ extern "system" fn Java_com_acrux_next_Native_setPoint(
         Err(_) => return std::ptr::null_mut(),
     };
     let mut state = runtime();
-    let result = if state.phase().active() {
+    let result = if state.active() {
         Err("실행 중인 작업을 먼저 중지하세요.".into())
     } else {
-        state.edit_navigation(|nav| nav.set_point(&key, Point(x, y)))
+        let previous = state.macro_settings.clone();
+        let mut config = state.macro_config();
+        let feat = if [
+            "sell_fish_pos",
+            "first_fish_pos",
+            "sell_all_pos",
+            "confirm_sell_pos",
+            "shop_close_pos",
+        ]
+        .contains(&key.as_str())
+        {
+            "mfish"
+        } else {
+            "base"
+        };
+        config[feat][&key] = serde_json::json!([x, y]);
+        state.macro_settings = config;
+        let result = state.edit_navigation(|nav| nav.set_point(&key, Point(x, y)));
+        if result.is_err() {
+            state.macro_settings = previous;
+        }
+        result
     };
     reply(&env, result)
 }
@@ -235,7 +319,7 @@ extern "system" fn Java_com_acrux_next_Native_clearRoute(
 
 fn agent_array(env: &JNIEnv, values: Vec<i32>) -> jintArray {
     let reserved =
-        (values.first() == Some(&2) && values.len() == 9).then(|| (values[8], values[1]));
+        (values.first() == Some(&2) && values.len() >= 9).then(|| (values[8], values[1]));
     let result = env.new_int_array(values.len() as i32).and_then(|array| {
         env.set_int_array_region(&array, 0, &values)?;
         Ok(array.into_raw())
@@ -287,6 +371,7 @@ extern "system" fn Java_com_acrux_next_Native_agentObserve(
     crop_height: jint,
     generation: jint,
     observation_id: jint,
+    age_ms: jint,
 ) -> jintArray {
     if width <= 0
         || height <= 0
@@ -330,14 +415,36 @@ extern "system" fn Java_com_acrux_next_Native_agentObserve(
     ) else {
         return invalid_observation(generation, observation_id);
     };
-    let result = crate::phone::observe(
+    let result = crate::phone::observe_with_age(
         &mut runtime(),
         &frame,
         generation,
         observation_id,
         crate::now(),
+        f64::from(age_ms) / 1000.,
     );
     result.map_or(std::ptr::null_mut(), |values| agent_array(&env, values))
+}
+
+#[no_mangle]
+extern "system" fn Java_com_acrux_next_Native_agentText(
+    mut env: JNIEnv,
+    _: JClass,
+    generation: jint,
+    observation_id: jint,
+    words: JString,
+) -> jboolean {
+    let Ok(json) = env.get_string(&words) else {
+        return false.into();
+    };
+    let json = String::from(json);
+    if json.len() > 1024 * 1024 {
+        return false.into();
+    }
+    match serde_json::from_str::<Vec<crate::automation::Word>>(&json) {
+        Ok(words) => crate::phone::text(&mut runtime(), generation, observation_id, words).into(),
+        Err(_) => false.into(),
+    }
 }
 
 #[no_mangle]
@@ -364,6 +471,23 @@ extern "system" fn Java_com_acrux_next_Native_agentInputResult(
         success != 0,
         crate::now(),
     );
+}
+
+#[no_mangle]
+extern "system" fn Java_com_acrux_next_Native_navigationAction(
+    mut env: JNIEnv,
+    _: JClass,
+    action: JString,
+    width: jint,
+    height: jint,
+) -> jstring {
+    let result = match env.get_string(&action) {
+        Ok(action) if width > 0 && height > 0 => {
+            runtime().device_command(&String::from(action), (width as usize, height as usize))
+        }
+        _ => Err("기기 동작과 화면 크기를 확인하세요.".into()),
+    };
+    reply(&env, result)
 }
 
 #[no_mangle]

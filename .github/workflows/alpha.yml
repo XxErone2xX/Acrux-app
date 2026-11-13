@@ -1,5 +1,5 @@
-# Acrux 알파 (Tauri) 빌드 — 정식 앱 (PC V2.5.x · Mobile V1.4.x) 과 따로
-#   dev 에서는 Android APK · Windows exe 를 검사하고 실행 파일을 첨부하며, main 에서는 'alpha' 미리 보기 릴리스도 갱신
+# Acrux 알파 (Tauri) 빌드 — 정식 PC·모바일 앱과 따로
+#   dev 에서는 Linux · Android · Windows를 검사하고 alpha 미리 보기 릴리스를 갱신
 #   'alpha' 는 최신 릴리스로 표시하지 않음 (PC 실행기는 releases/latest · 모바일 업데이트는 mobile-latest 를 봄 → 정식 앱 업데이트에 안 섞임)
 #   빌드가 실패하면 기록을 alpha-build-log 릴리스에 올림 (원인 확인용)
 name: Alpha
@@ -32,7 +32,7 @@ jobs:
       - name: Install Linux build and X11 test libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb xauth
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb xauth tesseract-ocr tesseract-ocr-eng tesseract-ocr-kor tesseract-ocr-jpn
       - name: Check desktop and native X11 adapter
         run: |
           npm ci
@@ -40,7 +40,7 @@ jobs:
           npm run test:desktop
           python3 -m unittest discover -s tests -v
           cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
-          xvfb-run -a env ACRUX_X11_TEST=1 cargo test --locked --manifest-path src-tauri/Cargo.toml --lib linux::tests::native_x11_capture_and_input -- --ignored --test-threads=1
+          xvfb-run -a env ACRUX_X11_TEST=1 cargo test --locked --manifest-path src-tauri/Cargo.toml --lib linux::tests:: -- --ignored --test-threads=1
       - name: Build Linux app
         run: npm run build:linux -- --ci
       - name: Check Linux application startup
@@ -62,7 +62,7 @@ jobs:
           cp src-tauri/target/release/acrux Acrux-Dev-Linux
       - uses: actions/upload-artifact@v4
         with:
-          name: dev-linux
+          name: alpha-linux
           path: Acrux-Dev-Linux
           if-no-files-found: error
 
@@ -172,8 +172,8 @@ jobs:
           [ -f windows-build.log ] && gh release upload alpha-build-log windows-build.log --clobber --repo "$GITHUB_REPOSITORY" || true
 
   publish:
-    needs: [android, windows]
-    if: always() && github.ref == 'refs/heads/main' && (needs.android.result == 'success' || needs.windows.result == 'success')
+    needs: [linux, android, windows]
+    if: always() && github.ref == 'refs/heads/dev' && (needs.linux.result == 'success' || needs.android.result == 'success' || needs.windows.result == 'success')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -185,19 +185,31 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          files=$(ls Acrux-Alpha.apk Acrux-Alpha.exe 2>/dev/null)
-          for f in $files; do sha256sum "$f" | cut -d' ' -f1 > "$f.sha256"; done
+          shopt -s nullglob
+          files=()
+          for file in Acrux-Alpha.apk Acrux-Alpha.exe Acrux-Dev-Linux; do
+            [ ! -f "$file" ] || files+=("$file")
+          done
+          test "${#files[@]}" -gt 0
+          checksums=()
+          for file in "${files[@]}"; do
+            sha256sum "$file" | cut -d' ' -f1 > "$file.sha256"
+            checksums+=("$file.sha256")
+          done
           short=${GITHUB_SHA::7}
-          notes="Acrux 알파 (Tauri) · 커밋 $short · 실험 버전 — 정식 버전은 PC V2.5.x · Mobile V1.4.x
+          notes="Acrux 알파 (Tauri) · 커밋 $short · 정식 앱과 분리된 개발 버전
           
           - Acrux-Alpha.apk: Android (arm64) · 패키지 com.acrux.next (정식 앱과 따로 깔림)
           - Acrux-Alpha.exe: Windows (WebView2 필요 · 윈도우 10/11 은 대부분 이미 있음)
+          - Acrux-Dev-Linux: Linux (WebKitGTK 4.1 · Tesseract OCR eng/kor/jpn 필요)
+          - Acrux-macos-universal.zip: macOS (Apple workflow에서 별도 게시)
           
-          Acrux alpha (Tauri) · commit $short · experimental — the release apps are PC V2.5.x · Mobile V1.4.x"
+          Acrux alpha (Tauri) · commit $short · experimental dev build, separate from stable desktop and mobile apps"
           if gh release view alpha --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload alpha $files $(for f in $files; do echo "$f.sha256"; done) --clobber --repo "$GITHUB_REPOSITORY"
+            gh release upload alpha "${files[@]}" "${checksums[@]}" --clobber --repo "$GITHUB_REPOSITORY"
             gh release edit alpha --notes "$notes" --title "Acrux Alpha ($short)" --repo "$GITHUB_REPOSITORY"
           else
-            gh release create alpha $files $(for f in $files; do echo "$f.sha256"; done) --prerelease --latest=false \
-              --target "$GITHUB_SHA" --title "Acrux Alpha ($short)" --notes "$notes" --repo "$GITHUB_REPOSITORY"
+            gh release create alpha --prerelease --latest=false --target "$GITHUB_SHA" --title "Acrux Alpha ($short)" --notes "$notes" --repo "$GITHUB_REPOSITORY" || \
+              gh release view alpha --repo "$GITHUB_REPOSITORY"
+            gh release upload alpha "${files[@]}" "${checksums[@]}" --clobber --repo "$GITHUB_REPOSITORY"
           fi

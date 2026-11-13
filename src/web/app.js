@@ -662,7 +662,7 @@ function updateSession(st) {
   if (!window.acruxDesktopApi || !st) return;
   lastSession = st;
   setText($('desktopSessionMessage'), st.message || '게임을 열어 주세요.');
-  $('desktopSessionStart').disabled = !st.supported || st.state === 'ready' || st.state === 'starting';
+  $('desktopSessionStart').disabled = !st.supported || st.state === 'ready' || st.state === 'starting' || st.state === 'recovering';
   $('desktopSessionStop').disabled = st.state === 'stopped' || st.state === 'unsupported';
   $('desktopGameViewOpen').disabled = st.state !== 'ready';
 }
@@ -1584,8 +1584,8 @@ const moveCall = async (name, args, msg) => { const r = await api(name, args); t
 // data-mpos-custom: 'movebase' (공통 위치 → 기준 장소) / 'places:기능' (그 기능이 가는 장소)
 function renderMoveCustom(el) {
   const [kind, feat] = el.dataset.mposCustom.split(':');
-  if (window.acruxDesktopApi && ['movebase', 'movebaserev', 'places', 'sell'].includes(kind)) {
-    el.innerHTML = `<div class="row"><span>지도 기반 이동 준비 중<small>게임 화면에서 직접 장소를 맞춘 뒤 매크로를 시작하세요. 이전 시간 기반 이동은 사용하지 않습니다.</small></span></div>`;
+  if (window.acruxDesktopApi && ['movebase', 'movebaserev', 'places'].includes(kind)) {
+    renderNativeTravel(el, kind, feat);
     return;
   }
   if (kind === 'itemuse') renderItemSettings(el);
@@ -1593,6 +1593,34 @@ function renderMoveCustom(el) {
   else if (kind === 'sell') MPOS_CUSTOM.sell(el);
   else if (kind === 'fishauto' || kind === 'sellauto' || kind === 'merchauto' || kind === 'craftauto' || kind === 'matchauto' || kind === 'boardauto' || kind === 'movebaserev') MPOS_CUSTOM[kind](el);
   else MPOS_CUSTOM.places(el, feat);
+}
+// The native controller observes the terrain on every trip; no recorded travel times.
+function renderNativeTravel(el, kind, feat) {
+  const destinations = kind === 'movebase' ? [['base', '기준 장소']]
+    : kind === 'movebaserev' || feat === 'mcraft' ? [['craft', '포션 제작 장소']]
+    : feat === 'mmatch' ? [['match', '메모리 매치 장소']]
+    : [['coast', '낚시 장소'], ['sell', '판매 장소']];
+  el.innerHTML = `<p class="hint">현재 위치와 지형을 화면에서 확인하고 장애물과 점프 구간을 고려해 이동합니다. 목적지 앞에서 [현재 장소 기억]을 누르면 실제 화면을 다음 이동에 사용합니다.</p>`
+    + `<label class="row"><span>캐릭터 이름 (표시명|계정명)<small>비우면 바이옴 설정의 플레이어 이름을 사용합니다.</small></span><input type="text" maxlength="160" data-native-label value="${esc(config.player_label || '')}"></label>`
+    + destinations.map(([destination, name]) => `<div class="row"><span>${name}<small>시간 기록 없이 이동 · 도착은 화면에서 확인</small></span><span class="pos"><button class="btn mini" type="button" data-native-go="${destination}">이 장소로 이동</button><button class="btn mini ghost" type="button" data-native-mark="${destination}">현재 장소 기억</button></span></div>`).join('')
+    + (feat === 'mfish' ? [['useMove', '시작할 때 낚시 장소로 이동'], ['useSell', '가득 차면 판매하러 가기']].map(([key, label]) => `<label class="row"><span>${label}</span><span class="switch"><input type="checkbox" data-native-travel="${key}" ${config[key] !== false && mfish()[key] !== false ? 'checked' : ''}><i></i></span></label>`).join('') : '')
+    + `<div class="row"><span class="move-state">${esc(lastMove?.msg || '대기')}</span><span class="pos"><button class="btn mini ghost" type="button" data-native-cancel>관측 취소</button><button class="btn mini ghost" type="button" data-native-stop>이동 정지</button></span></div>`;
+  el.querySelector('[data-native-label]').addEventListener('change', event => {
+    config.player_label = event.target.value.trim();
+    queueSave({ player_label: config.player_label });
+  });
+  el.querySelectorAll('[data-native-go]').forEach(b => b.addEventListener('click', () => moveCall('go', { destination: b.dataset.nativeGo }, '화면에서 경로를 확인하며 이동합니다.')));
+  el.querySelectorAll('[data-native-mark]').forEach(b => b.addEventListener('click', async () => {
+    const r = await api('waypoint_mark', { destination: b.dataset.nativeMark });
+    toast(r.error || '실제 목적지 화면을 기억했습니다.');
+  }));
+  el.querySelector('[data-native-cancel]').addEventListener('click', () => moveCall('waypoint_cancel', {}, '목적지 관측을 취소했습니다.'));
+  el.querySelector('[data-native-stop]').addEventListener('click', () => api('move_stop'));
+  el.querySelectorAll('[data-native-travel]').forEach(input => input.addEventListener('change', () => {
+    const key = input.dataset.nativeTravel;
+    config[key] = input.checked; mfish()[key] = input.checked;
+    queueSave({ [key]: input.checked, mfish: JSON.parse(JSON.stringify(mfish())) });
+  }));
 }
 function rerenderMove() { document.querySelectorAll('[data-mpos-custom]').forEach(renderMoveCustom); syncAllReady(); Jump.refresh(); Tutorial.refresh(); }
 const SELL_SET = [['sell_delay', '클릭 사이 추가 대기', '렉이 있으면 늘림 (초)', 0, 0, 0.1],
@@ -1951,7 +1979,12 @@ const taskKeysOk = t => {
 };
 // 이 기능을 쓰는 데 꼭 필요한데 비어 있는 것 (이름 목록 · 선택 항목은 빼고)
 function featMissing(k) {
-  if (window.acruxDesktopApi && k === 'mfish') return lastSession?.state === 'ready' ? [] : ['앱 전용 게임'];
+  if (window.acruxDesktopApi) {
+    const missing = lastSession?.state === 'ready' ? [] : ['앱 전용 게임'];
+    if (k === 'mcraft' && !(mcraft().potion || '').trim()) missing.push('제작할 포션');
+    if (k === 'mmerch' && !Object.values(mmerch().buy || {}).some(value => value > 0)) missing.push('살 아이템');
+    return missing;
+  }
   const out = [];
   if ((k === 'mpop' || k === 'mblood') && !(config.biome?.player || '').trim()) out.push('플레이어 이름');   // 바이옴 감지에 필요
   if (k === 'mmerch' && !Object.values(mmerch().buy || {}).some(v => v > 0)) out.push('살 아이템');
@@ -2258,24 +2291,57 @@ async function loadChangelog(refresh = false) {
 I18N.onChange(() => renderChangelog());
 
 
+function configureNativeOcr(engine = '') {
+  if (!window.acruxDesktopApi) return;
+  const select = $('acOcr');
+  select.innerHTML = `<option value="auto">운영체제 자동 선택${engine ? ' · ' + esc(engine) : ''}</option>`;
+  select.value = 'auto';
+  select.disabled = true;
+  config.ocr_engine = 'auto';
+  setText($('acOcrDescription'), '아이템 · 상점 · 제작 · 메모리 매치 화면의 글자를 이 기기에서 읽습니다.');
+  setText($('acOcrSelection'), '이 앱은 운영체제에 맞는 OCR 엔진을 자동으로 사용합니다.');
+  $('acOcrHelp').innerHTML = '<p class="hint"><b>Linux · Tesseract</b>: 영어 데이터와 앱 언어에 맞는 한국어·일본어 언어 데이터를 사용합니다.</p>'
+    + '<p class="hint"><b>Windows · Windows OCR</b>: Windows에 설치된 사용자 언어로 화면을 읽습니다.</p>'
+    + '<p class="hint"><b>macOS · Apple Vision</b>: macOS의 기본 문자 인식 기능으로 화면을 읽습니다.</p>';
+}
+
 async function refreshOcrInfo() {
   $('acOcrNow').textContent = '확인 중…';
   try {
     const r = await api('ocr_info');
-    $('acOcrNow').textContent = r.engine + (r.rapid ? '' : ' (RapidOCR 없음)');
-  } catch { $('acOcrNow').textContent = '-'; }
+    if (r.error) throw new Error(r.error);
+    if (window.acruxDesktopApi) configureNativeOcr(r.engine);
+    $('acOcrNow').textContent = r.engine + (window.acruxDesktopApi ? '' : r.rapid ? '' : ' (RapidOCR 없음)');
+  } catch (error) { $('acOcrNow').textContent = window.acruxDesktopApi ? String(error.message || error) : '-'; }
 }
 function fillAcrux() {
-  $('acOcr').value = config.ocr_engine || 'auto';
+  if (window.acruxDesktopApi) configureNativeOcr();
+  else $('acOcr').value = config.ocr_engine || 'auto';
   const sel = $('acLang');
   sel.innerHTML = Object.entries(I18N.LANGS).map(([k, n]) => `<option value="${k}">${n}</option>`).join('');
   sel.value = I18N.lang;
   I18N.onChange(l => { sel.value = l; });
   $('acVer').textContent = $('verText').textContent;
   $('acOnline').checked = config.online_share !== false;
+  if (window.acruxDesktopApi && !$('nativeUpdate')) {
+    const row = document.createElement('div');
+    row.id = 'nativeUpdate'; row.className = 'row';
+    row.innerHTML = '<span>개발 버전 업데이트<small id="nativeUpdateState">alpha 배포 확인</small></span><span class="pos"><button type="button" class="btn mini ghost" data-native-update="check">확인</button><button type="button" class="btn mini ghost" data-native-update="download" disabled>받기</button><button type="button" class="btn mini" data-native-update="install" disabled>설치</button></span>';
+    $('acVer').closest('.row').after(row);
+    row.querySelectorAll('[data-native-update]').forEach(button => button.addEventListener('click', async () => {
+      button.disabled = true;
+      try {
+        const result = await api('update_' + button.dataset.nativeUpdate);
+        setText($('nativeUpdateState'), result.error || result.message || (result.ready ? '설치 준비 완료' : result.available ? '새 업데이트가 있습니다.' : '최신 버전입니다.'));
+        row.querySelector('[data-native-update="download"]').disabled = !result.available;
+        row.querySelector('[data-native-update="install"]').disabled = !result.ready;
+      } finally { button.disabled = false; }
+    }));
+  }
   refreshDiscord();
 }
 $('acOcr').addEventListener('change', e => {
+  if (window.acruxDesktopApi) { configureNativeOcr(); return; }
   config.ocr_engine = e.target.value;
   queueSave({ ocr_engine: e.target.value });
   setTimeout(refreshOcrInfo, 600);             // 저장된 뒤 다시 확인

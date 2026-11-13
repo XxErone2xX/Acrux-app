@@ -2,6 +2,8 @@ use crate::vision::{Bar, Button, Catch, Frame, Point, Rect, Region, WindowFinder
 use serde::{Deserialize, Serialize};
 use std::{collections::VecDeque, time::Duration};
 
+mod log;
+
 const CAST_WAIT: f64 = 3.0;
 const EDGE_MARGIN: f64 = 0.04;
 const EDGE_ZONE: f64 = 0.35;
@@ -60,6 +62,10 @@ pub struct Calibration {
     panel: Rect,
     reel: Rect,
     aspect: f64,
+    #[serde(default)]
+    fish_override: Option<Point>,
+    #[serde(default)]
+    bar_override: Option<Rect>,
 }
 
 #[derive(Serialize)]
@@ -72,20 +78,82 @@ pub struct CalibrationPositions {
 }
 
 impl Calibration {
+    pub(crate) fn manual(
+        config: &serde_json::Value,
+        geometry: (usize, usize),
+    ) -> Result<Option<Self>, String> {
+        let read = |key: &str| -> Result<Option<Rect>, String> {
+            let value = &config[key];
+            if value.is_null() {
+                return Ok(None);
+            }
+            let a = value
+                .as_array()
+                .filter(|v| v.len() == 4)
+                .ok_or_else(|| format!("{key} 영역 형식을 확인하세요."))?;
+            let mut p = [0.; 4];
+            for (i, v) in a.iter().enumerate() {
+                p[i] = v
+                    .as_f64()
+                    .filter(|n| n.is_finite() && (0.0..=1.0).contains(n))
+                    .ok_or("영역이 화면 밖입니다.")?;
+            }
+            let r = Rect(p[0], p[1], p[2], p[3]);
+            if r.region(geometry).is_none() {
+                return Err("영역이 비어 있습니다.".into());
+            }
+            Ok(Some(r))
+        };
+        let (Some(panel), Some(reel)) = (read("panel_region")?, read("reel_region")?) else {
+            return Ok(None);
+        };
+        if geometry.0 == 0 || geometry.1 == 0 {
+            return Err("관측한 게임 화면 크기가 필요합니다.".into());
+        }
+        let fish_override = if config["fish_btn"].is_null() {
+            None
+        } else {
+            let a = config["fish_btn"]
+                .as_array()
+                .filter(|v| v.len() == 2)
+                .ok_or("낚시 버튼 형식이 잘못됐습니다.")?;
+            let x = a[0].as_f64().ok_or("낚시 버튼 x 좌표가 없습니다.")?;
+            let y = a[1].as_f64().ok_or("낚시 버튼 y 좌표가 없습니다.")?;
+            if !x.is_finite()
+                || !y.is_finite()
+                || !(0.0..1.0).contains(&x)
+                || !(0.0..1.0).contains(&y)
+            {
+                return Err("낚시 버튼이 화면 밖입니다.".into());
+            }
+            Some(Point(x, y))
+        };
+        Ok(Some(Self {
+            panel,
+            reel,
+            aspect: geometry.0 as f64 / geometry.1 as f64,
+            fish_override,
+            bar_override: read("bar_region")?,
+        }))
+    }
     fn from_panel(panel: Rect, frame: &Frame<'_>) -> Self {
         let extra = (498.0 / 437.0 - 1.0) / 2.0;
         Self {
             panel,
             reel: panel.inset(-extra, 0.0, 1.0 + extra, 1.0),
             aspect: frame.width as f64 / frame.height as f64,
+            fish_override: None,
+            bar_override: None,
         }
     }
 
     fn fish(self) -> Point {
-        self.panel.at(0.2494, 0.8264)
+        self.fish_override
+            .unwrap_or_else(|| self.panel.at(0.2494, 0.8264))
     }
     fn bar(self) -> Rect {
-        self.reel.inset(0.0944, 0.2746, 0.9116, 0.4648)
+        self.bar_override
+            .unwrap_or_else(|| self.reel.inset(0.0944, 0.2746, 0.9116, 0.4648))
     }
 
     pub fn positions(self) -> CalibrationPositions {
@@ -213,9 +281,12 @@ pub struct Fishing {
     gone_at: Option<f64>,
     result: Option<Catch>,
     result_rect: Option<Rect>,
+    result_hint: Option<(Rect, Point, Option<Point>)>,
     window: WindowFinder,
     bar: Bar,
     controller: ReelControl,
+    log: Option<log::ReelLog>,
+    log_enabled: bool,
 }
 
 impl Default for Fishing {
@@ -240,14 +311,121 @@ impl Default for Fishing {
             gone_at: None,
             result: None,
             result_rect: None,
+            result_hint: None,
             window: WindowFinder::default(),
             bar: Bar::default(),
             controller: ReelControl::default(),
+            log: None,
+            log_enabled: false,
         }
     }
 }
 
 impl Fishing {
+    pub(crate) fn configure_log(&mut self, folder: Option<&std::path::Path>, enabled: bool) {
+        self.log_enabled = enabled && folder.is_some();
+        if !self.log_enabled {
+            return;
+        }
+        if self.log.as_ref().map(|log| log.folder()) == folder {
+            return;
+        }
+        self.log = folder.map(log::ReelLog::new);
+    }
+
+    pub(crate) fn log_error(&mut self) -> Option<String> {
+        self.log.as_mut().and_then(log::ReelLog::error)
+    }
+
+    pub(crate) fn check(&self, frame: &Frame<'_>) -> Result<serde_json::Value, String> {
+        let calibration = self
+            .calibration
+            .ok_or("낚시 자동 보정을 먼저 실행하세요.")?;
+        if calibration.moved((frame.width, frame.height)) {
+            return Err("화면 크기가 바뀌었습니다. 낚시 보정을 다시 실행하세요.".into());
+        }
+        let button = frame.button(calibration.fish()).map(|b| match b {
+            Button::Fish => "Fish",
+            Button::Exit => "Exit",
+        });
+        let mut bar = Bar::default();
+        let visible = bar.read(frame, calibration.bar());
+        if button.is_none() && !visible {
+            return Err("현재 화면에서 낚시 버튼이나 릴링 바를 확인하지 못했습니다.".into());
+        }
+        Ok(
+            serde_json::json!({"button":button,"bar":if visible{Some("확인됨")}else{None},"diamond":if calibration.diamond_moved(frame){Some("확인됨")}else{None}}),
+        )
+    }
+    pub(crate) fn configure(
+        &mut self,
+        config: &serde_json::Value,
+        geometry: (usize, usize),
+    ) -> Result<(), String> {
+        if config["result_region"].is_null() {
+            self.result_hint = None;
+            return Ok(());
+        }
+        let a = config["result_region"]
+            .as_array()
+            .filter(|a| a.len() == 4)
+            .ok_or("결과창 영역 형식을 확인하세요.")?;
+        let mut p = [0.; 4];
+        for (i, v) in a.iter().enumerate() {
+            p[i] = v
+                .as_f64()
+                .filter(|v| v.is_finite() && (0.0..=1.0).contains(v))
+                .ok_or("결과창이 화면 밖입니다.")?;
+        }
+        let r = Rect(p[0], p[1], p[2], p[3]);
+        if r.region(geometry).is_none() {
+            return Err("결과창 영역이 비어 있습니다.".into());
+        }
+        let point = |key: &str| -> Result<Option<Point>, String> {
+            let v = &config[key];
+            if v.is_null() {
+                return Ok(None);
+            }
+            let a = v
+                .as_array()
+                .filter(|a| a.len() == 2)
+                .ok_or("결과창 위치 형식을 확인하세요.")?;
+            let x = a[0].as_f64().unwrap_or(f64::NAN);
+            let y = a[1].as_f64().unwrap_or(f64::NAN);
+            if !x.is_finite()
+                || !y.is_finite()
+                || !(0.0..=1.0).contains(&x)
+                || !(0.0..=1.0).contains(&y)
+            {
+                return Err("결과창 위치가 화면 밖입니다.".into());
+            }
+            Ok(Some(Point(x, y)))
+        };
+        self.result_hint = Some((
+            r,
+            point("title_pos")?.unwrap_or(r.at(0.4972, 0.0913)),
+            point("close_pos")?,
+        ));
+        Ok(())
+    }
+
+    fn result_title(&self, frame: &Frame<'_>, window: Rect) -> Option<Catch> {
+        let at = self
+            .result_hint
+            .filter(|(r, _, _)| {
+                [
+                    r.0 - window.0,
+                    r.1 - window.1,
+                    r.2 - window.2,
+                    r.3 - window.3,
+                ]
+                .into_iter()
+                .all(|v| v.abs() < 0.002)
+            })
+            .map(|(_, at, _)| at)
+            .unwrap_or(window.at(0.4972, 0.0913));
+        frame.title(at)
+    }
     pub fn observation(&self, now: f64, geometry: (usize, usize)) -> Observation {
         let (interval, reason) = match self.phase {
             Phase::Calibrating => (0.25, "낚시 패널의 버튼과 테두리를 찾습니다."),
@@ -354,6 +532,7 @@ impl Fishing {
         self.phase(Phase::Idle, 0.0, message);
         self.window = WindowFinder::default();
         self.bar = Bar::default();
+        self.log_enabled = false;
     }
 
     pub fn no_target(&mut self, now: f64) {
@@ -384,6 +563,18 @@ impl Fishing {
     }
 
     fn result_window(&mut self, frame: &Frame<'_>) -> Option<Rect> {
+        if let Some((rect, title, close)) = self.result_hint {
+            if frame.contains(rect)
+                && frame.title(title).is_some()
+                && frame.result_close(rect).is_some_and(|observed| {
+                    close.is_none_or(|p| {
+                        (observed.0 - p.0).abs() < 0.05 && (observed.1 - p.1).abs() < 0.05
+                    })
+                })
+            {
+                return Some(rect);
+            }
+        }
         self.window.find(frame, |rect, ratio| {
             (0.35..=1.6).contains(&ratio)
                 && rect.3 - rect.1 >= 0.25
@@ -491,7 +682,7 @@ impl Fishing {
                 if let Some(window) = recovered_result.or_else(|| self.result_window(frame)) {
                     self.known_at = now;
                     self.result_rect = Some(window);
-                    self.result = frame.title(window.at(0.4972, 0.0913)).or(self.result);
+                    self.result = self.result_title(frame, window).or(self.result);
                     return frame
                         .result_close(window)
                         .map(|close| Self::tap(frame, close, 40));
@@ -518,6 +709,9 @@ impl Fishing {
             self.gone_at = None;
             self.casts = 0;
             self.phase(Phase::Reeling, now, "릴링 중");
+            if let Some(log) = self.log.as_ref().filter(|_| self.log_enabled) {
+                log.start(now);
+            }
         }
         if self.phase == Phase::Reeling {
             self.last_progress = now;
@@ -525,10 +719,20 @@ impl Fishing {
                 self.gone_at = None;
                 if now - self.phase_at < 15.0 {
                     let (marker, zones, width) = self.bar.track(frame, area);
-                    if self
+                    let click = self
                         .controller
-                        .click(now, marker, zones, width, self.tuning)
-                    {
+                        .click(now, marker, zones, width, self.tuning);
+                    if let Some(log) = self.log.as_ref().filter(|_| self.log_enabled) {
+                        log.row(
+                            now,
+                            marker,
+                            self.controller.decision_zone,
+                            self.controller.velocity,
+                            click,
+                            width,
+                        );
+                    }
+                    if click {
                         return Some(Self::tap(
                             frame,
                             calibration.reel_tap(self.tuning.tap_above),
@@ -587,6 +791,7 @@ struct ReelControl {
     rising: bool,
     edge_k: f64,
     side: i8,
+    decision_zone: Option<(f64, f64)>,
 }
 
 impl Default for ReelControl {
@@ -601,6 +806,7 @@ impl Default for ReelControl {
             rising: false,
             edge_k: 1.0,
             side: 0,
+            decision_zone: None,
         }
     }
 }
@@ -663,6 +869,7 @@ impl ReelControl {
         width: f64,
         tuning: Tuning,
     ) -> bool {
+        self.decision_zone = None;
         if let Some(m) = marker {
             let jump = width * 0.25;
             let outlier = self.history.len() >= 2
@@ -709,6 +916,7 @@ impl ReelControl {
         let Some((left, right)) = self.track_zone(now, zones, m, width) else {
             return false;
         };
+        self.decision_zone = Some((left, right));
         let side = if m > right {
             1
         } else if m < left - width * 0.01 {
@@ -818,6 +1026,12 @@ mod tests {
         engine.calibrate(0.0).unwrap();
         assert!(engine.frame(0.1, &frame).is_none());
         assert!(engine.calibration_changed);
+        assert_eq!(engine.check(&frame).unwrap()["button"], "Fish");
+        let blank = vec![0; STRIDE * H];
+        assert!(
+            engine.check(&super::tests::frame(&blank)).is_err(),
+            "stored calibration cannot certify a button on an unrelated current frame"
+        );
         engine.start(0.2).unwrap();
         for time in [0.3, 3.4, 6.5] {
             let tap = engine.frame(time, &frame).unwrap();

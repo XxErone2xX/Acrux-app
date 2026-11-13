@@ -250,7 +250,7 @@ class CaptureService : Service() {
         }
         dropImage()
         latest = image
-        latestAt = now
+        latestAt = AgentTransport.captureAt(now,System.nanoTime(),image.timestamp)
         latestGeneration = frameGeneration
         // This callback only retains the newest image. The single pump owns JNI work.
         if (pendingObservation != null && now >= observationAt || now >= nextTickAt) schedule(0)
@@ -297,7 +297,7 @@ class CaptureService : Service() {
                         return
                     }
                     1 -> {
-                        if (plan.size != 8 || !AgentTransport.region(source.width, source.height, plan[3], plan[4], plan[5], plan[6])) {
+                        if (plan.size !in 8..9 || !AgentTransport.region(source.width, source.height, plan[3], plan[4], plan[5], plan[6])) {
                             throw IllegalArgumentException("화면 관측 영역이 올바르지 않습니다.")
                         }
                         pendingObservation = plan
@@ -313,7 +313,7 @@ class CaptureService : Service() {
             if (tapper?.gesturePending == true) { schedule(16); return }
             val image = latest
             if (image == null) { schedule(16); return }
-            if (!AgentTransport.fresh(latestAt, now, latestGeneration, request[1])) {
+            if (latestAt < observationAt || !AgentTransport.fresh(latestAt, now, latestGeneration, request[1])) {
                 dropImage()
                 schedule(16)
                 return
@@ -326,6 +326,14 @@ class CaptureService : Service() {
                 val plane = image.planes[0]
                 if (!plane.buffer.isDirect) throw IllegalArgumentException("화면 관측 데이터가 올바르지 않습니다.")
                 val x = request[3]; val y = request[4]; val width = request[5]; val height = request[6]
+                if (request.size == 9 && request[8] == 1) {
+                    val receivedAt = latestAt
+                    val words = FrameText.read(image, x, y, width, height)
+                    // Cold OCR initialization may finish after the screen changed.
+                    // Its result warms the recognizer but cannot drive an input.
+                    if (!AgentTransport.fresh(receivedAt, SystemClock.uptimeMillis(), latestGeneration, request[1])
+                        || !Native.agentText(request[1], request[7], words)) return
+                }
                 consumedTimestamp = image.timestamp
                 val full = x == 0 && y == 0 && width == image.width && height == image.height
                 val buffer: ByteBuffer
@@ -343,7 +351,9 @@ class CaptureService : Service() {
                     row = width * 4
                     pixel = 4
                 }
-                val input = Native.agentObserve(buffer, image.width, image.height, row, pixel, x, y, width, height, request[1], request[7])
+                val age=SystemClock.uptimeMillis()-latestAt
+                if(age !in 0 until AgentTransport.FRAME_TTL_MS)return
+                val input = Native.agentObserve(buffer, image.width, image.height, row, pixel, x, y, width, height, request[1], request[7],age.toInt())
                 if (input != null) dispatch(input)
             } finally { image.close(); schedule(1) }
         } catch (error: RuntimeException) {

@@ -24,9 +24,18 @@ function mobile(options = {}) {
     });
     return elements.get(id);
   };
+  const mobileConfig = structuredClone(JSON.parse(fs.readFileSync(path.join(__dirname, 'desktop-defaults.json'), 'utf8')));
+  mobileConfig.mfish.enabled = true;
+  let nativeMobileConfig = mobileConfig;
   const invoke = async (name, payload) => {
     calls.push([name, structuredClone(payload)]);
     if (name === 'status') return structuredClone(current);
+    if (name === 'macro_settings') return structuredClone(nativeMobileConfig);
+    if (name === 'save_macro_settings') { if (options.configSaveWait) await options.configSaveWait; nativeMobileConfig = structuredClone(payload.config); return structuredClone(nativeMobileConfig); }
+    if (name === 'android_input_status') return { enabled: true, selected: true };
+    if (name === 'automation_action') { if (options.automationError) throw new Error(options.automationError); return { ok: true, queued: true, message: '실제 작업 요청' }; }
+    if (name === 'service_action') return { available: true, ready: payload.action === 'update_download', message: '업데이트 상태' };
+    if (name === 'pick_macro_position') return { pos: [.2, .3], config: nativeMobileConfig };
     if (name === 'dua_start') {
       const staleReply = structuredClone(current);
       Object.assign(staleReply.dua, { running: true, route: 'headless' });
@@ -51,6 +60,7 @@ function mobile(options = {}) {
     }
     if (name === 'biome_transport') return { connection: 'off', testOutput: '', testUntil: 0 };
     if (name === 'online_status') return { online: null, share: true };
+    if (name === 'save_online') return;
     if (name === 'android_setup') return;
     throw new Error(`Unexpected mobile command ${name}`);
   };
@@ -64,6 +74,7 @@ function mobile(options = {}) {
   vm.runInNewContext(compile(fs.readFileSync(path.join(__dirname, 'engine.ts'), 'utf8')), engine);
   const modules = {
     './engine': engine.exports,
+    './desktop-defaults.json': JSON.parse(fs.readFileSync(path.join(__dirname, 'desktop-defaults.json'), 'utf8')),
     './biome': { defaultBiome: {}, biomeStatus: async () => ({ settings: {}, logs: [] }) },
     '@tauri-apps/api/core': { invoke },
   };
@@ -73,14 +84,13 @@ function mobile(options = {}) {
     document: { hidden: true, documentElement: {}, getElementById: element, querySelectorAll: () => [],
       addEventListener: (name, fn) => listeners.set(name, fn) },
     window: { setInterval() {}, setTimeout: () => 1 }, navigator: { language: 'ko' },
-    localStorage: { getItem: () => null, setItem() {} }, setTimeout: () => 1, clearTimeout() {},
+    localStorage: { getItem: () => null, setItem() {} }, setTimeout: () => 1, clearTimeout() {}, structuredClone,
   };
   const source = fs.readFileSync(path.join(__dirname, 'main.ts'), 'utf8');
   vm.runInNewContext(compile(source + '\nglobalThis.mobileUi = {'
-    + ' changeMacro, perform, applyStatus, home, move, guideSteps, applyNavigation,'
-    + ' get current() { return current; }, get saves() { return numberSaves; },'
+    + ' changeMacro, perform, applyStatus, home, move, guideSteps, loadMacro, macroSettings, saveMacro, startGuide, moveGuide,'
+    + ' get guide() { return guide; }, get current() { return current; }, get saves() { return numberSaves; }, get macroSaves() { return macroSaves; }, get macro() { return macro; },'
     + ' setCurrent(value) { current = value; applyStatus(); },'
-    + ' setNavigation(value) { nav = value; }, getNavigation() { return nav; },'
     + ' setLanguage(value) { overlay.lang = value; },'
     + ' setBusy(value) { busy = value; } };'), context);
   context.document.hidden = false;
@@ -92,6 +102,8 @@ function desktop(saved, options = {}) {
   const preferencesKey = 'acrux.desktop.preferences';
   const storage = new Map([[preferencesKey, JSON.stringify(saved)]]);
   const errors = [], calls = [];
+  let nativeConfig;
+
   const elements = [];
   let time = 0, timerId = 0;
   const timers = new Map();
@@ -112,6 +124,7 @@ function desktop(saved, options = {}) {
   }
   const window = new Element('window');
   window.dispatchEvent = event => errors.push(event.detail);
+  window.confirm = () => options.confirm !== false;
   const stats = { success: 0, junk: 0, fail: 0, full: 0 };
   const status = {
     phase: 'idle', positions: null,
@@ -142,6 +155,29 @@ function desktop(saved, options = {}) {
     './biome': { biomeStatus: async () => structuredClone(biome), saveBiome: async settings => ({ settings }) },
     '@tauri-apps/api/core': { invoke: async (command, payload) => {
       calls.push([command, structuredClone(payload)]);
+      if (command === 'macro_settings') {
+        if (options.loadWait) await options.loadWait;
+        if (!nativeConfig) nativeConfig = JSON.parse(storage.get(preferencesKey));
+        return structuredClone(nativeConfig);
+      }
+      if (command === 'save_macro_settings') {
+        if (options.configSaveWait) await options.configSaveWait;
+        if (status.dua.running || status.phase !== 'idle') throw new Error('설정을 바꾸기 전에 실행 중인 작업을 중지하세요.');
+        nativeConfig = structuredClone(payload.config);
+        return structuredClone(nativeConfig);
+      }
+      if (command === 'service_action') {
+        if (options.serviceError) throw new Error(options.serviceError);
+        if (payload.action === 'mods_list') return { mods: options.mods ?? [] };
+        if (payload.action === 'runtime_metadata') return structuredClone(options.metadata ?? { logs: [], stats: {} });
+        if (payload.action === 'mods_hook' && options.hook) return options.hook(payload.payload.event, payload.payload.args);
+        return { ok: true, available: true, ready: payload.action === 'update_download' };
+      }
+      if (command === 'automation_action') {
+        if (options.automationError) throw new Error(options.automationError);
+        assert.equal(payload.generation, status.generation);
+        return { ok: true, queued: true };
+      }
       if (command === 'online_status') return { share: true, online: 1 };
       if (command === 'save_online') return;
       if (command === 'discord_state') return structuredClone(discord);
@@ -248,8 +284,8 @@ test('main start requires the private session and starts DUA with the enabled fe
   const app = desktop({ mfish: { enabled: true } });
   const result = await app.api('set_config', { patch: { macro_on: true } });
   assert.equal(result.config.macro_on, true);
-  assert.deepEqual(app.calls.map(([name]) => name), ['desktop_start']);
-  assert.deepEqual(app.calls[0][1], { features: ['mfish'], generation: 0 });
+  assert.deepEqual(app.calls.filter(([name]) => name === 'desktop_start').map(([name]) => name), ['desktop_start']);
+  assert.deepEqual(app.calls.find(([name]) => name === 'desktop_start')[1], { features: ['mfish'], generation: 0 });
   assert.equal(app.calls.some(([name, action]) => name === 'control' && action === 'start'), false);
   assert.equal(app.stored().macro_on, false, 'relaunch must not resume automation');
 });
@@ -321,27 +357,26 @@ test('start sends every enabled feature so unsupported requests cannot run silen
   assert.match(app.errors[0], /mitem/);
 });
 
-test('running edits do not restart DUA and changing enabled features stops it', async () => {
-  const app = desktop({ mfish: { enabled: true } });
+test('running config edits stop, save and restart exactly once while disabled features are reflected', async () => {
+  const app = desktop({ mfish: { enabled: true }, mitem: { enabled: true } });
   await app.api('set_config', { patch: { macro_on: true } });
   await app.api('set_config', { patch: { mfish: { enabled: true, sell_max: 80 } } });
-  assert.equal(app.calls.filter(([name]) => name === 'desktop_start').length, 1);
-  assert.equal(app.calls.filter(([name]) => name === 'desktop_navigation').length, 0);
+  const sequence = app.calls.map(([name]) => name).filter(name => ['desktop_start', 'control', 'save_macro_settings'].includes(name));
+  assert.deepEqual(sequence, ['desktop_start', 'control', 'save_macro_settings', 'desktop_start']);
   assert.equal(app.status.dua.running, true);
-  const result = await app.api('set_config', { patch: { mfish: { enabled: false } } });
-  assert.equal(result.config.macro_on, false);
-  assert.equal(app.status.dua.running, false);
-  assert.match(app.errors.at(-1), /기능이 바뀌어/);
+  await app.api('set_config', { patch: { mfish: { enabled: false } } });
+  assert.deepEqual(app.calls.filter(([name]) => name === 'desktop_start').at(-1)[1].features, ['mitem']);
 });
 
-test('saving fishing preferences does not cancel a separate manual calibration', async () => {
+test('editing during manual calibration stops before saving and does not restart a macro', async () => {
   const app = desktop({ mfish: { enabled: false } });
   app.status.phase = 'calibrating';
   await app.api('set_config', { patch: { mfish: { enabled: true } } });
-  assert.equal(app.calls.length, 0);
-  assert.equal(app.status.phase, 'calibrating');
+  assert.equal(app.status.phase, 'idle');
+  const meaningful = app.calls.filter(([name]) => ['control', 'save_macro_settings', 'desktop_start'].includes(name));
+  assert.deepEqual(meaningful.map(([name]) => name), ['control', 'save_macro_settings']);
   await app.api('set_config', { patch: { macro_on: false } });
-  assert.deepEqual(app.calls, [['control', 'stop']]);
+  assert.equal(app.calls.filter(([name]) => name === 'desktop_start').length, 0);
 });
 
 function snapshot(width, height, pixels = []) {
@@ -625,32 +660,35 @@ test('active macro preview is read-only and stale manual input is not retried in
   await app.api('game_view_close', {}); await flush();
 });
 
-test('legacy timed navigation cannot be executed through the desktop bridge', async () => {
+test('navigation and legacy feature APIs reach real native actions with a fresh generation', async () => {
   const app = desktop({});
-  for (const action of ['move_base', 'move_place', 'move_pick', 'move_test', 'move_arrive', 'sell_test']) {
-    assert.match((await app.api(action, {})).error, /지도 기반 이동/);
+  for (const action of ['move_base', 'move_place', 'move_pick', 'move_test', 'move_arrive', 'sell_test', 'mpop_test', 'mitem_test', 'mmerch_check', 'mcraft_test', 'mmatch_test', 'mblood_test', 'ret_test', 'play_test', 'ocr_info', 'waypoint_mark']) {
+    assert.equal((await app.api(action, { place: 2, name: 'Lucky Potion', destination: 'craft' })).queued, true, action);
+    app.status.generation++;
   }
-  assert.equal(app.calls.length, 0);
+  const navigation = app.calls.filter(([name]) => name === 'automation_action');
+  assert.equal(navigation.length, 16);
+  assert.equal(navigation.find(([, p]) => p.action === 'move_place')[1].payload.i, 2);
+  assert.equal(navigation.filter(([, p]) => p.action === 'waypoint_mark').length, 2);
+  assert.equal(app.calls.some(([name]) => name === 'desktop_navigation'), false);
+  const failed = desktop({}, { automationError: '화면에서 캐릭터 위치를 확인할 수 없습니다.' });
+  assert.match((await failed.api('move_base', {})).error, /캐릭터 위치/);
 });
 
-test('desktop fishing scope labels exclude selling while legacy UI text stays unchanged', () => {
+test('desktop fishing labels describe native travel and selling while Python text remains unchanged', () => {
   const source = fs.readFileSync(path.join(__dirname, '../src/web/app.js'), 'utf8');
   const html = fs.readFileSync(path.join(__dirname, '../src/web/index.html'), 'utf8');
-  const labels = [...html.matchAll(/data-desktop-text="([^"]+)"[^>]*>([^<]+)/g)].map(([, desktop, legacy]) => ({
-    dataset: { desktopText: desktop }, textContent: legacy,
-  }));
-  assert.equal(labels.length, 2);
+  const labels = [...html.matchAll(/data-desktop-text="([^"]+)"[^>]*>([^<]+)/g)].map(([, desktop, legacy]) => ({ dataset: { desktopText: desktop }, textContent: legacy }));
   const original = labels.map(el => el.textContent);
   const context = { window: {}, document: { querySelectorAll: () => labels }, setText: (el, text) => { el.textContent = text; } };
   vm.runInNewContext(source.slice(source.indexOf('function applyDesktopText('), source.indexOf('function syncMainTiles(')) + '\nglobalThis.apply = applyDesktopText;', context);
   context.apply();
   assert.deepEqual(labels.map(el => el.textContent), original);
-  assert.match(original[1], /가득 차면 팔고 돌아옴/);
   context.window.acruxDesktopApi = () => {};
   context.apply();
-  assert.equal(labels[0].textContent, '던지기 · 릴링');
-  assert.match(labels[1].textContent, /가득 차면 중지/);
-  assert.match(labels[1].textContent, /이동과 판매는 준비 중/);
+  assert.equal(labels[0].textContent, '던지기 · 릴링 · 판매');
+  assert.match(labels[1].textContent, /지형.*가득 차면 팔고 돌아옴/);
+  assert.doesNotMatch(labels[1].textContent, /준비 중/);
 });
 
 test('private session uses app controls while the legacy Python UI retains shortcuts', () => {
@@ -782,6 +820,7 @@ test('mobile stop preempts a pending start and ignores both stale success and ge
     const app = mobile({ startWait, staleStartReply });
     const starting = app.ui.perform('macro-toggle');
     assert.equal(app.element('macro-toggle').textContent, '정지');
+    await flush();
     await app.ui.perform('macro-toggle');
     release();
     await starting;
@@ -808,7 +847,7 @@ test('mobile tuning saves cannot block stop or restore stale running state after
   assert.equal(app.current.tuning.leadMs, 45);
 });
 
-test('mobile DUA renders real route counters and foreground guard and keeps timed navigation disabled with data intact', async () => {
+test('mobile DUA renders real route counters, foreground guard and screenshot-led travel controls', async () => {
   const app = mobile();
   const observed = structuredClone(app.current);
   Object.assign(observed.dua, { running: true, route: 'screenshot', reason: '실제 화면 확인', headlessTicks: 17, screenshotFrames: 9, transitions: 4 });
@@ -825,20 +864,13 @@ test('mobile DUA renders real route counters and foreground guard and keeps time
     assert.match(app.element('dua-counts').textContent, /17.*9.*4/);
   }
   app.ui.setLanguage('ko');
-  const nav = structuredClone(app.ui.getNavigation());
-  Object.assign(nav.options, { useMove: true, useSell: true, wa: 8.3 });
-  Object.assign(nav, { fish: 3, sell: 2, positions: { stick_edge: [0.1, 0.2] } });
-  app.ui.setNavigation(nav);
-  const before = JSON.stringify(app.ui.getNavigation());
   const html = app.ui.move();
-  const controls = [...html.matchAll(/<input\b[^>]*data-navigation=[^>]*>/g)].map(match => match[0]);
-  assert.equal(controls.length > 10, true);
-  assert.equal(controls.every(control => /\bdisabled\b/.test(control)), true);
-  assert.match(html, /지도 기반 이동과 판매는 준비 중/);
-  for (const event of ['input', 'change']) await app.listeners.get(event)({ target: { disabled: true, dataset: { navigation: 'useMove' }, type: 'checkbox', checked: false } });
-  assert.equal(JSON.stringify(app.ui.getNavigation()), before);
-  assert.equal(app.calls.some(([name]) => name === 'save_navigation' || name === 'navigation_task'), false);
-  for (const id of ['move', 'sell']) assert.match(app.ui.guideSteps[id][0].body, /준비 중/);
+  assert.match(html, /data-macro="useMove"/);
+  assert.match(html, /data-macro="useSell"/);
+  assert.match(html, /현재 장소 기억/);
+  assert.doesNotMatch(html, /준비 중|data-navigation=/);
+  assert.equal(app.calls.some(([name]) => name === 'navigation_task'), false);
+  for (const id of ['move', 'sell']) assert.doesNotMatch(app.ui.guideSteps[id][0].body, /준비 중/);
 });
 
 test('Discord bridge keeps the four public contracts and never stores account credentials in UI preferences', async () => {
@@ -980,5 +1012,262 @@ test('desktop assets contain no retired screens or controls', () => {
     const source = fs.readFileSync(path.join(__dirname, '../src/web', filename), 'utf8');
     assert.doesNotMatch(source, /스나이|スナイ|Prime Snipe|data-mpos-link|setPopLink|SNIPE_BIOMES|STAY_BIOMES|모든 채널 감시|디버그 포트/);
     if (filename.endsWith('.js')) new vm.Script(source, { filename });
+  }
+});
+
+test('desktop stop preempts a slow native settings save and never resumes the pending macro', async () => {
+  let release;
+  const app = desktop({ mfish: { enabled: true } }, { configSaveWait: new Promise(resolve => { release = resolve; }) });
+  await app.api('set_config', { patch: { macro_on: true } });
+  const editing = app.api('set_config', { patch: { mitem: { enabled: true } } });
+  await flush();
+  assert.equal(app.status.dua.running, false);
+  await app.api('mfish_stop', {});
+  release();
+  await editing;
+  assert.equal(app.status.dua.running, false);
+  assert.equal(app.calls.filter(([name]) => name === 'desktop_start').length, 1);
+  assert.equal(app.stored().mitem.enabled, true);
+});
+
+test('concurrent desktop edits save every change and restart once with the final selected features', async () => {
+  const app = desktop({ mfish: { enabled: true } });
+  await app.api('set_config', { patch: { macro_on: true } });
+  const first = app.api('set_config', { patch: { mitem: { enabled: true } } });
+  const second = app.api('set_config', { patch: { mcraft: { enabled: true, potion: 'Lucky Potion' } } });
+  await Promise.all([first, second]);
+  const starts = app.calls.filter(([name]) => name === 'desktop_start');
+  assert.equal(starts.length, 2);
+  assert.deepEqual(starts.at(-1)[1].features, ['mfish', 'mitem', 'mcraft']);
+  assert.equal(app.stored().mitem.enabled, true);
+  assert.equal(app.stored().mcraft.potion, 'Lucky Potion');
+});
+
+test('desktop service buttons use native management and preserve backend errors', async () => {
+  const app = desktop({});
+  for (const action of ['mods_list', 'mods_folder', 'mods_toggle', 'mods_remove', 'open_web', 'open_folder', 'changelog', 'update_state', 'update_check', 'update_download']) {
+    await app.api(action, { id: 'sample', on: true, site: 'discord' });
+  }
+  assert.deepEqual(app.calls.filter(([name]) => name === 'service_action').map(([, value]) => value.action),
+    ['mods_list', 'mods_folder', 'mods_toggle', 'mods_remove', 'open_web', 'open_folder', 'changelog', 'update_state', 'update_check', 'update_download']);
+  const error = desktop({}, { serviceError: '서명이 일치하지 않습니다.' });
+  assert.match((await error.api('update_install', {})).error, /서명/);
+});
+
+test('mobile selects and persists every macro feature before starting its native runner', async () => {
+  const app = mobile();
+  await app.ui.loadMacro();
+  const features = ['mfish', 'mpop', 'mitem', 'mmerch', 'mcraft', 'mmatch', 'mblood'];
+  for (const feature of features) await app.listeners.get('change')({ target: { disabled: false, type: 'checkbox', checked: true, dataset: { macro: feature + '.enabled' } } });
+  await app.ui.changeMacro();
+  assert.deepEqual(app.calls.find(([name]) => name === 'dua_start')[1].features, features);
+  const saved = app.calls.filter(([name]) => name === 'save_macro_settings').at(-1)[1].config;
+  assert.equal(saved.macro_on, false);
+  for (const feature of features) assert.equal(saved[feature].enabled, true);
+  const settings = app.ui.macroSettings();
+  assert.match(settings, /자동 포션 제작/);
+  assert.match(settings, /상인 자동 구매/);
+  assert.match(settings, /자동 메모리 매치/);
+  assert.match(settings, /position:base.ocr_region/);
+  assert.doesNotMatch(settings, /준비 중|Python|data-action="unsupported"/);
+});
+
+test('mobile planned restart remains stoppable during a slow save without restoring the old generation', async () => {
+  let release;
+  const app = mobile({ configSaveWait: new Promise(resolve => { release = resolve; }) });
+  await app.ui.changeMacro();
+  const editing = app.ui.saveMacro(next => { next.mitem.enabled = true; });
+  await flush();
+  assert.equal(app.ui.current.dua.running, false);
+  assert.equal(app.element('macro-toggle').textContent, '정지');
+  await app.ui.changeMacro();
+  release();
+  await editing;
+  assert.equal(app.ui.current.dua.running, false);
+  assert.equal(app.calls.filter(([name]) => name === 'dua_start').length, 1);
+});
+
+test('mobile input setup, game tasks, destinations, position picks and updater reach their native handlers', async () => {
+  const app = mobile();
+  await app.ui.perform('inputSetup');
+  assert.equal(app.calls.find(([name]) => name === 'android_setup')[1].action, 'inputSetup');
+  await app.ui.perform('task:mitem_test');
+  await app.ui.perform('go:craft');
+  await app.ui.perform('mark:sell');
+  await app.ui.perform('position:base.ocr_region');
+  await app.ui.perform('update:check');
+  const actions = app.calls.filter(([name]) => name === 'automation_action').map(([, value]) => value);
+  assert.equal(actions[0].action, 'mitem_test');
+  assert.equal(actions[1].action, 'go');
+  assert.equal(actions[1].payload.destination, 'craft');
+  assert.equal(actions[2].action, 'waypoint_mark');
+  assert.equal(actions[2].payload.destination, 'sell');
+  assert.equal(app.calls.find(([name]) => name === 'pick_macro_position')[1].region, true);
+  assert.equal(app.calls.find(([name, value]) => name === 'service_action' && value.action === 'update_check')[1].action, 'update_check');
+});
+
+
+test('native PC state, stats and poll preserve original mutable SDK hooks and real counter clocks', async () => {
+  const app = desktop({}, {
+    mods: [{ id: 'sample', loaded: true }],
+    metadata: { logs: [{ time: 10, msg: '실제 인벤토리 OCR 결과' }], stats: { crafted: 9, since: 4 } },
+    hook(event, args) {
+      if (event === 'state') args[0].sample_state = true;
+      if (event === 'poll') args[0].sample_poll = true;
+      return { args, results: event === 'stats' ? [{ sample_stat: 3, fish_success: 'invalid' }] : [] };
+    },
+  });
+  const nativeState = await app.api('state', {});
+  assert.equal(nativeState.error, undefined);
+  assert.equal(nativeState.sample_state, true);
+  app.status.stats.success = 2;
+  app.status.automation = { running: true, active: { kind: 'items' }, clock: 100, itemNext: { strange: 135 }, nextMatch: 220, recoveryLeft: 6,
+    used: { 'Strange Controller': 4, 'Cursed Rune Fragment': 1 }, crafted: 2 };
+  const out = await app.api('poll', {});
+  assert.equal(out.sample_poll, true);
+  assert.equal(out.stats.session.sample_stat, 3);
+  assert.equal(out.stats.session.fish_success, 2);
+  assert.equal(out.stats.all.crafted, 9);
+  assert.equal(out.mitem.items.strange.used, 4);
+  assert.equal(out.mitem.items.strange.left, 35);
+  assert.equal(out.mmatch.next_in, 120);
+  assert.equal(out.crash.left, 6);
+  assert.equal(out.mblood.used, 1);
+  assert.equal(out.logs.filter(line => line.msg === '실제 인벤토리 OCR 결과').length, 1);
+  assert.equal((await app.api('poll', {})).logs.filter(line => line.msg === '실제 인벤토리 OCR 결과').length, 0);
+});
+
+
+test('an automatic private-session recovery cannot be started twice and remains stoppable', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../src/web/app.js'), 'utf8');
+  const elements = new Map();
+  const element = id => { if (!elements.has(id)) elements.set(id, {}); return elements.get(id); };
+  const context = { window: { acruxDesktopApi() {} }, lastSession: null, $: element, setText: (node, value) => { node.textContent = value; } };
+  vm.runInNewContext(source.slice(source.indexOf('function updateSession('), source.indexOf('function applyDesktopText(')) + '\nglobalThis.renderSession = updateSession;', context);
+  context.renderSession({ supported: true, state: 'recovering', message: '실제 서버 재연결 중' });
+  assert.equal(element('desktopSessionStart').disabled, true);
+  assert.equal(element('desktopSessionStop').disabled, false);
+  assert.equal(element('desktopGameViewOpen').disabled, true);
+  assert.equal(element('desktopSessionMessage').textContent, '실제 서버 재연결 중');
+  context.renderSession({ supported: true, state: 'error', message: '재연결 실패' });
+  assert.equal(element('desktopSessionStart').disabled, false);
+});
+
+function ocrControls(native, reply = { engine: 'Tesseract' }) {
+  const source = fs.readFileSync(path.join(__dirname, '../src/web/app.js'), 'utf8');
+  const elements = new Map(), saves = [], timers = [], calls = [];
+  const element = id => {
+    if (!elements.has(id)) elements.set(id, { value: 'rapid', disabled: false,
+      innerHTML: '<option value="auto">auto</option><option value="rapid">RapidOCR</option><option value="windows">Windows OCR</option>',
+      listeners: {}, addEventListener(name, callback) { this.listeners[name] = callback; } });
+    return elements.get(id);
+  };
+  const config = { ocr_engine: 'rapid' };
+  const context = { window: native ? { acruxDesktopApi() {} } : {}, config, $: element,
+    esc: value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
+    setText: (node, value) => { node.textContent = value; },
+    api: async name => { calls.push(name); return reply; }, queueSave: patch => saves.push(patch),
+    setTimeout: (callback, delay) => timers.push({ callback, delay }) };
+  vm.runInNewContext(source.slice(source.indexOf('function configureNativeOcr('), source.indexOf('function fillAcrux('))
+    + '\nglobalThis.ocrUi = { configureNativeOcr, refreshOcrInfo };', context);
+  vm.runInNewContext(source.slice(source.indexOf("$('acOcr').addEventListener('change'"), source.indexOf("$('acLang').addEventListener('change'")), context);
+  return { ...context.ocrUi, element, saves, timers, calls, config };
+}
+
+test('native OCR controls show each actual OS engine and cannot save an ignored legacy choice', async () => {
+  for (const engine of ['Tesseract', 'Windows.Media.Ocr', 'Apple Vision']) {
+    const ui = ocrControls(true, { engine });
+    ui.configureNativeOcr();
+    await ui.refreshOcrInfo();
+    assert.deepEqual(ui.calls, ['ocr_info']);
+    assert.equal(ui.element('acOcr').value, 'auto');
+    assert.equal(ui.element('acOcr').disabled, true);
+    assert.match(ui.element('acOcr').innerHTML, new RegExp(engine.replaceAll('.', '\\.')));
+    assert.doesNotMatch(ui.element('acOcr').innerHTML, /value="rapid"|value="windows"/);
+    assert.equal(ui.element('acOcrNow').textContent, engine);
+    assert.match(ui.element('acOcrHelp').innerHTML, /Linux · Tesseract/);
+    assert.match(ui.element('acOcrHelp').innerHTML, /Windows · Windows OCR/);
+    assert.match(ui.element('acOcrHelp').innerHTML, /macOS · Apple Vision/);
+    assert.doesNotMatch(ui.element('acOcrHelp').innerHTML, /RapidOCR/);
+    ui.element('acOcr').listeners.change({ target: { value: 'windows' } });
+    assert.equal(ui.config.ocr_engine, 'auto');
+    assert.deepEqual(ui.saves, []);
+    assert.deepEqual(ui.timers, []);
+  }
+  const failing = ocrControls(true, { error: 'OCR 정보를 읽지 못했습니다.' });
+  failing.configureNativeOcr();
+  await failing.refreshOcrInfo();
+  assert.equal(failing.element('acOcrNow').textContent, 'OCR 정보를 읽지 못했습니다.');
+});
+
+test('Python OCR choices and saving retain their existing behavior', async () => {
+  const ui = ocrControls(false, { engine: 'Windows OCR', rapid: false });
+  const previous = ui.element('acOcr').innerHTML;
+  ui.configureNativeOcr('Tesseract');
+  assert.equal(ui.element('acOcr').innerHTML, previous);
+  assert.equal(ui.element('acOcr').disabled, false);
+  assert.equal(ui.config.ocr_engine, 'rapid');
+  ui.element('acOcr').listeners.change({ target: { value: 'windows' } });
+  assert.deepEqual({ ...ui.saves[0] }, { ocr_engine: 'windows' });
+  assert.equal(ui.timers[0].delay, 600);
+  await ui.refreshOcrInfo();
+  assert.equal(ui.element('acOcrNow').textContent, 'Windows OCR (RapidOCR 없음)');
+  const html = fs.readFileSync(path.join(__dirname, '../src/web/index.html'), 'utf8');
+  assert.match(html, /<option value="rapid">RapidOCR<\/option>/);
+  assert.match(html, /<option value="windows">윈도우 OCR<\/option>/);
+});
+
+test('native OCR explanations translate while keeping real engine names intact', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../src/web/i18n.js'), 'utf8');
+  const body = { querySelectorAll: () => [], childNodes: [] };
+  const context = { document: { body, documentElement: {}, createTreeWalker: () => ({ nextNode: () => false }) }, NodeFilter: { SHOW_TEXT: 4 } };
+  vm.runInNewContext(source + '\nglobalThis.translations = I18N;', context);
+  const messages = [
+    '운영체제 자동 선택',
+    '아이템 · 상점 · 제작 · 메모리 매치 화면의 글자를 이 기기에서 읽습니다.',
+    '이 앱은 운영체제에 맞는 OCR 엔진을 자동으로 사용합니다.',
+    '<b>Linux · Tesseract</b>: 영어 데이터와 앱 언어에 맞는 한국어·일본어 언어 데이터를 사용합니다.',
+    '<b>Windows · Windows OCR</b>: Windows에 설치된 사용자 언어로 화면을 읽습니다.',
+    '<b>macOS · Apple Vision</b>: macOS의 기본 문자 인식 기능으로 화면을 읽습니다.',
+  ];
+  for (const lang of ['en', 'ja']) {
+    context.translations.set(lang);
+    for (const message of messages) assert.doesNotMatch(context.translations.t(message), /[가-힣]/);
+    assert.match(context.translations.t(messages[3]), /Tesseract/);
+    assert.match(context.translations.t(messages[4]), /Windows OCR/);
+    assert.match(context.translations.t(messages[5]), /Apple Vision/);
+  }
+});
+
+
+test('mobile guides describe the current keyboard and panel calibration without requiring a test cast', async () => {
+  const app = mobile();
+  await app.ui.loadMacro();
+  const readyGuide = app.ui.guideSteps.ready;
+  assert.match(readyGuide.find(step => step.check === 'textInputReady').body, /Android 13 이상은 기존 키보드/);
+  assert.match(readyGuide.find(step => step.check === 'textInputReady').body, /구형 Android.*때만/);
+  const preparation = readyGuide.find(step => step.title === '로블록스 준비').body;
+  assert.match(preparation, /실행할 기능/);
+  assert.match(preparation, /실제 화면에서 해안과 목적지/);
+  assert.match(preparation, /모호하면 멈춥니다/);
+  const calibration = app.ui.guideSteps.fish.find(step => step.check === 'calibrated').body;
+  assert.match(calibration, /실제 버튼과 낚시 패널을 읽어 보정/);
+  assert.doesNotMatch(calibration, /한 번 던져/);
+  for (const lang of ['en', 'ja']) {
+    app.ui.setLanguage(lang);
+    assert.doesNotMatch(app.ui.macroSettings(), /Android 13 이상은 기존 키보드/);
+    app.ui.startGuide('fish'); app.ui.moveGuide(1); app.ui.moveGuide(1);
+    assert.doesNotMatch(app.element('guide').innerHTML, /실제 버튼과 낚시 패널/);
+  }
+});
+
+test('finishing mobile preparation opens a fishing guide only when fishing is selected', async () => {
+  for (const fishing of [false, true]) {
+    const app = mobile();
+    await app.ui.loadMacro();
+    await app.ui.saveMacro(next => { next.mfish.enabled = fishing; next.mitem.enabled = !fishing; });
+    app.ui.startGuide('ready');
+    for (let i = 0; i < app.ui.guideSteps.ready.length; i++) app.ui.moveGuide(1, true);
+    assert.equal(app.ui.guide?.id ?? null, fishing ? 'fish' : null);
   }
 });

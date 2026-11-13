@@ -594,7 +594,7 @@ mod tests {
         runtime.fishing.phase = crate::Phase::Waiting;
         runtime.log.push_back((
             1_700_000_000_000,
-            "URL https://discord.com/api/webhooks/123/secret",
+            "URL https://discord.com/api/webhooks/123/secret".into(),
         ));
         let mut biome = crate::biome::Status {
             settings: crate::biome::Settings::default(),

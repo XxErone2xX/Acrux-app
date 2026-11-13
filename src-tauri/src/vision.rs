@@ -139,7 +139,7 @@ impl<'a> Frame<'a> {
         })
     }
 
-    fn pixel(&self, x: usize, y: usize) -> Option<[u8; 3]> {
+    pub(crate) fn pixel(&self, x: usize, y: usize) -> Option<[u8; 3]> {
         let x = x.checked_sub(self.region.x)?;
         let y = y.checked_sub(self.region.y)?;
         if x >= self.region.width || y >= self.region.height {

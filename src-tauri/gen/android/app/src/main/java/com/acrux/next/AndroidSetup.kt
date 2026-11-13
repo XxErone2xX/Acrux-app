@@ -25,9 +25,84 @@ class BiomeAction { var action = "refresh" }
 
 @InvokeArg
 class DiscordLinkOptions { var url = "" }
+@InvokeArg
+class MacroPickOptions { var label = ""; var region = false; var initial = arrayOf<Double>() }
 
 @TauriPlugin
 class AndroidSetup(private val activity: Activity) : Plugin(activity) {
+    @Command
+    fun returnGame(invoke: Invoke) {
+        activity.runOnUiThread {
+            activity.moveTaskToBack(true)
+            val handler=android.os.Handler(android.os.Looper.getMainLooper())
+            val deadline=android.os.SystemClock.uptimeMillis()+8000
+            val ready=object:Runnable{
+                override fun run(){
+                    if(TapService.current?.gameVisible==true) invoke.resolve()
+                    else if(android.os.SystemClock.uptimeMillis()>=deadline) invoke.reject("Roblox 화면을 먼저 열어 주세요.")
+                    else handler.postDelayed(this,100)
+                }
+            }
+            handler.post(ready)
+        }
+    }
+
+    @Command
+    fun pickMacro(invoke: Invoke) {
+        val args = invoke.parseArgs(MacroPickOptions::class.java)
+        activity.runOnUiThread {
+            if (Native.active()) { invoke.reject("실행 중인 작업을 먼저 중지하세요."); return@runOnUiThread }
+            activity.moveTaskToBack(true)
+            val handler = android.os.Handler(android.os.Looper.getMainLooper())
+            val deadline = android.os.SystemClock.uptimeMillis() + 8000
+            val ready = object : Runnable {
+                override fun run() {
+                    val service = TapService.current
+                    if (service != null && service.gameVisible) {
+                        service.selectMacro(args.label, args.initial.toList(), args.region) { pos ->
+                            if (pos == null) invoke.reject("위치 지정을 취소했습니다.")
+                            else invoke.resolve(app.tauri.plugin.JSObject().apply {
+                                put("pos", org.json.JSONArray(pos))
+                                put("geometry", org.json.JSONArray(service.screen().toList()))
+                            })
+                        }
+                    } else if (android.os.SystemClock.uptimeMillis() >= deadline) invoke.reject("Roblox 화면을 먼저 열어 주세요.")
+                    else handler.postDelayed(this, 150)
+                }
+            }
+            handler.post(ready)
+        }
+    }
+    @Command
+    fun serviceAction(invoke: Invoke) = MobileServices.action(activity, invoke)
+
+    @Command
+    fun inputSetup(invoke: Invoke) {
+        activity.runOnUiThread {
+            if(android.os.Build.VERSION.SDK_INT>=33){
+                if(TapService.current==null)activity.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                invoke.resolve();return@runOnUiThread
+            }
+            val manager = activity.getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+            if (manager.enabledInputMethodList.none { it.packageName == activity.packageName }) {
+                activity.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+            } else manager.showInputMethodPicker()
+            invoke.resolve()
+        }
+    }
+    @Command
+    fun inputStatus(invoke: Invoke) {
+        if(android.os.Build.VERSION.SDK_INT>=33){
+            val ready=TapService.current?.serviceInfo?.flags?.let{it and android.accessibilityservice.AccessibilityServiceInfo.FLAG_INPUT_METHOD_EDITOR!=0}==true
+            invoke.resolve(app.tauri.plugin.JSObject().apply{put("enabled",ready);put("selected",ready);put("engine","accessibility")});return
+        }
+        val manager = activity.getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+        invoke.resolve(app.tauri.plugin.JSObject().apply {
+            put("enabled", manager.enabledInputMethodList.any { it.packageName == activity.packageName })
+            put("selected", Settings.Secure.getString(activity.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
+                ?.startsWith(activity.packageName + "/") == true)
+        })
+    }
     @Command
     fun biome(invoke: Invoke) {
         val args = invoke.parseArgs(BiomeAction::class.java)
@@ -130,6 +205,7 @@ object Native {
     }
 
     @JvmStatic external fun biomeStatus(): String
+    @JvmStatic external fun macroAction(action: String, payload: String): String?
     @JvmStatic external fun biomeToggle(): String?
     @JvmStatic external fun biomeLine(line: String, source: Int, snapshot: Boolean)
     @JvmStatic external fun biomeConnection(ready: Boolean, message: String)
@@ -138,6 +214,8 @@ object Native {
     @JvmStatic external fun accessibility(ready: Boolean)
     @JvmStatic external fun active(): Boolean
     @JvmStatic external fun inputCurrent(generation: Int): Boolean
+    @JvmStatic external fun agentInputCurrent(generation: Int, id: Int): Boolean
+    @JvmStatic external fun agentLaunchStart(generation: Int, id: Int, unlocked: Boolean): Boolean
     @JvmStatic external fun overlayPhase(): Int
     @JvmStatic external fun captureReady(): Boolean
     @JvmStatic external fun noTarget()
@@ -146,13 +224,15 @@ object Native {
     @JvmStatic external fun task(task: String): String?
     @JvmStatic external fun setPoint(key: String, x: Double, y: Double): String?
     @JvmStatic external fun navigation(): String
+    @JvmStatic external fun navigationAction(action: String, width: Int, height: Int): String?
     @JvmStatic external fun saveTrace(trace: String): String?
     @JvmStatic external fun generation(): Int
     @JvmStatic external fun clearRoute(sell: Boolean): String?
     @JvmStatic external fun control(operation: Int): String?
     @JvmStatic external fun agentTick(width: Int, height: Int): IntArray
     @JvmStatic external fun agentObserve(buffer: ByteBuffer, fullWidth: Int, fullHeight: Int, rowStride: Int, pixelStride: Int,
-        roiX: Int, roiY: Int, roiWidth: Int, roiHeight: Int, generation: Int, observationId: Int): IntArray?
+        roiX: Int, roiY: Int, roiWidth: Int, roiHeight: Int, generation: Int, observationId: Int, ageMs:Int): IntArray?
     @JvmStatic external fun agentForeground(visible: Boolean)
     @JvmStatic external fun agentInputResult(generation: Int, inputId: Int, success: Boolean)
+    @JvmStatic external fun agentText(generation: Int, observationId: Int, words: String): Boolean
 }

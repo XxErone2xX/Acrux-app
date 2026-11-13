@@ -197,6 +197,9 @@ pub fn connection(watching: bool, message: String) {
 }
 pub fn line(line: &str, source: i32, snapshot: bool) {
     lock().ingest(line, source, snapshot);
+    if !snapshot {
+        crate::game_line(line);
+    }
 }
 impl State {
     fn ingest(&mut self, line: &str, source: i32, snapshot: bool) {
@@ -233,6 +236,14 @@ impl State {
             return;
         }
         let previous = self.current.replace(name.clone());
+        crate::services::emit_hook(
+            "biome",
+            vec![
+                serde_json::json!(previous),
+                serde_json::json!(name),
+                serde_json::json!(false),
+            ],
+        );
         self.disconnected = false;
         self.history
             .push_back((Utc::now().timestamp(), name.clone()));
@@ -465,8 +476,8 @@ pub fn test() -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(target_os = "windows")]
-pub fn watch_windows() {
+#[cfg(desktop)]
+pub fn watch_desktop() {
     std::thread::spawn(|| {
         use std::{
             fs,
@@ -479,6 +490,7 @@ pub fn watch_windows() {
         let mut player = String::new();
         let mut owner: Option<bool> = None;
         let mut initial: Option<String> = None;
+        let mut bootstrapping = true;
         let user = Regex::new(
             r#"(?i)Players\.([^.']+)\.PlayerGui:WaitForChild\((?:"|\\")TutorialCursor(?:"|\\")\)"#,
         )
@@ -492,6 +504,7 @@ pub fn watch_windows() {
                 pending.clear();
                 owner = None;
                 initial = None;
+                bootstrapping = true;
             }
             player = requested_player.to_owned();
             enabled = active;
@@ -500,12 +513,40 @@ pub fn watch_windows() {
                 connection(false, "플레이어 이름 입력 필요".into());
             }
             if active && !player.is_empty() {
-                let directory = std::env::var_os("LOCALAPPDATA")
-                    .map(PathBuf::from)
-                    .map(|p| p.join("Roblox/logs"));
-                let latest = directory
-                    .and_then(|p| fs::read_dir(p).ok())
+                let home = std::env::var_os("HOME").map(PathBuf::from);
+                let directories: Vec<PathBuf> = {
+                    #[cfg(target_os = "windows")]
+                    {
+                        std::env::var_os("LOCALAPPDATA")
+                            .map(PathBuf::from)
+                            .map(|p| p.join("Roblox/logs"))
+                            .into_iter()
+                            .collect()
+                    }
+                    #[cfg(target_os = "macos")]
+                    {
+                        home.map(|p| p.join("Library/Logs/Roblox"))
+                            .into_iter()
+                            .collect()
+                    }
+                    #[cfg(target_os = "linux")]
+                    {
+                        let mut dirs = Vec::new();
+                        if let Some(home) = home {
+                            dirs.push(
+                                home.join(".var/app/org.vinegarhq.Sober/data/sober/appData/logs"),
+                            );
+                            let data = std::env::var_os("XDG_DATA_HOME")
+                                .map(PathBuf::from)
+                                .unwrap_or_else(|| home.join(".local/share"));
+                            dirs.push(data.join("sober/appData/logs"));
+                        }
+                        dirs
+                    }
+                };
+                let latest = directories
                     .into_iter()
+                    .filter_map(|p| fs::read_dir(p).ok())
                     .flatten()
                     .filter_map(Result::ok)
                     .filter(|entry| {
@@ -528,10 +569,13 @@ pub fn watch_windows() {
                             pending.clear();
                             owner = None;
                             initial = None;
+                            bootstrapping = true;
                         }
                         if reader.seek(SeekFrom::Start(previous)).is_ok() {
                             let mut bytes = Vec::new();
-                            if reader.read_to_end(&mut bytes).is_ok() {
+                            if reader.take(1024 * 1024).read_to_end(&mut bytes).is_ok() {
+                                let catching_up =
+                                    bootstrapping && previous + (bytes.len() as u64) < length;
                                 pending.push_str(&String::from_utf8_lossy(&bytes));
                                 let lines: Vec<String> = pending
                                     .split_inclusive('\n')
@@ -540,6 +584,9 @@ pub fn watch_windows() {
                                     .collect();
                                 let consumed: usize = lines.iter().map(String::len).sum();
                                 pending.drain(..consumed);
+                                if pending.len() > 32768 {
+                                    pending.clear();
+                                }
                                 if owner != Some(true) {
                                     if let Some(name) = lines.iter().find_map(|entry| {
                                         user.captures(entry).map(|c| c[1].trim().to_owned())
@@ -553,7 +600,7 @@ pub fn watch_windows() {
                                     None => "",
                                 }
                                 .into();
-                                if fresh || owner != Some(true) {
+                                if bootstrapping || owner != Some(true) {
                                     if let Some(last) = lines.iter().rev().find(|entry| {
                                         parse(entry).is_some()
                                             || entry.contains("Client:Disconnect")
@@ -561,7 +608,7 @@ pub fn watch_windows() {
                                         initial = Some(last.clone());
                                     }
                                 }
-                                if owner == Some(true) {
+                                if owner == Some(true) && !catching_up {
                                     if let Some(last) = initial.take() {
                                         line(&last, 1, true);
                                     } else {
@@ -569,6 +616,7 @@ pub fn watch_windows() {
                                             line(&entry, 1, false);
                                         }
                                     }
+                                    bootstrapping = false;
                                 }
                                 file = Some((path, previous + bytes.len() as u64));
                                 connection(true, "감시 중".into());

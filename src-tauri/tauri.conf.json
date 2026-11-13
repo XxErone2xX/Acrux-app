@@ -11,12 +11,14 @@
   "app": {
     "windows": [{ "title": "Acrux Macro - Made by 얼로니", "url": "desktop/index.html", "width": 1392, "height": 903 }],
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+      "csp": "default-src 'self'; script-src 'self' acruxmod: http://acruxmod.localhost; style-src 'self' 'unsafe-inline' acruxmod: http://acruxmod.localhost; img-src 'self' data: acruxmod: http://acruxmod.localhost; connect-src 'self' ipc: http://ipc.localhost acruxmod: http://acruxmod.localhost; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
     }
   },
   "bundle": {
     "active": true,
     "icon": ["icons/icon.png", "icons/icon.ico"],
+    "linux": { "deb": { "depends": ["tesseract-ocr", "tesseract-ocr-eng", "tesseract-ocr-kor", "tesseract-ocr-jpn"] } },
+    "macOS": { "minimumSystemVersion": "10.15" },
     "android": { "minSdkVersion": 26 }
   }
 }

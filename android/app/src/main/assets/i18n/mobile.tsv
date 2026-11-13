@@ -1,4 +1,9 @@
 # 모바일 전용 번역 — android/tools/mobile_i18n.py 에서 만듦 (거기서 고칠 것)
+화면 기반 이동 입력 확인	Visual navigation input checks	画面に基づく移動入力の確認
+카메라 위로	Raise camera	カメラを上へ
+줌 아웃	Zoom out	ズームアウト
+앞으로	Forward	前へ
+이동하며 점프	Jump while moving	移動しながらジャンプ
 DUA 실행 경로	DUA execution route	DUA実行ルート
 DUA 대기 중	DUA idle	DUA待機中
 Headless	Headless	Headless
@@ -712,3 +717,151 @@ Captain Flarg 앞에서 E 를 눌러 대화를 여세요	Press E in front of Cap
 확인창이 안 떠서(물고기 없음?) 확인 Sell 은 계산한 자리	no confirm window (no fish?), so the confirm Sell is a calculated spot	確認ウィンドウが出ず (魚なし?) 確認の Sell は計算した位置
 상점 닫는 중	Closing the shop	ショップを閉じ中
 상점이 안 닫힘 — 상점 닫기 X 위치를 확인해 주세요	shop did not close — check the shop close X position	ショップが閉じない — ショップを閉じる X の位置を確認してください
+오토 아이템	Auto items	自動アイテム
+자동 포션 제작	Automatic potion crafting	ポーション自動製作
+자동 메모리 매치	Automatic memory match	メモリーマッチ自動化
+확인 전	Not checked	未確認
+③ 글자 입력	③ Text input	③ 文字入力
+검색어와 수량을 입력할 때 Acrux 입력기 사용 · 입력기를 켠 뒤 선택	Use Acrux Input for searches and quantities · enable it, then select it	検索語と数量にはAcrux入力を使用 · 有効にしてから選択
+검색어와 수량을 게임에 입력 · 기기에 따라 입력기 설정이 필요함	Enter searches and quantities in the game · keyboard setup depends on the device	ゲームに検索語と数量を入力 · 端末によって入力設定が必要
+실행할 기능	Features to run	実行する機能
+기능별 설정과 위치 지정은 설정 칸에서 할 수 있습니다.	Configure each feature and its positions in Settings.	各機能と位置は設定で指定できます。
+5. 멈출 때는 앱 또는 떠 있는 Acrux 창의 [정지] · 이동은 매번 지형을 확인하고 판매 후 돌아옴	5. Press [Stop] in the app or floating Acrux window · checks terrain on each trip and returns after selling	5. アプリかフローティングAcruxの[停止]で停止 · 毎回地形を確認し、売却後に戻ります
+위에서 내려다보며 현재 위치와 장애물을 확인해 이동합니다. 바닷가는 낚시 버튼이 보이는 곳까지 찾습니다.	Looks down to locate the avatar and obstacles. Searches the coast until the fishing button appears.	上から現在位置と障害物を確認して移動します。海岸では釣りボタンが出る場所を探します。
+목적지 앞에서 현재 장소 기억 · 다음 이동에 실제 화면 사용	Remember the current location at the destination · use the actual view on later trips	目的地の前で現在地を記憶 · 次の移動で実際の画面を使用
+현재 장소 기억	Remember current location	現在地を記憶
+관측 취소	Cancel observation	観測をキャンセル
+이동 정지	Stop moving	移動停止
+대화 후 대기 (초)	Wait after dialog (s)	会話後の待機（秒）
+판매 위치 자동 보정	Auto-calibrate selling positions	売却位置の自動調整
+이동 조작 위치	Movement control positions	移動操作の位置
+조이스틱 바깥쪽	Joystick outer edge	ジョイスティックの外側
+점프 버튼	Jump button	ジャンプボタン
+지형과 목적지는 실제 화면에서 확인하며, 벽에 닿았다는 이유만으로 점프하지 않습니다.	Checks terrain and destinations in the actual view; wall contact alone does not trigger a jump.	実際の画面で地形と目的地を確認し、壁に当たっただけではジャンプしません。
+미지정 · 화면에서 글자로 먼저 찾음	Not set · looks for screen text first	未指定 · 最初に画面の文字で検索
+영역 지정	Select region	範囲を指定
+이 바이옴에서 사용	Use in this biome	このバイオームで使用
+기본 템플릿	Default template	既定のテンプレート
+순서대로 하나씩	One at a time, in order	順番に1つずつ
+전부 사용	Use all	すべて使用
+사용 수량	Quantity to use	使用数量
+ALL = 전부	ALL = all	ALL = すべて
+최소 보유 수량	Minimum held quantity	最低所持数量
+포션 추가	Add potion	ポーションを追加
+기본 템플릿을 불러온 뒤 사용할 포션과 수량을 바꿀 수 있습니다.	Load a default template, then edit its potions and quantities.	既定のテンプレートを読み込み、ポーションと数量を変更できます。
+사용	Use	使用
+사용 후 인벤토리 닫기	Close inventory after use	使用後にインベントリを閉じる
+공통 위치 · 인벤토리	Shared positions · Inventory	共通位置・インベントリ
+검색어와 수량 입력에는 홈의 Acrux 입력기 선택이 필요합니다. 위치가 비어 있으면 화면의 글자를 먼저 찾습니다.	Select Acrux Input on Home to enter searches and quantities. Unset positions are located by screen text first.	検索語と数量を入力するにはホームでAcrux入力を選択してください。未指定の位置は最初に画面の文字で探します。
+Inventory 버튼	Inventory button	Inventoryボタン
+Items 버튼	Items button	Itemsボタン
+Search 입력칸	Search field	Search入力欄
+Use 버튼	Use button	Useボタン
+아이템 이름 · 수량 영역	Item name and quantity region	アイテム名と数量の範囲
+아이템 이름 일치율 (%)	Item name match threshold (%)	アイテム名の一致率（%）
+인벤토리 대기 시간	Inventory delays	インベントリの待機時間
+아이템 OCR 확인	Check item OCR	アイテムOCRを確認
+OCR 정보	OCR information	OCR情報
+바이옴 감지 후 대기 (초)	Wait after biome detection (s)	バイオーム検出後の待機（秒）
+Strange Controller 간격 (분)	Strange Controller interval (min)	Strange Controllerの間隔（分）
+Biome Randomizer 간격 (분)	Biome Randomizer interval (min)	Biome Randomizerの間隔（分）
+PUMPKIN MOON · GRAVEYARD 감지 시 Cursed Rune Fragment를 한 번 사용합니다.	Uses one Cursed Rune Fragment when PUMPKIN MOON or GRAVEYARD is detected.	PUMPKIN MOONまたはGRAVEYARDを検出するとCursed Rune Fragmentを1回使用します。
+채팅 확인 간격 (초)	Chat check interval (s)	チャット確認の間隔（秒）
+순간이동 후 대기 (초)	Wait after teleporting (s)	テレポート後の待機（秒）
+상점 자동 보정	Auto-calibrate shop	ショップの自動調整
+Open 선택지	Open dialog option	Openの選択肢
+첫 번째 칸	First slot	1番目の枠
+두 번째 칸	Second slot	2番目の枠
+Set to Max 버튼	Set to Max button	Set to Maxボタン
+Purchase 버튼	Purchase button	Purchaseボタン
+제작할 포션 이름	Potion name to craft	製作するポーション名
+제작 창 열기 후 대기 (초)	Wait after opening crafting (s)	製作画面を開いた後の待機（秒）
+Open Recipe 버튼	Open Recipe button	Open Recipeボタン
+Add Everything 버튼	Add Everything button	Add Everythingボタン
+Craft 버튼	Craft button	Craftボタン
+재료 창 X	Ingredient window X	素材画面のX
+보드 열기 후 대기 (초)	Wait after opening the board (s)	ボードを開いた後の待機（秒）
+카드 뒤집힌 뒤 대기 (초)	Wait after flipping a card (s)	カードをめくった後の待機（秒）
+Watch AD 버튼	Watch AD button	Watch ADボタン
+알림 창 자동 보정	Auto-calibrate notification	通知画面の自動調整
+낚시 · 판매 위치	Fishing and selling positions	釣りと売却の位置
+미니게임 창 영역	Minigame window region	ミニゲーム画面の範囲
+Fish / Exit 버튼	Fish / Exit button	Fish / Exitボタン
+결과창 X	Result window X	結果画面のX
+결과창 제목	Result title	結果画面のタイトル
+게임 입장 · 복귀	Game joining and recovery	ゲーム入場と復帰
+입장 후 대기 (초)	Wait after joining (s)	入場後の待機（秒）
+Play 클릭 전 대기 (초)	Wait before pressing Play (s)	Playを押す前の待機（秒）
+Play / Skip 클릭 간격 (초)	Play / Skip click interval (s)	Play / Skipを押す間隔（秒）
+입장 최대 대기 (초)	Maximum joining wait (s)	入場の最大待機（秒）
+Play 버튼	Play button	Playボタン
+Click to skip 버튼	Click to skip button	Click to skipボタン
+Play 테스트	Test Play	Playテスト
+Play 중지	Stop Play	Play停止
+자동 복귀 취소	Cancel automatic recovery	自動復帰をキャンセル
+업데이트 받기	Download update	更新をダウンロード
+설치	Install	インストール
+게임 로그에 표시되는 계정 이름	Account name shown in game logs	ゲームログに表示されるアカウント名
+홈에서 실행할 기능을 하나 이상 켜세요.	Enable at least one feature on Home.	ホームで実行する機能を1つ以上有効にしてください。
+✓ 선택됨	✓ Selected	✓ 選択済み
+입력기 선택 필요	Select the input method	入力方法の選択が必要
+자동 낚시는 [정지] 로 멈출 수 있습니다. 판매가 켜져 있으면 인벤토리가 가득 찼을 때 판매하러 이동합니다.	Stop auto fishing with [Stop]. If selling is enabled, a full inventory triggers a trip to sell.	自動釣りは[停止]で止められます。売却が有効ならインベントリ満杯時に売却場所へ移動します。
+낚시 칸에서 이동과 판매를 켜고 조이스틱과 점프 위치를 지정하세요. 화면에서 현재 위치와 장애물을 확인해 목적지로 이동합니다.	Enable movement and selling in Fishing and set joystick and jump positions. Uses the screen to locate the avatar and obstacles and travel to the destination.	釣りで移動と売却を有効にし、ジョイスティックとジャンプの位置を指定してください。画面で現在位置と障害物を確認して目的地へ移動します。
+판매 위치를 자동 보정하거나 판매 버튼 위치를 지정하세요. 판매 테스트는 판매 장소로 이동해 판매한 뒤 낚시를 재개합니다.	Auto-calibrate selling positions or select the buttons. The selling test travels to the shop, sells, then resumes fishing.	売却位置を自動調整するかボタン位置を指定してください。売却テストでは売却場所へ移動して売却し、釣りを再開します。
+글자 입력 준비	Prepare text input	文字入力の準備
+아이템 검색과 수량 입력을 사용할 때 Acrux 입력기를 켜고 선택해 주세요. 낚시만 사용하면 건너뛰어도 됩니다.	Enable and select Acrux Input for item searches and quantities. You can skip this for fishing alone.	アイテム検索と数量入力にはAcrux入力を有効にして選択してください。釣りのみの場合は省略できます。
+새 업데이트가 있습니다.	An update is available.	更新があります。
+최신 버전입니다.	You are up to date.	最新版です。
+기본 템플릿을 불러왔습니다.	Loaded the default template.	既定のテンプレートを読み込みました。
+작업을 요청했습니다. 게임 위 Acrux 창에서 진행 상태를 확인하세요.	Task requested. Check progress in the Acrux window over the game.	タスクを要求しました。ゲーム上のAcrux画面で進行状況を確認してください。
+입력 범위를 확인하세요.	Check the allowed input range.	入力範囲を確認してください。
+사용 수량은 양의 정수 또는 ALL로 입력하세요.	Enter a positive integer or ALL for the quantity.	使用数量には正の整数またはALLを入力してください。
+Roblox에서 실행하세요.	Run this in Roblox.	Robloxで実行してください。
+실행 중인 작업을 먼저 중지하세요.	Stop the current task first.	先に実行中のタスクを停止してください。
+선택한 기능과 이동 · 판매를 DUA가 제어합니다.	DUA controls selected features, movement and selling.	DUAが選択した機能と移動・売却を制御します。
+낚시 중지	Stop fishing	釣りを停止
+조이스틱 저장됨	Joystick saved	ジョイスティック保存済み
+조이스틱 없음 — 로블록스 설정 → 이동 방식: 조이스틱	No joystick — Roblox settings → movement mode: joystick	ジョイスティック未設定 — Robloxの設定 → 移動方法：ジョイスティック
+조이스틱 가장자리	Joystick edge	ジョイスティックの端
+현재 위치와 지형을 확인해 경로를 계산합니다.	Calculates a route using the current position and terrain.	現在位置と地形を確認して経路を計算します。
+목적지 관측 취소	Cancel destination observation	目的地の観測をキャンセル
+대화 버튼 (E) (판매 장소에 서서)	Talk button (E) (at the selling location)	会話ボタン（E）（売却場所に立って）
+개별 기능 테스트	Individual feature tests	機能別テスト
+기능 선택과 상세 설정은 앱의 홈 · 설정에서 변경합니다.	Select features and edit details in the app's Home and Settings.	機能の選択と詳細はアプリのホーム・設定で変更できます。
+CYBERSPACE 팝핑 테스트	Test CYBERSPACE popping	CYBERSPACEポップテスト
+GLITCHED 팝핑 테스트	Test GLITCHED popping	GLITCHEDポップテスト
+DREAMSPACE 팝핑 테스트	Test DREAMSPACE popping	DREAMSPACEポップテスト
+주기 아이템 테스트	Test periodic items	定期アイテムテスト
+블러드 레인 테스트	Test Blood Rain	Blood Rainテスト
+상인 채팅 확인	Check merchant chat	商人チャットを確認
+Mari 구매 테스트	Test Mari purchases	Mari購入テスト
+Jester 구매 테스트	Test Jester purchases	Jester購入テスト
+포션 제작 테스트	Test potion crafting	ポーション製作テスト
+메모리 매치 테스트	Test memory match	メモリーマッチテスト
+메모리 매치 알림 보정	Calibrate memory match notification	メモリーマッチ通知を調整
+카드 판 보정	Calibrate card board	カード盤を調整
+인벤토리 OCR 확인	Check inventory OCR	インベントリOCRを確認
+접속 · 복귀	Join · Recover	接続・復帰
+내 서버 접속	Join my server	自分のサーバーに接続
+모두 중지	Stop all	すべて停止
+요청을 처리하고 있습니다. 잠시 기다려 주세요.	Processing the request. Please wait.	要求を処理中です。しばらくお待ちください。
+이전 실행 요청이 취소됐습니다.	The previous execution request was cancelled.	前の実行要求はキャンセルされました。
+작업 요청을 처리하지 못했습니다.	Could not process the task request.	タスク要求を処理できませんでした。
+오른쪽 아래	Bottom right	右下
+왼쪽 위	Top left	左上
+Roblox에서 실행 중인 작업을 멈춘 뒤 위치를 지정하세요.	Stop the active task in Roblox before selecting a position.	Robloxで実行中のタスクを停止してから位置を指定してください。
+화면을 끌어서 포인터를 옮기세요	Drag to move the pointer	ドラッグしてポインターを移動してください
+위치 지정 창을 띄우지 못했습니다.	Could not open the position selector.	位置指定画面を開けませんでした。
+판매 위치 {0} / 6 저장됨	Selling positions {0} / 6 saved	売却位置 {0} / 6 を保存済み
+캐릭터 이름 (표시명|계정명)	Avatar name (display name|account name)	キャラクター名（表示名|アカウント名）
+비우면 바이옴 설정의 플레이어 이름을 사용합니다.	Leave blank to use the player name in Biome settings.	空欄の場合はバイオーム設定のプレイヤー名を使用します。
+Android 13 이상은 기존 키보드를 유지해 검색어와 수량을 입력합니다. 구형 Android는 홈에서 Acrux 입력기를 준비하세요. 위치가 비어 있으면 화면 글자를 먼저 찾습니다.	Android 13 and later use your current keyboard for searches and quantities. On older Android versions, prepare Acrux Input on Home. Unset positions are located by screen text first.	Android 13以降は現在のキーボードを使って検索語と数量を入力します。古いAndroidではホームでAcrux入力を準備してください。未指定の位置は最初に画面の文字で探します。
+Android 13 이상은 기존 키보드를 그대로 사용합니다. 구형 Android에서 아이템 검색과 수량 입력을 사용할 때만 Acrux 입력기를 켜고 선택하세요. 낚시만 사용하면 이 단계를 건너뛰어도 됩니다.	Android 13 and later keep your current keyboard. Enable and select Acrux Input only for item searches and quantities on older Android versions. You may skip this step for fishing alone.	Android 13以降は現在のキーボードをそのまま使用します。古いAndroidでアイテム検索や数量入力を使う場合のみAcrux入力を有効にして選択してください。釣りのみの場合はこの手順を省略できます。
+로블록스 위 Acrux 창의 [시작] 을 누르세요. 저장된 보정이 없으면 실제 버튼과 낚시 패널을 읽어 보정한 뒤 낚시를 시작합니다.\n\n진행 상태와 정지 버튼은 Acrux 창에서 확인하세요.	Press [Start] in Acrux over Roblox. If no calibration is saved, it reads the actual buttons and fishing panel, calibrates, then starts fishing.\n\nCheck progress and the Stop button in Acrux.	Roblox上のAcruxで[開始]を押してください。保存済みの調整がなければ実際のボタンと釣りパネルを読み取り、調整してから釣りを開始します。\n\n進行状況と停止ボタンはAcruxで確認してください。
+홈에서 실행할 기능을 켜고 로블록스 (Sol's RNG)를 가로 전체 화면으로 여세요. 이동을 켰다면 실제 화면에서 해안과 목적지를 찾고, 위치나 지형이 모호하면 멈춥니다.\n\n이동을 끈 낚시는 Fish 버튼이 보이는 바닷가에서 시작하세요. 다른 앱에서는 입력을 기다리고 화면이 잠기면 정지합니다.	Enable the features to run on Home and open Roblox (Sol's RNG) in landscape full screen. With movement enabled, it uses the actual view to find the coast and destinations, stopping if the position or terrain is unclear.\n\nWith movement off, start fishing at a coast where Fish is visible. It waits without input in other apps and stops when the screen locks.	ホームで実行する機能を有効にし、Roblox（Sol's RNG）を横向きの全画面で開いてください。移動が有効なら実際の画面で海岸と目的地を探し、位置や地形が不明確な場合は停止します。\n\n移動を無効にした釣りはFishボタンが見える海岸で開始してください。他のアプリでは入力を待機し、画面がロックされると停止します。
+선택한 기능의 설정과 위치를 확인한 뒤 로블록스를 열어 시작하세요. 낚시가 선택돼 있으면 다음 보정 안내가 이어집니다.	Check the selected features' settings and positions, then open Roblox to start. If fishing is selected, its calibration guide follows.	選択した機能の設定と位置を確認してからRobloxを開いて開始してください。釣りが選択されている場合は調整ガイドが続きます。
+1. 홈에서 실행할 기능을 켜고 로블록스 (Sol's RNG)를 가로 전체 화면으로 열기	1. Enable the features to run on Home and open Roblox (Sol's RNG) in landscape full screen	1. ホームで実行する機能を有効にし、Roblox（Sol's RNG）を横向きの全画面で開く
+2. [시작] — 이동 설정에 따라 목적지를 찾고, 낚시는 실제 패널을 보정한 뒤 진행	2. [Start] — finds destinations according to movement settings; fishing starts after calibrating the actual panel	2. [開始] — 移動設定に応じて目的地を探し、釣りは実際のパネルを調整してから開始
+로블록스 화면의 Acrux 창에서 해 주세요	Use the Acrux window over Roblox.	Roblox上のAcruxウィンドウで操作してください。
+아직 꺼짐	Still off	まだオフ
+남은 튜토리얼 1개	1 tutorial remaining	残りチュートリアル1件
