@@ -38,7 +38,7 @@ public final class Fisher {
     }
 
     public static final double REEL_FRAME = 0.008, REEL_MAX = 15.0, REEL_GONE = 0.6;
-    public static final double FINISH_GAP = 0.1, FINISH_MAX = 10.0, FIND_X_AFTER = 2.0;
+    public static final double FINISH_GAP = 0.1, FINISH_MAX = 10.0, FIND_X_AFTER = 3.5;   // 처음 3.5초는 보정한 X 자리만 누름
     /** 모바일은 UI 가 화면에서 차지하는 비율이 커서 창 폭 최대를 넓게 (PC 0.5) */
     public static final double MAX_FRAME_W = 0.92;
 
@@ -369,32 +369,51 @@ public final class Fisher {
         }
     }
 
-    /** 결과창 X 를 화면에서 찾아서 누름 (PC _click_found_x 와 같음)
-     *  1. 결과창 자체를 찾아서 그 창의 X (쓰레기 결과창처럼 크기 · 바탕이 다른 창도) → 2. 가운데 넓은 영역에서 어두운 바탕 위 X */
+    /** 결과창 X 를 화면에서 찾아서 누름
+     *  1. 결과창 자체를 찾아서 그 창 오른쪽 위의 X (쓰레기 결과창처럼 크기 · 바탕이 다른 창도)
+     *     X 모양이 안 보이면 보정한 결과창과 같은 자리일 때만 계산한 자리를 누름
+     *  2. 결과창을 못 찾으면 어두운 바탕 위 X — 보정한 X 자리가 있으면 그 근처 (화면 높이의 10% 안) 만 봄
+     *  · 한 번 본 것으로 누르지 않음: 0.12초 뒤에 다시 찍어서 같은 자리에 또 보일 때만 (지나가는 물고기 · 효과를 X 로 보지 않게) */
     boolean clickFoundX() {
+        int[] a = findX();
+        if (a == null) return false;
+        sleep(0.12);
+        int[] b = findX();
+        int tol = Math.max(4, (int) (H() * 0.02));
+        if (b == null || b[2] != a[2] || Math.abs(a[0] - b[0]) > tol || Math.abs(a[1] - b[1]) > tol) return false;
+        out.log(a[2] == 1 ? "결과창 X 를 결과창 모양으로 찾아서 누름" : "결과창이 다른 자리에 뜨거나 깨짐 — X 를 찾아서 누름", 'd');
+        in.tap(b[0], b[1], 40);
+        return true;
+    }
+
+    /** 화면에서 결과창 X 찾기 → {x, y, 1 = 결과창 · 2 = 어두운 바탕 위 X} | null */
+    int[] findX() {
         int W = W(), H = H();
-        double[] r = Vision.findResultClose(full(), H, MAX_FRAME_W);
-        if (r != null) {
-            out.log("결과창 X 를 결과창 모양으로 찾아서 누름", 'd');
-            in.tap((int) r[0], (int) r[1], 40);
-            return true;
-        }
+        double[] r = Vision.findResultClose(full(), H, MAX_FRAME_W, cfg.resultRegion);
+        if (r != null) return new int[]{(int) r[0], (int) r[1], 1};
         int[] p = cfg.closePos != null ? px(cfg.closePos[0], cfg.closePos[1]) : null;
-        int half = Math.max(10, (int) (H * 0.06));
-        int left = (int) (W * 0.2), right = (int) (W * 0.8);
+        int left, right, top, bottom;
         if (p != null) {
-            left = Math.min(p[0] - half, left);
-            right = Math.max(p[0] + half, right);
+            int half = Math.max(12, (int) (H * 0.10));
+            left = p[0] - half;
+            right = p[0] + half;
+            top = p[1] - half;
+            bottom = p[1] + half;
+        } else {
+            left = (int) (W * 0.2);
+            right = (int) (W * 0.8);
+            top = (int) (H * 0.05);
+            bottom = (int) (H * 0.75);
         }
-        int top = (int) (H * 0.05), h = (int) (H * 0.7);
         left = Math.max(0, left);
         right = Math.min(W, right);
-        Img im = grab(left, top, Math.max(1, right - left), h);
+        top = Math.max(0, top);
+        bottom = Math.min(H, bottom);
+        if (right - left < 8 || bottom - top < 8) return null;
+        Img im = grab(left, top, right - left, bottom - top);
         double[] f = Vision.findCloseX(im, H, p != null ? new double[]{p[0] - left, p[1] - top} : null);
-        if (f == null) return false;
-        out.log("결과창이 다른 자리에 뜨거나 깨짐 — X 를 찾아서 누름", 'd');
-        in.tap(left + (int) f[0], top + (int) f[1], 40);
-        return true;
+        if (f == null) return null;
+        return new int[]{left + (int) f[0], top + (int) f[1], 2};
     }
 
     /** 결과창 X 누르기 (화면에서 찾은 X 먼저 · 없으면 보정한 자리) */

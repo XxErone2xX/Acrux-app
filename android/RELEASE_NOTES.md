@@ -1,3 +1,27 @@
+## Acrux Mobile V1.5.3 업데이트
+- 낚시 결과창 닫기: 처음 3.5초는 보정한 X 자리만 누름 [ 전: 2초 ]
+- 결과창 X 찾기 강화 [ 다른 것을 X 로 잘못 누르던 문제 ]
+  - X 모양 확인을 더 엄격하게 [ 두 획이 가운데에서 만나고 · 변 가운데는 비어 있어야 함 ]
+  - 0.12초 뒤 다시 확인해서 같은 자리에 또 보일 때만 누름
+  - X 가 안 보이는 창은 보정한 결과창과 같은 자리일 때만 누름
+  - 보정한 X 자리가 있으면 그 근처만 찾음
+- 판매: 상점에 물고기가 있는데 "팔 물고기가 없음" 으로 멈추던 문제 수정
+  - 물고기 칸을 고른 뒤 확인이 안 되면 같은 칸을 또 눌러서 고른 게 풀릴 수 있던 문제 [ 화면이 늦게 바뀌면 한 번 더 기다린 뒤에만 다시 누름 ]
+  - 골랐는지를 글자 말고 왼쪽 칸 물고기 그림으로도 확인 [ 글자를 잘 못 읽는 폰 ]
+  - 남은 물고기를 글자로 못 찾아도 첫 칸에 물고기가 보이면 다시 팔아 봄
+
+## Acrux Mobile V1.5.3 Update
+- Closing the fishing result: only the calibrated X spot is tapped for the first 3.5 s [ was 2 s ]
+- Stronger result X detection [ it sometimes tapped other things as X ]
+  - Stricter X shape check [ both strokes must meet in the middle · edge centers must be empty ]
+  - Checked again 0.12 s later and tapped only if still in the same spot
+  - A window without a visible X is tapped only if it matches the calibrated result window
+  - With a calibrated X spot, only the area around it is searched
+- Selling: fixed stopping with "no fish to sell" while the shop still had fish
+  - If the pick couldn't be confirmed, the same slot was tapped again, which could unselect the fish [ now waits once more before tapping again ]
+  - The pick is also checked by the fish picture in the left panel, not only by text [ phones where text reading is weak ]
+  - If leftover fish can't be read as text, a fish visible in the first slot still triggers another try
+
 ## Acrux Mobile V1.5.2 업데이트
 - 미니 UI: 이동을 위로 · 낚시를 아래로
 - 미니 UI 낚시 안을 다시 나눔: 낚시 보정 · 길 · 판매 [ 이동처럼 들어가서 설정 · 낚시 줄에 "N / 3 준비됨" ]

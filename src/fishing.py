@@ -54,7 +54,7 @@ FINISH_MAX = 10.0        # 그래도 Fish 버튼이 안 보이면 이 시간 뒤
 HOLD_MAX = 600          # 다른 기능에 자리를 비켜 주는 최대 시간 (초) — 넘으면 낚시를 이어감
 RELOC_AFTER = 30        # 낚시 화면(Fish · Exit · 미니게임)이 이만큼(초) 안 보이면 낚시 장소로 다시 이동
 CAST_WAIT = 3.0         # 느린 던지기가 Exit 로 바뀌기 전에 다시 눌러 취소하지 않게 기다림 (모바일과 같음)
-FIND_X_AFTER = 2.0       # 낚은 뒤 이 시간 동안 Fish 버튼이 안 보이면 결과창 X 를 화면에서 찾아서 누름 (결과창이 다른 자리에 뜨거나 깨질 때)
+FIND_X_AFTER = 3.5       # 낚은 뒤 이 시간 동안 (그 전에는 보정한 X 자리만 누름) Fish 버튼이 안 보이면 결과창 X 를 화면에서 찾아서 누름 (결과창이 다른 자리에 뜨거나 깨질 때)
 FULL_WORDS = ("cannot fish", "inventory space", "not have enough", "inventory")   # 인벤토리 가득 알림 글자
 POS_KEYS = (("fish_btn", "Fish 버튼"), ("close_pos", "결과창 X"), ("title_pos", "결과창 제목"))
 

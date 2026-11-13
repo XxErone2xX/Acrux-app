@@ -321,6 +321,11 @@ public final class Vision {
      * → 창 오른쪽 위에서 X 를 바탕 검사 없이 다시 찾고, 그래도 없으면 창 비율(RESULT_CLOSE)로 계산한 자리
      */
     public static double[] findResultClose(Img im, int H, double maxW) {
+        return findResultClose(im, H, maxW, null);
+    }
+
+    /** known = 보정한 결과창 [x1, y1, x2, y2] (비율) — X 모양을 못 찾았을 때 계산한 자리를 누르는 건 이 창과 같은 자리일 때만 */
+    public static double[] findResultClose(Img im, int H, double maxW, double[] known) {
         int W = im.w;
         for (int[] f : findFrames(im, maxW)) {
             int w = f[2] - f[0], h = f[3] - f[1];
@@ -333,7 +338,10 @@ public final class Vision {
                 double[] x = findCloseX(im.crop(sx, sy, ex, ey), H, null, true);
                 if (x != null) return new double[]{sx + x[0], sy + x[1]};
             }
-            return new double[]{f[0] + w * RESULT_CLOSE[0], f[1] + h * RESULT_CLOSE[1]};
+            if (known != null && Math.abs((double) f[0] / W - known[0]) < 0.03 && Math.abs((double) f[1] / im.h - known[1]) < 0.03
+                    && Math.abs((double) f[2] / W - known[2]) < 0.03 && Math.abs((double) f[3] / im.h - known[3]) < 0.03)
+                return new double[]{f[0] + w * RESULT_CLOSE[0], f[1] + h * RESULT_CLOSE[1]};
+            // X 도 없고 보정한 결과창도 아님 → 다른 창 (상점 · 메뉴 등) 일 수 있어서 안 누름 · 다음 창 확인
         }
         return null;
     }
@@ -677,6 +685,7 @@ public final class Vision {
             }
             if (ring - n > 0.15 * n) continue;
             if (diag(lab, W, Hh, i, x1, y1, bw, bh, false) < 0.85 || diag(lab, W, Hh, i, x1, y1, bw, bh, true) < 0.85) continue;
+            if (!crossShape(lab, W, i, x1, y1, bw, bh)) continue;
             double left = meanOf(dark, W, Hh, Math.max(0, x1 - 5 * m), y1, Math.max(0, x1 - m), y2 + 1);
             double below = meanOf(dark, W, Hh, x1, y2 + m, x2 + 1, y2 + 5 * m);
             if (!relaxed && !((!Double.isNaN(left) && left > 0.6) || (!Double.isNaN(below) && below > 0.6))) continue;
@@ -688,6 +697,33 @@ public final class Vision {
             }
         }
         return best;
+    }
+
+    /** X 모양 확인: 두 획이 가운데에서 만나고 · 네 변의 가운데는 비어 있고 · 네 모서리에 획 끝이 있음
+     *  (+ · □ · ○ · 글자 · 물고기 무늬 같은 다른 흰 덩어리를 X 로 잘못 보지 않게) */
+    static boolean crossShape(int[] lab, int W, int id, int x1, int y1, int bw, int bh) {
+        int r = Math.max(1, (int) Math.round(Math.min(bw, bh) * 0.15));
+        int cx = x1 + bw / 2, cy = y1 + bh / 2, x2 = x1 + bw - 1, y2 = y1 + bh - 1;
+        if (part(lab, W, id, cx - r, cy - r, cx + r, cy + r) < 0.3) return false;            // 가운데
+        double[] mids = {part(lab, W, id, cx - r, y1, cx + r, y1 + r), part(lab, W, id, cx - r, y2 - r, cx + r, y2),
+                part(lab, W, id, x1, cy - r, x1 + r, cy + r), part(lab, W, id, x2 - r, cy - r, x2, cy + r)};
+        for (double m : mids) if (m > 0.34) return false;                                        // 변 가운데는 비어 있음
+        double[] corners = {part(lab, W, id, x1, y1, x1 + r, y1 + r), part(lab, W, id, x2 - r, y1, x2, y1 + r),
+                part(lab, W, id, x1, y2 - r, x1 + r, y2), part(lab, W, id, x2 - r, y2 - r, x2, y2)};
+        for (double c : corners) if (c < 0.15) return false;                                     // 모서리에 획 끝
+        return true;
+    }
+
+    /** [x0, x1] × [y0, y1] 안에서 덩어리 id 인 칸의 비율 */
+    static double part(int[] lab, int W, int id, int x0, int y0, int x1, int y1) {
+        int H = lab.length / W, n = 0, hit = 0;
+        for (int y = Math.max(0, y0); y <= Math.min(H - 1, y1); y++) {
+            for (int x = Math.max(0, x0); x <= Math.min(W - 1, x1); x++) {
+                n++;
+                if (lab[y * W + x] == id) hit++;
+            }
+        }
+        return n == 0 ? 0 : (double) hit / n;
     }
 
     static double diag(int[] lab, int W, int H, int id, int x1, int y1, int bw, int bh, boolean flip) {
