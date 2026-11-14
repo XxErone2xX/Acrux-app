@@ -134,6 +134,7 @@ pub(super) struct Native {
     captured_at: Cell<f64>,
     keys: RefCell<BTreeSet<u16>>,
     buttons: RefCell<BTreeSet<bool>>,
+    drag_position: Cell<Option<(i32, i32)>>,
 }
 impl Native {
     pub(super) fn new() -> Result<Self, String> {
@@ -151,6 +152,7 @@ impl Native {
             captured_at: Cell::new(0.0),
             keys: RefCell::new(BTreeSet::new()),
             buttons: RefCell::new(BTreeSet::new()),
+            drag_position: Cell::new(None),
         })
     }
     pub(super) fn find_now(&self) -> Result<Option<Target>, String> {
@@ -410,8 +412,27 @@ impl Native {
         &self,
         target: Target,
         at: (i32, i32),
-        _right_drag: bool,
+        right_drag: bool,
     ) -> Result<(), String> {
+        if right_drag {
+            if !self.valid(target) || !self.buttons.borrow().contains(&true) {
+                return Err("카메라 이동 중 게임 창이나 마우스 상태가 바뀌었습니다.".into());
+            }
+            // Roblox locks/recenters its cursor while rotating the camera.
+            // Absolute screen positions are therefore not a drag trajectory:
+            // send the next logical segment as raw relative mouse movement.
+            let previous = self
+                .drag_position
+                .get()
+                .ok_or("카메라 이동 시작점이 없습니다.")?;
+            self.send(
+                target,
+                mouse_input(at.0 - previous.0, at.1 - previous.1, MOUSEEVENTF_MOVE),
+                false,
+            )?;
+            self.drag_position.set(Some(at));
+            return Ok(());
+        }
         let mut point = WinPoint { x: at.0, y: at.1 };
         if !self.valid(target) || unsafe { ClientToScreen(target.id as Handle, &mut point) } == 0 {
             return Err("게임 화면 좌표를 확인하지 못했습니다.".into());
@@ -459,6 +480,9 @@ impl Native {
             self.buttons.borrow_mut().insert(right);
         } else {
             self.buttons.borrow_mut().remove(&right);
+        }
+        if right {
+            self.drag_position.set(down.then_some(at));
         }
         Ok(())
     }

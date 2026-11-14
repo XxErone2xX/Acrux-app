@@ -81,7 +81,7 @@ pub(crate) enum Tick {
 
 #[derive(Clone, Copy)]
 enum Action {
-    Probe(usize),
+    Probe(usize, f64),
     Move {
         before_distance: f64,
         expected: [f64; 2],
@@ -127,7 +127,9 @@ pub(crate) struct Navigator {
     avatar: [f64; 2],
     goal: [f64; 4],
     clearance: f64,
-    ground: Ground,
+    // Grid already certifies production segments. Raw observations retain
+    // their local surface model; do not classify a planned route a second time.
+    ground: Option<Ground>,
     world: Snapshot,
     body: Option<Snapshot>,
     response: [[f64; 2]; 2],
@@ -146,6 +148,40 @@ impl Navigator {
         controls: Controls,
         now: f64,
     ) -> Result<Self, String> {
+        Self::from_frame_inner(destination, frame, observed, controls, now, false, None)
+    }
+
+    /// The caller has already checked this segment against its terrain grid.
+    /// Keep one motion controller, without repeating hue/seed-hull checks over
+    /// terrain already accepted by the path planner.
+    pub(crate) fn from_route_frame(
+        destination: Destination,
+        frame: &Frame<'_>,
+        observed: &Observed,
+        controls: Controls,
+        now: f64,
+        calibration: Option<Calibration>,
+    ) -> Result<Self, String> {
+        Self::from_frame_inner(
+            destination,
+            frame,
+            observed,
+            controls,
+            now,
+            true,
+            calibration,
+        )
+    }
+
+    fn from_frame_inner(
+        destination: Destination,
+        frame: &Frame<'_>,
+        observed: &Observed,
+        controls: Controls,
+        now: f64,
+        planned: bool,
+        calibration: Option<Calibration>,
+    ) -> Result<Self, String> {
         if !now.is_finite() || now < 0.0 || !frame.is_full() {
             return Err("새 전체 화면 관측이 필요합니다.".into());
         }
@@ -154,18 +190,18 @@ impl Navigator {
         let avatar_region = checked_region(observed.avatar_bounds, geometry)?;
         let goal = checked_region(observed.goal_region, geometry)?;
         if observed.excluded.len() > 24
-            || !(3..=16).contains(&observed.ground_seeds.len())
+            || (!planned && !(3..=16).contains(&observed.ground_seeds.len()))
             || !point_valid(observed.avatar_contact)
             || !point_valid(controls.stick_center)
             || !point_valid(controls.stick_edge)
             || !observed.clearance_pixels.is_finite()
             || !(2.0..=128.0).contains(&observed.clearance_pixels)
         {
-            return Err("현재 화면의 접점·지면·입력 위치를 확인하세요.".into());
+            return Err("현재 화면 중심·지형·입력 위치를 확인하세요.".into());
         }
         let avatar = pixel_point(observed.avatar_contact, geometry);
         if !contains(avatar_region, avatar) || !contains(included, avatar) {
-            return Err("캐릭터 접점은 실제 관측 영역 안에 있어야 합니다.".into());
+            return Err("화면 중심은 현재 관측 영역 안에 있어야 합니다.".into());
         }
         if goal.width as f64 <= observed.clearance_pixels * 2.0
             || goal.height as f64 <= observed.clearance_pixels * 2.0
@@ -182,7 +218,7 @@ impl Navigator {
             .map(|rect| checked_region(*rect, geometry))
             .collect::<Result<_, _>>()?;
         if excluded.iter().any(|r| contains(*r, avatar)) {
-            return Err("캐릭터 접점이 제외 영역에 가려져 있습니다.".into());
+            return Err("화면 중심이 제외 영역에 가려져 있습니다.".into());
         }
         excluded.push(avatar_region);
         let radius = stick_radius(controls, geometry);
@@ -192,20 +228,37 @@ impl Navigator {
         // Both orthogonal endpoints must be real, reachable screen positions.
         stick(controls, geometry, [1.0, 0.0], PROBE_MS)?;
         stick(controls, geometry, [0.0, 1.0], PROBE_MS)?;
-        let ground = Ground::learn(
-            frame,
-            &observed.ground_seeds,
-            included,
-            &excluded,
-            avatar_region,
-        )?;
-        if !inside_polygon(&ground.hull, avatar) {
-            return Err("현재 캐릭터를 둘러싼 지면 관측이 부족합니다.".into());
-        }
+        let ground = if planned {
+            None
+        } else {
+            let ground = Ground::learn(
+                frame,
+                &observed.ground_seeds,
+                included,
+                &excluded,
+                avatar_region,
+            )?;
+            if !inside_polygon(&ground.hull, avatar) {
+                return Err("현재 위치를 둘러싼 지형 관측이 부족합니다.".into());
+            }
+            Some(ground)
+        };
+        let calibration = calibration.filter(|c| {
+            c.right.into_iter().chain(c.up).all(f64::is_finite)
+                && conditioning([c.right, c.up]) >= 0.25
+                && c.error_pixels.is_finite()
+                && c.error_pixels >= 0.
+                && c.error_pixels <= observed.clearance_pixels
+        });
         let world = Snapshot::capture(frame, included, &excluded)?;
-        // A freshly detected foot contact can be followed without inventing a
-        // feature-rich body. The older tracking API still requires body pixels.
-        let body = Snapshot::capture(frame, avatar_region, &[]).ok();
+        // Planned camera-follow walking uses only terrain registration; do not
+        // inspect or try to match player pixels. The raw tracking API retains
+        // its separately observed body texture contract.
+        let body = if planned {
+            None
+        } else {
+            Snapshot::capture(frame, avatar_region, &[]).ok()
+        };
         let mut navigator = Self {
             state: Status {
                 destination,
@@ -214,7 +267,7 @@ impl Navigator {
                 observations: 1,
                 actions: 0,
                 remaining_pixels: 0.0,
-                calibration: None,
+                calibration,
                 local_goal_reached: false,
             },
             phase: Phase::Stable,
@@ -234,8 +287,10 @@ impl Navigator {
             ground,
             world,
             body,
-            response: [[0.0; 2]; 2],
-            probes: 0,
+            response: calibration
+                .map(|c| [c.right, c.up])
+                .unwrap_or([[0.0; 2]; 2]),
+            probes: if calibration.is_some() { 2 } else { 0 },
             started: now,
             last_now: now,
             last_frame: now,
@@ -255,8 +310,9 @@ impl Navigator {
         self.tick_inner(now, frame, None)
     }
 
-    /// Production observation: the caller has detected this character's actual
-    /// feet in the SAME fresh frame (not an overhead name or viewport center).
+    /// Production observation: the player-follow camera supplies its origin
+    /// and occupancy mask in this fresh frame. Walking needs neither player
+    /// identity nor physical foot/ground evidence (jumping owns that evidence).
     pub(crate) fn tick_observed(
         &mut self,
         now: f64,
@@ -270,13 +326,13 @@ impl Navigator {
             || error_pixels < 0.
             || error_pixels > self.clearance * 0.5
         {
-            return self.stop("현재 캐릭터의 실제 발 접점 관측이 유효하지 않습니다.");
+            return self.stop("현재 화면 중심의 위치 관측이 유효하지 않습니다.");
         }
         if bounds
             .region(self.geometry)
             .is_none_or(|r| !contains(r, pixel_point(contact, self.geometry)))
         {
-            return self.stop("현재 캐릭터의 몸 영역과 발 접점이 일치하지 않습니다.");
+            return self.stop("현재 화면 중심과 제외 영역이 일치하지 않습니다.");
         }
         self.tick_inner(now, frame, Some((contact, bounds, error_pixels)))
     }
@@ -341,22 +397,17 @@ impl Navigator {
             Ok(value) => value,
             Err(error) => return self.stop_error(error),
         };
-        let shift = self
-            .geometry
-            .0
-            .max(self.geometry.1)
-            .div_ceil(512)
-            .max(1)
-            .saturating_mul(48)
-            .min(512);
+        let shift = scene::displacement_limit(self.geometry);
         let (movement, error, body) = if let Some((contact, bounds, contact_error)) = observed {
             let registration = match scene::register(&self.world, &world, shift) {
                 Ok(v) => v,
                 Err(e) => return self.stop_error(e),
             };
-            if !registration.supports(self.avatar) || !registration.supports(self.target()) {
+            if !registration.supports(self.avatar)
+                || (self.ground.is_some() && !registration.supports(self.target()))
+            {
                 return self
-                    .stop("현재 발 접점과 다음 모서리를 지지하는 같은 지면 특징이 부족합니다.");
+                    .stop("화면 중심 주변의 지형 특징이 부족해 이동량을 측정하지 못했습니다.");
             }
             let predicted = registration.map_point(self.avatar);
             let actual = pixel_point(contact, self.geometry);
@@ -389,15 +440,19 @@ impl Navigator {
                 center[0] + candidate[0] * shrink,
                 center[1] + candidate[1] * shrink,
             ];
-            self.ground.transform(&registration);
+            if let Some(ground) = &mut self.ground {
+                ground.transform(&registration);
+            }
             for response in &mut self.response {
                 *response = registration.map_vector(*response);
             }
             self.avatar_region = bounds.region(self.geometry).unwrap();
             self.excluded.pop();
             self.excluded.push(self.avatar_region);
-            self.ground.excluded = self.excluded.clone();
-            self.ground.self_mask = self.avatar_region;
+            if let Some(ground) = &mut self.ground {
+                ground.excluded = self.excluded.clone();
+                ground.self_mask = self.avatar_region;
+            }
             (movement, error, None)
         } else {
             let body = match Snapshot::capture(frame, self.avatar_region, &[]) {
@@ -424,15 +479,22 @@ impl Navigator {
             for i in [1, 3] {
                 self.goal[i] += ground_flow.dy;
             }
-            self.ground.translate(ground_flow.dx, ground_flow.dy);
+            if let Some(ground) = &mut self.ground {
+                ground.translate(ground_flow.dx, ground_flow.dy);
+            }
             (
                 movement,
                 ground_flow.error_pixels + body_flow.error_pixels,
                 Some(body),
             )
         };
-        if !error.is_finite() || error > self.clearance * 0.5 {
-            return self.stop("지면과 캐릭터의 위치 오차가 큽니다. 다시 관측하세요.");
+        let error_limit = if self.ground.is_some() {
+            self.clearance * 0.5
+        } else {
+            self.clearance
+        };
+        if !error.is_finite() || error > error_limit {
+            return self.stop("지형 이동량의 측정 오차가 큽니다. 다시 관측합니다.");
         }
         if action.is_none() && length(movement) > 2.0 + error {
             return self.stop("입력 없이 화면이 움직였습니다. 시점을 다시 고정하세요.");
@@ -450,14 +512,16 @@ impl Navigator {
         self.phase = Phase::Ready;
         if let Some(action) = action {
             match action {
-                Action::Probe(axis) => {
+                Action::Probe(axis, sign) => {
                     if length(movement) < 2.0 + error
                         || length(movement) > self.geometry.0.min(self.geometry.1) as f64 * 0.12
                     {
                         return self.stop("짧은 입력에 따른 실제 이동량을 확인하지 못했습니다.");
                     }
-                    self.response[axis] =
-                        [movement[0] / PROBE_MS as f64, movement[1] / PROBE_MS as f64];
+                    self.response[axis] = [
+                        movement[0] / (PROBE_MS as f64 * sign),
+                        movement[1] / (PROBE_MS as f64 * sign),
+                    ];
                     self.probes = axis + 1;
                     if self.probes == 2 {
                         if conditioning(self.response) < 0.25 {
@@ -507,6 +571,16 @@ impl Navigator {
         self.next(frame)
     }
 
+    /// Planning can take time after the frame is observed. Start the pending
+    /// input timeout at actual dispatch, without changing any image evidence.
+    pub(crate) fn dispatch_at(&mut self, at: f64) {
+        if let Phase::Input { sent_at, .. } = &mut self.phase {
+            if at.is_finite() && at >= *sent_at {
+                *sent_at = at;
+            }
+        }
+    }
+
     /// Acknowledgement means every finger is released. Never infer success from
     /// elapsed milliseconds or observe a pre-input buffered frame as completion.
     pub(crate) fn ack(&mut self, success: bool, now: f64) {
@@ -532,12 +606,16 @@ impl Navigator {
             not_before: now + SETTLE_SECONDS,
         };
         self.state.phase = "observing";
-        self.state.message = "입력 후 새 지면과 캐릭터 위치를 확인합니다.".into();
+        self.state.message = "입력 후 새 지형에서 이동량을 확인합니다.".into();
     }
 
     fn next(&mut self, frame: &Frame<'_>) -> Tick {
-        if !inside_polygon(&self.ground.hull, self.avatar) {
-            return self.stop("캐릭터가 관측한 지면 영역을 벗어났습니다.");
+        if self
+            .ground
+            .as_ref()
+            .is_some_and(|ground| !inside_polygon(&ground.hull, self.avatar))
+        {
+            return self.stop("현재 위치가 관측한 지형 영역을 벗어났습니다.");
         }
         // Arrival must fit INSIDE the actual observed approach region. The
         // controller aims further inside it, so quantized short inputs do not
@@ -559,9 +637,10 @@ impl Navigator {
             return self.stop("짧은 이동 횟수 제한을 넘었습니다. 지형을 다시 관측하세요.");
         }
         let target = self.target();
-        if !self
+        if self
             .ground
-            .corridor(frame, self.avatar, target, self.clearance)
+            .as_ref()
+            .is_some_and(|ground| !ground.corridor(frame, self.avatar, target, self.clearance))
         {
             return self.stop(
                 "목표 사이에 확인되지 않은 지형이나 경계가 있습니다. 새 경로 관측이 필요합니다.",
@@ -569,16 +648,30 @@ impl Navigator {
         }
         if self.probes < 2 {
             let guard = self.clearance + self.geometry.0.min(self.geometry.1) as f64 * 0.035;
-            if !self
-                .ground
-                .disk(frame, self.avatar, guard, self.avatar, self.clearance)
-            {
+            if self.ground.as_ref().is_some_and(|ground| {
+                !ground.disk(frame, self.avatar, guard, self.avatar, self.clearance)
+            }) {
                 return self.stop("이동 방향을 측정할 만큼 주변 지면이 확인되지 않았습니다.");
             }
-            let direction = if self.probes == 0 {
-                [1.0, 0.0]
+            let sign = if self.ground.is_some() {
+                1.
+            } else if self.probes == 0 {
+                if target[0] < self.avatar[0] {
+                    -1.
+                } else {
+                    1.
+                }
             } else {
-                [0.0, 1.0]
+                if target[1] > self.avatar[1] {
+                    -1.
+                } else {
+                    1.
+                }
+            };
+            let direction = if self.probes == 0 {
+                [sign, 0.]
+            } else {
+                [0., sign]
             };
             let gesture = match stick(self.controls, self.geometry, direction, PROBE_MS) {
                 Ok(value) => value,
@@ -586,7 +679,7 @@ impl Navigator {
             };
             return self.emit(
                 gesture,
-                Action::Probe(self.probes),
+                Action::Probe(self.probes, sign),
                 "calibrating",
                 "실제 화면 변화로 조이스틱 이동 방향과 속도를 측정합니다.",
             );
@@ -600,7 +693,26 @@ impl Navigator {
             return self
                 .stop("남은 거리가 현재 입력 정밀도보다 작습니다. 더 정확한 관측이 필요합니다.");
         }
-        let direction = [input[0] / requested_ms, input[1] / requested_ms];
+        let mut direction = [input[0] / requested_ms, input[1] / requested_ms];
+        #[cfg(not(target_os = "android"))]
+        if self.ground.is_none() {
+            // Desktop Stick becomes digital WASD with this same threshold in
+            // both native adapters. Predict that actual normalized direction,
+            // rather than an analog direction the keyboard cannot produce.
+            direction = direction.map(|v| {
+                if v > 0.25 {
+                    1.
+                } else if v < -0.25 {
+                    -1.
+                } else {
+                    0.
+                }
+            });
+            let norm = length(direction);
+            if norm > 0. {
+                direction = direction.map(|v| v / norm);
+            }
+        }
         let velocity = [
             self.response[0][0] * direction[0] + self.response[1][0] * direction[1],
             self.response[0][1] * direction[0] + self.response[1][1] * direction[1],
@@ -648,20 +760,20 @@ impl Navigator {
         Tick::Gesture(gesture)
     }
     fn target(&self) -> [f64; 2] {
-        let x_margin =
-            ((self.goal[2] - self.goal[0]) * 0.5 - self.clearance).min(self.clearance * 0.5);
-        let y_margin =
-            ((self.goal[3] - self.goal[1]) * 0.5 - self.clearance).min(self.clearance * 0.5);
-        [
-            self.avatar[0].clamp(
-                self.goal[0] + self.clearance + x_margin,
-                self.goal[2] - self.clearance - x_margin,
-            ),
-            self.avatar[1].clamp(
-                self.goal[1] + self.clearance + y_margin,
-                self.goal[3] - self.clearance - y_margin,
-            ),
-        ]
+        [0, 1].map(|axis| {
+            let low = self.goal[axis];
+            let high = self.goal[axis + 2];
+            let center = low + (high - low) * 0.5;
+            let half = ((high - low) * 0.5 - self.clearance * 1.5).max(0.);
+            // A narrow approach region has one target: its center. Computing
+            // bounds symmetrically also avoids min > max from rounding when
+            // independently adding/subtracting the old clearance margins.
+            if half <= f64::EPSILON * center.abs().max(1.) * 8. {
+                center
+            } else {
+                self.avatar[axis].clamp(center - half, center + half)
+            }
+        })
     }
     fn distance(&self) -> f64 {
         let p = self.target();
@@ -1136,6 +1248,107 @@ mod tests {
     }
 
     #[test]
+    fn grid_certified_segment_reuses_motion_calibration_without_ground_seed_hull_or_body() {
+        let texture = scene_texture();
+        let initial = picture(&texture, 0, 0);
+        let mut seen = observed();
+        seen.ground_seeds.clear();
+        seen.goal_region = Rect(0.03, 0.25, 0.31, 0.78);
+        seen.clearance_pixels = 10.;
+        let measured = Calibration {
+            right: [0.1, 0.],
+            up: [0., -0.1],
+            error_pixels: 1.,
+        };
+        let mut nav = Navigator::from_route_frame(
+            Destination::Base,
+            &frame(&initial),
+            &seen,
+            controls(),
+            0.,
+            Some(measured),
+        )
+        .unwrap();
+        assert!(nav.ground.is_none());
+        assert!(nav.body.is_none());
+        let Tick::Gesture(Gesture::Stick { from, to, .. }) = nav.tick_observed(
+            0.2,
+            Some(&frame(&initial)),
+            seen.avatar_contact,
+            seen.avatar_bounds,
+            0.5,
+        ) else {
+            panic!(
+                "Grid-certified segment must reach motion immediately: {:?}",
+                nav.status()
+            );
+        };
+        assert!(to.0 < from.0, "reuse measured calibration and move toward the left-hand route, never probe right again");
+        assert_eq!(nav.status().phase, "moving");
+        assert_eq!(nav.status().actions, 1);
+    }
+
+    #[test]
+    fn camera_follow_route_measures_both_probe_axes_toward_the_target() {
+        let texture = scene_texture();
+        let initial = picture(&texture, 0, 0);
+        let mut seen = observed();
+        seen.ground_seeds.clear();
+        seen.goal_region = Rect(0.03, 0.50, 0.30, 0.96);
+        seen.clearance_pixels = 10.;
+        let mut nav = Navigator::from_route_frame(
+            Destination::Base,
+            &frame(&initial),
+            &seen,
+            controls(),
+            0.,
+            None,
+        )
+        .unwrap();
+        let (mut at, mut x, mut y) = (0.2, 0.0f64, 0.0f64);
+        let mut tick = nav.tick_observed(
+            at,
+            Some(&frame(&initial)),
+            seen.avatar_contact,
+            seen.avatar_bounds,
+            0.5,
+        );
+        for probe in 0..2 {
+            let Tick::Gesture(Gesture::Stick { from, to, ms, .. }) = tick else {
+                panic!(
+                    "probe {probe} must be emitted: {tick:?}; {:?}",
+                    nav.status()
+                );
+            };
+            if probe == 0 {
+                assert!(to.0 < from.0);
+            } else {
+                assert!(to.1 > from.1);
+            }
+            let r = stick_radius(controls(), (W, H));
+            x -= (to.0 - from.0) * W as f64 / r * ms as f64 * 0.1;
+            y -= (to.1 - from.1) * H as f64 / r * ms as f64 * 0.1;
+            at += ms as f64 / 1000.;
+            nav.ack(true, at);
+            at += 0.2;
+            let after = picture(&texture, x.round() as isize, y.round() as isize);
+            tick = nav.tick_observed(
+                at,
+                Some(&frame(&after)),
+                seen.avatar_contact,
+                seen.avatar_bounds,
+                0.5,
+            );
+        }
+        let c = nav
+            .status()
+            .calibration
+            .expect("two actual signed observations produce calibration");
+        assert!((c.right[0] - 0.1).abs() < 0.01 && c.right[1].abs() < 0.01);
+        assert!((c.up[1] + 0.1).abs() < 0.01 && c.up[0].abs() < 0.01);
+    }
+
+    #[test]
     fn moving_observed_body_and_feet_replace_the_mask_without_accumulating_holes() {
         let texture = scene_texture();
         let initial = observed();
@@ -1191,7 +1404,7 @@ mod tests {
         let actual = bounds.region((W, H)).unwrap();
         assert_eq!(nav.avatar_region, actual);
         assert_eq!(nav.excluded, vec![actual]);
-        assert_eq!(nav.ground.self_mask, actual);
+        assert_eq!(nav.ground.as_ref().unwrap().self_mask, actual);
         let c = nav.status().calibration.unwrap();
         assert!((c.right[0] - 0.1).abs() < 0.01 && c.right[1].abs() < 0.01);
         assert!((c.up[1] + 0.1).abs() < 0.01 && c.up[0].abs() < 0.01);
@@ -1348,5 +1561,47 @@ mod tests {
             Tick::Gesture(_)
         ));
         assert!(matches!(nav.tick(3.0, None), Tick::Stopped(_)));
+    }
+
+    #[test]
+    fn actual_dispatch_rebases_only_input_timeout_after_planning_delay() {
+        let texture = scene_texture();
+        let bytes = picture(&texture, 0, 0);
+        let mut nav = navigator(&bytes);
+        assert!(matches!(
+            nav.tick(0.2, Some(&frame(&bytes))),
+            Tick::Gesture(_)
+        ));
+        let captured = nav.last_frame;
+        nav.dispatch_at(3.);
+        nav.dispatch_at(f64::NAN);
+        nav.dispatch_at(1.);
+        assert!(matches!(nav.phase, Phase::Input { sent_at: 3., .. }));
+        assert_eq!(
+            nav.last_frame, captured,
+            "dispatch cannot refresh old capture evidence"
+        );
+        assert!(matches!(nav.tick(3.05, None), Tick::Wait(_)));
+        nav.ack(true, 3.1);
+        assert!(matches!(nav.phase, Phase::After { .. }));
+        let after = picture(&texture, -10, 0);
+        assert!(
+            matches!(nav.tick(3.3, Some(&frame(&after))), Tick::Gesture(_)),
+            "{:?}",
+            nav.status()
+        );
+    }
+
+    #[test]
+    fn narrow_transformed_goal_has_finite_center_target_without_inverted_clamp() {
+        let bytes = picture(&scene_texture(), 0, 0);
+        let mut nav = navigator(&bytes);
+        for epsilon in [-1e-12, 0., 1e-12] {
+            nav.goal = [109., 62., 145. + epsilon, 98. + epsilon];
+            let target = nav.target();
+            assert!((target[0] - 127.).abs() < 1e-9);
+            assert!((target[1] - 80.).abs() < 1e-9);
+            assert!(nav.distance().is_finite());
+        }
     }
 }

@@ -61,20 +61,65 @@ Roblox 화면이 바뀌어 이동 · 판매를 중지했습니다.	Travel and se
 아이템 · 상점 · 제작 · 메모리 매치 화면의 글자를 이 기기에서 읽습니다.	Reads item, shop, crafting and memory match text on this device.	アイテム・ショップ・製作・メモリーマッチの文字をこの端末で読み取ります。
 이 앱은 운영체제에 맞는 OCR 엔진을 자동으로 사용합니다.	This app automatically uses the OCR engine for your operating system.	このアプリはOSに合わせたOCRエンジンを自動で使用します。
 브라우저에서 [연결] 을 눌러 주세요 · 코드 {0}	Press [Link] in the browser · code {0}	ブラウザで [連携] を押してください · コード {0}
-카메라가 따라가는 화면 중심을 현재 위치로 사용합니다. [현재 장소 기억]은 주변 지면과 목적지 표식이 보일 때 사용할 수 있습니다.	Uses the player-following camera center as the current position. [Remember current location] requires the surrounding ground and destination landmark to be visible.	プレイヤーを追うカメラの中心を現在位置として使います。[現在地を記憶]には周囲の地面と目的地の目印が見える必要があります。
-카메라가 따라가는 화면 중심을 현재 위치로 사용합니다. 주변 지형을 확인하며 낚시 버튼이 보이는 바닷가까지 이동합니다.	Uses the player-following camera center as the current position and observes terrain while moving to a coast with a fishing button.	プレイヤーを追うカメラの中心を現在位置とし、周囲の地形を確認しながら釣りボタンのある海岸まで移動します。
+카메라를 위에서 내려다보는 시점으로 올립니다.	Raising the camera to an overhead view.	カメラを上から見下ろす視点に上げています。
+위에서 관측한 지형에 현재 장소를 저장했습니다.	Saved your current location on the overhead terrain map.	上から観測した地形図に現在位置を保存しました。
+누적 지형 지도의 미관측 경계를 향해 경로를 계산합니다.	Planning a route toward unexplored terrain on the accumulated map.	蓄積した地形図の未観測領域に向かう経路を計算しています。
+관측한 지형에서 다음 통로를 찾지 못했습니다. 시야를 다시 확인합니다.	No passage found in the observed terrain. Checking the view again.	観測した地形で次の通路が見つかりません。視界を再確認しています。
+첫 이동 방향을 측정할 주변 지면 여유가 부족합니다. 지형을 다시 관측합니다.	Not enough surrounding ground to measure the initial movement direction. Observing terrain again.	最初の移動方向を測定する周囲の地面が不足しています。地形を再観測します。
+지형 지도에 저장한 기준 장소에 도착했습니다.	Arrived at the base location saved on the terrain map.	地形図に保存した基準地点に到着しました。
+점프 착지를 측정할 화면 중심의 발과 지면이 가려져 있습니다.	The feet and ground at screen center are obscured, so the jump landing cannot be measured.	画面中心の足と地面が隠れているため、ジャンプの着地を測定できません。
+화면 중심 주변 지면을 관측하지 못했습니다.	Could not observe the ground around screen center.	画面中心周辺の地面を観測できませんでした。
+화면 중심 주변의 지면 관측이 부족합니다.	Not enough observed ground around screen center.	画面中心周辺の地面の観測が不足しています。
+저장된 지형 관측 데이터의 범위가 올바르지 않습니다.	The saved terrain observation is out of range.	保存された地形観測データの範囲が不正です。
+저장된 지형 이미지가 올바르지 않습니다.	The saved terrain image is invalid.	保存された地形画像が不正です。
+저장된 지형 이미지를 읽지 못했습니다.	Could not read the saved terrain image.	保存された地形画像を読み取れませんでした。
+저장된 지형 이미지 크기가 올바르지 않습니다.	The saved terrain image dimensions are invalid.	保存された地形画像のサイズが不正です。
+지형 이미지 저장에 실패했습니다.	Could not save the terrain image.	地形画像を保存できませんでした。
+지형 지도에는 새 전체 게임 화면이 필요합니다.	A fresh full game frame is required for the terrain map.	地形図には新しいゲーム画面全体の画像が必要です。
+게임 화면의 비율이 지형 관측 범위를 벗어났습니다.	The game aspect ratio is outside the terrain observation range.	ゲーム画面の縦横比が地形観測の範囲外です。
+지형 화면 픽셀이 없습니다.	No terrain image pixels are available.	地形画像のピクセルがありません。
+저장된 지형 지도의 크기가 제한을 넘었습니다.	The saved terrain map exceeds the size limit.	保存された地形図がサイズ上限を超えています。
+저장된 지형 지도의 좌표가 올바르지 않습니다.	The saved terrain map coordinates are invalid.	保存された地形図の座標が不正です。
+저장된 지형 지도에 중복 좌표가 있습니다.	The saved terrain map contains duplicate coordinates.	保存された地形図に重複した座標があります。
+저장된 장소 좌표가 올바르지 않습니다.	The saved location coordinates are invalid.	保存された場所の座標が不正です。
+지형 지도 번호 범위를 넘었습니다.	The terrain map index is out of range.	地形図の番号が範囲を超えました。
+관측 지형 좌표 범위를 넘었습니다.	The observed terrain coordinates are out of range.	観測した地形の座標が範囲を超えました。
+지형 처리 시간이 초과돼 이동 입력을 중지했습니다.	Movement input stopped because terrain processing timed out.	地形処理がタイムアウトしたため移動入力を停止しました。
+이동·장소 등록을 취소했습니다.	Travel and location registration canceled.	移動・場所登録をキャンセルしました。
+등록할 목적지를 확인하세요.	Check the destination to register.	登録する目的地を確認してください。
+카메라를 위로 올려 현재 장소의 지형을 기억합니다.	Raising the camera to remember the terrain at your current location.	カメラを上げて現在地の地形を記憶しています。
+장소 등록 시간이 초과돼 입력을 중지했습니다.	Input stopped because location registration timed out.	場所登録がタイムアウトしたため入力を停止しました。
+현재 장소의 지형을 기억했습니다.	Remembered the terrain at your current location.	現在地の地形を記憶しました。
+현재 화면 중심·지형·입력 위치를 확인하세요.	Check the current screen center, terrain and input positions.	現在の画面中心・地形・入力位置を確認してください。
+화면 중심은 현재 관측 영역 안에 있어야 합니다.	Screen center must be inside the current observation area.	画面中心は現在の観測領域内にある必要があります。
+화면 중심이 제외 영역에 가려져 있습니다.	Screen center is obscured by an excluded area.	画面中心が除外領域に隠れています。
+현재 위치를 둘러싼 지형 관측이 부족합니다.	Not enough terrain has been observed around the current location.	現在地周辺の地形の観測が不足しています。
+현재 화면 중심의 위치 관측이 유효하지 않습니다.	The current screen-center observation is invalid.	現在の画面中心の位置観測が無効です。
+현재 화면 중심과 제외 영역이 일치하지 않습니다.	The current screen center and excluded area do not match.	現在の画面中心と除外領域が一致しません。
+화면 중심 주변의 지형 특징이 부족해 이동량을 측정하지 못했습니다.	Not enough terrain features around screen center to measure movement.	画面中心周辺の地形の特徴が不足しているため移動量を測定できません。
+지형 이동량의 측정 오차가 큽니다. 다시 관측합니다.	Terrain movement measurement is uncertain. Observing again.	地形の移動量の測定誤差が大きいため再観測します。
+입력 후 새 지형에서 이동량을 확인합니다.	Measuring movement from the terrain after input.	入力後の地形から移動量を確認しています。
+현재 위치가 관측한 지형 영역을 벗어났습니다.	The current location is outside the observed terrain area.	現在地が観測した地形の領域外です。
+현재 장소를 기억할 새 게임 화면을 확인합니다.	Checking a fresh game frame to remember the current location.	現在地を記憶するため新しいゲーム画面を確認しています。
+다른 앱으로 전환돼 장소 등록을 취소했습니다.	Location registration canceled because another app is in front.	別のアプリに切り替わったため場所登録をキャンセルしました。
+화면 중심을 현재 위치로 사용합니다. 카메라를 자동으로 올려 지형을 관측하고 경로를 구합니다. [현재 장소 기억]은 지금 서 있는 위치를 저장합니다.	Uses the screen center as your current position. Automatically raises the camera to observe terrain and plan a route. [Remember current location] saves where you are standing.	画面中心を現在位置とし、カメラを自動で上げて地形を観測し経路を計画します。[現在地を記憶]で今立っている場所を保存します。
+화면 중심을 현재 위치로 사용합니다. 카메라를 자동으로 올려 지형을 관측하고, 장애물을 피해 바닷가나 저장한 장소로 이동합니다.	Uses the screen center as your current position. Automatically raises the camera to observe terrain and avoid obstacles on the way to the coast or a saved location.	画面中心を現在位置とし、カメラを自動で上げて地形を観測し、障害物を避けて海岸や保存した場所へ移動します。
+카메라를 자동으로 올려 지형을 관측하고, 저장한 장소까지 장애물 모서리를 따라 이동합니다.	Automatically raises the camera to observe terrain, then follows a route around obstacle corners to the saved location.	カメラを自動で上げて地形を観測し、障害物の角を回る経路で保存した場所へ移動します。
+현재 위치에서 해안을 찾고, 가득 차면 판매 장소로 이동합니다. 카메라 방향은 자동으로 조정합니다.	Finds a coast from your current location and travels to the shop when full. Camera direction is adjusted automatically.	現在位置から海岸を探し、満杯になると売却場所へ移動します。カメラの向きは自動で調整します。
+현재 위치에서 관측한 지도와 제작 장소를 연결해 이동합니다.	Uses the observed map to plan a route from your current location to the crafting spot.	観測した地図を使って現在位置から製作場所までの経路を計画し移動します。
+현재 위치에서 관측한 지도와 메모리 매치 장소를 연결해 이동합니다.	Uses the observed map to plan a route from your current location to Memory Match.	観測した地図を使って現在位置からメモリーマッチまでの経路を計画し移動します。
+지형을 관측해 경로를 구하고 이동합니다.	Observing terrain, planning a route and moving.	地形を観測し、経路を計画して移動します。
+현재 위치와 주변 지형을 기억했습니다.	Saved your current location and surrounding terrain.	現在位置と周辺の地形を保存しました。
+지금 서 있는 위치를 저장 · 다음 이동에 관측 지도 사용	Save where you are standing · use the observed map on the next trip	今立っている場所を保存 · 次の移動に観測した地図を使用
+카메라 방향은 자동으로 조정합니다. 관측한 장애물과 점프 구간을 경로에 반영하며, 벽에 닿았다는 이유만으로 점프하지 않습니다.	Camera direction is adjusted automatically. Routes account for observed obstacles and jump sections; hitting a wall alone never triggers a jump.	カメラの向きは自動で調整します。観測した障害物とジャンプ区間を経路に反映し、壁に当たっただけではジャンプしません。
+홈에서 실행할 기능을 켜고 로블록스 (Sol's RNG)를 가로 전체 화면으로 여세요. 이동을 켜면 카메라를 자동으로 올려 지형을 관측하고 해안이나 저장한 장소까지 경로를 구합니다.\n\n이동을 끈 낚시는 Fish 버튼이 보이는 바닷가에서 시작하세요. 다른 앱에서는 입력을 기다리고 화면이 잠기면 정지합니다.	Enable the features you want on Home and open Roblox (Sol's RNG) in landscape fullscreen. With travel enabled, Acrux automatically raises the camera, observes terrain and plans a route to a coast or saved location.\n\nWith travel disabled, start fishing near a coast where the Fish button is visible. Input waits while another app is in front and stops when the screen locks.	ホームで使う機能を有効にし、Roblox（Sol's RNG）を横向きの全画面で開いてください。移動が有効ならカメラを自動で上げ、地形を観測して海岸や保存した場所までの経路を計画します。\n\n移動を無効にした釣りはFishボタンが見える海岸で始めてください。他のアプリが前面にある間は入力を待機し、画面ロック時は停止します。
+이동이 켜져 있으면 해안을 찾아 이동한 뒤 낚시합니다. 이동을 껐다면 Fish 버튼이 보이는 곳에서 시작하세요.\n\nAcrux 창이 낚시 창을 가린다면 위쪽 구석으로 옮겨 주세요.	With travel enabled, Acrux finds a coast and travels there before fishing. With travel disabled, start where the Fish button is visible.\n\nIf the Acrux overlay covers the fishing panel, move it to an upper corner.	移動が有効なら海岸を探して移動した後に釣りを始めます。無効ならFishボタンが見える場所で始めてください。\n\nAcruxの操作ウィンドウが釣りパネルを隠す場合は上の隅へ移動してください。
+낚시 칸에서 이동과 판매를 켜고 조이스틱과 점프 위치를 지정하세요. 카메라를 자동으로 올려 지형을 관측하고, 화면 중심의 현재 위치에서 목적지까지 경로를 구해 이동합니다. 목적지를 바라보거나 이동 시간을 기록할 필요가 없습니다.	Enable travel and selling in Fishing and set the joystick and jump positions. Acrux automatically raises the camera, observes terrain and plans a route from your centered position to the destination. You do not need to face the destination or record travel times.	釣り画面で移動と売却を有効にし、ジョイスティックとジャンプの位置を指定してください。カメラを自動で上げて地形を観測し、画面中心の現在位置から目的地までの経路を計画して移動します。目的地を向いたり移動時間を記録したりする必要はありません。
 설치·켜기·끄기·삭제 후 다시 켜면 적용됩니다.	Restart the app after installing, enabling, disabling or deleting a mod.	インストール・有効化・無効化・削除後はアプリを再起動すると反映されます。
-내 캐릭터의 표시 이름	My avatar's display name	自分のキャラクターの表示名
-다른 플레이어와 구분하는 데 사용합니다. 머리 위에 보이는 이름을 입력하세요. 비우면 바이옴 설정의 플레이어 이름을 사용합니다.	Identifies your avatar among other players. Enter the name shown above its head. Leave blank to use the player name in Biome settings.	他のプレイヤーと区別するために使います。頭上に表示される名前を入力してください。空欄の場合はバイオーム設定のプレイヤー名を使います。
-현재 위치와 지형을 화면에서 확인하고 이동합니다. [현재 장소 기억]은 자기 캐릭터의 이름·발·주변 지면과 목적지 표식이 함께 보일 때 사용할 수 있습니다.	Uses the current screen and terrain to navigate. [Remember current location] requires your avatar's name, feet, surrounding ground and the destination landmark to be visible together.	画面の現在位置と地形を確認して移動します。[現在地を記憶]には自分の名前、足、周囲の地面と目的地の目印が同時に見える必要があります。
-이동에 사용할 내 이름은 공통 위치 → 이동 · 기준 장소에서 설정합니다.	Set your avatar name under Shared positions → Movement · base spot.	移動に使う自分の名前は共通位置 → 移動・基準地点で設定します。
 장소 저장됨	Location saved	場所を保存済み
 저장된 장소 없음	No saved location	保存された場所なし
 위치 지정 시간이 초과됐습니다. 다시 시도하세요.	Position selection timed out. Try again.	位置指定がタイムアウトしました。もう一度お試しください。
 게임 창이 변경되어 위치 지정을 취소했습니다.	Position selection was canceled because the game window changed.	ゲームウィンドウが変わったため位置指定をキャンセルしました。
-캐릭터 이름 (표시명|계정명)	Avatar name (display name|account name)	キャラクター名（表示名|アカウント名）
-비우면 바이옴 설정의 플레이어 이름을 사용합니다.	Leave blank to use the player name in Biome settings.	空欄の場合はバイオーム設定のプレイヤー名を使用します。
-현재 위치와 지형을 화면에서 확인하고 장애물과 점프 구간을 고려해 이동합니다. 목적지 앞에서 [현재 장소 기억]을 누르면 실제 화면을 다음 이동에 사용합니다.	Uses the screen to locate the avatar, terrain, obstacles and jump sections. Press [Remember current location] at a destination to use its actual view on later trips.	画面で現在位置、地形、障害物とジャンプ区間を確認して移動します。目的地の前で[現在地を記憶]を押すと、次の移動で実際の画面を使用します。
 시간 기록 없이 이동 · 도착은 화면에서 확인	Travel without recorded timings · arrival verified on screen	時間記録を使わず移動 · 画面で到着を確認
 현재 장소 기억	Remember current location	現在地を記憶
 관측 취소	Cancel observation	観測をキャンセル

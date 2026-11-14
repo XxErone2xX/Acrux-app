@@ -407,11 +407,11 @@ impl Connection {
         self.fake(MOTION_NOTIFY_EVENT, 0, self.root, x, y)
     }
 
-    fn relative(&self, dy: i32) -> bool {
-        let Ok(dy) = i16::try_from(dy) else {
+    fn relative(&self, dx: i32, dy: i32) -> bool {
+        let (Ok(dx), Ok(dy)) = (i16::try_from(dx), i16::try_from(dy)) else {
             return false;
         };
-        self.fake(MOTION_NOTIFY_EVENT, 1, 0, 0, dy)
+        self.fake(MOTION_NOTIFY_EVENT, 1, 0, dx, dy)
     }
 
     fn pointer(&self) -> Option<(i32, i32, u32, Window)> {
@@ -1465,7 +1465,10 @@ fn drag(
         let x = start.0 + (f64::from(end.0 - start.0) * ratio).round() as i32;
         let y = start.1 + (f64::from(end.1 - start.1) * ratio).round() as i32;
         let state = runtime();
-        if !state.input_current(generation) || !connection.move_pointer(x, y) {
+        // Sober may recenter a captured cursor while rotating the camera.
+        // Relative segments remain valid even when its physical cursor moved.
+        if !state.input_current(generation) || !connection.relative(x - position.0, y - position.1)
+        {
             ok = false;
             break;
         }
@@ -1475,7 +1478,8 @@ fn drag(
     }
     if ok && keep_input(connection, target, generation) {
         let state = runtime();
-        ok = state.input_current(generation) && connection.move_pointer(end.0, end.1);
+        ok = state.input_current(generation)
+            && connection.relative(end.0 - position.0, end.1 - position.1);
         if ok {
             position = end;
         }
@@ -1581,12 +1585,34 @@ fn hold_keys(
     }
     if held.len() == count {
         let first = if jump { ms.min(50) } else { ms };
-        ok &= wait_input(
-            connection,
-            target,
-            generation,
-            Duration::from_millis(first.into()),
-        );
+        if !jump && matches!(keys, [0x49] | [0x4f]) {
+            // XTest suppresses another press while the key is already down.
+            // Pulse only zoom; walking/jumping stays continuously held.
+            let end = Instant::now() + Duration::from_millis(first.into());
+            while ok && Instant::now() < end {
+                ok &= wait_input(
+                    connection,
+                    target,
+                    generation,
+                    end.saturating_duration_since(Instant::now())
+                        .min(Duration::from_millis(33)),
+                );
+                if ok && Instant::now() < end {
+                    ok &= connection.key(held[0], false);
+                    ok &= keep_input(connection, target, generation);
+                    if ok {
+                        ok &= connection.key(held[0], true);
+                    }
+                }
+            }
+        } else {
+            ok &= wait_input(
+                connection,
+                target,
+                generation,
+                Duration::from_millis(first.into()),
+            );
+        }
         if let Some(code) = jump_code {
             // Lift only the jump key. Walking remains continuously held until
             // the bounded action completes or cancellation releases everything.
@@ -1653,7 +1679,19 @@ fn tilt(connection: &Connection, target: Target, pixels: i32, ms: u32, generatio
     if dragging {
         let start = Instant::now();
         let duration = Duration::from_millis(u64::from(ms.max(350)));
+        let mut next_zoom = Duration::from_millis(33);
         while start.elapsed() < duration && keep_input(connection, target, generation) {
+            let elapsed = start.elapsed();
+            if elapsed < Duration::from_millis(ms.into()) && elapsed >= next_zoom {
+                if !connection.key(zoom, false)
+                    || !keep_input(connection, target, generation)
+                    || !connection.key(zoom, true)
+                {
+                    ok = false;
+                    break;
+                }
+                next_zoom = elapsed + Duration::from_millis(33);
+            }
             let next = ((start.elapsed().as_secs_f64() / 0.35).min(1.0) * f64::from(pixels)).round()
                 as i32;
             if next != moved {
@@ -1661,7 +1699,7 @@ fn tilt(connection: &Connection, target: Target, pixels: i32, ms: u32, generatio
                 if !state.input_current(generation) {
                     break;
                 }
-                ok &= connection.relative(next - moved);
+                ok &= connection.relative(0, next - moved);
                 moved = next;
             }
             thread::sleep(Duration::from_millis(12));
@@ -1669,7 +1707,7 @@ fn tilt(connection: &Connection, target: Target, pixels: i32, ms: u32, generatio
         if keep_input(connection, target, generation) && moved != pixels {
             let state = runtime();
             if state.input_current(generation) {
-                ok &= connection.relative(pixels - moved);
+                ok &= connection.relative(0, pixels - moved);
                 moved = pixels;
             }
         }
@@ -2710,7 +2748,7 @@ mod tests {
         );
         assert!(connection.move_pointer(target.x + 20, target.y + 20));
         let before = connection.pointer().unwrap();
-        assert!(connection.relative(3));
+        assert!(connection.relative(0, 3));
         let after = connection.pointer().unwrap();
         assert_eq!((after.0, after.1), (before.0, before.1 + 3));
         // A slow focus reply must not revive a canceled manual key-down.
@@ -2859,6 +2897,7 @@ mod tests {
         );
 
         let generation = restart();
+        while c.poll_for_event().unwrap().is_some() {}
         let zooming = thread::spawn(|| {
             let peer = Connection::open().unwrap();
             thread::sleep(Duration::from_millis(60));
@@ -2881,6 +2920,17 @@ mod tests {
         assert!(
             !connection.pressed(0x4f),
             "pinch completion must lift the zoom key"
+        );
+        let zoom = connection.keycode(0x4f).unwrap();
+        let mut zoom_downs = 0;
+        while let Some(event) = c.poll_for_event().unwrap() {
+            if matches!(event, Event::KeyPress(e) if e.detail == zoom) {
+                zoom_downs += 1;
+            }
+        }
+        assert!(
+            zoom_downs >= 3,
+            "150ms zoom must produce repeated key events, got {zoom_downs}"
         );
 
         let generation = restart();

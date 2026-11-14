@@ -765,6 +765,32 @@ test('desktop fishing labels describe native travel and selling while Python tex
   assert.doesNotMatch(labels[1].textContent, /준비 중/);
 });
 
+test('native movement settings and setup omit legacy reset, reverse-base and timed-route requirements', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../src/web/app.js'), 'utf8');
+  const definitions = source.slice(source.indexOf('const MPOS ='), source.indexOf('function renderMpos('));
+  const requirements = source.slice(source.indexOf('const FEAT_TASKS ='), source.indexOf('const taskCalDone ='));
+  const read = native => {
+    const context = { window: { acruxDesktopApi: native }, POP_POS: [], MFISH_POS: [] };
+    vm.runInNewContext(definitions + requirements + '\nglobalThis.result = { positions: MPOS, tasks: FEAT_TASKS };', context);
+    return context.result;
+  };
+  const native = read(() => {});
+  const base = native.positions.base.tabs.find(([id]) => id === 'move');
+  assert.equal(base[3].length, 0);
+  assert.match(base[2], /카메라를 자동으로 올려/);
+  assert.equal(native.positions.mcraft.tabs.some(([id]) => id === 'revbase'), false);
+  for (const feature of ['mfish', 'mcraft', 'mmatch']) {
+    assert.equal(native.tasks[feature].some(id => /moveBase|craftRev|Place/.test(id)), false, feature);
+    const move = native.positions[feature].tabs.find(([id]) => id === 'move');
+    assert.doesNotMatch(move[2], /리셋|기준 장소.*출발|퀘스트 보드|→/);
+  }
+  const legacy = read(undefined);
+  assert.deepEqual([...legacy.positions.base.tabs.find(([id]) => id === 'move')[3]], ['chat_pos', 'collection_pos', 'collection_close']);
+  assert.equal(legacy.positions.mcraft.tabs.some(([id]) => id === 'revbase'), true);
+  assert.equal(legacy.tasks.mcraft.includes('craftRev'), true);
+  assert.equal(legacy.tasks.mmatch.includes('mmatchPlace'), true);
+});
+
 test('private session uses app controls while the legacy Python UI retains shortcuts', () => {
   const source = fs.readFileSync(path.join(__dirname, '../src/web/app.js'), 'utf8');
   const hintText = '내 서버에서 레어 바이옴이 시작되면 포션 사용 · 정지: F7';
@@ -1322,8 +1348,9 @@ test('mobile guides describe the current keyboard and panel calibration without 
   assert.match(readyGuide.find(step => step.check === 'textInputReady').body, /구형 Android.*때만/);
   const preparation = readyGuide.find(step => step.title === '로블록스 준비').body;
   assert.match(preparation, /실행할 기능/);
-  assert.match(preparation, /실제 화면에서 해안과 목적지/);
-  assert.match(preparation, /모호하면 멈춥니다/);
+  assert.match(preparation, /카메라를 자동으로 올려 지형을 관측/);
+  assert.match(preparation, /해안이나 저장한 장소까지 경로/);
+  assert.match(preparation, /화면이 잠기면 정지합니다/);
   const calibration = app.ui.guideSteps.fish.find(step => step.check === 'calibrated').body;
   assert.match(calibration, /실제 버튼과 낚시 패널을 읽어 보정/);
   assert.doesNotMatch(calibration, /한 번 던져/);

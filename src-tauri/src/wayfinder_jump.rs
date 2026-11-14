@@ -562,6 +562,14 @@ impl Jumper {
             error_pixels: error,
         })
     }
+    pub(crate) fn dispatch_at(&mut self, at: f64) {
+        if let Phase::Input { at: sent, .. } = &mut self.phase {
+            if at.is_finite() && at >= *sent {
+                *sent = at;
+            }
+        }
+    }
+
     pub(crate) fn ack(&mut self, id: u32, success: bool, at: f64) {
         let Phase::Input {
             id: pending,

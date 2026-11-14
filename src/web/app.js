@@ -1480,8 +1480,8 @@ const MPOS = {
                   [...POP_POS.map(([k]) => k), 'ocr_region'], false, 'itemuse'],
                  ['notice', '알림', '쓰는 기능: 자동 낚시 (인벤토리 가득) · 포션 자동 제작 (Auto Crafted)', ['notice_region']],
                  ['ui', '대화창', '쓰는 기능: 자동 낚시 (판매) · 상인 자동 구매', ['dialog_pos']],
-                 ['move', '이동 · 기준 장소', '모든 이동의 출발점 (리셋 → 카메라 정렬 → 걷기 → 줌) · 쓰는 기능: 자동 낚시 · 포션 자동 제작 · 오토 메모리 매치',
-                  ['chat_pos', 'collection_pos', 'collection_close'], false, 'movebase']] },
+                 ['move', '이동 · 기준 장소', window.acruxDesktopApi ? '카메라를 자동으로 올려 지형을 관측하고, 저장한 장소까지 장애물 모서리를 따라 이동합니다.' : '모든 이동의 출발점 (리셋 → 카메라 정렬 → 걷기 → 줌) · 쓰는 기능: 자동 낚시 · 포션 자동 제작 · 오토 메모리 매치',
+                  window.acruxDesktopApi ? [] : ['chat_pos', 'collection_pos', 'collection_close'], false, 'movebase']] },
   mfish: { box: 'mposFish',
            windows: [['panel_region', '낚시 대기 창 영역', 'Fish 버튼이 보일 때 창 테두리까지 드래그'],
                      ['reel_region', '낚시 미니게임 창 영역', '미니게임 중에 창 테두리까지 드래그'],
@@ -1499,7 +1499,7 @@ const MPOS = {
                    ['fish_btn', 'close_pos', 'title_pos', 'bar_region']],
                   ['sell', '판매', '인벤토리가 가득 차면 물고기를 팔고 돌아옴',
                    ['sell_fish_pos', 'first_fish_pos', 'sell_all_pos', 'confirm_sell_pos', 'shop_close_pos'], true, 'sell', 'sellauto'],
-                  ['move', '이동', '매크로를 켜면 낚시 장소로, 가득 차면 판매 장소로 이동 · 기준 장소(공통 위치 → 이동 · 기준 장소)에서 출발', [], false, 'places:mfish']] },
+                  ['move', '이동', window.acruxDesktopApi ? '현재 위치에서 해안을 찾고, 가득 차면 판매 장소로 이동합니다. 카메라 방향은 자동으로 조정합니다.' : '매크로를 켜면 낚시 장소로, 가득 차면 판매 장소로 이동 · 기준 장소(공통 위치 → 이동 · 기준 장소)에서 출발', [], false, 'places:mfish']] },
 };
 MPOS.mcraft = { box: 'mposCraft',
   points: [['search_pos', '검색창', '제작 창 오른쪽 위 Search'], ['shop_close_pos', '제작 창 X', "Stella's Workshop 오른쪽 위 X"],
@@ -1508,8 +1508,8 @@ MPOS.mcraft = { box: 'mposCraft',
   regions: [['list_region', '검색 결과 목록', '검색창 아래 포션 목록 전체']],
   tabs: [['shop', '제작 창', '실행할 땐 글자로 먼저 찾고, 못 찾으면 이 위치를 씀',
           ['search_pos', 'list_region', 'shop_close_pos', 'open_recipe_pos', 'add_all_pos', 'craft_pos', 'add_close_pos'], false, '', 'craftauto'],
-         ['revbase', '반대쪽 기준 장소', '낚시와 정반대 방향 · 리셋 → 카메라 정렬 → 내려다보기+줌 → S+D → S (끝에 A 같이)', [], false, 'movebaserev'],
-         ['move', '이동', '1번 퀘스트 보드 → E → 대기 → Exit → D → 2번 스텔라 포탈 → D = 포션 제작 장소', [], false, 'places:mcraft']] };
+         ...(!window.acruxDesktopApi ? [['revbase', '반대쪽 기준 장소', '낚시와 정반대 방향 · 리셋 → 카메라 정렬 → 내려다보기+줌 → S+D → S (끝에 A 같이)', [], false, 'movebaserev']] : []),
+         ['move', '이동', window.acruxDesktopApi ? '현재 위치에서 관측한 지도와 제작 장소를 연결해 이동합니다.' : '1번 퀘스트 보드 → E → 대기 → Exit → D → 2번 스텔라 포탈 → D = 포션 제작 장소', [], false, 'places:mcraft']] };
 MPOS.mmatch = { box: 'mposMatch',
   points: [['note_close_pos', '알림 창 X', 'E 를 누르면 뜨는 Notification 창 오른쪽 위 X'],
            ['note_btn_pos', 'Start / Available 버튼', '창 가운데 초록 버튼 (Start Memory Match · Available after)'],
@@ -1520,7 +1520,7 @@ MPOS.mmatch = { box: 'mposMatch',
           ['note_region', 'note_close_pos', 'note_btn_pos', 'ad_pos'], false, '', 'matchauto'],
          ['board', '카드 판', '카드 판이 떠 있을 때 자동 보정하면 카드 자리를 그 위치로 씀 · 안 하면 글자로 찾음',
           ['board_close_pos'], false, '', 'boardauto'],
-         ['move', '이동', '기준 장소 → 메모리 매치 보드 앞 (E 를 누를 수 있는 곳)', [], false, 'places:mmatch']] };
+         ['move', '이동', window.acruxDesktopApi ? '현재 위치에서 관측한 지도와 메모리 매치 장소를 연결해 이동합니다.' : '기준 장소 → 메모리 매치 보드 앞 (E 를 누를 수 있는 곳)', [], false, 'places:mmatch']] };
 MPOS.mmerch = { box: 'mposMerch',
   points: [['open_pos', 'Open 선택지', '대화 선택지 Open (글자로 못 찾을 때만)'],
            ['first_slot', '첫 번째 칸', '상점 맨 왼쪽 아이템 칸'],
@@ -1620,20 +1620,20 @@ function renderNativeTravel(el, kind, feat) {
     : kind === 'movebaserev' || feat === 'mcraft' ? [['craft', '포션 제작 장소']]
     : feat === 'mmatch' ? [['match', '메모리 매치 장소']]
     : [['coast', '낚시 장소'], ['sell', '판매 장소']];
-  el.innerHTML = `<p class="hint">카메라가 따라가는 화면 중심을 현재 위치로 사용합니다. [현재 장소 기억]은 주변 지면과 목적지 표식이 보일 때 사용할 수 있습니다.</p>`
+  el.innerHTML = `<p class="hint">화면 중심을 현재 위치로 사용합니다. 카메라를 자동으로 올려 지형을 관측하고 경로를 구합니다. [현재 장소 기억]은 지금 서 있는 위치를 저장합니다.</p>`
     + destinations.map(([destination, name]) => `<div class="row"><span>${name}<small>${lastMove?.remembered?.includes(destination) ? '장소 저장됨' : '저장된 장소 없음'} · 도착은 화면에서 확인</small></span><span class="pos"><button class="btn mini" type="button" data-native-go="${destination}">이 장소로 이동</button><button class="btn mini ghost" type="button" data-native-mark="${destination}">현재 장소 기억</button></span></div>`).join('')
     + (feat === 'mfish' ? [['useMove', '시작할 때 낚시 장소로 이동'], ['useSell', '가득 차면 판매하러 가기']].map(([key, label]) => `<label class="row"><span>${label}</span><span class="switch"><input type="checkbox" data-native-travel="${key}" ${config[key] !== false && mfish()[key] !== false ? 'checked' : ''}><i></i></span></label>`).join('') : '')
     + `<div class="row"><span class="move-state">${esc(lastMove?.msg || '대기')}</span><span class="pos"><button class="btn mini ghost" type="button" data-native-cancel>관측 취소</button><button class="btn mini ghost" type="button" data-native-stop>이동 정지</button></span></div>`;
   el.querySelectorAll('[data-native-go]').forEach(b => b.addEventListener('click', async () => {
     await flushSave();
-    moveCall('go', { destination: b.dataset.nativeGo }, '화면에서 경로를 확인하며 이동합니다.');
+    moveCall('go', { destination: b.dataset.nativeGo }, '지형을 관측해 경로를 구하고 이동합니다.');
   }));
   el.querySelectorAll('[data-native-mark]').forEach(b => b.addEventListener('click', async () => {
     b.disabled = true;
     try {
       await flushSave();
       const r = await api('waypoint_mark', { destination: b.dataset.nativeMark });
-      toast(r.error || '실제 목적지 화면을 기억했습니다.');
+      toast(r.error || '현재 위치와 주변 지형을 기억했습니다.');
     } finally { b.disabled = false; }
   }));
   el.querySelector('[data-native-cancel]').addEventListener('click', () => moveCall('waypoint_cancel', {}, '목적지 관측을 취소했습니다.'));
@@ -1992,8 +1992,8 @@ for (const feat of ['mfish', 'mcraft', 'mmatch'])
 const FEAT_TASKS = { mpop: ['inv'], mitem: ['inv'], mblood: ['inv'],
   mmerch: ['inv', 'dialog', 'merchChat', 'merchShop'],
   mfish: window.acruxDesktopApi ? [] : ['fishWin', 'notice', 'moveBase', 'mfishPlace', 'fishSell', 'dialog'],
-  mcraft: ['notice', 'moveBase', 'craftRev', 'mcraftPlace', 'craftShop'],
-  mmatch: ['moveBase', 'mmatchPlace', 'matchNote', 'matchBoard'] };
+  mcraft: window.acruxDesktopApi ? ['craftShop'] : ['notice', 'moveBase', 'craftRev', 'mcraftPlace', 'craftShop'],
+  mmatch: window.acruxDesktopApi ? ['matchNote', 'matchBoard'] : ['moveBase', 'mmatchPlace', 'matchNote', 'matchBoard'] };
 const taskCalDone = t => !t.cal || !!featCfg(t.feat)[t.cal];
 const taskKeysOk = t => {
   if (t.places) return placesOk(t.places);

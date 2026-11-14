@@ -898,7 +898,25 @@ fn hold(
             held.key(native, target, 0x20, true)?;
         }
         let first = if jump { ms.min(50) } else { ms };
-        wait(native, target, generation, first)?;
+        if !jump && matches!(keys, [0x49] | [0x4f]) {
+            // Injected key-down has no OS auto-repeat guarantee. Roblox zoom
+            // responds to repeats, unlike continuously held movement keys.
+            let end = Instant::now() + Duration::from_millis(first.into());
+            while Instant::now() < end {
+                let part = end.saturating_duration_since(Instant::now());
+                wait(
+                    native,
+                    target,
+                    generation,
+                    part.as_millis().clamp(1, 33) as u32,
+                )?;
+                if Instant::now() < end {
+                    held.key(native, target, keys[0], true)?;
+                }
+            }
+        } else {
+            wait(native, target, generation, first)?;
+        }
         if jump {
             held.key(native, target, 0x20, false)?;
         }

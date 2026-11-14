@@ -853,8 +853,6 @@ Roblox에서 실행 중인 작업을 멈춘 뒤 위치를 지정하세요.	Stop 
 화면을 끌어서 포인터를 옮기세요	Drag to move the pointer	ドラッグしてポインターを移動してください
 위치 지정 창을 띄우지 못했습니다.	Could not open the position selector.	位置指定画面を開けませんでした。
 판매 위치 {0} / 6 저장됨	Selling positions {0} / 6 saved	売却位置 {0} / 6 を保存済み
-캐릭터 이름 (표시명|계정명)	Avatar name (display name|account name)	キャラクター名（表示名|アカウント名）
-비우면 바이옴 설정의 플레이어 이름을 사용합니다.	Leave blank to use the player name in Biome settings.	空欄の場合はバイオーム設定のプレイヤー名を使用します。
 Android 13 이상은 기존 키보드를 유지해 검색어와 수량을 입력합니다. 구형 Android는 홈에서 Acrux 입력기를 준비하세요. 위치가 비어 있으면 화면 글자를 먼저 찾습니다.	Android 13 and later use your current keyboard for searches and quantities. On older Android versions, prepare Acrux Input on Home. Unset positions are located by screen text first.	Android 13以降は現在のキーボードを使って検索語と数量を入力します。古いAndroidではホームでAcrux入力を準備してください。未指定の位置は最初に画面の文字で探します。
 Android 13 이상은 기존 키보드를 그대로 사용합니다. 구형 Android에서 아이템 검색과 수량 입력을 사용할 때만 Acrux 입력기를 켜고 선택하세요. 낚시만 사용하면 이 단계를 건너뛰어도 됩니다.	Android 13 and later keep your current keyboard. Enable and select Acrux Input only for item searches and quantities on older Android versions. You may skip this step for fishing alone.	Android 13以降は現在のキーボードをそのまま使用します。古いAndroidでアイテム検索や数量入力を使う場合のみAcrux入力を有効にして選択してください。釣りのみの場合はこの手順を省略できます。
 로블록스 위 Acrux 창의 [시작] 을 누르세요. 저장된 보정이 없으면 실제 버튼과 낚시 패널을 읽어 보정한 뒤 낚시를 시작합니다.\n\n진행 상태와 정지 버튼은 Acrux 창에서 확인하세요.	Press [Start] in Acrux over Roblox. If no calibration is saved, it reads the actual buttons and fishing panel, calibrates, then starts fishing.\n\nCheck progress and the Stop button in Acrux.	Roblox上のAcruxで[開始]を押してください。保存済みの調整がなければ実際のボタンと釣りパネルを読み取り、調整してから釣りを開始します。\n\n進行状況と停止ボタンはAcruxで確認してください。

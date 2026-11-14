@@ -239,17 +239,17 @@ function fishing() {
 function move() {
   const fish = group("mfish");
   return card("movement", "이동 · 판매",
-    text("카메라가 따라가는 화면 중심을 현재 위치로 사용합니다. 주변 지형을 확인하며 낚시 버튼이 보이는 바닷가까지 이동합니다.", 12)
+    text("화면 중심을 현재 위치로 사용합니다. 카메라를 자동으로 올려 지형을 관측하고, 장애물을 피해 바닷가나 저장한 장소로 이동합니다.", 12)
     + toggle("시작할 때 낚시 장소로 이동", 'data-macro="useMove"', macro.useMove !== false && fish.useMove !== false)
     + toggle("가득 차면 판매하러 가기", 'data-macro="useSell"', macro.useSell !== false && fish.useSell !== false)
-    + [ ["base", "기준 장소"], ["coast", "낚시 장소"], ["sell", "판매 장소"], ["craft", "포션 제작 장소"], ["match", "메모리 매치 장소"] ].map(([destination, name]) => row(name, "목적지 앞에서 현재 장소 기억 · 다음 이동에 실제 화면 사용", `<div class="buttons">${button("이동", "go:" + destination)}${button("현재 장소 기억", "mark:" + destination)}</div>`)).join("")
+    + [ ["base", "기준 장소"], ["coast", "낚시 장소"], ["sell", "판매 장소"], ["craft", "포션 제작 장소"], ["match", "메모리 매치 장소"] ].map(([destination, name]) => row(name, "지금 서 있는 위치를 저장 · 다음 이동에 관측 지도 사용", `<div class="buttons">${button("이동", "go:" + destination)}${button("현재 장소 기억", "mark:" + destination)}</div>`)).join("")
     + `<div class="buttons">${button("관측 취소", "task:waypoint_cancel")}${button("이동 정지", "task:move_stop", "danger")}</div>`)
   + card("sell", "판매", macroNumber("mfish", "e_wait", "대화 후 대기 (초)", .1, 30, .1)
     + macroNumber("mfish", "sell_max", "판매 최대 종류", 1, 500, 1)
     + macroNumber("mfish", "sell_delay", "판매 클릭 추가 대기 (초)", 0, 5, .1)
     + `<div class="buttons">${button("판매 위치 자동 보정", "task:sell_autocal")}${button("판매 테스트", "task:sell_test")}</div>`)
   + card("places", "이동 조작 위치", positionRows("base", [["stick_center", "조이스틱 가운데"], ["stick_edge", "조이스틱 바깥쪽"], ["jump_btn", "점프 버튼"]])
-    + text("지형과 목적지는 실제 화면에서 확인하며, 벽에 닿았다는 이유만으로 점프하지 않습니다.", 12)
+    + text("카메라 방향은 자동으로 조정합니다. 관측한 장애물과 점프 구간을 경로에 반영하며, 벽에 닿았다는 이유만으로 점프하지 않습니다.", 12)
     + `<div class="buttons">${button("제작 장소", "go:craft")}${button("메모리 매치 장소", "go:match")}${button("위치 · 길 모두 지우기", "clear-navigation", "danger")}</div>`);
 }
 function logs() {
@@ -694,17 +694,17 @@ const guideSteps: Record<GuideId, Step[]> = {
     { title: "접근성 권한 켜기", body: "매크로가 로블록스 화면을 터치하는 데 필요한 권한입니다.\n\n설정 → 접근성 → 설치된 앱 → Acrux Mobile → 켜기\n\n'제한된 설정' 으로 켜지지 않는다면, 설정 → 앱 → Acrux Mobile → 오른쪽 위 ⋮ → '제한된 설정 허용' 후 다시 켜 주세요.", check: "inputReady", action: "accessibility" },
     { title: "화면 캡처 시작", body: "매크로가 화면을 보고 낚시 상태와 버튼을 찾는 데 필요합니다. 화면은 녹화되거나 저장되지 않습니다.\n\n공유 창이 뜨면 '전체 화면' 을 선택해 주세요.", check: "captureReady", action: "capture" },
     { title: "글자 입력 준비", body: "Android 13 이상은 기존 키보드를 그대로 사용합니다. 구형 Android에서 아이템 검색과 수량 입력을 사용할 때만 Acrux 입력기를 켜고 선택하세요. 낚시만 사용하면 이 단계를 건너뛰어도 됩니다.", check: "textInputReady", action: "inputSetup", optional: true },
-    { title: "로블록스 준비", body: "홈에서 실행할 기능을 켜고 로블록스 (Sol's RNG)를 가로 전체 화면으로 여세요. 이동을 켰다면 실제 화면에서 해안과 목적지를 찾고, 위치나 지형이 모호하면 멈춥니다.\n\n이동을 끈 낚시는 Fish 버튼이 보이는 바닷가에서 시작하세요. 다른 앱에서는 입력을 기다리고 화면이 잠기면 정지합니다." },
+    { title: "로블록스 준비", body: "홈에서 실행할 기능을 켜고 로블록스 (Sol's RNG)를 가로 전체 화면으로 여세요. 이동을 켜면 카메라를 자동으로 올려 지형을 관측하고 해안이나 저장한 장소까지 경로를 구합니다.\n\n이동을 끈 낚시는 Fish 버튼이 보이는 바닷가에서 시작하세요. 다른 앱에서는 입력을 기다리고 화면이 잠기면 정지합니다." },
     { title: "준비 완료", body: "선택한 기능의 설정과 위치를 확인한 뒤 로블록스를 열어 시작하세요. 낚시가 선택돼 있으면 다음 보정 안내가 이어집니다." },
   ],
   fish: [
     { title: "낚시 보정", body: "[시작] 을 누르면 저장된 보정이 없을 때 자동으로 보정한 뒤 낚시합니다. 수동 보정은 Acrux 창 ⚙ → [낚시] 에서 할 수 있습니다." },
-    { title: "낚시 자리로 이동", body: "로블록스에서 낚시 자리로 이동해 Fish 버튼이 보이게 해 주세요.\n\nAcrux 창이 낚시 창을 가린다면 위쪽 구석으로 옮겨 주세요." },
+    { title: "낚시 자리로 이동", body: "이동이 켜져 있으면 해안을 찾아 이동한 뒤 낚시합니다. 이동을 껐다면 Fish 버튼이 보이는 곳에서 시작하세요.\n\nAcrux 창이 낚시 창을 가린다면 위쪽 구석으로 옮겨 주세요." },
     { title: "낚시 자동 보정", body: "로블록스 위 Acrux 창의 [시작] 을 누르세요. 저장된 보정이 없으면 실제 버튼과 낚시 패널을 읽어 보정한 뒤 낚시를 시작합니다.\n\n진행 상태와 정지 버튼은 Acrux 창에서 확인하세요.", check: "calibrated" },
     { title: "낚시 보정 완료", body: "자동 낚시는 [정지] 로 멈출 수 있습니다. 판매가 켜져 있으면 인벤토리가 가득 찼을 때 판매하러 이동합니다." },
   ],
   move: [
-    { title: "이동 설정", body: "낚시 칸에서 이동과 판매를 켜고 조이스틱과 점프 위치를 지정하세요. 화면에서 현재 위치와 장애물을 확인해 목적지로 이동합니다." },
+    { title: "이동 설정", body: "낚시 칸에서 이동과 판매를 켜고 조이스틱과 점프 위치를 지정하세요. 카메라를 자동으로 올려 지형을 관측하고, 화면 중심의 현재 위치에서 목적지까지 경로를 구해 이동합니다. 목적지를 바라보거나 이동 시간을 기록할 필요가 없습니다." },
   ],
   sell: [
     { title: "판매 설정", body: "판매 위치를 자동 보정하거나 판매 버튼 위치를 지정하세요. 판매 테스트는 판매 장소로 이동해 판매한 뒤 낚시를 재개합니다." },

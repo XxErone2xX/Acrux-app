@@ -69,6 +69,54 @@ fn claim_evidence(state: &mut Runtime, at: f64) -> bool {
     true
 }
 
+fn navigation_input_deadline(captured_at: f64, acquired_at: f64, processed_at: f64) -> Option<f64> {
+    (captured_at.is_finite()
+        && captured_at >= 0.
+        && acquired_at.is_finite()
+        && acquired_at >= captured_at
+        && acquired_at - captured_at <= 0.300
+        && processed_at.is_finite()
+        && processed_at >= acquired_at
+        && processed_at - acquired_at <= 5.)
+        .then(|| (processed_at + 0.300).min(captured_at + 5.300))
+}
+
+/// Map registration and route planning can outlast a short input-start window.
+/// Both transports grant that window after planning, within the same bounded
+/// processing budget as OCR. Capture time remains unchanged physical evidence.
+fn processed_frame_tick(
+    state: &mut Runtime,
+    geometry: (usize, usize),
+    frame: &vision::Frame<'_>,
+    at: f64,
+    acquired_at: f64,
+) -> (DeviceTick, f64) {
+    let navigating = state.wayfinder.is_some();
+    let processing_started = Instant::now();
+    let step = state.tick(at, geometry, Some(frame));
+    if !navigating {
+        return (step, at);
+    }
+    let processed_at = at + processing_started.elapsed().as_secs_f64();
+    if let Some(deadline) = state
+        .frame_captured
+        .and_then(|captured| navigation_input_deadline(captured, acquired_at, processed_at))
+    {
+        state.frame_expires = Some(deadline);
+        if matches!(step, DeviceTick::Input(_)) {
+            if let Some(navigation) = state.wayfinder.as_mut() {
+                navigation.dispatch_at(processed_at);
+            }
+        }
+        return (step, processed_at);
+    }
+    if matches!(step, DeviceTick::Input(_)) {
+        state.input_rejected("지형 처리 시간이 초과돼 이동 입력을 중지했습니다.");
+        return (DeviceTick::Wait, processed_at);
+    }
+    (step, processed_at)
+}
+
 fn observed_tick(
     state: &mut Runtime,
     geometry: (usize, usize),
@@ -101,7 +149,7 @@ fn observed_tick(
         return DeviceTick::Observe(Some(frame.coverage()));
     }
     state.ocr_words = words;
-    let step = state.tick(at, geometry, Some(frame));
+    let (step, _) = processed_frame_tick(state, geometry, frame, at, acquired);
     state.ocr_words.clear();
     step
 }
@@ -378,15 +426,25 @@ impl Runtime {
                 .as_ref()
                 .map(|runner| serde_json::to_value(runner.status()).unwrap_or_default())
                 .unwrap_or_else(|| self.last_automation.clone()),
-            remembered_destinations: self.wayfinding.memory.anchors.iter().fold(
-                Vec::new(),
-                |mut places, anchor| {
-                    if !places.contains(&anchor.destination) {
-                        places.push(anchor.destination);
+            remembered_destinations: self
+                .wayfinding
+                .memory
+                .anchors
+                .iter()
+                .map(|anchor| anchor.destination)
+                .chain(
+                    self.wayfinding
+                        .memory
+                        .atlas
+                        .iter()
+                        .flat_map(|atlas| atlas.places.iter().map(|place| place.destination)),
+                )
+                .fold(Vec::new(), |mut places, destination| {
+                    if !places.contains(&destination) {
+                        places.push(destination);
                     }
                     places
-                },
-            ),
+                }),
         }
     }
 
@@ -910,15 +968,22 @@ impl Runtime {
                 wayfinder::Tick::Wait(_) => DeviceTick::Wait,
                 wayfinder::Tick::Arrived => {
                     self.wayfinding.memory = navigation.memory();
+                    let saved = self.save(self.fishing.tuning);
+                    self.settings_error = saved.clone().err();
+                    if sdk::finish_mark(self, saved) {
+                        return Some(DeviceTick::Wait);
+                    }
                     if let Some(runner) = self.automation.as_mut() {
                         runner.travel_result(true, at);
                     }
-                    self.settings_error = self.save(self.fishing.tuning).err();
                     self.record();
                     return Some(DeviceTick::Wait);
                 }
                 wayfinder::Tick::Stopped(error) => {
                     self.wayfinding.memory = navigation.memory();
+                    if sdk::finish_mark(self, Err(error.clone())) {
+                        return Some(DeviceTick::Wait);
+                    }
                     if let Some(runner) = self.automation.as_mut() {
                         runner.travel_result(false, at);
                     }
@@ -1245,6 +1310,7 @@ impl Runtime {
 
     fn stop(&mut self, message: &'static str) {
         let was_running = self.dua.running;
+        let save_session = self.automation.is_some() || self.wayfinder.is_some();
         if let Some(request) = self.sdk_request.take() {
             request.cancel(message);
         }
@@ -1256,11 +1322,13 @@ impl Runtime {
             runner.stop_all();
             self.macro_settings = runner.config().clone();
             self.last_automation = serde_json::to_value(runner.status()).unwrap_or_default();
-            if self.settings.is_some() {
-                self.settings_error = self.save(self.fishing.tuning).err();
-            }
         }
-        self.wayfinder = None;
+        if let Some(navigation) = self.wayfinder.take() {
+            self.wayfinding.memory = navigation.memory();
+        }
+        if save_session && self.settings.is_some() {
+            self.settings_error = self.save(self.fishing.tuning).err();
+        }
         self.finish_tool(message);
         if was_running {
             services::emit_hook("macro", vec![false.into()]);
@@ -2245,12 +2313,16 @@ pub(crate) fn automation_call(
         return Err("이전 실행 요청이 취소됐습니다.".into());
     }
     if action == "waypoint_cancel" {
-        let cancel_input = matches!(state.sdk_request, Some(sdk::Request::Input { .. }));
+        let cancel_input = state.wayfinder.is_some()
+            || matches!(
+                state.sdk_request,
+                Some(sdk::Request::Input { .. } | sdk::Request::Mark { .. })
+            );
         if let Some(request) = state.sdk_request.take() {
             request.cancel("목적지 등록을 취소했습니다.");
         }
         if cancel_input {
-            state.stop("입력 요청을 취소했습니다.");
+            state.stop("이동·장소 등록을 취소했습니다.");
             state.record();
         }
         return Ok(json!({"ok":true}));
@@ -2594,6 +2666,27 @@ mod tests {
         assert_eq!(controls.stick_center.1, controls.stick_edge.1);
         assert!(settings.jump.is_some(), "desktop jump maps to Space");
         assert!(state.status().remembered_destinations.is_empty());
+    }
+
+    #[test]
+    fn navigation_processing_gets_a_bounded_input_window_without_refreshing_old_capture() {
+        let deadline = navigation_input_deadline(10., 10.02, 10.85).unwrap();
+        assert!((deadline - 11.15).abs() < 1e-9);
+        let state = Runtime {
+            frame_captured: Some(10.),
+            frame_expires: Some(deadline),
+            ..Runtime::default()
+        };
+        assert!(input_evidence_current(&state, 11.0));
+        assert!(!input_evidence_current(&state, 11.16));
+        assert_eq!(state.frame_captured, Some(10.));
+        // OCR and map work share one five-second budget and the original
+        // capture can never exceed 5.3 seconds, including the input window.
+        assert_eq!(navigation_input_deadline(10., 10.02, 15.), Some(15.3));
+        assert!(navigation_input_deadline(10., 10.02, 15.03).is_none());
+        assert!(navigation_input_deadline(10., 10.31, 10.85).is_none());
+        assert!(navigation_input_deadline(10., 10.02, 9.99).is_none());
+        assert!(navigation_input_deadline(10., 10.02, f64::NAN).is_none());
     }
 
     #[test]

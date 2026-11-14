@@ -16,6 +16,9 @@ use std::{
 
 #[path = "wayfinder_jump.rs"]
 mod jump;
+#[path = "wayfinder_map.rs"]
+mod map;
+pub(crate) use map::Atlas;
 
 pub(crate) use crate::navigator::Destination;
 const MAX_SECONDS: f64 = 240.;
@@ -38,6 +41,7 @@ pub(crate) struct Settings {
 #[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct Memory {
     pub anchors: Vec<Anchor>,
+    pub atlas: Option<Atlas>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -174,13 +178,14 @@ pub(crate) struct Wayfinder {
     jump_bootstrap: bool,
     survey_failed: bool,
     required_direction: Option<[f64; 2]>,
+    mapper: map::Mapper,
+    marking: bool,
+    exploring: bool,
 }
 
 impl Wayfinder {
-    /// A user-requested mark binds a visible, destination-specific landmark to
-    /// player-follow camera origin in this same captured frame.
-    /// Terrain and destination evidence remain required; no overhead name is read.
-    /// Automatic marks still require the real task UI.
+    /// Explicit registration names the current camera-center location. Facility
+    /// text and character appearance are not prerequisites for saving a place.
     pub(crate) fn mark(
         destination: Destination,
         settings: Settings,
@@ -200,23 +205,11 @@ impl Wayfinder {
                 "목적지 등록에는 새 전체 화면과 같은 화면의 글자 관측이 필요합니다.".into(),
             );
         }
-        let contact = avatar_contact(frame)?;
+        let contact = camera_contact(frame)?;
         let excluded = exclusions(frame, words, &finder.settings.excluded);
-        let grid = Grid::observe(frame, contact, &excluded)?;
-        if grid
-            .seeds(
-                contact.point,
-                [
-                    contact.point.0 * frame.width as f64,
-                    contact.point.1 * frame.height as f64,
-                ],
-                contact.radius,
-            )
-            .len()
-            < 3
-        {
-            return Err("현재 플레이어 주변의 지면이 충분히 보이지 않습니다.".into());
-        }
+        let mut grid = Grid::observe(frame, contact, &excluded)?;
+        finder.mapper.observe(frame, &mut grid, &excluded)?;
+        finder.mapper.mark(destination);
         let labels: &[&str] = match destination {
             Destination::Base => &[
                 "spawn",
@@ -241,17 +234,17 @@ impl Wayfinder {
             .into_iter()
             .filter(|w| w.rect.1 > 0.08 && w.rect.3 < 0.82)
             .collect();
-        if candidates.len() != 1 {
-            return Err("이 목적지의 실제 표식을 하나로 구분하지 못했습니다. 자기 캐릭터와 목적지 표식이 함께 보이게 해 주세요.".into());
+        if candidates.len() == 1 {
+            let word = &candidates[0];
+            let rect = expand(word.rect, 0.06, 0.12);
+            if let Some(anchor) =
+                capture_anchor(frame, rect, contact.point, destination, word.text.clone())
+            {
+                if anchor.approach.iter().all(|v| (-1.0..=2.0).contains(v)) {
+                    finder.remember(anchor);
+                }
+            }
         }
-        let word = &candidates[0];
-        let rect = expand(word.rect, 0.06, 0.12);
-        let anchor = capture_anchor(frame, rect, contact.point, destination, word.text.clone())
-            .ok_or("현재 화면의 목적지 표식 이미지를 저장하지 못했습니다.")?;
-        if !anchor.approach.iter().all(|v| (-1.0..=2.0).contains(v)) {
-            return Err("목적지 표식과 캐릭터가 너무 멀어 현재 위치를 등록할 수 없습니다.".into());
-        }
-        finder.remember(anchor);
         Ok(finder.memory())
     }
 
@@ -289,6 +282,18 @@ impl Wayfinder {
         {
             return Err("저장된 조이스틱 위치를 확인하세요.".into());
         }
+        let mapper = map::Mapper::new(settings.memory.atlas.clone())?;
+        let craft_stage = if destination == Destination::Craft
+            && settings.memory.atlas.as_ref().is_some_and(|atlas| {
+                atlas
+                    .places
+                    .iter()
+                    .any(|place| place.destination == Destination::Craft)
+            }) {
+            2
+        } else {
+            0
+        };
         Ok(Self {
             settings,
             state: Status {
@@ -309,7 +314,7 @@ impl Wayfinder {
             last_frame: f64::NEG_INFINITY,
             navigator: None,
             intermediate: false,
-            craft_stage: 0,
+            craft_stage,
             last_goal: None,
             pending_anchor: None,
             interaction_attempts: 0,
@@ -323,13 +328,49 @@ impl Wayfinder {
             jump_bootstrap: false,
             survey_failed: false,
             required_direction: None,
+            mapper,
+            marking: false,
+            exploring: false,
         })
+    }
+    pub(crate) fn start_mark(
+        destination: Destination,
+        settings: Settings,
+        now: f64,
+    ) -> Result<Self, String> {
+        let mut finder = Self::start(destination, settings, now)?;
+        finder.marking = true;
+        Ok(finder)
     }
     pub(crate) fn status(&self) -> Status {
         self.state.clone()
     }
     pub(crate) fn memory(&self) -> Memory {
-        self.settings.memory.clone()
+        let mut memory = self.settings.memory.clone();
+        memory.atlas = self.mapper.memory();
+        memory
+    }
+    /// Planning may consume the transport's processing budget. Pending input
+    /// starts when dispatched, while captured_at remains the physical evidence.
+    pub(crate) fn dispatch_at(&mut self, at: f64) {
+        if let Phase::Input {
+            at: sent, after, ..
+        } = &mut self.phase
+        {
+            if at.is_finite() && at >= *sent {
+                *sent = at;
+                if matches!(after, After::Navigate) {
+                    if let Some(navigator) = self.navigator.as_mut() {
+                        navigator.dispatch_at(at);
+                    }
+                }
+                if matches!(after, After::Jump(_)) {
+                    if let Some(jump) = self.jump_session.as_mut() {
+                        jump.runner.dispatch_at(at);
+                    }
+                }
+            }
+        }
     }
     pub(crate) fn ack(&mut self, success: bool, now: f64) {
         let Phase::Input {
@@ -452,7 +493,7 @@ impl Wayfinder {
         }
         self.last_frame = captured_at;
         self.state.observations += 1;
-        if task_ui(self.state.destination, frame, words) {
+        if !self.marking && task_ui(self.state.destination, frame, words) {
             if let Some(anchor) = self.pending_anchor.take() {
                 self.remember(anchor);
             }
@@ -464,27 +505,46 @@ impl Wayfinder {
         match self.phase {
             Phase::Camera(0) => self.emit(
                 Command::Gesture(Gesture::Drag {
-                    from: Point(0.80, 0.25),
-                    to: Point(0.80, 0.65),
-                    ms: 350,
+                    from: Point(0.80, 0.12),
+                    to: Point(0.80, 0.88),
+                    ms: 700,
                 }),
                 After::Camera(1),
-                350,
+                700,
                 "camera",
-                "가려지지 않은 시점으로 카메라를 올립니다.",
+                "카메라를 위에서 내려다보는 시점으로 올립니다.",
             ),
-            Phase::Camera(1) => self.emit(
+            Phase::Camera(n @ 1..=3) => self.emit(
                 Command::Gesture(Gesture::Pinch {
                     from: [Point(0.62, 0.30), Point(0.88, 0.30)],
                     to: [Point(0.70, 0.30), Point(0.80, 0.30)],
-                    ms: 300,
+                    ms: 900,
                 }),
-                After::Camera(2),
-                300,
+                After::Camera(n + 1),
+                900,
                 "camera",
                 "실제 주변 지형을 볼 수 있도록 시야를 넓힙니다.",
             ),
             Phase::Camera(_) => {
+                if self.marking {
+                    let settings = Settings {
+                        memory: self.memory(),
+                        ..self.settings.clone()
+                    };
+                    match Self::mark(self.state.destination, settings, geometry, frame, words) {
+                        Ok(memory) => {
+                            self.mapper =
+                                map::Mapper::new(memory.atlas.clone()).expect("validated map");
+                            self.settings.memory = memory;
+                            self.phase = Phase::Arrived;
+                            self.state.phase = "arrived";
+                            self.state.message =
+                                "위에서 관측한 지형에 현재 장소를 저장했습니다.".into();
+                            return Tick::Arrived;
+                        }
+                        Err(error) => return self.retry_observation(&error),
+                    }
+                }
                 self.phase = Phase::Locate;
                 self.locate(frame, words, now)
             }
@@ -531,20 +591,50 @@ impl Wayfinder {
         }
     }
     fn locate(&mut self, frame: &Frame<'_>, words: &[Word], now: f64) -> Tick {
-        let contact = match avatar_contact(frame) {
+        let contact = match camera_contact(frame) {
             Ok(v) => v,
             Err(e) => return self.retry_observation(&e),
         };
         let controls=match self.settings.controls.or_else(||detect_controls(frame)) {Some(v)=>v,None=>return self.stop("실제 조이스틱 가운데와 가장자리 위치가 필요합니다. 조이스틱이 보이게 하거나 기존 입력 위치를 지정하세요.")};
         self.settings.controls = Some(controls);
         let excluded = exclusions(frame, words, &self.settings.excluded);
-        let grid = match Grid::observe(frame, contact, &excluded) {
+        let mut grid = match Grid::observe(frame, contact, &excluded) {
             Ok(v) => v,
             Err(e) => return self.retry_observation(&e),
         };
+        if let Err(error) = self.mapper.observe(frame, &mut grid, &excluded) {
+            return self.retry_observation(&error);
+        }
         let goal = self.goal(frame, words, &grid, contact);
-        let Some((goal, label, anchor_box)) = goal else {
-            return self.retry_observation("현재 화면에서 목적지 표시나 안전한 해안 접근 영역을 확인하지 못했습니다. 관측된 표식이 없는 방향으로 걷지 않습니다.");
+        let mapped = self
+            .mapper
+            .next(self.state.destination, &grid, contact)
+            .filter(|goal| {
+                self.state.destination != Destination::Coast
+                    || !self
+                        .coast_rejected
+                        .iter()
+                        .any(|p| distance([p.0, p.1], [goal.point.0, goal.point.1]) < 0.06)
+            });
+        self.exploring = false;
+        let (goal, label, anchor_box) = if let Some(goal) = mapped {
+            self.exploring = !goal.arrival;
+            (goal.point, "mapped location".into(), None)
+        } else if let Some(goal) = goal {
+            if self.state.destination != Destination::Coast
+                && (self.state.destination != Destination::Craft || self.craft_stage >= 2)
+            {
+                self.mapper.remember_visible(self.state.destination, goal.0);
+            }
+            goal
+        } else if let Some(goal) = self.mapper.frontier(&grid, contact) {
+            self.exploring = true;
+            self.state.message = "누적 지형 지도의 미관측 경계를 향해 경로를 계산합니다.".into();
+            (goal, "terrain exploration".into(), None)
+        } else {
+            return self.retry_observation(
+                "관측한 지형에서 다음 통로를 찾지 못했습니다. 시야를 다시 확인합니다.",
+            );
         };
         let route = grid.route(contact.point, goal, contact.radius + contact.error + 3.);
         if route.as_ref().is_some_and(|r| r.len() == 1) {
@@ -553,6 +643,10 @@ impl Wayfinder {
             self.pending_anchor = anchor_box.and_then(|r| {
                 capture_anchor(frame, r, contact.point, self.state.destination, label)
             });
+            if self.exploring {
+                self.phase = Phase::Locate;
+                return observe();
+            }
             self.phase = Phase::Interact;
             return self.interact(frame, words, now);
         }
@@ -613,7 +707,7 @@ impl Wayfinder {
     ) -> Tick {
         let centered_grid;
         let (contact, grid) = if contact.physical {
-            let contact = match avatar_contact(frame) {
+            let contact = match camera_contact(frame) {
                 Ok(contact) => contact,
                 Err(error) => return self.retry_observation(&error),
             };
@@ -633,6 +727,16 @@ impl Wayfinder {
         let controls = self.settings.controls.unwrap();
         self.intermediate = intermediate;
         let clearance = contact.radius + contact.error + 3.;
+        if self.walk.is_none()
+            && !grid.clear(
+                grid.start,
+                clearance + frame.width.min(frame.height) as f64 * 0.035,
+            )
+        {
+            return self.retry_observation(
+                "첫 이동 방향을 측정할 주변 지면 여유가 부족합니다. 지형을 다시 관측합니다.",
+            );
+        }
         let waypoint_region = grid.approach(waypoint, clearance);
         let Some(waypoint_region) = waypoint_region else {
             return self.retry_observation("모서리 뒤 접근 영역의 발판 여유가 부족합니다.");
@@ -646,9 +750,6 @@ impl Wayfinder {
                     && !excluded.iter().any(|r| inside(*r, *p))
             })
             .collect();
-        if seeds.len() < 3 {
-            return self.retry_observation("같은 지면의 관측 범위가 부족합니다.");
-        }
         let observed = Observed {
             avatar_contact: contact.point,
             avatar_bounds: contact.bounds,
@@ -662,11 +763,17 @@ impl Wayfinder {
                 .collect(),
             clearance_pixels: clearance,
         };
-        let navigator =
-            match Navigator::from_frame(self.state.destination, frame, &observed, controls, now) {
-                Ok(v) => v,
-                Err(e) => return self.retry_observation(&e),
-            };
+        let navigator = match Navigator::from_route_frame(
+            self.state.destination,
+            frame,
+            &observed,
+            controls,
+            now,
+            self.walk,
+        ) {
+            Ok(v) => v,
+            Err(e) => return self.retry_observation(&e),
+        };
         self.navigator = Some(navigator);
         self.phase = Phase::Navigate;
         self.unknown_frames = 0;
@@ -680,11 +787,19 @@ impl Wayfinder {
         observe()
     }
     fn navigate(&mut self, frame: &Frame<'_>, words: &[Word], now: f64) -> Tick {
-        let contact = match avatar_contact(frame) {
+        let contact = match camera_contact(frame) {
             Ok(v) => v,
             Err(e) => return self.retry_observation(&e),
         };
         self.state.avatar = Some(contact.point);
+        // Keep the terrain atlas moving with the camera even while a local
+        // segment runs; the next corner may no longer be in the same image.
+        let excluded = exclusions(frame, words, &self.settings.excluded);
+        if let Ok(mut grid) = Grid::observe(frame, contact, &excluded) {
+            if let Err(error) = self.mapper.observe(frame, &mut grid, &excluded) {
+                return self.retry_observation(&error);
+            }
+        }
         let Some(n) = self.navigator.as_mut() else {
             self.phase = Phase::Locate;
             return observe();
@@ -722,7 +837,7 @@ impl Wayfinder {
                     self.jump_bootstrap = false;
                     self.phase = Phase::Locate;
                     observe()
-                } else if self.intermediate {
+                } else if self.intermediate || self.exploring {
                     self.phase = Phase::Locate;
                     observe()
                 } else {
@@ -1433,18 +1548,12 @@ impl Wayfinder {
     }
     fn interact(&mut self, _frame: &Frame<'_>, words: &[Word], _now: f64) -> Tick {
         if self.state.destination == Destination::Base {
-            if !has(
-                words,
-                &["spawn", "스폰", "리스폰", "mostrolls", "가장많이뽑은사람"],
-            ) {
-                return self.retry_observation("Spawn 기준점 표식을 다시 확인합니다.");
-            }
             if let Some(anchor) = self.pending_anchor.take() {
                 self.remember(anchor);
             }
             self.phase = Phase::Arrived;
             self.state.phase = "arrived";
-            self.state.message = "관측한 Spawn 기준점 접근 영역에 도착했습니다.".into();
+            self.state.message = "지형 지도에 저장한 기준 장소에 도착했습니다.".into();
             return Tick::Arrived;
         }
         if self.state.destination == Destination::Coast {
@@ -1726,32 +1835,22 @@ fn exclusions(frame: &Frame<'_>, words: &[Word], saved: &[Rect]) -> Vec<Rect> {
 /// The game camera follows the player. Walking and remembering a place use
 /// this camera origin even when an aura hides the body or names are disabled.
 /// The central occupancy mask is not evidence of feet, height or grounding.
-fn avatar_contact(frame: &Frame<'_>) -> Result<Contact, String> {
+fn camera_contact(frame: &Frame<'_>) -> Result<Contact, String> {
     if !frame.is_full() || frame.width < 16 || frame.height < 16 {
         return Err("플레이어 중심을 확인할 전체 게임 화면이 필요합니다.".into());
     }
-    let radius = (frame.height as f64 * 0.035).max(4.);
-    let dx = radius / frame.width as f64;
-    let dy = radius / frame.height as f64;
-    let mut contact = Contact {
+    let radius = (frame.height as f64 * 0.015).max(4.);
+    // Mask the camera subject's central occlusion without trying to detect or
+    // identify it. This visual mask is independent of the walking clearance.
+    let dx = (radius / frame.width as f64).max(0.04);
+    let dy = (radius / frame.height as f64).max(0.10);
+    let contact = Contact {
         point: Point(0.5, 0.5),
-        bounds: Rect(0.5 - dx, 0.5 - dy * 2., 0.5 + dx, 0.5 + dy),
+        bounds: Rect(0.5 - dx, 0.5 - dy, 0.5 + dx, 0.5 + dy),
         radius,
         error: (frame.height as f64 / 540.).max(1.) * 3.,
         physical: false,
     };
-    if let Ok(body) = physical_contact(frame) {
-        // A visible body improves the occupancy mask; its location does not
-        // replace the player-follow camera origin used by walking.
-        contact.bounds = Rect(
-            body.bounds.0.min(contact.bounds.0),
-            body.bounds.1.min(contact.bounds.1),
-            body.bounds.2.max(contact.bounds.2),
-            body.bounds.3.max(contact.bounds.3),
-        );
-        contact.radius = contact.radius.max(body.radius);
-        contact.error = contact.error.max(body.error);
-    }
     Ok(contact)
 }
 
@@ -1896,7 +1995,7 @@ fn body_contact(frame: &Frame<'_>, area: (usize, usize, usize, usize)) -> Result
         });
     }
     if candidates.len() != 1 {
-        return Err("자기 캐릭터의 두 발과 지면 접점이 가려져 있습니다. 오라·다른 플레이어와 구분되는 새 화면이 필요합니다.".into());
+        return Err("점프 착지를 측정할 화면 중심의 발과 지면이 가려져 있습니다.".into());
     }
     Ok(candidates[0])
 }
@@ -2204,10 +2303,17 @@ impl Grid {
             contact.point.0 * geometry.0 as f64,
             contact.point.1 * geometry.1 as f64,
         );
+        let sample_radius = if contact.physical {
+            contact.radius * 1.6
+        } else {
+            ((self_mask.2 - self_mask.0) * geometry.0 as f64 * 0.5)
+                .max((self_mask.3 - self_mask.1) * geometry.1 as f64 * 0.5)
+                + step as f64 * 2.
+        };
         for n in 0..16 {
             let a = n as f64 * std::f64::consts::TAU / 16.;
-            let xx = (px + a.cos() * contact.radius * 1.6).round();
-            let yy = (py + a.sin() * contact.radius * 1.6).round();
+            let xx = (px + a.cos() * sample_radius).round();
+            let yy = (py + a.sin() * sample_radius).round();
             if xx >= 0. && yy >= 0. {
                 let (x, y) = (xx as usize / step, yy as usize / step);
                 if x < w && y < h && visible[y * w + x] {
@@ -2216,7 +2322,7 @@ impl Grid {
             }
         }
         let models: Vec<_> = seeds.iter().map(|&i| colors[i]).collect();
-        let model = median_rgb(&models).ok_or("발 주변 지면을 관측하지 못했습니다.")?;
+        let model = median_rgb(&models).ok_or("화면 중심 주변 지면을 관측하지 못했습니다.")?;
         if model.iter().copied().max().unwrap() < 22 {
             return Err("지면이 너무 어두워 발판과 경계를 확인할 수 없습니다.".into());
         }
@@ -2240,7 +2346,7 @@ impl Grid {
             }
         }
         if queue.len() < 3 {
-            return Err("발 주변에서 같은 지면의 관측을 충분히 구분하지 못했습니다.".into());
+            return Err("화면 중심 주변의 지면 관측이 부족합니다.".into());
         }
         while let Some(at) = queue.pop_front() {
             let (x, y) = (at % w, at / w);
@@ -3451,13 +3557,13 @@ mod tests {
     fn camera_origin_does_not_need_names_or_visible_body_and_is_not_a_jump_contact() {
         let mut b = floor();
         body(&mut b); // Another silhouette is deliberately away from camera center.
-        let contact = avatar_contact(&frame(&b)).unwrap();
+        let contact = camera_contact(&frame(&b)).unwrap();
         assert_eq!((contact.point.0, contact.point.1), (0.5, 0.5));
         assert!(!contact.physical);
         assert_eq!(grounding(&frame(&b), contact).0, jump::Grounding::Unknown);
         assert!(physical_contact(&frame(&b)).is_err());
         paint(&mut b, (140, 100, 175, 150), [245; 3]);
-        let obscured = avatar_contact(&frame(&b)).unwrap();
+        let obscured = camera_contact(&frame(&b)).unwrap();
         assert_eq!(
             (obscured.point.0, obscured.point.1),
             (contact.point.0, contact.point.1)
@@ -3466,7 +3572,7 @@ mod tests {
     }
 
     #[test]
-    fn bright_clothing_uses_visible_body_shape_and_mark_requires_real_landmark() {
+    fn current_place_registration_needs_neither_identity_nor_a_facility_label() {
         let mut b = floor();
         body(&mut b);
         for pixel in b.chunks_exact_mut(4) {
@@ -3489,14 +3595,20 @@ mod tests {
         .unwrap();
         assert_eq!(memory.anchors.len(), 1);
         assert_eq!(memory.anchors[0].destination, Destination::Sell);
-        assert!(Wayfinder::mark(
+        let saved = Wayfinder::mark(
             Destination::Match,
             settings.clone(),
             (W, H),
             &frame(&b),
-            &words
+            &[],
         )
-        .is_err());
+        .unwrap();
+        assert!(saved.anchors.is_empty());
+        assert_eq!(saved.atlas.as_ref().unwrap().places.len(), 1);
+        assert_eq!(
+            saved.atlas.as_ref().unwrap().places[0].destination,
+            Destination::Match
+        );
         assert!(
             Wayfinder::mark(Destination::Sell, settings, (W + 1, H), &frame(&b), &words).is_err()
         );
@@ -3514,7 +3626,7 @@ mod tests {
             word("Captain", (190, 120, 227, 135)),
             word("Flarg", (232, 121, 260, 135)),
         ];
-        let contact = avatar_contact(&f).unwrap();
+        let contact = camera_contact(&f).unwrap();
         assert_eq!((contact.point.0, contact.point.1), (0.5, 0.5));
         let settings = Settings {
             ..Settings::default()
@@ -3567,7 +3679,7 @@ mod tests {
         let other_words = [word("12345", (140, 100, 170, 112))];
         assert_eq!(exclusions(&frame(&b), &center_words, &[]).len(), 3);
         assert_eq!(exclusions(&frame(&b), &other_words, &[]).len(), 3);
-        let contact = avatar_contact(&frame(&b)).unwrap();
+        let contact = camera_contact(&frame(&b)).unwrap();
         assert_eq!((contact.point.0, contact.point.1), (0.5, 0.5));
     }
 
@@ -3763,6 +3875,45 @@ mod tests {
         assert!(
             finder.memory().anchors.is_empty(),
             "approach alone must not teach a confirmed destination"
+        );
+    }
+
+    #[test]
+    fn remembered_terrain_place_starts_moving_without_a_destination_label() {
+        let terrain = floor();
+        let memory = Wayfinder::mark(
+            Destination::Base,
+            Settings::default(),
+            (W, H),
+            &frame(&terrain),
+            &[],
+        )
+        .unwrap();
+        let settings = Settings {
+            memory,
+            controls: Some(Controls {
+                stick_center: Point(0.15, 0.78),
+                stick_edge: Point(0.20, 0.78),
+            }),
+            ..Settings::default()
+        };
+        let pixels = follow_camera(&terrain, W, H, [W / 2 + 60, H / 2]);
+        let mut finder = Wayfinder::start(Destination::Base, settings, 0.).unwrap();
+        finder.phase = Phase::Locate;
+        let first = finder.tick(0.1, (W, H), Some(&frame(&pixels)), &[], Some((0.1, 0.4)));
+        assert!(
+            matches!(first, Tick::Observe { .. }),
+            "{}",
+            finder.state.message
+        );
+        assert!(finder.navigator.is_some(), "{}", finder.state.message);
+        let tick = finder.tick(0.4, (W, H), Some(&frame(&pixels)), &[], Some((0.4, 0.7)));
+        let Tick::Command(Command::Gesture(Gesture::Stick { from, to, .. })) = tick else {
+            panic!("{}", finder.state.message)
+        };
+        assert!(
+            to.0 < from.0,
+            "saved terrain place is left of the centered camera origin"
         );
     }
 

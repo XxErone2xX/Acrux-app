@@ -12,13 +12,16 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 pub(crate) enum Request {
+    Mark {
+        ticket: u64,
+        reply: mpsc::Sender<Result<Value, String>>,
+    },
     Inspect {
         ticket: u64,
         method: String,
         rect: Option<Rect>,
         pixels: Option<[usize; 4]>,
         reply: mpsc::Sender<Result<Value, String>>,
-        mark: Option<String>,
     },
     Input {
         ticket: u64,
@@ -60,12 +63,16 @@ pub(crate) fn capabilities() -> Value {
 impl Request {
     fn ticket(&self) -> u64 {
         match self {
-            Self::Inspect { ticket, .. } | Self::Input { ticket, .. } => *ticket,
+            Self::Mark { ticket, .. }
+            | Self::Inspect { ticket, .. }
+            | Self::Input { ticket, .. } => *ticket,
         }
     }
     pub(crate) fn cancel(self, error: &str) {
         let reply = match self {
-            Self::Inspect { reply, .. } | Self::Input { reply, .. } => reply,
+            Self::Mark { reply, .. } | Self::Inspect { reply, .. } | Self::Input { reply, .. } => {
+                reply
+            }
         };
         let _ = reply.send(Err(error.into()));
     }
@@ -168,15 +175,32 @@ pub(crate) fn call(payload: Value, generation: i32) -> Result<Value, String> {
     let (tx, rx) = mpsc::channel();
     static SEQUENCE: AtomicU64 = AtomicU64::new(0);
     let ticket = SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let timeout = Duration::from_secs(if method == "waypoint_mark" { 60 } else { 25 });
     match method.as_str() {
-        "observe" | "ocr_boxes" | "ocr_region" | "ocr_inventory" | "fishing_check"
-        | "client_rect" | "grab" | "waypoint_mark" => {
-            if method == "waypoint_mark" && state.active() {
+        "waypoint_mark" => {
+            if state.active() {
                 return Err("현재 위치를 등록하기 전에 작업을 중지하세요.".into());
             }
-            let region = if ["grab", "waypoint_mark", "client_rect", "fishing_check"]
-                .contains(&method.as_str())
-            {
+            let destination = serde_json::from_value(arg(0))
+                .map_err(|_| "등록할 목적지를 확인하세요.".to_owned())?;
+            state.wayfinder = Some(crate::wayfinder::Wayfinder::start_mark(
+                destination,
+                state.movement_settings(),
+                now(),
+            )?);
+            // Registration uses the same camera preparation and acknowledged
+            // input path as travel. A single raw inspection can save a map from
+            // a different camera pitch and cannot be matched on the next trip.
+            state.dua.running = true;
+            state.generation = state.generation.wrapping_add(1);
+            state.phone.cancel();
+            state.sdk_request = Some(Request::Mark { ticket, reply: tx });
+            state.macro_message = Some("카메라를 위로 올려 현재 장소의 지형을 기억합니다.".into());
+            state.record();
+        }
+        "observe" | "ocr_boxes" | "ocr_region" | "ocr_inventory" | "fishing_check"
+        | "client_rect" | "grab" => {
+            let region = if ["grab", "client_rect", "fishing_check"].contains(&method.as_str()) {
                 None
             } else if arg(0).is_null() && kw["rect"].is_null() {
                 None
@@ -204,23 +228,12 @@ pub(crate) fn call(payload: Value, generation: i32) -> Result<Value, String> {
             } else {
                 None
             };
-            let mark = if method == "waypoint_mark" {
-                Some(
-                    arg(0)
-                        .as_str()
-                        .ok_or("등록할 목적지가 없습니다.")?
-                        .to_owned(),
-                )
-            } else {
-                None
-            };
             state.sdk_request = Some(Request::Inspect {
                 ticket,
                 method,
                 rect: region,
                 pixels,
                 reply: tx,
-                mark,
             });
         }
         _ => {
@@ -276,7 +289,7 @@ pub(crate) fn call(payload: Value, generation: i32) -> Result<Value, String> {
         }
     }
     drop(state);
-    match rx.recv_timeout(Duration::from_secs(25)) {
+    match rx.recv_timeout(timeout) {
         Ok(result) => result,
         Err(_) => {
             let mut state = runtime();
@@ -285,10 +298,13 @@ pub(crate) fn call(payload: Value, generation: i32) -> Result<Value, String> {
                 .as_ref()
                 .is_some_and(|r| r.ticket() == ticket)
             {
+                let marking = matches!(state.sdk_request, Some(Request::Mark { .. }));
                 if let Some(request) = state.sdk_request.take() {
                     request.cancel("SDK 작업 시간이 초과됐습니다.");
                 }
-                if let Some(runner) = state.automation.as_mut() {
+                if marking {
+                    state.stop("장소 등록 시간이 초과돼 입력을 중지했습니다.");
+                } else if let Some(runner) = state.automation.as_mut() {
                     runner.stop_feature("sdk");
                 }
                 state.generation = state.generation.wrapping_add(1);
@@ -316,7 +332,6 @@ pub(crate) fn inspect(
         rect,
         pixels,
         reply,
-        mark,
         ..
     }) = state.sdk_request.take()
     else {
@@ -328,30 +343,6 @@ pub(crate) fn inspect(
         }
         if method == "fishing_check" {
             return state.fishing.check(frame);
-        }
-        if let Some(destination) = mark {
-            let destination = match destination.as_str() {
-                "base" => crate::navigator::Destination::Base,
-                "coast" => crate::navigator::Destination::Coast,
-                "sell" => crate::navigator::Destination::Sell,
-                "craft" => crate::navigator::Destination::Craft,
-                "match" => crate::navigator::Destination::Match,
-                _ => return Err("목적지를 확인하세요.".into()),
-            };
-            let settings = state.movement_settings();
-            let memory = crate::wayfinder::Wayfinder::mark(
-                destination,
-                settings,
-                geometry,
-                frame,
-                &state.ocr_words,
-            )?;
-            let previous = std::mem::replace(&mut state.wayfinding.memory, memory);
-            if let Err(error) = state.save(state.fishing.tuning) {
-                state.wayfinding.memory = previous;
-                return Err(error);
-            }
-            return Ok(json!({"ok":true,"message":"현재 관측에서 목적지 기준점을 저장했습니다."}));
         }
         let words: Vec<_> = state
             .ocr_words
@@ -445,16 +436,28 @@ pub(crate) fn inspect(
             }
         }
     })();
-    if method == "waypoint_mark" {
-        state.macro_message = Some(match &result {
-            Ok(_) => "현재 관측에서 목적지 기준점을 저장했습니다.".into(),
-            Err(error) => error.clone(),
-        });
-        state.record();
-    }
     let _ = reply.send(result);
     state.ocr_words.clear();
     Some(DeviceTick::Wait)
+}
+
+/// Resolve the registration RPC after the shared camera/input controller has
+/// captured a settled overhead map (or stopped). Ordinary travel has no waiter.
+pub(crate) fn finish_mark(state: &mut Runtime, result: Result<(), String>) -> bool {
+    if !matches!(state.sdk_request, Some(Request::Mark { .. })) {
+        return false;
+    }
+    let Some(Request::Mark { reply, .. }) = state.sdk_request.take() else {
+        unreachable!()
+    };
+    state.stop("현재 장소의 지형을 기억했습니다.");
+    if let Err(error) = &result {
+        state.macro_message = Some(error.clone());
+    }
+    state.record();
+    let _ = reply
+        .send(result.map(|()| json!({"ok":true,"message":"현재 장소의 지형을 기억했습니다."})));
+    true
 }
 
 pub(crate) fn before_tick(state: &mut Runtime) {
@@ -532,7 +535,6 @@ mod tests {
             rect: Some(Rect(0.25, 0., 0.75, 1.)),
             pixels: None,
             reply: tx,
-            mark: None,
         });
         assert!(matches!(
             inspect(&mut state, (4, 2), None),
@@ -573,24 +575,65 @@ mod tests {
     }
 
     #[test]
+    fn place_registration_keeps_its_waiter_until_shared_camera_input_is_acknowledged() {
+        let (tx, rx) = mpsc::channel();
+        let mut state = Runtime {
+            capture: true,
+            input: true,
+            ..Runtime::default()
+        };
+        state.wayfinder = Some(
+            crate::wayfinder::Wayfinder::start_mark(
+                crate::navigator::Destination::Sell,
+                state.movement_settings(),
+                0.,
+            )
+            .unwrap(),
+        );
+        state.dua.running = true;
+        state.sdk_request = Some(Request::Mark {
+            ticket: 4,
+            reply: tx,
+        });
+        assert!(inspect(&mut state, (480, 270), None).is_none());
+        let pixels = vec![60; 480 * 270 * 4];
+        let frame = Frame::new(&pixels, 480, 270, 1920, 4, false).unwrap();
+        assert!(matches!(
+            crate::observed_tick(&mut state, (480, 270), &frame, Vec::new(), 0.1, 0.1, None),
+            DeviceTick::Input(crate::GameInput::Command(Command::Gesture(
+                crate::device::Gesture::Drag { .. }
+            )))
+        ));
+        assert!(matches!(rx.try_recv(), Err(mpsc::TryRecvError::Empty)));
+        assert!(matches!(
+            state.tick(0.2, (480, 270), None),
+            DeviceTick::Wait
+        ));
+        assert!(matches!(rx.try_recv(), Err(mpsc::TryRecvError::Empty)));
+        state.device_ack_at(0.45);
+        state.stop("등록 취소");
+        assert_eq!(rx.recv().unwrap().unwrap_err(), "등록 취소");
+        assert!(!state.dua.running && state.wayfinder.is_none());
+    }
+
+    #[test]
     fn failed_place_registration_remains_visible_in_status_and_log() {
         let (tx, rx) = mpsc::channel();
         let mut state = Runtime::default();
-        state.sdk_request = Some(Request::Inspect {
+        state.sdk_request = Some(Request::Mark {
             ticket: 1,
-            method: "waypoint_mark".into(),
-            rect: None,
-            pixels: None,
             reply: tx,
-            mark: Some("sell".into()),
         });
-        let pixels = vec![60; 480 * 270 * 4];
-        let frame = Frame::new(&pixels, 480, 270, 1920, 4, false).unwrap();
-        inspect(&mut state, (480, 270), Some(&frame));
+        state.dua.running = true;
+        assert!(finish_mark(
+            &mut state,
+            Err("지형이 보이지 않습니다.".into())
+        ));
         let error = rx.recv().unwrap().unwrap_err();
         assert_eq!(state.status().message, error);
         assert_eq!(state.log.back().unwrap().1, error);
         assert!(state.wayfinding.memory.anchors.is_empty());
+        assert!(!state.dua.running && state.sdk_request.is_none());
     }
     #[test]
     fn screenshot_rpc_returns_actual_requested_bgra_and_stop_cancels_waiter() {
@@ -601,7 +644,6 @@ mod tests {
             rect: None,
             pixels: Some([1, 0, 1, 2]),
             reply: tx,
-            mark: None,
         });
         assert!(matches!(
             inspect(&mut state, (2, 2), None),
@@ -626,7 +668,6 @@ mod tests {
             rect: None,
             pixels: None,
             reply: tx,
-            mark: None,
         });
         state.stop("중지됨");
         assert_eq!(rx.recv().unwrap().unwrap_err(), "중지됨");

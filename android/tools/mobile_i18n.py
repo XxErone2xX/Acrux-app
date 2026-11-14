@@ -771,8 +771,6 @@ E = [
 
     ['판매 위치 {0} / 6 저장됨', 'Selling positions {0} / 6 saved', '売却位置 {0} / 6 を保存済み'],
 
-    ['캐릭터 이름 (표시명|계정명)', 'Avatar name (display name|account name)', 'キャラクター名（表示名|アカウント名）'],
-    ['비우면 바이옴 설정의 플레이어 이름을 사용합니다.', 'Leave blank to use the player name in Biome settings.', '空欄の場合はバイオーム設定のプレイヤー名を使用します。'],
 
     # Current native text-input and selected-feature guides.
     ['Android 13 이상은 기존 키보드를 유지해 검색어와 수량을 입력합니다. 구형 Android는 홈에서 Acrux 입력기를 준비하세요. 위치가 비어 있으면 화면 글자를 먼저 찾습니다.', 'Android 13 and later use your current keyboard for searches and quantities. On older Android versions, prepare Acrux Input on Home. Unset positions are located by screen text first.', 'Android 13以降は現在のキーボードを使って検索語と数量を入力します。古いAndroidではホームでAcrux入力を準備してください。未指定の位置は最初に画面の文字で探します。'],

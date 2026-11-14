@@ -474,9 +474,10 @@ pub(super) fn observe_with_age(
     state.phone.observation = None;
     state.frame_expires = Some(at + 0.300 - age);
     state.frame_captured = Some(at - age);
-    let step = state.tick(at, observation.geometry, Some(frame));
+    let (step, processed_at) =
+        crate::processed_frame_tick(state, observation.geometry, frame, at, at);
     settle_return(state);
-    let result = input(state, step, observation.geometry, at);
+    let result = input(state, step, observation.geometry, processed_at);
     state.ocr_words.clear();
     result
 }
@@ -534,6 +535,25 @@ pub(super) fn foreground(state: &mut Runtime, foreground: bool, at: f64) {
         state.message().to_owned()
     };
     state.phone.foreground = foreground;
+    if matches!(state.sdk_request, Some(crate::sdk::Request::Mark { .. })) {
+        // The mark command returns to Roblox before starting camera setup.
+        // That first foreground callback must retain its waiting controller;
+        // it is not a fishing-resume request. Leaving later cancels the mark.
+        if foreground {
+            state.phone.cancel();
+            state.ocr_words.clear();
+            state.frame_expires = None;
+            state.route(
+                Route::Headless,
+                "현재 장소를 기억할 새 게임 화면을 확인합니다.",
+                false,
+            );
+        } else {
+            state.stop("다른 앱으로 전환돼 장소 등록을 취소했습니다.");
+        }
+        state.record();
+        return;
+    }
     // startActivity can deliver a foreground callback before its ACK. That
     // callback must not invalidate or replay the one pending launch.
     if state.phone.input.is_some_and(|input| input.launch) {
@@ -545,7 +565,8 @@ pub(super) fn foreground(state: &mut Runtime, foreground: bool, at: f64) {
         return;
     }
     state.resume_after_calibration = false;
-    if state.wayfinder.take().is_some() {
+    if let Some(navigation) = state.wayfinder.take() {
+        state.wayfinding.memory = navigation.memory();
         if let Some(runner) = state.automation.as_mut() {
             runner.travel_result(false, at);
         }
@@ -1156,6 +1177,43 @@ mod tests {
     }
 
     #[test]
+    fn place_registration_waits_for_first_game_entry_and_cancels_when_leaving_it() {
+        let mut state = Runtime {
+            capture: true,
+            input: true,
+            ..Runtime::default()
+        };
+        state.wayfinder = Some(
+            crate::wayfinder::Wayfinder::start_mark(
+                crate::navigator::Destination::Sell,
+                state.movement_settings(),
+                0.,
+            )
+            .unwrap(),
+        );
+        state.dua.running = true;
+        let (tx, rx) = std::sync::mpsc::channel();
+        state.sdk_request = Some(crate::sdk::Request::Mark {
+            ticket: 41,
+            reply: tx,
+        });
+        let generation = state.generation;
+        foreground(&mut state, true, 0.1);
+        assert_eq!(state.generation, generation);
+        assert!(state.wayfinder.is_some() && state.automation.is_none());
+        assert!(matches!(
+            rx.try_recv(),
+            Err(std::sync::mpsc::TryRecvError::Empty)
+        ));
+        assert!(state.fishing.phase == crate::fishing::Phase::Idle);
+        foreground(&mut state, false, 0.2);
+        assert!(rx.recv().unwrap().unwrap_err().contains("등록을 취소"));
+        assert!(!state.dua.running && state.wayfinder.is_none());
+        foreground(&mut state, true, 0.3);
+        assert!(state.fishing.phase == crate::fishing::Phase::Idle);
+    }
+
+    #[test]
     fn sdk_requests_cancel_on_foreground_loss_and_never_replay_after_return() {
         use crate::{
             automation::{Command, Job},
@@ -1182,7 +1240,6 @@ mod tests {
                     rect: None,
                     pixels: None,
                     reply: tx,
-                    mark: None,
                 });
             } else {
                 let command = Command::Text {

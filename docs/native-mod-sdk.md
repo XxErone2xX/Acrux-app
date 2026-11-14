@@ -15,6 +15,8 @@ JavaScript 모드는 `ctx.dua`, 앱의 화면 코드는 `window.AcruxDUA`로 같
 | `observe(rect?)` | 같은 프레임의 BGRA 픽셀·OCR·촬영 시각·입력 기한·실행 세대 |
 | `tap(x,y,ms)`, `gesture(value)`, `text(value,submit)` | 게임 기준 좌표의 실제 입력 완료를 기다림 |
 
+`mark()`는 카메라를 자동으로 위로 올리고 시야를 넓힌 뒤 현재 서 있는 장소를 지형 지도에 저장한다. 시설 표식이나 플레이어 이름은 필요하지 않으며, 저장 완료 또는 취소까지 기다린다. `go()`는 화면 중심의 현재 위치와 누적 관측 지도로 경로를 구한다. 목적지가 화면 밖에 있어도 연결된 지도에 있으면 중간 지점을 따라가며, 아직 연결되지 않은 영역은 확인된 통로를 관측하면서 탐색한다. 좌표를 모르는 지형에 임의의 경로나 점프를 만들지 않는다.
+
 JavaScript에서는 `key(name,ms)`, `open(url)`도 제공한다. 원시 호출과 Python 이름은 `key_tap`, `open_link`다. 플랫폼 공통 이동은 `go` 또는 `gesture`의 `stick`을 쓴다. 데스크톱은 방향을 WASD/Space로, Android는 조이스틱/점프로 전달한다. 임의의 PC 키가 Android에도 있다는 뜻은 아니다.
 
 `observe([left,top,right,bottom])`의 영역과 OCR 박스는 게임 전체 기준 0~1 좌표다. 결과 `image`에는 `pixels`(BGRA 바이트), `width`, `height`, 잘라낸 위치 `origin:[x,y]`가 있다. `words`는 `[text,cx,cy,width,height]` 배열이다. `capturedAt`·`inputDeadline`은 앱 단조 시계의 초이고 `generation`은 실행 세대다. AI나 외부 모델은 사용하지 않는다.
