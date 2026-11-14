@@ -349,6 +349,13 @@ pub(crate) fn inspect(
             }
         }
     })();
+    if method == "waypoint_mark" {
+        state.macro_message = Some(match &result {
+            Ok(_) => "현재 관측에서 목적지 기준점을 저장했습니다.".into(),
+            Err(error) => error.clone(),
+        });
+        state.record();
+    }
     let _ = reply.send(result);
     state.ocr_words.clear();
     Some(DeviceTick::Wait)
@@ -380,6 +387,26 @@ pub(crate) fn after_tick(state: &mut Runtime, done: bool, failed: bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn failed_place_registration_remains_visible_in_status_and_log() {
+        let (tx, rx) = mpsc::channel();
+        let mut state = Runtime::default();
+        state.sdk_request = Some(Request::Inspect {
+            ticket: 1,
+            method: "waypoint_mark".into(),
+            rect: None,
+            pixels: None,
+            reply: tx,
+            mark: Some("sell".into()),
+        });
+        let pixels = vec![60; 480 * 270 * 4];
+        let frame = Frame::new(&pixels, 480, 270, 1920, 4, false).unwrap();
+        inspect(&mut state, (480, 270), Some(&frame));
+        let error = rx.recv().unwrap().unwrap_err();
+        assert_eq!(state.status().message, error);
+        assert_eq!(state.log.back().unwrap().1, error);
+        assert!(state.wayfinding.memory.anchors.is_empty());
+    }
     #[test]
     fn screenshot_rpc_returns_actual_requested_bgra_and_stop_cancels_waiter() {
         let (mut state, (tx, rx)) = (Runtime::default(), mpsc::channel());
