@@ -3,7 +3,7 @@ use super::{image_bytes, Image, Target, Word};
 use crate::vision::Rect;
 use std::{
     cell::{Cell, RefCell},
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     ffi::c_void,
     mem::{size_of, zeroed},
     ptr, thread,
@@ -63,6 +63,7 @@ struct BitmapInfo {
 }
 #[link(name = "user32")]
 unsafe extern "system" {
+    fn EnumWindows(callback: unsafe extern "system" fn(Handle, isize) -> i32, param: isize) -> i32;
     fn IsWindow(hwnd: Handle) -> i32;
     fn IsWindowVisible(hwnd: Handle) -> i32;
     fn IsIconic(hwnd: Handle) -> i32;
@@ -138,8 +139,7 @@ pub(super) struct Native {
 }
 impl Native {
     pub(super) fn new() -> Result<Self, String> {
-        let url = crate::game_launch_url()?;
-        let session = session::Session::new(&url)?;
+        let session = session::Session::new()?;
         // A worker owns its MTA apartment, including WinRT OCR asynchronous work.
         let hr = unsafe { RoInitialize(1) };
         if hr < 0 {
@@ -156,12 +156,19 @@ impl Native {
         })
     }
     pub(super) fn find_now(&self) -> Result<Option<Target>, String> {
-        let targets = self.session.windows();
-        match targets.len() {
-            0 => Ok(None),
-            1 => Ok(Some(targets[0])),
-            _ => Err("소유 게임 창이 여러 개라 입력 대상을 정하지 못했습니다.".into()),
+        select_main(self.session.windows())
+    }
+    pub(super) fn open_game(&self) -> Result<(), String> {
+        if let Some(target) = select_main(all_windows(true))? {
+            // Explicit connection may restore a minimized game. Passive window
+            // discovery never changes focus or resolves the launch handler.
+            self.gpu.borrow_mut().take();
+            return self.activate(target);
         }
+        if self.session.has_process()? {
+            return Ok(());
+        }
+        self.session.open_missing(&crate::game_launch_url()?)
     }
     pub(super) fn launch_missing(&self, url: &str) -> Result<(), String> {
         let url = crate::automation::game_url(url)?;
@@ -686,13 +693,133 @@ fn absolute_position(
         ((point.1 - y) as i64 * 65535 / (h - 1) as i64) as i32,
     ))
 }
-unsafe extern "system" fn collect(hwnd: Handle, param: isize) -> i32 {
-    if let Some(target) = inspect(hwnd) {
-        unsafe {
-            (&mut *(param as *mut Vec<Target>)).push(target);
+struct WindowSearch {
+    include_minimized: bool,
+    targets: Vec<Target>,
+}
+fn all_windows(include_minimized: bool) -> Vec<Target> {
+    let mut search = WindowSearch {
+        include_minimized,
+        targets: Vec::new(),
+    };
+    unsafe {
+        EnumWindows(collect, &mut search as *mut WindowSearch as isize);
+    }
+    search.targets
+}
+pub(super) fn game_available() -> bool {
+    !all_windows(true).is_empty()
+}
+fn select_main(targets: Vec<Target>) -> Result<Option<Target>, String> {
+    let mut players = BTreeMap::<(u32, u64), Target>::new();
+    for target in targets {
+        let current = players.entry((target.pid, target.birth)).or_insert(target);
+        if target.width.saturating_mul(target.height) > current.width.saturating_mul(current.height)
+        {
+            *current = target;
         }
     }
+    match players.len() {
+        0 => Ok(None),
+        1 => Ok(players.into_values().next()),
+        _ => Err("Roblox 게임이 여러 개 실행 중이라 연결할 창을 정하지 못했습니다. 사용할 게임만 남겨 주세요.".into()),
+    }
+}
+fn is_roblox_process_name(name: &str) -> bool {
+    [
+        "RobloxPlayerBeta.exe",
+        "RobloxPlayer.exe",
+        "RobloxPlayerLauncher.exe",
+        "Windows10Universal.exe",
+    ]
+    .iter()
+    .any(|candidate| name.eq_ignore_ascii_case(candidate))
+}
+fn is_roblox_executable(path: &str) -> bool {
+    let path = path.replace('\\', "/").to_ascii_lowercase();
+    let parts: Vec<_> = path.split('/').filter(|part| !part.is_empty()).collect();
+    match parts.last().copied() {
+        Some("robloxplayerbeta.exe" | "robloxplayer.exe") => true,
+        Some("windows10universal.exe") => {
+            path.as_bytes().get(1) == Some(&b':')
+                && path.as_bytes().get(2) == Some(&b'/')
+                && parts.windows(2).any(|pair| {
+                    pair[0] == "windowsapps"
+                        && pair[1].starts_with("robloxcorporation.roblox_")
+                        && pair[1].split('_').count() >= 4
+                })
+        }
+        _ => false,
+    }
+}
+unsafe extern "system" fn collect(hwnd: Handle, param: isize) -> i32 {
+    let search = unsafe { &mut *(param as *mut WindowSearch) };
+    if let Some(target) = inspect_window(hwnd, search.include_minimized) {
+        search.targets.push(target);
+    }
     1
+}
+
+#[cfg(test)]
+mod recognition_tests {
+    use super::*;
+    #[test]
+    fn passive_connection_initializes_without_a_roblox_installation_or_launch_url() {
+        // Windows CI has no Roblox protocol registration. Constructing the
+        // passive watcher must still succeed and must not try to launch it.
+        let _connection = Native::new().expect("passive connection must not resolve a launcher");
+    }
+
+    fn target(id: u64, pid: u32, width: usize, height: usize) -> Target {
+        Target {
+            id,
+            pid,
+            birth: 10,
+            x: 0.,
+            y: 0.,
+            width,
+            height,
+        }
+    }
+    #[test]
+    fn capture_identity_accepts_players_and_only_the_roblox_store_package() {
+        for path in [
+            r"C:\Users\Player\AppData\Local\Roblox\Versions\version-1\RobloxPlayerBeta.exe",
+            r"D:\Roblox\RobloxPlayer.exe",
+            r"C:\Program Files\WindowsApps\ROBLOXCORPORATION.ROBLOX_2.0.0.0_x64__publisher\Windows10Universal.exe",
+        ] {
+            assert!(is_roblox_executable(path), "{path}");
+        }
+        for path in [
+            r"C:\Roblox\RobloxStudioBeta.exe",
+            r"C:\Roblox\RobloxPlayerLauncher.exe",
+            r"C:\OtherApp\Windows10Universal.exe",
+            r"WindowsApps\ROBLOXCORPORATION.ROBLOX_2.0.0.0_x64__publisher\Windows10Universal.exe",
+            r"C:\Program Files\WindowsApps\OtherCorp.OtherApp_1.0_x64__publisher\Windows10Universal.exe",
+            r"C:\Program Files\WindowsApps\ROBLOXCORPORATION.ROBLOX_Malicious\Windows10Universal.exe",
+        ] {
+            assert!(!is_roblox_executable(path), "{path}");
+        }
+        assert!(is_roblox_process_name("RobloxPlayerLauncher.exe"));
+        assert!(is_roblox_process_name("RobloxPlayer.exe"));
+        assert!(!is_roblox_process_name("RobloxStudioBeta.exe"));
+    }
+    #[test]
+    fn discovery_prefers_the_main_window_of_one_live_player() {
+        let splash = target(1, 10, 480, 270);
+        let game = target(2, 10, 1920, 1080);
+        assert_eq!(select_main(vec![splash, game]).unwrap(), Some(game));
+        assert_eq!(select_main(vec![game, splash]).unwrap(), Some(game));
+        assert!(select_main(Vec::new()).unwrap().is_none());
+    }
+    #[test]
+    fn discovery_does_not_pick_a_different_players_larger_window() {
+        assert!(select_main(vec![target(1, 10, 480, 270), target(2, 20, 1920, 1080)]).is_err());
+        let first = target(1, 10, 480, 270);
+        let mut recycled = target(2, 10, 1920, 1080);
+        recycled.birth = 11;
+        assert!(select_main(vec![first, recycled]).is_err());
+    }
 }
 fn identity(hwnd: Handle) -> Option<(u32, u64)> {
     unsafe {
@@ -714,11 +841,7 @@ fn identity(hwnd: Handle) -> Option<(u32, u64)> {
                 return None;
             }
             let path = String::from_utf16_lossy(&path[..len as usize]);
-            if !path
-                .rsplit(['\\', '/'])
-                .next()?
-                .eq_ignore_ascii_case("RobloxPlayerBeta.exe")
-            {
+            if !is_roblox_executable(&path) {
                 return None;
             }
             let (mut creation, mut exit, mut kernel, mut user) = (
@@ -737,8 +860,15 @@ fn identity(hwnd: Handle) -> Option<(u32, u64)> {
     }
 }
 fn inspect(hwnd: Handle) -> Option<Target> {
+    inspect_window(hwnd, false)
+}
+fn inspect_window(hwnd: Handle, include_minimized: bool) -> Option<Target> {
     unsafe {
-        if IsWindowVisible(hwnd) == 0 || IsIconic(hwnd) != 0 || IsHungAppWindow(hwnd) != 0 {
+        let minimized = IsIconic(hwnd) != 0;
+        if IsWindowVisible(hwnd) == 0
+            || minimized && !include_minimized
+            || IsHungAppWindow(hwnd) != 0
+        {
             return None;
         }
         let (pid, birth) = identity(hwnd)?;
@@ -750,7 +880,11 @@ fn inspect(hwnd: Handle) -> Option<Target> {
             (rect.right - rect.left) as usize,
             (rect.bottom - rect.top) as usize,
         );
-        image_bytes(width, height).ok()?;
+        // Minimized client dimensions may be zero. These candidates are only
+        // used to report presence or restore explicitly, never for capture.
+        if !minimized {
+            image_bytes(width, height).ok()?;
+        }
         Some(Target {
             id: hwnd as u64,
             pid,

@@ -132,6 +132,16 @@ let openingGameView = false;
 let gameViewRevision = 0;
 let gameInputCleanup = Promise.resolve();
 
+function connectionMessage(current: Status) {
+  const session = current.session;
+  if (["starting", "recovering", "error"].includes(session.state) && session.message) return session.message;
+  if (current.gameAvailable || session.width > 0) {
+    return session.state === "waiting" && session.message
+      ? session.message : "Roblox 창을 찾았습니다. 화면 연결을 준비하고 있습니다.";
+  }
+  return "[게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요.";
+}
+
 async function openGameView() {
   if (closeGameView || openingGameView) return;
   openingGameView = true;
@@ -140,7 +150,7 @@ async function openGameView() {
     await gameInputCleanup;
     let current = await status();
     if (revision !== gameViewRevision) throw new Error("화면 열기를 취소했습니다.");
-    if (!current.captureReady || !current.inputReady || current.session.state !== "ready") throw new Error("[게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요.");
+    if (!current.captureReady || !current.inputReady || current.session.state !== "ready") throw new Error(connectionMessage(current));
     const dialog = document.createElement("dialog");
     dialog.id = "desktopGameView";
     dialog.className = "card";
@@ -376,7 +386,7 @@ async function pickDesktop(): Promise<Position> {
     await gameInputCleanup;
     const current = await status();
     if (revision !== pickRevision) throw new Error("위치 지정을 취소했습니다.");
-    if (!current.captureReady || !current.inputReady || current.session.state !== "ready") throw new Error("[게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요.");
+    if (!current.captureReady || !current.inputReady || current.session.state !== "ready") throw new Error(connectionMessage(current));
     if (current.dua.running || current.phase !== "idle") throw new Error("실행 중인 작업을 먼저 중지하세요.");
     const buffer = await invoke<ArrayBuffer>("desktop_snapshot");
     if (revision !== pickRevision) throw new Error("위치 지정을 취소했습니다.");
@@ -455,7 +465,7 @@ async function syncDesktop(revision = desktopRevision) {
   const current = await status();
   if (revision !== desktopRevision || !config.macro_on) return;
   if (current.dua.running) return;
-  if (!current.captureReady || !current.inputReady || current.session.state !== "ready") throw new Error("[게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요.");
+  if (!current.captureReady || !current.inputReady || current.session.state !== "ready") throw new Error(connectionMessage(current));
   await releaseGameInput?.();
   if (revision !== desktopRevision || !config.macro_on) return;
   await invoke<Status>("desktop_start", { features: enabledFeatures(), generation: current.generation });
@@ -565,7 +575,7 @@ async function pickSetting(feat: string, key: string, region: boolean) {
   const current = await status();
   if (current.platform === "windows") {
     if (pickingDesktop) throw new Error("위치를 이미 지정 중입니다.");
-    if (!current.captureReady || !current.inputReady || current.session.state !== "ready") throw new Error("[게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요.");
+    if (!current.captureReady || !current.inputReady || current.session.state !== "ready") throw new Error(connectionMessage(current));
     if (current.dua.running || current.phase !== "idle") throw new Error("실행 중인 작업을 먼저 중지하세요.");
     pickingDesktop = true;
     const revision = ++pickRevision;

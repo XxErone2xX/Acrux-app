@@ -1,7 +1,6 @@
 //! Normal Windows desktop. Existing Roblox is attached, never killed on detach.
 use super::Handle;
 use std::{
-    collections::BTreeSet,
     ffi::c_void,
     mem::{size_of, zeroed},
     path::PathBuf,
@@ -70,10 +69,6 @@ struct ProcessEntry {
     flags: u32,
     name: [u16; 260],
 }
-#[link(name = "user32")]
-unsafe extern "system" {
-    fn EnumWindows(callback: unsafe extern "system" fn(Handle, isize) -> i32, param: isize) -> i32;
-}
 #[link(name = "kernel32")]
 unsafe extern "system" {
     fn CreateProcessW(
@@ -91,8 +86,13 @@ unsafe extern "system" {
     fn CreateJobObjectW(security: *const c_void, name: *const u16) -> Handle;
     fn SetInformationJobObject(job: Handle, class: u32, data: *const c_void, len: u32) -> i32;
     fn AssignProcessToJobObject(job: Handle, process: Handle) -> i32;
-    fn IsProcessInJob(process: Handle, job: Handle, result: *mut i32) -> i32;
     fn OpenProcess(access: u32, inherit: i32, pid: u32) -> Handle;
+    fn QueryFullProcessImageNameW(
+        process: Handle,
+        flags: u32,
+        name: *mut u16,
+        size: *mut u32,
+    ) -> i32;
     fn ResumeThread(thread: Handle) -> u32;
     fn TerminateProcess(process: Handle, code: u32) -> i32;
     fn CloseHandle(handle: Handle) -> i32;
@@ -133,18 +133,10 @@ impl Drop for Owned {
 }
 
 pub(super) struct Session {
-    attached: BTreeSet<(u32, u64)>,
     job: Owned,
-    executable: PathBuf,
-    arguments: Vec<String>,
 }
 impl Session {
-    pub(super) fn new(url: &str) -> Result<Self, String> {
-        let (executable, arguments) = handler()?;
-        let attached = all_windows()
-            .into_iter()
-            .map(|target| (target.pid, target.birth))
-            .collect();
+    pub(super) fn new() -> Result<Self, String> {
         let job = Owned(unsafe { CreateJobObjectW(ptr::null(), ptr::null()) });
         if job.0 == 0 {
             return Err("게임 프로세스 그룹을 만들지 못했습니다.".into());
@@ -162,51 +154,40 @@ impl Session {
         {
             return Err("게임 프로세스 관리를 준비하지 못했습니다.".into());
         }
-        let session = Self {
-            attached,
-            job,
-            executable,
-            arguments,
-        };
-        if session.attached.is_empty() {
-            if !roblox_processes()?.is_empty() {
-                return Err(
-                    "Roblox가 시작 중이거나 최소화돼 있습니다. 게임 창을 연 뒤 다시 연결하세요."
-                        .into(),
-                );
-            }
-            session.open(url)?;
-        }
-        Ok(session)
-    }
-    pub(super) fn owns(&self, pid: u32) -> bool {
-        let process = Owned(unsafe { OpenProcess(0x1000, 0, pid) });
-        if process.0 == 0 {
-            return false;
-        }
-        let mut yes = 0;
-        unsafe { IsProcessInJob(process.0, self.job.0, &mut yes) != 0 && yes != 0 }
+        Ok(Self { job })
     }
     pub(super) fn windows(&self) -> Vec<super::Target> {
-        all_windows()
-            .into_iter()
-            .filter(|target| self.accepts(*target))
-            .collect()
+        super::all_windows(false)
     }
     pub(super) fn accepts(&self, target: super::Target) -> bool {
-        self.owns(target.pid) || self.attached.contains(&(target.pid, target.birth))
+        // Roblox may replace its process/window while opening or updating.
+        // Verify the live executable and process birth instead of pinning only
+        // the windows that happened to exist when this session was created.
+        super::identity(target.id as Handle) == Some((target.pid, target.birth))
+    }
+    pub(super) fn open_missing(&self, url: &str) -> Result<(), String> {
+        // Passive connection never needs a registry lookup or starts a game.
+        // Explicit launch requests also leave starting/minimized processes for
+        // discovery instead of opening a duplicate player.
+        if !super::all_windows(true).is_empty() || self.has_process()? {
+            return Ok(());
+        }
+        self.open(url)
+    }
+    pub(super) fn has_process(&self) -> Result<bool, String> {
+        Ok(!roblox_processes()?.is_empty())
     }
     pub(super) fn open(&self, url: &str) -> Result<(), String> {
         if super::super::STOP.load(Ordering::Acquire) || !valid_url(url) {
             return Err("Roblox 실행 주소나 실행 상태가 올바르지 않습니다.".into());
         }
-        let executable = self
-            .executable
+        let (executable, handler_arguments) = handler()?;
+        let executable = executable
             .to_str()
             .ok_or("Roblox 설치 경로를 읽지 못했습니다.")?;
         let app = wide(executable);
         let mut arguments = vec![quote_argument(executable)];
-        for argument in &self.arguments {
+        for argument in &handler_arguments {
             arguments.push(quote_argument(&url_argument(argument, url)));
         }
         let mut command = wide(&arguments.join(" "));
@@ -247,16 +228,6 @@ impl Session {
         }
         Ok(())
     }
-}
-fn all_windows() -> Vec<super::Target> {
-    let mut targets = Vec::new();
-    unsafe {
-        EnumWindows(
-            super::collect,
-            &mut targets as *mut Vec<super::Target> as isize,
-        );
-    }
-    targets
 }
 fn valid_url(url: &str) -> bool {
     url.starts_with("roblox://")
@@ -309,13 +280,11 @@ fn handler() -> Result<(PathBuf, Vec<String>), String> {
             LocalFree(parsed.cast());
         }
         let path = PathBuf::from(arguments.remove(0));
-        let allowed = path
-            .file_name()
-            .and_then(|p| p.to_str())
-            .is_some_and(|name| {
-                name.eq_ignore_ascii_case("RobloxPlayerBeta.exe")
-                    || name.eq_ignore_ascii_case("RobloxPlayerLauncher.exe")
-            });
+        let allowed = path.to_str().is_some_and(super::is_roblox_executable)
+            || path
+                .file_name()
+                .and_then(|p| p.to_str())
+                .is_some_and(|name| name.eq_ignore_ascii_case("RobloxPlayerLauncher.exe"));
         if allowed
             && path.is_absolute()
             && path.is_file()
@@ -382,9 +351,22 @@ fn roblox_processes() -> Result<Vec<u32>, String> {
                 .position(|&u| u == 0)
                 .unwrap_or(entry.name.len());
             let name = String::from_utf16_lossy(&entry.name[..n]);
-            if name.eq_ignore_ascii_case("RobloxPlayerBeta.exe")
-                || name.eq_ignore_ascii_case("RobloxPlayerLauncher.exe")
+            let recognized = if super::is_roblox_process_name(&name)
+                && name.eq_ignore_ascii_case("Windows10Universal.exe")
             {
+                // The UWP basename is not specific to Roblox. Check the same
+                // package path as actual window discovery before treating it
+                // as an existing player and suppressing a launch request.
+                let process = Owned(OpenProcess(0x1000, 0, entry.pid));
+                let mut path = [0u16; 32768];
+                let mut len = path.len() as u32;
+                process.0 != 0
+                    && QueryFullProcessImageNameW(process.0, 0, path.as_mut_ptr(), &mut len) != 0
+                    && super::is_roblox_executable(&String::from_utf16_lossy(&path[..len as usize]))
+            } else {
+                super::is_roblox_process_name(&name)
+            };
+            if recognized {
                 result.push(entry.pid);
             }
             present = Process32NextW(snapshot.0, &mut entry) != 0;

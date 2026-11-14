@@ -846,20 +846,16 @@ impl Runtime {
         if self.active() {
             return Err("실행 중인 작업을 먼저 중지하세요.".into());
         }
+        #[cfg(desktop)]
+        validate_desktop_entry(self)?;
+        #[cfg(not(desktop))]
         if !self.capture || !self.input {
-            return Err(if cfg!(desktop) {
-                "[게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요."
-            } else {
-                "화면 캡처와 입력을 먼저 준비하세요."
-            }
-            .into());
+            return Err("화면 캡처와 입력을 먼저 준비하세요.".into());
         }
         #[cfg(target_os = "android")]
         if !self.phone.foreground {
             return Err("Roblox 화면에서 실행하세요.".into());
         }
-        #[cfg(target_os = "linux")]
-        validate_desktop_entry(self)?;
         gesture.packet(geometry, 1, self.generation)?;
         self.generation = self.generation.wrapping_add(1);
         self.phone.cancel();
@@ -1816,9 +1812,24 @@ fn desktop_start(features: Vec<String>, generation: i32) -> Result<Status, Strin
 
 fn validate_desktop_entry(state: &Runtime) -> Result<(), String> {
     if !state.capture || !state.input {
-        return Err("[게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요.".into());
+        let session = background_status();
+        return Err(desktop_connection_message(&session, game_available()));
     }
     Ok(())
+}
+
+fn desktop_connection_message(session: &BackgroundStatus, detected: bool) -> String {
+    if matches!(session.state, "starting" | "recovering" | "error") && !session.message.is_empty() {
+        session.message.clone()
+    } else if detected || session.width > 0 {
+        if session.state == "waiting" && !session.message.is_empty() {
+            session.message.clone()
+        } else {
+            "Roblox 창을 찾았습니다. 화면 연결을 준비하고 있습니다.".into()
+        }
+    } else {
+        "[게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요.".into()
+    }
 }
 
 #[tauri::command]
@@ -2378,16 +2389,12 @@ pub(crate) fn automation_call(
             automation::Runner::action(&action, &payload)?
                 .ok_or_else(|| format!("알 수 없는 매크로 작업: {action}"))?
         };
-    if !state.capture || !state.input {
-        return Err(if cfg!(desktop) {
-            "[게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요."
-        } else {
-            "화면 캡처와 입력을 먼저 준비하세요."
-        }
-        .into());
-    }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(desktop)]
     validate_desktop_entry(&state)?;
+    #[cfg(not(desktop))]
+    if !state.capture || !state.input {
+        return Err("화면 캡처와 입력을 먼저 준비하세요.".into());
+    }
     if state.automation.is_none() {
         if state.active() {
             return Err("실행 중인 작업을 먼저 중지하세요.".into());
@@ -2634,6 +2641,25 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn detected_game_keeps_capture_diagnostics_instead_of_an_open_game_prompt() {
+        let mut session = BackgroundStatus {
+            supported: true,
+            state: "recovering",
+            message: "게임 화면 재시도 중 (2/5): GPU 캡처 오류".into(),
+            width: 1920,
+            height: 1080,
+        };
+        assert_eq!(desktop_connection_message(&session, true), session.message);
+        session.state = "error";
+        session.width = 0;
+        assert_eq!(desktop_connection_message(&session, false), session.message);
+        session.state = "waiting";
+        session.message = "Roblox 창이 최소화돼 있거나 화면을 준비 중입니다.".into();
+        assert_eq!(desktop_connection_message(&session, true), session.message);
+        assert!(desktop_connection_message(&session, false).contains("[게임 열기]"));
+    }
 
     #[test]
     fn headless_dua_queries_and_stop_do_not_switch_android_to_the_game() {

@@ -1,4 +1,9 @@
 # PC 버전 src/web/i18n.js 에서 자동으로 뽑음 — 고치지 말고 PC 사전을 고칠 것 (android/tools/export_pc_i18n.py)
+Roblox 창을 찾고 있습니다.	Looking for the Roblox window.	Robloxのウィンドウを探しています。
+실행 중인 Roblox 창을 자동으로 찾고 있습니다.	Automatically looking for a running Roblox window.	起動中のRobloxウィンドウを自動で探しています。
+Roblox 창이 최소화돼 있거나 화면을 준비 중입니다.	The Roblox window is minimized or its screen is still loading.	Robloxのウィンドウが最小化されているか、画面の準備中です。
+Roblox 창을 찾았습니다. 화면 연결을 준비하고 있습니다.	Found the Roblox window. Preparing the screen connection.	Robloxのウィンドウを検出しました。画面の接続を準備しています。
+게임 연결을 취소했습니다.	Game connection cancelled.	ゲーム接続をキャンセルしました。
 [게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요.	Connect Roblox with [Open game], then try again.	［ゲームを開く］でRobloxに接続してから再試行してください。
 게임 화면에 연결됐습니다. 작업을 기다립니다.	Game screen connected. Waiting for a task.	ゲーム画面に接続しました。操作を待っています。
 게임 화면에 연결됐습니다.	Game screen connected.	ゲーム画面に接続しました。

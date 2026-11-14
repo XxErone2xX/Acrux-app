@@ -169,6 +169,9 @@ pub(crate) fn call(payload: Value, generation: i32) -> Result<Value, String> {
     if state.sdk_request.is_some() {
         return Err("이전 SDK 작업의 완료를 기다리세요.".into());
     }
+    #[cfg(desktop)]
+    crate::validate_desktop_entry(&state)?;
+    #[cfg(not(desktop))]
     if !state.capture || !state.input {
         return Err("게임 캡처와 입력을 먼저 연결하세요.".into());
     }

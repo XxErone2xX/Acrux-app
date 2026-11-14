@@ -674,9 +674,9 @@ function updateDua(st) {
 function updateSession(st) {
   if (!window.acruxDesktopApi || !st) return;
   lastSession = st;
-  setText($('desktopSessionMessage'), st.message || '게임을 열어 주세요.');
+  setText($('desktopSessionMessage'), st.message || (['waiting', 'starting', 'recovering'].includes(st.state) ? 'Roblox 창을 찾고 있습니다.' : '게임을 열어 주세요.'));
   $('desktopSessionStart').disabled = !st.supported || st.state === 'ready' || st.state === 'starting' || st.state === 'recovering';
-  $('desktopSessionStop').disabled = !['ready', 'starting', 'recovering'].includes(st.state);
+  $('desktopSessionStop').disabled = !['waiting', 'ready', 'starting', 'recovering'].includes(st.state);
   $('desktopGameViewOpen').disabled = st.state !== 'ready';
 }
 function applyDesktopText() {

@@ -137,7 +137,7 @@ function desktop(saved, options = {}) {
     message: '대기 중', gameAvailable: false, version: '0.1.0',
     measuredSeconds: null, measuringElapsed: null,
     generation: 0,
-    session: { supported: true, state: "ready", message: "앱 전용 게임 준비됨", width: 2, height: 1, ...options.session },
+    session: { supported: true, state: "ready", message: "앱 전용 게임 준비됨", width: options.background === false ? 0 : 2, height: options.background === false ? 0 : 1, ...options.session },
     dua: { supported: true, background: options.background !== false, hotkeys: false, running: false, route: null, reason: '대기 중', headlessTicks: 0, screenshotFrames: 0, transitions: 0 },
   };
   const biome = { settings: { enabled: false, player: '', psLink: '', webhooks: [], mentions: {}, roles: {} } };
@@ -1380,6 +1380,40 @@ test('Windows foreground connection starts DUA without claiming background input
   assert.equal(started.error, undefined);
   assert.equal(started.config.macro_on, true);
   assert.equal((await app.api('poll', {})).dua.background, false);
+});
+
+test('recognized Windows window preserves capture progress and errors without claiming Roblox is closed', async () => {
+  for (const [state, message] of [
+    ['waiting', 'Roblox 창이 최소화돼 있거나 화면을 준비 중입니다.'],
+    ['starting', 'Roblox 창을 찾았습니다. 캡처를 준비합니다.'],
+    ['recovering', '게임 화면 재시도 중 (2/5): 캡처 권한을 확인하세요.'],
+    ['error', 'Windows GPU 창 캡처를 시작하지 못했습니다: 0x80070057'],
+  ]) {
+    const app = desktop({ mfish: { enabled: true } }, { platform: 'windows', background: false,
+      session: { state, message, width: state === 'waiting' ? 0 : 800, height: state === 'waiting' ? 0 : 600 } });
+    app.status.gameAvailable = true;
+    const started = await app.api('set_config', { patch: { macro_on: true } });
+    assert.equal(started.error, message);
+    assert.equal(started.config.macro_on, false);
+    const poll = await app.api('poll', {});
+    assert.equal(poll.roblox, true, 'recognized game existence is independent of capture readiness');
+    assert.equal(poll.session.message, message);
+    assert.equal(app.calls.some(([command]) => command === 'desktop_start' || command === 'desktop_session_start'), false);
+    await app.api('set_config', { patch: { macro_on: false } });
+    assert.equal(app.calls.some(([command, action]) => command === 'control' && action === 'stop'), true);
+  }
+  const source = fs.readFileSync(path.join(__dirname, '../src/web/app.js'), 'utf8');
+  const elements = new Map();
+  const context = { window: { acruxDesktopApi() {} }, lastSession: null,
+    $: id => { if (!elements.has(id)) elements.set(id, {}); return elements.get(id); },
+    setText: (element, text) => { element.textContent = text; } };
+  vm.runInNewContext(source.slice(source.indexOf('function updateSession('), source.indexOf('function applyDesktopText(')) + '\nglobalThis.update = updateSession;', context);
+  context.update({ supported: true, state: 'waiting', message: '' });
+  assert.equal(elements.get('desktopSessionMessage').textContent, 'Roblox 창을 찾고 있습니다.');
+  assert.equal(elements.get('desktopSessionStart').disabled, false);
+  assert.equal(elements.get('desktopSessionStop').disabled, false);
+  context.update({ supported: true, state: 'stopped', message: '' });
+  assert.equal(elements.get('desktopSessionMessage').textContent, '게임을 열어 주세요.', 'manual connection stays available on the other platforms');
 });
 
 test('optional service failure keeps the connection and controls available', async () => {

@@ -29,7 +29,9 @@ mod platform;
 
 static STOP: AtomicBool = AtomicBool::new(false);
 static RUNNING: AtomicBool = AtomicBool::new(false);
-static AVAILABLE: AtomicBool = AtomicBool::new(false);
+static CAPTURE_READY: AtomicBool = AtomicBool::new(false);
+#[cfg(target_os = "windows")]
+static OPEN_REQUESTED: AtomicBool = AtomicBool::new(false);
 static STATUS: Mutex<Option<crate::BackgroundStatus>> = Mutex::new(None);
 static WORKER: Mutex<Option<thread::JoinHandle<()>>> = Mutex::new(None);
 static SNAPSHOT: Mutex<Option<mpsc::Sender<Result<Vec<u8>, String>>>> = Mutex::new(None);
@@ -219,6 +221,11 @@ impl Held {
 }
 
 pub fn start() -> io::Result<()> {
+    #[cfg(target_os = "windows")]
+    {
+        connect_session().map_err(io::Error::other)?;
+    }
+    #[cfg(not(target_os = "windows"))]
     set_status("stopped", "백그라운드 게임 연결을 시작해 주세요.", None);
     Ok(())
 }
@@ -237,16 +244,33 @@ pub fn session_status() -> crate::BackgroundStatus {
 }
 fn set_status(state: &'static str, message: impl Into<String>, target: Option<Target>) {
     let message = message.into();
-    crate::services::diagnostic(&format!("game session {state}: {message}"));
-    *STATUS.lock().unwrap_or_else(|e| e.into_inner()) = Some(crate::BackgroundStatus {
+    let next = crate::BackgroundStatus {
         supported: true,
         state,
         message,
         width: target.map_or(0, |t| t.width),
         height: target.map_or(0, |t| t.height),
-    });
+    };
+    let mut status = STATUS.lock().unwrap_or_else(|e| e.into_inner());
+    if status.as_ref().is_some_and(|old| {
+        old.state == next.state
+            && old.message == next.message
+            && old.width == next.width
+            && old.height == next.height
+    }) {
+        return;
+    }
+    let diagnostic = format!("game session {state}: {}", next.message);
+    *status = Some(next);
+    drop(status);
+    crate::services::diagnostic(&diagnostic);
 }
 pub fn launch_session() -> Result<crate::BackgroundStatus, String> {
+    #[cfg(target_os = "windows")]
+    OPEN_REQUESTED.store(true, Ordering::Release);
+    connect_session()
+}
+fn connect_session() -> Result<crate::BackgroundStatus, String> {
     if RUNNING
         .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
         .is_err()
@@ -277,7 +301,7 @@ pub fn launch_session() -> Result<crate::BackgroundStatus, String> {
                 );
                 worker(&mut native)
             })();
-            AVAILABLE.store(false, Ordering::Release);
+            CAPTURE_READY.store(false, Ordering::Release);
             {
                 let mut r = runtime();
                 r.stop("백그라운드 게임 연결이 종료됐습니다.");
@@ -308,6 +332,8 @@ pub fn launch_session() -> Result<crate::BackgroundStatus, String> {
 }
 pub fn stop_session() {
     STOP.store(true, Ordering::Release);
+    #[cfg(target_os = "windows")]
+    OPEN_REQUESTED.store(false, Ordering::Release);
     cancel_pick();
     runtime().stop("게임 연결을 종료합니다.");
 }
@@ -324,10 +350,13 @@ pub fn shutdown() {
     }
 }
 pub fn game_available() -> bool {
-    AVAILABLE.load(Ordering::Acquire)
+    #[cfg(target_os = "windows")]
+    return platform::game_available();
+    #[cfg(not(target_os = "windows"))]
+    CAPTURE_READY.load(Ordering::Acquire)
 }
 pub fn snapshot() -> Result<Vec<u8>, String> {
-    if !game_available() {
+    if !CAPTURE_READY.load(Ordering::Acquire) {
         return Err("실행 중인 게임 창을 먼저 연결해 주세요.".into());
     }
     let (send, receive) = mpsc::channel();
@@ -360,7 +389,7 @@ pub fn pick_area(region: bool) -> Result<Vec<f64>, String> {
         return Err("위치를 이미 지정 중입니다.".into());
     }
     let result = (|| {
-        if !game_available() || STOP.load(Ordering::Acquire) {
+        if !CAPTURE_READY.load(Ordering::Acquire) || STOP.load(Ordering::Acquire) {
             return Err("실행 중인 게임 창을 먼저 연결해 주세요.".into());
         }
         let generation = {
@@ -378,7 +407,7 @@ pub fn pick_area(region: bool) -> Result<Vec<f64>, String> {
             revision,
             reply,
         });
-        if !game_available() || STOP.load(Ordering::Acquire) {
+        if !CAPTURE_READY.load(Ordering::Acquire) || STOP.load(Ordering::Acquire) {
             cancel_pick();
         }
         match receive.recv_timeout(Duration::from_secs(120)) {
@@ -422,7 +451,7 @@ pub fn manual(event: ManualEvent, generation: i32) -> Result<(), String> {
         }
         _ => {}
     }
-    if !game_available() || STOP.load(Ordering::Acquire) {
+    if !CAPTURE_READY.load(Ordering::Acquire) || STOP.load(Ordering::Acquire) {
         return Err("게임 창이 연결되지 않았습니다.".into());
     }
     {
@@ -464,6 +493,14 @@ fn worker(native: &mut platform::Native) -> Result<(), String> {
             if STOP.load(Ordering::Acquire) {
                 return Ok(());
             }
+            #[cfg(target_os = "windows")]
+            if OPEN_REQUESTED.swap(false, Ordering::AcqRel) {
+                // Only an explicit Open game request may restore/focus a window
+                // or launch Roblox. The startup watcher only observes.
+                if let Err(error) = native.open_game() {
+                    set_status("error", error, None);
+                }
+            }
             let target = if let Some(target) = selected.filter(|&target| native.valid(target)) {
                 target
             } else {
@@ -471,20 +508,39 @@ fn worker(native: &mut platform::Native) -> Result<(), String> {
                     held.release(native, old);
                     cancel_pick();
                 }
-                AVAILABLE.store(false, Ordering::Release);
+                CAPTURE_READY.store(false, Ordering::Release);
                 {
                     let mut r = runtime();
                     r.no_target();
                     r.capture = false;
                     r.input = false;
                 }
-                set_status("starting", "게임 창을 기다리고 있습니다.", None);
-                match native.find_now()? {
-                    Some(target) => {
+                if session_status().state != "error" {
+                    if cfg!(target_os = "windows") {
+                        set_status(
+                            "waiting",
+                            if game_available() {
+                                "Roblox 창이 최소화돼 있거나 화면을 준비 중입니다."
+                            } else {
+                                "실행 중인 Roblox 창을 자동으로 찾고 있습니다."
+                            },
+                            None,
+                        );
+                    } else {
+                        set_status("starting", "게임 창을 기다리고 있습니다.", None);
+                    }
+                }
+                match native.find_now() {
+                    Err(error) => {
+                        set_status("error", error, None);
+                        thread::sleep(Duration::from_millis(100));
+                        continue;
+                    }
+                    Ok(Some(target)) => {
                         selected = Some(target);
                         target
                     }
-                    None => {
+                    Ok(None) => {
                         if let Some(reply) =
                             SNAPSHOT.lock().unwrap_or_else(|e| e.into_inner()).take()
                         {
@@ -524,7 +580,12 @@ fn worker(native: &mut platform::Native) -> Result<(), String> {
                     }
                 }
             };
-            if !AVAILABLE.load(Ordering::Acquire) {
+            if !CAPTURE_READY.load(Ordering::Acquire) {
+                set_status(
+                    "starting",
+                    "Roblox 창을 찾았습니다. 화면 연결을 준비하고 있습니다.",
+                    Some(target),
+                );
                 if capture(native, target, &mut capture_failures)?.is_none() {
                     continue;
                 }
@@ -743,7 +804,7 @@ fn capture(
         Ok(image)
     }) {
         Ok(image) => {
-            let reconnected = !AVAILABLE.swap(true, Ordering::AcqRel);
+            let reconnected = !CAPTURE_READY.swap(true, Ordering::AcqRel);
             *failures = 0;
             let mut r = runtime();
             r.capture = true;
@@ -766,7 +827,7 @@ fn capture(
         }
         Err(error) => {
             *failures += 1;
-            AVAILABLE.store(false, Ordering::Release);
+            CAPTURE_READY.store(false, Ordering::Release);
             {
                 let mut r = runtime();
                 r.capture = false;
