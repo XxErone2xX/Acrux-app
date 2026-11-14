@@ -4,6 +4,10 @@ const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
 const ts = require('typescript');
+const portableStub = {
+  PortableMods: class { async start() {} list(items) { return items; } render() {} },
+  pickModPackage: async () => ({ cancel: true }),
+};
 
 async function flush() { for (let i = 0; i < 24; i++) await Promise.resolve(); }
 
@@ -73,6 +77,7 @@ function mobile(options = {}) {
   } };
   vm.runInNewContext(compile(fs.readFileSync(path.join(__dirname, 'engine.ts'), 'utf8')), engine);
   const modules = {
+    './dua': {}, './portable-mods': portableStub,
     './engine': engine.exports,
     './desktop-defaults.json': JSON.parse(fs.readFileSync(path.join(__dirname, 'desktop-defaults.json'), 'utf8')),
     './biome': { defaultBiome: {}, biomeStatus: async () => ({ settings: {}, logs: [] }) },
@@ -138,6 +143,7 @@ function desktop(saved, options = {}) {
   const biome = { settings: { enabled: false, player: '', psLink: '', webhooks: [], mentions: {}, roles: {} } };
   const discord = { linked: false, name: '', code: null, error: '', ...options.discord };
   const modules = {
+    './dua': {}, './portable-mods': portableStub,
     './desktop-defaults.json': JSON.parse(fs.readFileSync(path.join(__dirname, 'desktop-defaults.json'), 'utf8')),
     './engine': {
       status: async () => {

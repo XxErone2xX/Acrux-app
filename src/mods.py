@@ -95,6 +95,8 @@ class Context:
 
     def __init__(self, bridge, mod):
         self.bridge, self.mod, self.core = bridge, mod, core
+        if hasattr(core, "dua"):
+            self.dua = core.dua
         self.id, self.dir, self.info = mod.id, mod.dir, mod.info
 
     def log(self, msg, color=""):

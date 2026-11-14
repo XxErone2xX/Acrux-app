@@ -38,6 +38,25 @@ pub(crate) fn engine_name() -> &'static str {
         "Apple Vision"
     }
 }
+
+/// One public feature contract for every device adapter. Readiness and the
+/// foreground/background policy are reported by status, not by hiding APIs.
+pub(crate) fn capabilities() -> Value {
+    json!({
+        "apiVersion": 1,
+        "platforms": ["windows", "linux", "macos", "android"],
+        "routes": ["headless", "screenshot"],
+        "features": ["mfish", "mpop", "mitem", "mmerch", "mcraft", "mmatch", "mblood"],
+        "destinations": ["base", "coast", "sell", "craft", "match"],
+        "methods": ["capabilities", "status", "logs", "start", "stop", "go", "mark", "cancel",
+            "observe", "tap", "click", "key_tap", "gesture", "text", "open_link",
+            "grab", "ocr_region", "ocr_boxes", "client_rect", "ocr_engine"],
+        "coordinateSpace": "game-normalized",
+        "pixelFormat": "BGRA",
+        "clock": "app-monotonic-seconds",
+        "ai": false
+    })
+}
 impl Request {
     fn ticket(&self) -> u64 {
         match self {
@@ -80,12 +99,57 @@ pub(crate) fn call(payload: Value, generation: i32) -> Result<Value, String> {
         .ok_or("SDK 함수가 없습니다.")?
         .to_owned();
     let module = payload["module"].as_str().unwrap_or("macro");
-    if !["macro", "core"].contains(&module) {
+    if !["dua", "macro", "core"].contains(&module) {
         return Err("이 SDK 모듈은 native 명령을 제공하지 않습니다.".into());
     }
     let args = payload["args"].as_array().cloned().unwrap_or_default();
     let arg = |i: usize| args.get(i).cloned().unwrap_or(Value::Null);
     let kw = &payload["kwargs"];
+    if module == "dua" {
+        match method.as_str() {
+            "capabilities" => return Ok(capabilities()),
+            "status" => return serde_json::to_value(crate::status()).map_err(|e| e.to_string()),
+            "logs" => return Ok(json!(crate::fishing_log())),
+            _ => {}
+        }
+        // Do not hold Runtime while entering the existing public controllers.
+        // In particular stop/cancel must preempt a pending capture or input RPC.
+        if generation != runtime().generation {
+            return Err("이전 SDK 실행이 취소됐습니다.".into());
+        }
+        match method.as_str() {
+            "start" => {
+                let value = if args.is_empty() {
+                    kw["features"].clone()
+                } else {
+                    arg(0)
+                };
+                let features: Vec<String> = serde_json::from_value(value)
+                    .map_err(|_| "실행할 기능 ID 목록을 전달하세요.".to_owned())?;
+                return crate::dua_start(features, generation)
+                    .and_then(|value| serde_json::to_value(value).map_err(|e| e.to_string()));
+            }
+            "stop" => return serde_json::to_value(crate::dua_stop()).map_err(|e| e.to_string()),
+            "go" | "mark" | "cancel" => {
+                let action = match method.as_str() {
+                    "go" => "go",
+                    "mark" => "waypoint_mark",
+                    _ => "waypoint_cancel",
+                };
+                let destination = if args.is_empty() {
+                    kw["destination"].clone()
+                } else {
+                    arg(0)
+                };
+                return crate::automation_call(
+                    action.into(),
+                    json!({"destination":destination}),
+                    generation,
+                );
+            }
+            _ => {}
+        }
+    }
     let mut state = runtime();
     if generation != state.generation {
         return Err("이전 SDK 실행이 취소됐습니다.".into());
@@ -105,8 +169,8 @@ pub(crate) fn call(payload: Value, generation: i32) -> Result<Value, String> {
     static SEQUENCE: AtomicU64 = AtomicU64::new(0);
     let ticket = SEQUENCE.fetch_add(1, Ordering::Relaxed);
     match method.as_str() {
-        "ocr_boxes" | "ocr_region" | "ocr_inventory" | "fishing_check" | "client_rect" | "grab"
-        | "waypoint_mark" => {
+        "observe" | "ocr_boxes" | "ocr_region" | "ocr_inventory" | "fishing_check"
+        | "client_rect" | "grab" | "waypoint_mark" => {
             if method == "waypoint_mark" && state.active() {
                 return Err("현재 위치를 등록하기 전에 작업을 중지하세요.".into());
             }
@@ -114,10 +178,14 @@ pub(crate) fn call(payload: Value, generation: i32) -> Result<Value, String> {
                 .contains(&method.as_str())
             {
                 None
-            } else if arg(0).is_null() {
+            } else if arg(0).is_null() && kw["rect"].is_null() {
                 None
             } else {
-                Some(rect(&arg(0))?)
+                Some(rect(&if arg(0).is_null() {
+                    kw["rect"].clone()
+                } else {
+                    arg(0)
+                })?)
             };
             let pixels = if method == "grab" {
                 let a = arg(0);
@@ -285,8 +353,44 @@ pub(crate) fn inspect(
             }
             return Ok(json!({"ok":true,"message":"현재 관측에서 목적지 기준점을 저장했습니다."}));
         }
-        if method == "grab" {
-            let [x, y, w, h] = pixels.unwrap_or([0, 0, geometry.0, geometry.1]);
+        let words: Vec<_> = state
+            .ocr_words
+            .iter()
+            .filter(|w| {
+                rect.is_none_or(|r| {
+                    let x = (w.rect.0 + w.rect.2) / 2.;
+                    let y = (w.rect.1 + w.rect.3) / 2.;
+                    x >= r.0 && x <= r.2 && y >= r.1 && y <= r.3
+                })
+            })
+            .collect();
+        let boxes = || {
+            words
+                .iter()
+                .map(|w| {
+                    json!([
+                        w.text,
+                        (w.rect.0 + w.rect.2) / 2.,
+                        (w.rect.1 + w.rect.3) / 2.,
+                        w.rect.2 - w.rect.0,
+                        w.rect.3 - w.rect.1
+                    ])
+                })
+                .collect::<Vec<_>>()
+        };
+        if method == "grab" || method == "observe" {
+            let [x, y, w, h] = if method == "observe" {
+                if let Some(rect) = rect {
+                    let r = rect
+                        .region(geometry)
+                        .ok_or("관측 영역이 게임 화면 밖입니다.")?;
+                    [r.x, r.y, r.width, r.height]
+                } else {
+                    [0, 0, geometry.0, geometry.1]
+                }
+            } else {
+                pixels.unwrap_or([0, 0, geometry.0, geometry.1])
+            };
             if w == 0
                 || h == 0
                 || x.checked_add(w).is_none_or(|v| v > geometry.0)
@@ -304,21 +408,22 @@ pub(crate) fn inspect(
                     data.extend_from_slice(&[b, g, r, 255]);
                 }
             }
-            Ok(
-                json!({"__bgra__":base64::engine::general_purpose::STANDARD.encode(data),"width":w,"height":h}),
-            )
+            let mut image = json!({"__bgra__":base64::engine::general_purpose::STANDARD.encode(data),"width":w,"height":h});
+            if method == "observe" {
+                let captured_at = state
+                    .frame_captured
+                    .filter(|v| v.is_finite())
+                    .ok_or("관측한 프레임의 촬영 시각이 없습니다.")?;
+                image["origin"] = json!([x, y]);
+                Ok(
+                    json!({"image":image,"words":boxes(),"capturedAt":captured_at,
+                    "inputDeadline":state.frame_expires,"generation":state.generation,"engine":engine_name(),
+                    "viewport":[geometry.0,geometry.1]}),
+                )
+            } else {
+                Ok(image)
+            }
         } else {
-            let words: Vec<_> = state
-                .ocr_words
-                .iter()
-                .filter(|w| {
-                    rect.is_none_or(|r| {
-                        let x = (w.rect.0 + w.rect.2) / 2.;
-                        let y = (w.rect.1 + w.rect.3) / 2.;
-                        x >= r.0 && x <= r.2 && y >= r.1 && y <= r.3
-                    })
-                })
-                .collect();
             if method == "ocr_inventory" {
                 let mut result = crate::automation::inventory_text(
                     &words
@@ -336,16 +441,7 @@ pub(crate) fn inspect(
                     .collect::<Vec<_>>()
                     .join("\n")))
             } else {
-                Ok(json!(words
-                    .iter()
-                    .map(|w| json!([
-                        w.text,
-                        (w.rect.0 + w.rect.2) / 2.,
-                        (w.rect.1 + w.rect.3) / 2.,
-                        w.rect.2 - w.rect.0,
-                        w.rect.3 - w.rect.1
-                    ]))
-                    .collect::<Vec<_>>()))
+                Ok(json!(boxes()))
             }
         }
     })();
@@ -387,6 +483,95 @@ pub(crate) fn after_tick(state: &mut Runtime, done: bool, failed: bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn dua_public_contract_and_read_queries_do_not_require_a_game_or_fresh_input_generation() {
+        let capabilities = call(json!({"module":"dua","method":"capabilities"}), i32::MIN).unwrap();
+        assert_eq!(capabilities["apiVersion"], 1);
+        assert_eq!(
+            capabilities["platforms"],
+            json!(["windows", "linux", "macos", "android"])
+        );
+        assert_eq!(capabilities["routes"], json!(["headless", "screenshot"]));
+        assert_eq!(
+            capabilities["features"],
+            json!(["mfish", "mpop", "mitem", "mmerch", "mcraft", "mmatch", "mblood"])
+        );
+        assert_eq!(capabilities["ai"], false);
+        let methods = capabilities["methods"].as_array().unwrap();
+        for method in [
+            "observe", "go", "mark", "cancel", "start", "stop", "tap", "gesture",
+        ] {
+            assert!(methods.contains(&json!(method)));
+        }
+        assert!(
+            call(json!({"module":"dua","method":"status"}), i32::MIN).unwrap()["generation"]
+                .is_number()
+        );
+        assert!(call(json!({"module":"dua","method":"logs"}), i32::MIN)
+            .unwrap()
+            .is_array());
+        for method in ["start", "stop", "go", "mark", "cancel", "tap", "observe"] {
+            let error =
+                call(json!({"module":"dua","method":method,"args":[]}), i32::MIN).unwrap_err();
+            assert!(error.contains("취소"), "{method}: {error}");
+        }
+    }
+
+    #[test]
+    fn observation_returns_pixels_words_crop_and_original_capture_time_from_one_frame() {
+        let (tx, rx) = mpsc::channel();
+        let mut state = Runtime {
+            generation: 7,
+            frame_captured: Some(1.25),
+            frame_expires: Some(2.3),
+            ..Runtime::default()
+        };
+        state.sdk_request = Some(Request::Inspect {
+            ticket: 3,
+            method: "observe".into(),
+            rect: Some(Rect(0.25, 0., 0.75, 1.)),
+            pixels: None,
+            reply: tx,
+            mark: None,
+        });
+        assert!(matches!(
+            inspect(&mut state, (4, 2), None),
+            Some(DeviceTick::Observe(None))
+        ));
+        assert!(state.request_ocr);
+        state.ocr_words = vec![
+            automation::Word {
+                text: "Fish".into(),
+                rect: Rect(0.3, 0.1, 0.7, 0.5),
+            },
+            automation::Word {
+                text: "outside".into(),
+                rect: Rect(0.8, 0.1, 1., 0.5),
+            },
+        ];
+        let bytes: Vec<u8> = (0..8).flat_map(|n| [n, n + 10, n + 20, 255]).collect();
+        let frame = Frame::new(&bytes, 4, 2, 16, 4, false).unwrap();
+        inspect(&mut state, (4, 2), Some(&frame));
+        let observed = rx.recv().unwrap().unwrap();
+        assert_eq!(observed["capturedAt"], 1.25);
+        assert_eq!(observed["inputDeadline"], 2.3);
+        assert_eq!(observed["generation"], 7);
+        assert_eq!(observed["viewport"], json!([4, 2]));
+        assert_eq!(observed["image"]["origin"], json!([1, 0]));
+        assert_eq!(observed["image"]["width"], 2);
+        assert_eq!(observed["image"]["height"], 2);
+        assert_eq!(
+            base64::engine::general_purpose::STANDARD
+                .decode(observed["image"]["__bgra__"].as_str().unwrap())
+                .unwrap(),
+            [21, 11, 1, 255, 22, 12, 2, 255, 25, 15, 5, 255, 26, 16, 6, 255]
+        );
+        assert_eq!(observed["words"].as_array().unwrap().len(), 1);
+        assert_eq!(observed["words"][0][0], "Fish");
+        assert_eq!(observed["words"][0][1], 0.5);
+        assert!(state.ocr_words.is_empty());
+    }
+
     #[test]
     fn failed_place_registration_remains_visible_in_status_and_log() {
         let (tx, rx) = mpsc::channel();

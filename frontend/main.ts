@@ -5,9 +5,11 @@ import desktopDictionary from "../android/app/src/main/assets/i18n/pc.tsv?raw";
 
 import defaults from "./desktop-defaults.json";
 import { biomeStatus, saveBiome, defaultBiome, type BiomeStatus } from "./biome";
+import "./dua";
+import { PortableMods, pickModPackage, type ModInfo } from "./portable-mods";
 
 type Language = "ko" | "en" | "ja";
-type Page = "home" | "fish" | "biome" | "log" | "settings";
+type Page = "home" | "fish" | "biome" | "log" | "mods" | "settings";
 type Overlay = { visible: boolean; hideOnApp: boolean; alpha: number; lang: Language };
 type Setup = "biome" | "accessibility" | "capture" | "stopCapture" | "appInfo" | "donate" | "overlay" | "inputSetup";
 type Reset = "calibration" | "session" | "total" | "log";
@@ -45,7 +47,7 @@ function escape(text: string) {
 
 const tr = (text: string) => escape(t(text));
 const element = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
-const tabs: readonly [Page, string][] = [["home", "홈"], ["fish", "낚시"], ["biome", "바이옴"], ["log", "기록"], ["settings", "설정"]];
+const tabs: readonly [Page, string][] = [["home", "홈"], ["fish", "낚시"], ["biome", "바이옴"], ["log", "기록"], ["mods", "모드"], ["settings", "설정"]];
 type Bag = Record<string, unknown>;
 const features = [["mfish", "자동 낚시"], ["mpop", "오토 팝핑"], ["mitem", "오토 아이템"], ["mmerch", "상인 자동 구매"], ["mcraft", "자동 포션 제작"], ["mmatch", "자동 메모리 매치"], ["mblood", "블러드 레인 자동 생성"]] as const;
 let macro: Bag = structuredClone(defaults);
@@ -55,6 +57,9 @@ let update: Bag = { available: false, ready: false, message: "확인 전" };
 let macroSaves = Promise.resolve();
 let macroRestartRevision: number | null = null;
 let macroSaving = 0;
+const portableMods = new PortableMods(serviceAction);
+let installedMods: ModInfo[] = [];
+let modsError = "";
 const group = (name: string) => macro[name] as Bag;
 const selectedFeatures = () => features.filter(([name]) => group(name)?.enabled === true).map(([name]) => name);
 async function loadMacro() {
@@ -68,7 +73,15 @@ async function automationAction(action: string, payload: Bag = {}) {
   return invoke<Bag>("automation_action", { action, payload, generation: observed.generation });
 }
 async function serviceAction(action: string, payload: Bag = {}) {
-  return invoke<Bag>("service_action", { action, payload });
+  const run = async () => {
+    const result = await invoke<Bag>("service_action", { action, payload });
+    if (action === "mods_settings") macro.mod_settings = { ...(macro.mod_settings as Bag ?? {}), [String(payload.id)]: result.settings };
+    return result;
+  };
+  if (action !== "mods_settings") return run();
+  const pending = macroSaves.then(run);
+  macroSaves = pending.then(() => undefined, () => undefined);
+  return pending;
 }
 async function saveMacro(edit: (next: Bag) => void, tuning?: Partial<Tuning>) {
   ++request;
@@ -226,8 +239,7 @@ function fishing() {
 function move() {
   const fish = group("mfish");
   return card("movement", "이동 · 판매",
-    text("위에서 내려다보며 현재 위치와 장애물을 확인해 이동합니다. 바닷가는 낚시 버튼이 보이는 곳까지 찾습니다.", 12)
-    + row("캐릭터 이름 (표시명|계정명)", "비우면 바이옴 설정의 플레이어 이름을 사용합니다.", `<input data-macro="player_label" aria-label="${tr("캐릭터 이름 (표시명|계정명)")}" maxlength="160" value="${escape(String(macro.player_label ?? ""))}">`)
+    text("카메라가 따라가는 화면 중심을 현재 위치로 사용합니다. 주변 지형을 확인하며 낚시 버튼이 보이는 바닷가까지 이동합니다.", 12)
     + toggle("시작할 때 낚시 장소로 이동", 'data-macro="useMove"', macro.useMove !== false && fish.useMove !== false)
     + toggle("가득 차면 판매하러 가기", 'data-macro="useSell"', macro.useSell !== false && fish.useSell !== false)
     + [ ["base", "기준 장소"], ["coast", "낚시 장소"], ["sell", "판매 장소"], ["craft", "포션 제작 장소"], ["match", "메모리 매치 장소"] ].map(([destination, name]) => row(name, "목적지 앞에서 현재 장소 기억 · 다음 이동에 실제 화면 사용", `<div class="buttons">${button("이동", "go:" + destination)}${button("현재 장소 기억", "mark:" + destination)}</div>`)).join("")
@@ -381,10 +393,26 @@ function biomePage() {
     + '<pre id="biome-test-output"></pre>');
 }
 
-const renderers = { home, fish: fishing, biome: biomePage, log: logs, settings };
+async function loadMods() {
+  try {
+    const result = await serviceAction("mods_list");
+    const items = (result.mods ?? []) as ModInfo[];
+    await portableMods.start(items);
+    installedMods = portableMods.list(items);
+    modsError = String(result.error ?? "");
+  } catch (error) { modsError = String(error); }
+}
+function modsPage() {
+  return card("mods", "모드 · 플러그인", `<div class="buttons">${button("모드 파일 설치", "mod-install", "accent")}${button("폴더 열기", "mod-folder")}${button("새로고침", "mod-refresh")}${button("다시 켜기", "mod-restart")}</div>`
+    + text(modsError || "설치·켜기·끄기·삭제 후 다시 켜면 적용됩니다.")
+    + installedMods.map(mod => `<div class="row"><div><strong>${escape(mod.name)}</strong><small>${escape(String(mod.description ?? ""))}</small><p>${escape(mod.error || (mod.loaded ? "작동 중" : mod.enabled ? "다시 켜면 작동" : "꺼짐"))}</p></div><div class="buttons">${button(mod.enabled ? "끄기" : "켜기", "mod-toggle:" + mod.id)}${button("삭제", "mod-remove:" + mod.id, "danger")}</div></div>`).join(""))
+    + '<div id="portable-mod-panels"></div>';
+}
+const renderers = { home, fish: fishing, biome: biomePage, log: logs, mods: modsPage, settings };
 function renderPage(restoreScroll = true) {
   const main = element("pages");
   main.innerHTML = '<nav id="jumps"></nav><div id="scroll"><div class="cards" data-page="' + page + '">' + renderers[page]() + "</div></div>";
+  if (page === "mods") portableMods.render(element("portable-mod-panels"), t);
   const jump = element("jumps");
   const sections = [...main.querySelectorAll<HTMLElement>(".card")];
   jump.hidden = sections.length < 3;
@@ -422,6 +450,7 @@ function select(next: Page) {
   localStorage.setItem(tabKey, JSON.stringify(page));
   render();
   if (page === "settings") void refreshDiscord();
+  if (page === "mods") void loadMods().then(() => { if (page === "mods") renderPage(); });
 }
 
 function setText(id: string, value: string) {
@@ -633,6 +662,7 @@ async function refresh() {
     const initial = !current;
     current = next;
     if (initial) {
+      await loadMods();
       render();
       void autoUpdateOnLaunch();
       if (page === "settings") void refreshDiscord();
@@ -770,7 +800,23 @@ async function perform(action: string) {
   ++request;
   const previous = { ...overlay };
   try {
-    if (name === "lang" || name === "toggle-ui" || name === "reset-overlay") {
+    if (name === "mod-install") {
+      const result = await pickModPackage(serviceAction);
+      if (result.error) throw new Error(String(result.error));
+      if (!result.cancel) { await loadMods(); renderPage(); message("설치함 · 다시 켜면 적용"); }
+    } else if (name === "mod-refresh") {
+      await loadMods(); renderPage();
+    } else if (name === "mod-toggle" || name === "mod-remove") {
+      const mod = installedMods.find(mod => mod.id === arg);
+      if (!mod) throw new Error("설치되지 않은 모드입니다.");
+      if (name === "mod-remove" && !window.confirm(t("정말 삭제"))) return;
+      await serviceAction(name === "mod-remove" ? "mods_remove" : "mods_toggle", { id: arg, on: !mod.enabled });
+      await loadMods(); renderPage(); message("설치·켜기·끄기·삭제 후 다시 켜면 적용됩니다.");
+    } else if (name === "mod-restart") {
+      await serviceAction("restart");
+    } else if (name === "mod-folder") {
+      await serviceAction("mods_folder");
+    } else if (name === "lang" || name === "toggle-ui" || name === "reset-overlay") {
       if (name === "lang") overlay.lang = arg as Language;
       if (name === "toggle-ui") overlay.visible = !overlay.visible;
       await syncOverlay(name === "reset-overlay");

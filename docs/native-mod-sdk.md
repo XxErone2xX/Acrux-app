@@ -1,4 +1,52 @@
-# 개발 앱의 데스크톱 모드 SDK
+# DUA 공통 기반과 모드 SDK
+
+DUA는 기본 매크로와 모드가 함께 쓰는 실행 기반이다. 상태·로그를 읽는 Headless 경로와 픽셀·OCR을 읽는 Screenshot 경로, 직렬 입력·작업 취소·이동 상태는 같은 Rust 실행기가 소유한다. 모드를 위해 별도 캡처기나 입력 엔진을 만들지 않는다. Windows·Linux·macOS·Android에서 같은 공개 기능 목록을 제공하고, 연결 준비와 전경/백그라운드 조건은 실행 상태로 알려준다.
+
+## 공통 호출
+
+JavaScript 모드는 `ctx.dua`, 앱의 화면 코드는 `window.AcruxDUA`로 같은 기반 기능을 호출한다. 기존 데스크톱 Python 모드는 `import dua` 또는 `ctx.dua`를 사용한다. 전송 창구는 기존 `automation_action`의 `sdk_call`이며 `module: "dua"`, `method`, `args`, `kwargs`를 전달한다.
+
+| 호출 | 동작 |
+| --- | --- |
+| `capabilities()` | 공통 API 버전·기능·목적지·Headless/Screenshot 경로 목록 |
+| `status()`, `logs()` | 화면 캡처 없이 상태·기록 읽기 |
+| `start(["mfish", …])`, `stop()` | 기본 앱과 같은 매크로 시작·전체 정지 |
+| `go("sell")`, `mark("sell")`, `cancel()` | 기존 이동·장소 등록·진행 요청 취소 |
+| `observe(rect?)` | 같은 프레임의 BGRA 픽셀·OCR·촬영 시각·입력 기한·실행 세대 |
+| `tap(x,y,ms)`, `gesture(value)`, `text(value,submit)` | 게임 기준 좌표의 실제 입력 완료를 기다림 |
+
+JavaScript에서는 `key(name,ms)`, `open(url)`도 제공한다. 원시 호출과 Python 이름은 `key_tap`, `open_link`다. 플랫폼 공통 이동은 `go` 또는 `gesture`의 `stick`을 쓴다. 데스크톱은 방향을 WASD/Space로, Android는 조이스틱/점프로 전달한다. 임의의 PC 키가 Android에도 있다는 뜻은 아니다.
+
+`observe([left,top,right,bottom])`의 영역과 OCR 박스는 게임 전체 기준 0~1 좌표다. 결과 `image`에는 `pixels`(BGRA 바이트), `width`, `height`, 잘라낸 위치 `origin:[x,y]`가 있다. `words`는 `[text,cx,cy,width,height]` 배열이다. `capturedAt`·`inputDeadline`은 앱 단조 시계의 초이고 `generation`은 실행 세대다. AI나 외부 모델은 사용하지 않는다.
+
+## 네 OS 공통 JavaScript 모드
+
+`.acxm` ZIP에 아래 두 파일을 넣는다. 설치·켜기·끄기·삭제·설정 항목은 PC와 모바일의 모드 화면에서 제공한다. 코드 변경과 활성화 변경은 앱을 다시 켜면 적용한다.
+
+```json
+{"id":"coast_helper","name":"Coast helper","version":"1.0.0","runtime":"javascript","entry":"main","type":"mod"}
+```
+
+`main.js`:
+
+```js
+export function setup(ctx) {
+  ctx.ui([
+    {type: "button", label: "바닷가로 이동", run: () => ctx.dua.go("coast")},
+    {type: "button", label: "정지", run: () => ctx.dua.stop()}
+  ]);
+}
+```
+
+복사해서 시작할 수 있는 전체 예제는 `examples/dua-coast-helper/`다. 폴더의 `mod.json`과 `main.js`를 ZIP으로 묶어 `.acxm` 확장자로 설치하면 된다. 같은 파일로 네 플랫폼에서 이동·장소 기억·Headless 상태·스크린샷 관측·정지를 호출한다.
+
+설정 항목은 `text`·`number`·`checkbox`, 실행 항목은 `button`, 설명은 `info`다. 모든 기기에서 같은 항목을 표시한다. `ctx.settings`와 `await ctx.save(patch)`는 모드 ID별 설정을 쓰며 다른 기능 설정을 덮어쓰지 않는다. `ctx.on("ready"|"poll"|"stop"|"shutdown", callback)`은 공통 이벤트다. 상태 관측은 화면 탭의 표시 여부에 종속되지 않으며 각 모드의 비동기 관측은 겹쳐 실행하지 않는다. 타이머의 정확한 주기는 OS/WebView에 따라 달라질 수 있으므로 정밀 낚시·입력 타이밍은 공통 Rust 실행기에 맡긴다.
+
+패키지의 JavaScript는 앱 권한으로 실행한다. 앱 파일·설정·입력 접근이 가능한 설치 코드이며 별도의 격리 환경을 제공하지 않는다. JavaScript는 ES 모듈로 작성하고 의존 파일은 패키지 내부 상대 경로로 가져온다. 공개 타입은 `frontend/dua.ts`와 `frontend/portable-mods.ts`의 `ModContext`·`ModField`다.
+
+모드 파일 주소는 Tauri의 기존 커스텀 프로토콜을 사용한다. Windows·Android의 HTTP 주소와 macOS·Linux의 스킴 주소 차이는 호스트에서 처리한다. [Tauri 커스텀 프로토콜 설정](https://v2.tauri.app/reference/config/)
+
+## 기존 데스크톱 Python 모드
 
 `dev`의 데스크톱 앱은 정식 Python 앱의 `src/mods.py`를 확장 SDK로 재사용한다. 매크로 본체와 게임 입력·캡처는 Rust에 있으며, Python 확장은 별도 실행기에서 동작한다. Android에는 Python 모드 화면이나 실행기를 추가하지 않는다.
 

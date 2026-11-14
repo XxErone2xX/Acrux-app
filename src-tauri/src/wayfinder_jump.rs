@@ -214,6 +214,22 @@ impl Jumper {
         self.crossing.is_some() && matches!(self.phase, Phase::Flight { .. }) && self.departed
     }
 
+    /// A following camera can translate by the entire measured jump, rather
+    /// than only the short displacement used by walking observations.
+    pub(crate) fn camera_shift_limit(&self) -> usize {
+        let ground = self
+            .crossing
+            .map_or_else(|| self.expected(), |p| sub(p.landing, p.takeoff));
+        let lift = if self.measured.apex_pixels > 0. {
+            self.measured.apex_pixels
+        } else {
+            self.geometry.1 as f64 / 4.
+        };
+        (ground[0].abs().max(ground[1].abs()) + lift + self.measured.error_pixels + 8.)
+            .ceil()
+            .clamp(48., crate::scene::displacement_limit(self.geometry) as f64) as usize
+    }
+
     fn direction(&self) -> [f64; 2] {
         if let Some(plan) = self.crossing {
             plan.direction

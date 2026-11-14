@@ -61,6 +61,9 @@ Roblox 화면이 바뀌어 이동 · 판매를 중지했습니다.	Travel and se
 아이템 · 상점 · 제작 · 메모리 매치 화면의 글자를 이 기기에서 읽습니다.	Reads item, shop, crafting and memory match text on this device.	アイテム・ショップ・製作・メモリーマッチの文字をこの端末で読み取ります。
 이 앱은 운영체제에 맞는 OCR 엔진을 자동으로 사용합니다.	This app automatically uses the OCR engine for your operating system.	このアプリはOSに合わせたOCRエンジンを自動で使用します。
 브라우저에서 [연결] 을 눌러 주세요 · 코드 {0}	Press [Link] in the browser · code {0}	ブラウザで [連携] を押してください · コード {0}
+카메라가 따라가는 화면 중심을 현재 위치로 사용합니다. [현재 장소 기억]은 주변 지면과 목적지 표식이 보일 때 사용할 수 있습니다.	Uses the player-following camera center as the current position. [Remember current location] requires the surrounding ground and destination landmark to be visible.	プレイヤーを追うカメラの中心を現在位置として使います。[現在地を記憶]には周囲の地面と目的地の目印が見える必要があります。
+카메라가 따라가는 화면 중심을 현재 위치로 사용합니다. 주변 지형을 확인하며 낚시 버튼이 보이는 바닷가까지 이동합니다.	Uses the player-following camera center as the current position and observes terrain while moving to a coast with a fishing button.	プレイヤーを追うカメラの中心を現在位置とし、周囲の地形を確認しながら釣りボタンのある海岸まで移動します。
+설치·켜기·끄기·삭제 후 다시 켜면 적용됩니다.	Restart the app after installing, enabling, disabling or deleting a mod.	インストール・有効化・無効化・削除後はアプリを再起動すると反映されます。
 내 캐릭터의 표시 이름	My avatar's display name	自分のキャラクターの表示名
 다른 플레이어와 구분하는 데 사용합니다. 머리 위에 보이는 이름을 입력하세요. 비우면 바이옴 설정의 플레이어 이름을 사용합니다.	Identifies your avatar among other players. Enter the name shown above its head. Leave blank to use the player name in Biome settings.	他のプレイヤーと区別するために使います。頭上に表示される名前を入力してください。空欄の場合はバイオーム設定のプレイヤー名を使います。
 현재 위치와 지형을 화면에서 확인하고 이동합니다. [현재 장소 기억]은 자기 캐릭터의 이름·발·주변 지면과 목적지 표식이 함께 보일 때 사용할 수 있습니다.	Uses the current screen and terrain to navigate. [Remember current location] requires your avatar's name, feet, surrounding ground and the destination landmark to be visible together.	画面の現在位置と地形を確認して移動します。[現在地を記憶]には自分の名前、足、周囲の地面と目的地の目印が同時に見える必要があります。

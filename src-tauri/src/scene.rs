@@ -3,9 +3,13 @@
 use crate::vision::{Frame, Region};
 
 const SIDE: usize = 512;
-const SEARCH: usize = 64;
+const SEARCH: usize = 256;
 const CELLS: usize = 8;
 const MIN_MATCHES: usize = 8;
+
+pub(crate) fn displacement_limit(geometry: (usize, usize)) -> usize {
+    geometry.0.max(geometry.1).div_ceil(SIDE).max(1) * SEARCH
+}
 
 pub struct Snapshot {
     geometry: (usize, usize),
@@ -316,7 +320,7 @@ pub fn translation(
         return Err("Scene geometry or masks changed; capture a new reference.".into());
     }
     let radius = max_shift_pixels.div_ceil(before.step);
-    if max_shift_pixels == 0 || max_shift_pixels > 512 || radius > SEARCH || radius < 4 {
+    if max_shift_pixels == 0 || radius > SEARCH || radius < 4 {
         return Err("Scene displacement search exceeds its bounded range.".into());
     }
     // Joint alignment disambiguates repeated individual floor tiles; local
@@ -821,7 +825,7 @@ fn register_plane(
         return Err("Scene local plane ROI is outside observed pixels or too small.".into());
     }
     let radius = max_shift_pixels.div_ceil(before.step);
-    if max_shift_pixels == 0 || max_shift_pixels > 512 || !(4..=SEARCH).contains(&radius) {
+    if max_shift_pixels == 0 || !(4..=SEARCH).contains(&radius) {
         return Err("Scene displacement search exceeds its bounded range.".into());
     }
     let mut features = registration_features(before, source_region);

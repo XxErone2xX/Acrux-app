@@ -1620,15 +1620,10 @@ function renderNativeTravel(el, kind, feat) {
     : kind === 'movebaserev' || feat === 'mcraft' ? [['craft', '포션 제작 장소']]
     : feat === 'mmatch' ? [['match', '메모리 매치 장소']]
     : [['coast', '낚시 장소'], ['sell', '판매 장소']];
-  el.innerHTML = `<p class="hint">현재 위치와 지형을 화면에서 확인하고 이동합니다. [현재 장소 기억]은 자기 캐릭터의 이름·발·주변 지면과 목적지 표식이 함께 보일 때 사용할 수 있습니다.</p>`
-    + (kind === 'movebase' ? `<label class="row"><span>내 캐릭터의 표시 이름<small>다른 플레이어와 구분하는 데 사용합니다. 머리 위에 보이는 이름을 입력하세요. 비우면 바이옴 설정의 플레이어 이름을 사용합니다.</small></span><input type="text" maxlength="160" data-native-label value="${esc(config.player_label || '')}"></label>` : `<p class="hint">이동에 사용할 내 이름은 공통 위치 → 이동 · 기준 장소에서 설정합니다.</p>`)
+  el.innerHTML = `<p class="hint">카메라가 따라가는 화면 중심을 현재 위치로 사용합니다. [현재 장소 기억]은 주변 지면과 목적지 표식이 보일 때 사용할 수 있습니다.</p>`
     + destinations.map(([destination, name]) => `<div class="row"><span>${name}<small>${lastMove?.remembered?.includes(destination) ? '장소 저장됨' : '저장된 장소 없음'} · 도착은 화면에서 확인</small></span><span class="pos"><button class="btn mini" type="button" data-native-go="${destination}">이 장소로 이동</button><button class="btn mini ghost" type="button" data-native-mark="${destination}">현재 장소 기억</button></span></div>`).join('')
     + (feat === 'mfish' ? [['useMove', '시작할 때 낚시 장소로 이동'], ['useSell', '가득 차면 판매하러 가기']].map(([key, label]) => `<label class="row"><span>${label}</span><span class="switch"><input type="checkbox" data-native-travel="${key}" ${config[key] !== false && mfish()[key] !== false ? 'checked' : ''}><i></i></span></label>`).join('') : '')
     + `<div class="row"><span class="move-state">${esc(lastMove?.msg || '대기')}</span><span class="pos"><button class="btn mini ghost" type="button" data-native-cancel>관측 취소</button><button class="btn mini ghost" type="button" data-native-stop>이동 정지</button></span></div>`;
-  el.querySelector('[data-native-label]')?.addEventListener('change', event => {
-    config.player_label = event.target.value.trim();
-    queueSave({ player_label: config.player_label });
-  });
   el.querySelectorAll('[data-native-go]').forEach(b => b.addEventListener('click', async () => {
     await flushSave();
     moveCall('go', { destination: b.dataset.nativeGo }, '화면에서 경로를 확인하며 이동합니다.');
@@ -3218,7 +3213,14 @@ function renderModList(mods, error = "") {
   $('modRestart').hidden = !modsChanged;
 }
 async function refreshMods() {
-  try { const r = await api('mods_list'); renderModList(r.mods || [], r.error); } catch { /* 다음에 */ }
+  try {
+    const r = await api('mods_list'); renderModList(r.mods || [], r.error);
+    if (window.AcruxPortableMods) {
+      let panels = $('portableModPanels');
+      if (!panels) { panels = document.createElement('div'); panels.id = 'portableModPanels'; $('modList').after(panels); }
+      window.AcruxPortableMods.render(panels);
+    }
+  } catch { /* 다음에 */ }
 }
 document.addEventListener('change', async e => {
   const t = e.target.closest('[data-mod-on]');

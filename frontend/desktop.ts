@@ -2,6 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { biomeStatus, saveBiome, type BiomeSettings } from "./biome";
 import defaults from "./desktop-defaults.json";
 import { control, status, type SessionStatus, type Status, type Tuning } from "./engine";
+import "./dua";
+import { PortableMods, pickModPackage, type ModInfo } from "./portable-mods";
 
 const key = "acrux.desktop.preferences";
 type Bag = Record<string, unknown>;
@@ -53,7 +55,7 @@ function removeRetiredSettings(config: Config) {
     "auto_restart_discord", "autostart", "beep", "channel_ids", "channels", "discord", "discord_connect",
     "enabled", "guild_ids", "ignore_words", "keywords", "max_age_sec", "names", "open_link", "prime",
     "show_all_links", "snipe", "sniping", "stable_join", "ai", "print_all_links", "run_on_link",
-    "cooldown_sec", "kill_multiscope", "popping", "debug_port",
+    "cooldown_sec", "kill_multiscope", "popping", "debug_port", "player_label",
   ]) delete config[key];
   for (const key of ["mods", "mod_settings"]) {
     if (config[key] && typeof config[key] === "object") {
@@ -64,6 +66,8 @@ function removeRetiredSettings(config: Config) {
 }
 
 const config = load();
+const portableMods = new PortableMods(service);
+window.AcruxPortableMods = { render: target => portableMods.render(target) };
 const saved = () => ({ config: structuredClone(config) });
 const persist = () => {
   removeRetiredSettings(config);
@@ -485,7 +489,19 @@ async function nativeAction(action: string, payload: Bag = {}) {
   return invoke<Bag>("automation_action", { action, payload, generation: current.generation });
 }
 async function service(action: string, payload: Bag = {}) {
-  return invoke<Bag>("service_action", { action, payload });
+  const run = async () => {
+    const result = await invoke<Bag>("service_action", { action, payload });
+    if (action === "mods_settings") {
+      const all = config.mod_settings as Bag ?? {};
+      config.mod_settings = { ...all, [String(payload.id)]: result.settings };
+      persist();
+    }
+    return result;
+  };
+  if (action !== "mods_settings") return run();
+  const pending = configSaves.then(run);
+  configSaves = pending.then(() => undefined, () => undefined);
+  return pending;
 }
 
 function biomeSettings(source: Bag): BiomeSettings {
@@ -538,23 +554,7 @@ async function setConfig(patch: Bag) {
 }
 
 async function pickFile() {
-  return new Promise<Bag>(resolve => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".acxm,.acrux,.zip";
-    input.hidden = true;
-    const finish = (value: Bag) => { input.remove(); resolve(value); };
-    input.addEventListener("cancel", () => finish({ cancel: true }));
-    input.addEventListener("change", async () => {
-      const file = input.files?.[0];
-      if (!file) return finish({ cancel: true });
-      if (file.size > 30 * 1024 * 1024) return finish({ error: "모드 파일은 30MB 이하로 고르세요." });
-      try { finish(await service("mods_install", { name: file.name, bytes: Array.from(new Uint8Array(await file.arrayBuffer())) })); }
-      catch (error) { finish({ error: String(error) }); }
-    });
-    document.body.append(input);
-    input.click();
-  });
+  return pickModPackage(service);
 }
 
 async function pickSetting(feat: string, key: string, region: boolean) {
@@ -666,7 +666,9 @@ async function request(name: string, payload: Bag) {
         attempt("바이옴", biomeStatus, null),
         attempt("온라인", () => invoke<{ share: boolean }>("online_status"), null),
       ]);
-      haveMods = Array.isArray(mods.mods) && mods.mods.some((mod: Bag) => mod.loaded === true);
+      await portableMods.start((mods.mods ?? []) as ModInfo[]);
+      mods.mods = portableMods.list((mods.mods ?? []) as ModInfo[]);
+      haveMods = Array.isArray(mods.mods) && mods.mods.some((mod: Bag) => mod.runtime !== "javascript" && mod.loaded === true);
       if (biome) config.biome = { enabled: biome.settings.enabled, player: biome.settings.player, ps_link: biome.settings.psLink, webhooks: biome.settings.webhooks, everyone: biome.settings.mentions, roles: biome.settings.roles };
       if (online) config.online_share = online.share;
       if (s) applyStatus(s);
@@ -727,7 +729,11 @@ async function request(name: string, payload: Bag) {
     }
     case "mods_install":
       return payload.path || payload.bytes ? service(name, payload) : pickFile();
-    case "mods_list": case "mods_toggle": case "mods_remove": case "mods_folder":
+    case "mods_list": case "mods_toggle": case "mods_remove": {
+      const result = await service(name, payload);
+      return { ...result, mods: portableMods.list((result.mods ?? []) as ModInfo[]) };
+    }
+    case "mods_folder":
     case "open_web": case "open_folder": case "restart": case "changelog":
     case "update_state": case "update_check": case "update_download": case "update_install":
       return service(name, payload);

@@ -83,6 +83,14 @@ class NativeModule(types.ModuleType):
                 if not isinstance(width, int) or not isinstance(height, int) or width <= 0 or height <= 0 or len(pixels) != width * height * 4:
                     raise ValueError("Native capture dimensions do not match its BGRA pixels")
                 return pixels, width, height
+            if name == "observe" and isinstance(value, dict) and isinstance(value.get("image"), dict):
+                image = dict(value["image"])
+                pixels = base64.b64decode(image.pop("__bgra__"), validate=True)
+                width, height = image["width"], image["height"]
+                if not isinstance(width, int) or not isinstance(height, int) or width <= 0 or height <= 0 or len(pixels) != width * height * 4:
+                    raise ValueError("Native observation dimensions do not match its BGRA pixels")
+                image["pixels"] = pixels
+                return {**value, "image": image}
             return value
         return call
 
@@ -113,6 +121,7 @@ def native_core(data_dir, defaults):
     core.NORMALIZERS = []
     core.STOP = threading.Event()
     core.Config = Config
+    core.dua = NativeModule("dua")
     core.log = lambda message, color="": rpc("log", {"message": str(message), "color": color})
     core.status = lambda state, text="": rpc("status", {"state": state, "text": text})
     core.Bus = types.SimpleNamespace(on_log=core.log, on_status=core.status)
@@ -188,6 +197,8 @@ class Bridge:
         self.cfg.set_data(self.data)
 
     def __getattr__(self, name):
+        if name == "dua":
+            return sys.modules["dua"]
         if name.startswith("api_"):
             action = name[4:]
             if action not in self.reserved:
@@ -216,12 +227,16 @@ def load(payload):
     sys.modules["core"] = native_core(data, defaults)
     # These names intentionally resolve to native adapters, never legacy
     # foreground capture/SendInput or a second Python macro engine.
-    for name in ("macro", "fishing", "popping", "rejoin", "move", "sell", "steps", "crafter", "merchant", "memmatch", "biome"):
+    for name in ("dua", "macro", "fishing", "popping", "rejoin", "move", "sell", "steps", "crafter", "merchant", "memmatch", "biome"):
         sys.modules[name] = NativeModule(name)
     spec = importlib.util.spec_from_file_location("mods", payload["sdk"])
     _mods = importlib.util.module_from_spec(spec)
     sys.modules["mods"] = _mods
     spec.loader.exec_module(_mods)
+    # Portable JavaScript entries are run by the shared app loader. They must
+    # not be imported as Python or reported as broken legacy extensions.
+    scan = _mods.scan
+    _mods.scan = lambda: [mod for mod in scan() if mod.info.get("runtime", "python") == "python"]
     _bridge = Bridge(dict(payload.get("config") or {}), payload.get("reserved", []))
     _mods.load_all(_bridge)
     _bridge.hooks.emit("ready")

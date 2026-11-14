@@ -1,0 +1,9 @@
+{
+  "id": "dua_coast_helper",
+  "name": "DUA Coast Helper",
+  "version": "1.0.0",
+  "runtime": "javascript",
+  "entry": "main",
+  "type": "mod",
+  "description": "공통 DUA 기반을 사용하는 네 플랫폼 공용 예제"
+}

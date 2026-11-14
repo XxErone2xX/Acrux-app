@@ -343,6 +343,9 @@ impl Runtime {
                     .unwrap_or(serde_json::Value::Null);
             }
         }
+        if let Some(config) = config.as_object_mut() {
+            config.remove("player_label");
+        }
         config
     }
 
@@ -398,6 +401,9 @@ impl Runtime {
                     self.totals = profile.totals;
                     self.navigation = profile.navigation;
                     self.macro_settings = profile.macro_settings;
+                    if let Some(config) = self.macro_settings.as_object_mut() {
+                        config.remove("player_label");
+                    }
                     self.wayfinding = profile.wayfinding;
                     self.navigation.fit_positions();
                     #[cfg(any(
@@ -843,17 +849,6 @@ impl Runtime {
             });
             settings.jump = Some(vision::Point(0.5, 0.5));
         }
-        let config = self.macro_config();
-        settings.player_label = config["player_label"]
-            .as_str()
-            .filter(|s| !s.trim().is_empty())
-            .or_else(|| {
-                config["biome"]["player"]
-                    .as_str()
-                    .filter(|s| !s.trim().is_empty())
-            })
-            .map(|s| s.trim().to_owned())
-            .unwrap_or_else(|| biome::settings().player);
         settings
     }
 
@@ -1702,7 +1697,7 @@ fn dua_start(features: Vec<String>, generation: i32) -> Result<Status, String> {
     if generation != state.generation {
         return Err("이전 실행 요청이 취소됐습니다. 다시 시작하세요.".into());
     }
-    #[cfg(target_os = "linux")]
+    #[cfg(desktop)]
     validate_desktop_entry(&state)?;
     state.start_dua(&features, now())?;
     Ok(state.status())
@@ -1748,20 +1743,7 @@ fn desktop_start(features: Vec<String>, generation: i32) -> Result<Status, Strin
     )) {
         return Err("데스크톱 DUA의 게임 캡처 · 입력은 Windows와 Linux에서 지원합니다.".into());
     }
-    let mut state = runtime();
-    if state.generation != generation {
-        return Err("이전 실행 요청이 취소됐습니다. 다시 시작하세요.".into());
-    }
-    #[cfg(target_os = "linux")]
-    if !desktop::game_available() {
-        return Err(
-            "실행 중인 Sober 게임 창을 찾지 못했습니다. Sober에서 게임을 연 뒤 다시 시작하세요."
-                .into(),
-        );
-    }
-    validate_desktop_entry(&state)?;
-    state.start_desktop(&features, now())?;
-    Ok(state.status())
+    dua_start(features, generation)
 }
 
 fn validate_desktop_entry(state: &Runtime) -> Result<(), String> {
@@ -2033,6 +2015,7 @@ fn save_macro_settings(mut config: serde_json::Value) -> Result<serde_json::Valu
         return Err("매크로 설정의 형식과 크기를 확인하세요.".into());
     }
     config["macro_on"] = false.into();
+    config.as_object_mut().unwrap().remove("player_label");
     let _ = automation::Runner::new(config.clone(), now())?;
     let mut state = runtime();
     if state.active() && state.macro_config() != config {
@@ -2190,14 +2173,15 @@ async fn automation_action(
     generation: i32,
 ) -> Result<serde_json::Value, String> {
     #[cfg(target_os = "android")]
-    if ![
-        "ocr_info",
-        "mpop_default",
-        "ret_join",
-        "ret_test",
-        "crash_cancel",
-    ]
-    .contains(&action.as_str())
+    if !automation_reads_without_game(&action, &payload)
+        && ![
+            "ocr_info",
+            "mpop_default",
+            "ret_join",
+            "ret_test",
+            "crash_cancel",
+        ]
+        .contains(&action.as_str())
         && !action.ends_with("_stop")
     {
         android::setup(&app, "returnGame", None)?;
@@ -2207,6 +2191,13 @@ async fn automation_action(
     tauri::async_runtime::spawn_blocking(move || automation_call(action, payload, generation))
         .await
         .map_err(|e| e.to_string())?
+}
+
+fn automation_reads_without_game(action: &str, payload: &serde_json::Value) -> bool {
+    action == "sdk_call"
+        && payload["module"] == "dua"
+        && ["capabilities", "status", "logs", "stop", "cancel"]
+            .contains(&payload["method"].as_str().unwrap_or(""))
 }
 
 pub(crate) fn automation_call(
@@ -2254,8 +2245,13 @@ pub(crate) fn automation_call(
         return Err("이전 실행 요청이 취소됐습니다.".into());
     }
     if action == "waypoint_cancel" {
+        let cancel_input = matches!(state.sdk_request, Some(sdk::Request::Input { .. }));
         if let Some(request) = state.sdk_request.take() {
             request.cancel("목적지 등록을 취소했습니다.");
+        }
+        if cancel_input {
+            state.stop("입력 요청을 취소했습니다.");
+            state.record();
         }
         return Ok(json!({"ok":true}));
     }
@@ -2566,6 +2562,22 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn headless_dua_queries_and_stop_do_not_switch_android_to_the_game() {
+        for method in ["capabilities", "status", "logs", "stop", "cancel"] {
+            assert!(automation_reads_without_game(
+                "sdk_call",
+                &serde_json::json!({"module":"dua","method":method})
+            ));
+        }
+        for method in ["observe", "tap", "go", "mark", "start"] {
+            assert!(!automation_reads_without_game(
+                "sdk_call",
+                &serde_json::json!({"module":"dua","method":method})
+            ));
+        }
+    }
 
     #[test]
     #[cfg(desktop)]

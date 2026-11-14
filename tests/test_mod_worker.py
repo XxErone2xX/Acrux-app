@@ -49,6 +49,10 @@ class Worker:
                 elif action == "automation":
                     if body["payload"]["method"] == "grab":
                         value = {"__bgra__": "AQIDBA==", "width": 1, "height": 1}
+                    elif body["payload"]["method"] == "observe":
+                        value = {"image": {"__bgra__": "AQIDBA==", "width": 1, "height": 1, "origin": [5, 7]},
+                                 "words": [["Fish", .2, .3, .1, .1]], "capturedAt": 12.5,
+                                 "inputDeadline": 12.8, "generation": 9, "engine": "test"}
                     else:
                         value = {"ok": True, "method": body["payload"]["method"]}
                 else:
@@ -164,6 +168,41 @@ def setup(ctx):
         self.assertTrue(self.load()["mods"][0]["loaded"])
         result = self.worker.command("call", {"name": "sample_capture", "payload": {}})
         self.assertEqual(result, {"bytes": [1, 2, 3, 4], "width": 1, "height": 1})
+
+    def test_dua_module_uses_common_transport_and_keeps_same_frame_observation_metadata(self):
+        self.package("dua_test", '''import dua
+def setup(ctx):
+    @ctx.api("dua_observe")
+    def call(payload):
+        result = dua.observe(rect=[.1, .2, .7, .8])
+        result["image"]["pixels"] = list(result["image"]["pixels"])
+        return result
+    @ctx.api("dua_control")
+    def control(payload):
+        return [dua.status(), ctx.core.dua.capabilities(), ctx.bridge.dua.go("coast"), dua.stop()]
+''')
+        self.assertTrue(self.load()["mods"][0]["loaded"])
+        observed = self.worker.command("call", {"name": "dua_observe", "payload": {}})
+        self.assertEqual(observed["image"], {"pixels": [1, 2, 3, 4], "width": 1, "height": 1, "origin": [5, 7]})
+        self.assertEqual(observed["capturedAt"], 12.5)
+        self.assertEqual(observed["inputDeadline"], 12.8)
+        self.assertEqual(observed["generation"], 9)
+        self.assertEqual(observed["words"], [["Fish", .2, .3, .1, .1]])
+        self.worker.command("call", {"name": "dua_control", "payload": {}})
+        native = [call["payload"] for call in self.worker.calls if call["action"] == "automation"]
+        self.assertEqual([call["payload"]["module"] for call in native], ["dua"] * 5)
+        self.assertEqual(native[0]["payload"], {"module": "dua", "method": "observe", "args": [], "kwargs": {"rect": [.1, .2, .7, .8]}})
+        self.assertEqual([call["payload"]["method"] for call in native[1:]], ["status", "capabilities", "go", "stop"])
+
+    def test_javascript_packages_are_left_to_portable_loader_without_python_errors(self):
+        self.package("python_mod", 'def setup(ctx):\n    ctx.on("active", lambda: True)\n')
+        portable = self.data / "mods" / "portable_mod"
+        portable.mkdir()
+        (portable / "mod.json").write_text(json.dumps({"id": "portable_mod", "name": "Portable", "runtime": "javascript", "entry": "main"}))
+        (portable / "main.js").write_text('export function setup(ctx) {}\n')
+        mods = self.load()["mods"]
+        self.assertEqual([mod["id"] for mod in mods], ["python_mod"])
+        self.assertTrue(mods[0]["loaded"])
 
     def test_shutdown_runs_original_cleanup_hooks_and_flushes_settings_before_exit(self):
         self.package("cleanup", '''def setup(ctx):

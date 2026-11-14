@@ -31,6 +31,7 @@ const RESERVED: &[&str] = &[
     "mods_toggle",
     "mods_remove",
     "mods_folder",
+    "mods_settings",
     "changelog",
     "ocr_info",
     "ocr_test",
@@ -155,7 +156,7 @@ pub(crate) fn init(app: &AppHandle) -> Result<(), String> {
         std::thread::spawn(move || {
             if metadata(&state.root.join("mods"), &crate::macro_settings())
                 .iter()
-                .any(|item| item["enabled"] == true)
+                .any(|item| item["enabled"] == true && item["runtime"] == "python")
             {
                 if let Err(error) = start_worker(&state) {
                     *lock(&state.worker_error) = Some(error);
@@ -218,6 +219,7 @@ fn manifest(path: &Path) -> Result<Value, String> {
     if !valid_id(value["id"].as_str().unwrap_or("")) {
         return Err("모드 ID가 올바르지 않습니다.".into());
     }
+    mod_runtime(&value)?;
     let entry = value["entry"].as_str().unwrap_or("main");
     if !regex::Regex::new(r"^[a-z_][a-z0-9_]*$")
         .unwrap()
@@ -226,6 +228,24 @@ fn manifest(path: &Path) -> Result<Value, String> {
         return Err("모드 entry가 올바르지 않습니다.".into());
     }
     Ok(value)
+}
+fn mod_runtime(info: &Value) -> Result<&'static str, String> {
+    match info.get("runtime") {
+        None => Ok("python"),
+        Some(Value::String(runtime)) if runtime == "python" => Ok("python"),
+        Some(Value::String(runtime)) if runtime == "javascript" => Ok("javascript"),
+        _ => Err("모드 runtime은 javascript 또는 python이어야 합니다.".into()),
+    }
+}
+fn mod_base() -> &'static str {
+    if cfg!(any(target_os = "windows", target_os = "android")) {
+        "http://acruxmod.localhost"
+    } else {
+        "acruxmod://localhost"
+    }
+}
+fn mod_url(id: &str, file: &str) -> String {
+    format!("{}/{id}/{file}", mod_base())
 }
 fn metadata(folder: &Path, config: &Value) -> Vec<Value> {
     let mut dirs: Vec<_> = fs::read_dir(folder)
@@ -240,13 +260,21 @@ fn metadata(folder: &Path, config: &Value) -> Vec<Value> {
         let info = manifest(&path.join("mod.json")).ok()?;
         let id = info["id"].as_str()?;
         if path.file_name()?.to_str()? != id { return None; }
+        let runtime = mod_runtime(&info).ok()?;
+        let entry = info["entry"].as_str().unwrap_or("main");
         Some(json!({"id": id, "name": info["name"].as_str().unwrap_or(id), "version": info["version"].as_str().unwrap_or(""),
             "type": if info["type"] == "mod" {"mod"} else {"plugin"}, "author": info["author"].as_str().unwrap_or(""),
             "description": info["description"].as_str().unwrap_or(""), "enabled": config["mods"][id]["enabled"].as_bool().unwrap_or(true),
+            "runtime": runtime, "entry": if runtime == "javascript" { Value::String(mod_url(id, &format!("{entry}.js"))) } else { Value::Null },
+            "settings": config["mod_settings"][id].as_object().cloned().unwrap_or_default(),
             "loaded": false, "error": "", "ui": {}}))
     }).collect()
 }
-fn install(bytes: &[u8], folder: &Path) -> Result<Value, String> {
+fn install(
+    bytes: &[u8],
+    folder: &Path,
+    prepare: impl FnOnce(&Value) -> Result<(), String>,
+) -> Result<Value, String> {
     if bytes.len() > MAX_PACKAGE {
         return Err("모드 파일은 30MiB까지 설치할 수 있습니다.".into());
     }
@@ -293,6 +321,10 @@ fn install(bytes: &[u8], folder: &Path) -> Result<Value, String> {
             .unwrap_or(&info_bytes),
     )
     .map_err(|e| e.to_string())?;
+    let runtime = mod_runtime(&info)?;
+    if cfg!(target_os = "android") && runtime == "python" {
+        return Err("이 Python 모드는 데스크톱 전용입니다. 모든 기기에서 쓰려면 JavaScript 모드로 옮겨 주세요.".into());
+    }
     let id = info["id"]
         .as_str()
         .filter(|id| valid_id(id))
@@ -317,12 +349,25 @@ fn install(bytes: &[u8], folder: &Path) -> Result<Value, String> {
             }
         }
         let info = manifest(&tmp.join("mod.json"))?;
+        let extension = if mod_runtime(&info)? == "javascript" {
+            "js"
+        } else {
+            "py"
+        };
         if !tmp
-            .join(format!("{}.py", info["entry"].as_str().unwrap_or("main")))
+            .join(format!(
+                "{}.{extension}",
+                info["entry"].as_str().unwrap_or("main")
+            ))
             .is_file()
         {
-            return Err("모드 setup(ctx)를 실행할 Python 파일이 없습니다.".into());
+            return Err(format!(
+                "모드 setup(ctx)를 실행할 {extension} 파일이 없습니다."
+            ));
         }
+        // Prepare a legacy runtime only after validation, before replacing a
+        // working installation. JavaScript modules need no Python executable.
+        prepare(&info)?;
         Ok(())
     })();
     if let Err(error) = unpack {
@@ -376,6 +421,34 @@ fn save_mod(id: &str, enabled: Option<bool>) -> Result<(), String> {
         config["mods"].as_object_mut().unwrap().remove(id);
     }
     crate::save_macro_settings(config).map(|_| ())
+}
+fn save_mod_settings(
+    runtime: &mut crate::Runtime,
+    id: &str,
+    settings: Value,
+) -> Result<Value, String> {
+    if !settings.is_object()
+        || serde_json::to_vec(&settings)
+            .map_err(|e| e.to_string())?
+            .len()
+            > 2 * 1024 * 1024
+    {
+        return Err("모드 설정의 형식과 크기를 확인하세요.".into());
+    }
+    let mut config = runtime.macro_config();
+    if !config["mod_settings"].is_object() {
+        config["mod_settings"] = json!({});
+    }
+    config["mod_settings"][id] = settings.clone();
+    let previous = std::mem::replace(&mut runtime.macro_settings, config);
+    if let Err(error) = runtime.save(runtime.fishing.tuning) {
+        runtime.macro_settings = previous;
+        return Err(error);
+    }
+    if let Some(runner) = runtime.automation.as_mut() {
+        runner.set_mod_settings(id, settings.clone());
+    }
+    Ok(json!({"settings":settings}))
 }
 
 fn trusted_url(url: &str) -> bool {
@@ -982,6 +1055,15 @@ fn mod_list(state: &State) -> Value {
     let mut mods = metadata(&state.root.join("mods"), &crate::macro_settings());
     let worker_error = lock(&state.worker_error).clone();
     for item in &mut mods {
+        // Portable modules run in the shared UI runtime. Its successful setup
+        // determines loaded/error; a Python worker cannot attest that result.
+        if item["runtime"] == "javascript" {
+            continue;
+        }
+        if cfg!(target_os = "android") {
+            item["error"] = json!("이 Python 모드는 데스크톱 전용입니다. 모든 기기에서 쓰려면 JavaScript 모드로 옮겨 주세요.");
+            continue;
+        }
         if let Some(loaded) = lock(&state.loaded).iter().find(|m| m["id"] == item["id"]) {
             item["loaded"] = loaded["loaded"].clone();
             item["error"] = loaded["error"].clone();
@@ -993,11 +1075,7 @@ fn mod_list(state: &State) -> Value {
             }
         }
     }
-    let base = if cfg!(windows) {
-        "http://acruxmod.localhost"
-    } else {
-        "acruxmod://localhost"
-    };
+    let base = mod_base();
     for item in &mut mods {
         if let Some(ui) = item["ui"].as_object_mut() {
             for value in ui.values_mut() {
@@ -1409,7 +1487,7 @@ fn service(app: &AppHandle, action: &str, payload: Value) -> Result<Value, Strin
             #[cfg(desktop)]
             if metadata(&state.root.join("mods"), &crate::macro_settings())
                 .iter()
-                .any(|item| item["enabled"] == true)
+                .any(|item| item["enabled"] == true && item["runtime"] == "python")
             {
                 if let Err(error) = start_worker(state) {
                     *lock(&state.worker_error) = Some(error);
@@ -1423,11 +1501,15 @@ fn service(app: &AppHandle, action: &str, payload: Value) -> Result<Value, Strin
             } else {
                 byte_payload(&payload)?
             };
-            #[cfg(desktop)]
-            {
-                python(&state.root)?;
-            }
-            let info = install(&bytes, &state.root.join("mods"))?;
+            let info = install(&bytes, &state.root.join("mods"), |info| {
+                #[cfg(desktop)]
+                if mod_runtime(info)? == "python" {
+                    python(&state.root)?;
+                }
+                #[cfg(not(desktop))]
+                let _ = info;
+                Ok(())
+            })?;
             let id = info["id"].as_str().unwrap();
             save_mod(id, Some(true))?;
             let mut result = mod_list(state);
@@ -1435,6 +1517,21 @@ fn service(app: &AppHandle, action: &str, payload: Value) -> Result<Value, Strin
             result["name"] = info["name"].clone();
             result["restart"] = json!(true);
             Ok(result)
+        }
+        "mods_settings" => {
+            let id = payload["id"]
+                .as_str()
+                .filter(|s| valid_id(s))
+                .ok_or("모드 ID가 올바르지 않습니다.")?;
+            let folder = state.root.join("mods").join(id);
+            if folder.is_symlink() || !folder.is_dir() {
+                return Err("설치되지 않은 모드입니다.".into());
+            }
+            let info = manifest(&folder.join("mod.json"))?;
+            if mod_runtime(&info)? != "javascript" {
+                return Err("이 설정 창구는 JavaScript 모드에 사용합니다.".into());
+            }
+            save_mod_settings(&mut crate::runtime(), id, payload["settings"].clone())
         }
         "mods_toggle" | "mods_remove" => {
             let id = payload["id"]
@@ -1445,6 +1542,7 @@ fn service(app: &AppHandle, action: &str, payload: Value) -> Result<Value, Strin
             if folder.is_symlink() || !folder.is_dir() {
                 return Err("설치되지 않은 모드입니다.".into());
             }
+            manifest(&folder.join("mod.json"))?;
             if action == "mods_remove" {
                 fs::remove_dir_all(folder).map_err(|e| e.to_string())?;
                 save_mod(id, None)?;
@@ -1533,10 +1631,13 @@ mod tests {
             ("sample/main.py", "def setup(ctx): pass\n"),
             ("sample/ui/main.js", "window.sample = true;"),
         ]);
-        assert_eq!(install(&bytes, &root.0).unwrap()["id"], "sample");
+        assert_eq!(
+            install(&bytes, &root.0, |_| Ok(())).unwrap()["id"],
+            "sample"
+        );
         assert!(root.0.join("sample/ui/main.js").is_file());
         let invalid = archive(&[("mod.json", r#"{"id":"sample"}"#)]);
-        assert!(install(&invalid, &root.0).is_err());
+        assert!(install(&invalid, &root.0, |_| Ok(())).is_err());
         assert_eq!(
             fs::read_to_string(root.0.join("sample/main.py")).unwrap(),
             "def setup(ctx): pass\n"
@@ -1550,11 +1651,131 @@ mod tests {
             ("main.py", ""),
             ("../outside.py", "escaped"),
         ]);
-        assert!(install(&traversal, &root.0).is_err());
+        assert!(install(&traversal, &root.0, |_| Ok(())).is_err());
         assert!(!root.0.parent().unwrap().join("outside.py").exists());
         let retired = archive(&[("mod.json", r#"{"id":"sniping"}"#), ("main.py", "")]);
-        assert!(install(&retired, &root.0).is_err());
+        assert!(install(&retired, &root.0, |_| Ok(())).is_err());
         assert!(!root.0.join("sniping").exists());
+    }
+    #[test]
+    fn portable_packages_have_real_javascript_entries_and_keep_settings_without_python_status() {
+        let root = Folder::new();
+        let bytes = archive(&[
+            (
+                "sample/mod.json",
+                r#"{"id":"sample","runtime":"javascript","entry":"main","name":"Portable"}"#,
+            ),
+            (
+                "sample/main.js",
+                "export async function setup(ctx) { await ctx.dua.status(); }",
+            ),
+        ]);
+        assert_eq!(
+            install(&bytes, &root.0, |_| Ok(())).unwrap()["runtime"],
+            "javascript"
+        );
+        assert!(!root.0.join("sample/main.py").exists());
+        let rows = metadata(
+            &root.0,
+            &json!({"mod_settings":{"sample":{"enabled":true}}}),
+        );
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["runtime"], "javascript");
+        assert_eq!(rows[0]["entry"], mod_url("sample", "main.js"));
+        assert_eq!(rows[0]["settings"], json!({"enabled":true}));
+        assert_eq!(rows[0]["loaded"], false);
+        let state = State {
+            root: root.0.clone(),
+            worker: Mutex::new(None),
+            worker_process: Mutex::new(None),
+            worker_error: Mutex::new(Some("Python is unavailable".into())),
+            loaded: Mutex::new(vec![]),
+            apis: Mutex::new(vec![]),
+            releases: Mutex::new(None),
+            closing: AtomicBool::new(false),
+        };
+        // A failed Python host must not claim a portable module failed setup.
+        let managed = root.0.join("mods");
+        fs::create_dir(&managed).unwrap();
+        fs::rename(root.0.join("sample"), managed.join("sample")).unwrap();
+        let listing = mod_list(&state);
+        assert_eq!(listing["mods"][0]["error"], "");
+        assert_eq!(listing["mods"][0]["loaded"], false);
+    }
+    #[test]
+    fn invalid_portable_update_and_failed_runtime_preparation_preserve_the_working_module() {
+        let root = Folder::new();
+        let good = archive(&[
+            ("mod.json", r#"{"id":"sample","runtime":"javascript"}"#),
+            ("main.js", "export function setup() {}"),
+        ]);
+        install(&good, &root.0, |_| Ok(())).unwrap();
+        for invalid in [
+            archive(&[
+                ("mod.json", r#"{"id":"sample","runtime":"javascript"}"#),
+                ("main.py", "pass"),
+            ]),
+            archive(&[
+                ("mod.json", r#"{"id":"sample","runtime":"other"}"#),
+                ("main.js", ""),
+            ]),
+            archive(&[
+                (
+                    "mod.json",
+                    r#"{"id":"sample","runtime":"javascript","entry":"../escape"}"#,
+                ),
+                ("main.js", ""),
+            ]),
+        ] {
+            assert!(install(&invalid, &root.0, |_| Ok(())).is_err());
+        }
+        let replacement = archive(&[
+            ("mod.json", r#"{"id":"sample","runtime":"javascript"}"#),
+            ("main.js", "export function setup() { throw Error('new'); }"),
+        ]);
+        assert!(install(&replacement, &root.0, |_| Err(
+            "runtime preparation failed".into()
+        ))
+        .is_err());
+        assert_eq!(
+            fs::read_to_string(root.0.join("sample/main.js")).unwrap(),
+            "export function setup() {}"
+        );
+    }
+    #[test]
+    fn scoped_mod_settings_preserve_other_features_and_roll_back_failed_writes() {
+        let root = Folder::new();
+        let mut runtime = crate::Runtime {
+            settings: Some(root.0.join("settings.json")),
+            ..crate::Runtime::default()
+        };
+        runtime.macro_settings = runtime.macro_config();
+        runtime.macro_settings["mod_settings"] = json!({"other":{"value":7}});
+        runtime.macro_settings["mitem"]["enabled"] = json!(true);
+        runtime.automation =
+            Some(crate::automation::Runner::new(runtime.macro_settings.clone(), 0.).unwrap());
+        runtime.dua.running = true;
+        let result = save_mod_settings(&mut runtime, "sample", json!({"value":12})).unwrap();
+        assert_eq!(result["settings"]["value"], 12);
+        assert_eq!(runtime.macro_settings["mod_settings"]["other"]["value"], 7);
+        assert_eq!(runtime.macro_settings["mitem"]["enabled"], true);
+        assert!(runtime.dua.running);
+        assert_eq!(
+            runtime.automation.as_ref().unwrap().config()["mod_settings"]["sample"]["value"],
+            12
+        );
+        let saved: Value =
+            serde_json::from_slice(&fs::read(root.0.join("settings.json")).unwrap()).unwrap();
+        assert_eq!(
+            saved["macro_settings"]["mod_settings"]["sample"]["value"],
+            12
+        );
+        let previous = runtime.macro_settings.clone();
+        fs::write(root.0.join("blocker"), "file").unwrap();
+        runtime.settings = Some(root.0.join("blocker/settings.json"));
+        assert!(save_mod_settings(&mut runtime, "sample", json!({"value":99})).is_err());
+        assert_eq!(runtime.macro_settings, previous);
+        assert!(save_mod_settings(&mut runtime, "sample", json!([])).is_err());
     }
     #[test]
     fn checksum_and_file_input_reject_corruption_instead_of_accepting_partial_bytes() {

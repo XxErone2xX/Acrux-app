@@ -746,6 +746,12 @@ impl Runner {
     pub(crate) fn config(&self) -> &Value {
         &self.cfg.0
     }
+    pub(crate) fn set_mod_settings(&mut self, id: &str, settings: Value) {
+        if !self.cfg.0["mod_settings"].is_object() {
+            self.cfg.0["mod_settings"] = serde_json::json!({});
+        }
+        self.cfg.0["mod_settings"][id] = settings;
+    }
     pub(crate) fn restore_session(&mut self, previous: &Value) {
         for key in ["used", "bought"] {
             let values: BTreeMap<String, u64> = previous[key]

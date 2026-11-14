@@ -1,5 +1,6 @@
 //! Screenshot-led travel to the few game destinations. No world coordinates,
-//! heights or timed routes are supplied or inferred from screen-center position.
+//! heights or timed routes are supplied. The camera follows its player, so the
+//! screen center is the local navigation origin; jump geometry is measured separately.
 use crate::{
     automation::{Command, Word},
     device::Gesture,
@@ -26,8 +27,9 @@ const PATCH: usize = 24;
 pub(crate) struct Settings {
     pub controls: Option<Controls>,
     pub jump: Option<Point>,
-    /// An actual overhead name, optionally `display name|account name`.
-    pub player_label: String,
+    /// Consume the retired saved field without restoring a name requirement.
+    #[serde(rename = "playerLabel", skip_serializing)]
+    _retired_player_label: serde::de::IgnoredAny,
     pub excluded: Vec<Rect>,
     pub memory: Memory,
 }
@@ -107,6 +109,8 @@ struct Contact {
     bounds: Rect,
     radius: f64,
     error: f64,
+    /// Only pixel-observed body/feet may supply jump grounding and height.
+    physical: bool,
 }
 
 struct JumpSession {
@@ -174,9 +178,9 @@ pub(crate) struct Wayfinder {
 
 impl Wayfinder {
     /// A user-requested mark binds a visible, destination-specific landmark to
-    /// the character's ACTUAL supported feet in this same captured frame.
-    /// It never turns a viewport point, guessed center or hidden landmark into
-    /// a saved destination. Automatic marks still require the real task UI.
+    /// player-follow camera origin in this same captured frame.
+    /// Terrain and destination evidence remain required; no overhead name is read.
+    /// Automatic marks still require the real task UI.
     pub(crate) fn mark(
         destination: Destination,
         settings: Settings,
@@ -196,13 +200,8 @@ impl Wayfinder {
                 "목적지 등록에는 새 전체 화면과 같은 화면의 글자 관측이 필요합니다.".into(),
             );
         }
-        let contact = avatar_contact(frame, words, &finder.settings.player_label)?;
-        let excluded = exclusions(
-            frame,
-            words,
-            &finder.settings.excluded,
-            &finder.settings.player_label,
-        );
+        let contact = avatar_contact(frame)?;
+        let excluded = exclusions(frame, words, &finder.settings.excluded);
         let grid = Grid::observe(frame, contact, &excluded)?;
         if grid
             .seeds(
@@ -216,7 +215,7 @@ impl Wayfinder {
             .len()
             < 3
         {
-            return Err("현재 발을 둘러싼 실제 지면이 충분히 보이지 않습니다.".into());
+            return Err("현재 플레이어 주변의 지면이 충분히 보이지 않습니다.".into());
         }
         let labels: &[&str] = match destination {
             Destination::Base => &[
@@ -263,7 +262,6 @@ impl Wayfinder {
     ) -> Result<Self, String> {
         if !now.is_finite()
             || now < 0.
-            || settings.player_label.len() > 160
             || settings.excluded.len() > 24
             || settings.memory.anchors.len() > 16
             || settings.excluded.iter().any(|r| !rect_valid(*r))
@@ -533,21 +531,13 @@ impl Wayfinder {
         }
     }
     fn locate(&mut self, frame: &Frame<'_>, words: &[Word], now: f64) -> Tick {
-        if self.settings.player_label.trim().is_empty() {
-            return self.stop("자기 캐릭터의 표시 이름을 설정하세요. 다른 플레이어나 화면 중앙을 현재 위치로 사용하지 않습니다.");
-        }
-        let contact = match avatar_contact(frame, words, &self.settings.player_label) {
+        let contact = match avatar_contact(frame) {
             Ok(v) => v,
             Err(e) => return self.retry_observation(&e),
         };
         let controls=match self.settings.controls.or_else(||detect_controls(frame)) {Some(v)=>v,None=>return self.stop("실제 조이스틱 가운데와 가장자리 위치가 필요합니다. 조이스틱이 보이게 하거나 기존 입력 위치를 지정하세요.")};
         self.settings.controls = Some(controls);
-        let excluded = exclusions(
-            frame,
-            words,
-            &self.settings.excluded,
-            &self.settings.player_label,
-        );
+        let excluded = exclusions(frame, words, &self.settings.excluded);
         let grid = match Grid::observe(frame, contact, &excluded) {
             Ok(v) => v,
             Err(e) => return self.retry_observation(&e),
@@ -621,12 +611,25 @@ impl Wayfinder {
         intermediate: bool,
         anchor: Option<Anchor>,
     ) -> Tick {
-        let excluded = exclusions(
-            frame,
-            words,
-            &self.settings.excluded,
-            &self.settings.player_label,
-        );
+        let centered_grid;
+        let (contact, grid) = if contact.physical {
+            let contact = match avatar_contact(frame) {
+                Ok(contact) => contact,
+                Err(error) => return self.retry_observation(&error),
+            };
+            centered_grid = match Grid::observe(
+                frame,
+                contact,
+                &exclusions(frame, words, &self.settings.excluded),
+            ) {
+                Ok(grid) => grid,
+                Err(error) => return self.retry_observation(&error),
+            };
+            (contact, &centered_grid)
+        } else {
+            (contact, grid)
+        };
+        let excluded = exclusions(frame, words, &self.settings.excluded);
         let controls = self.settings.controls.unwrap();
         self.intermediate = intermediate;
         let clearance = contact.radius + contact.error + 3.;
@@ -672,11 +675,12 @@ impl Wayfinder {
             self.pending_anchor = anchor;
         }
         self.state.phase = "localizing";
-        self.state.message = "실제 발 접점과 지면을 바탕으로 모서리 경로를 따라갑니다.".into();
+        self.state.message =
+            "플레이어 중심과 관측한 지면을 바탕으로 모서리 경로를 따라갑니다.".into();
         observe()
     }
     fn navigate(&mut self, frame: &Frame<'_>, words: &[Word], now: f64) -> Tick {
-        let contact = match avatar_contact(frame, words, &self.settings.player_label) {
+        let contact = match avatar_contact(frame) {
             Ok(v) => v,
             Err(e) => return self.retry_observation(&e),
         };
@@ -733,11 +737,15 @@ impl Wayfinder {
         &mut self,
         frame: &Frame<'_>,
         words: &[Word],
-        contact: Contact,
+        _contact: Contact,
         grid: &Grid,
         goal: Point,
         now: f64,
     ) -> Tick {
+        let contact = match physical_contact(frame) {
+            Ok(contact) => contact,
+            Err(error) => return self.retry_observation(&error),
+        };
         let (ground, shadow) = grounding(frame, contact);
         if ground != jump::Grounding::Supported {
             return self.retry_observation("점프 보정에 필요한 실제 발과 그림자의 접지를 확인하지 못했습니다. 시간만으로 착지나 출발을 가정하지 않습니다.");
@@ -753,15 +761,10 @@ impl Wayfinder {
             return self.stop("관측한 조이스틱 보정과 점프 버튼 위치가 필요합니다.");
         };
         let included = grid.included().region((frame.width, frame.height)).unwrap();
-        let mut excluded: Vec<_> = exclusions(
-            frame,
-            words,
-            &self.settings.excluded,
-            &self.settings.player_label,
-        )
-        .into_iter()
-        .filter_map(|r| r.region((frame.width, frame.height)))
-        .collect();
+        let mut excluded: Vec<_> = exclusions(frame, words, &self.settings.excluded)
+            .into_iter()
+            .filter_map(|r| r.region((frame.width, frame.height)))
+            .collect();
         // One fixed mask covers all three small experiments. Ground texture
         // around it, independently matched in each frame, tracks the plane.
         if let Some(r) = expand(
@@ -844,61 +847,48 @@ impl Wayfinder {
         observe()
     }
 
-    fn jump_tick(&mut self, frame: Option<&Frame<'_>>, words: &[Word], now: f64) -> Tick {
+    fn jump_tick(&mut self, frame: Option<&Frame<'_>>, _words: &[Word], now: f64) -> Tick {
         let captured_at = self.last_frame;
         let Some(session) = self.jump_session.as_mut() else {
             return self.stop("점프 관측 세션이 없습니다.");
         };
         let observation = frame.and_then(|frame| {
-            avatar_contact(frame, words, &self.settings.player_label)
-                .ok()
-                .and_then(|contact| {
-                    let (ground, shadow) = grounding(frame, contact);
-                    let current =
-                        Snapshot::capture(frame, session.included, &session.excluded).ok()?;
-                    let limit = frame
-                        .width
-                        .max(frame.height)
-                        .div_ceil(512)
-                        .max(1)
-                        .saturating_mul(48)
-                        .min(512);
-                    let registration = if ground == jump::Grounding::Supported
-                        && session.runner.landing_expected()
-                        && session.landing.is_some()
-                    {
-                        scene::register_local(
-                            &session.reference,
-                            &current,
-                            limit,
-                            session.landing.as_ref()?.region,
-                        )
-                        .ok()?
-                    } else {
-                        let anchor = foot_anchor(
-                            session.body,
-                            session.included,
-                            (frame.width, frame.height),
-                        )?;
-                        scene::register_anchored(&session.reference, &current, limit, anchor)
-                            .ok()?
-                    };
-                    let foot = registration.inverse_point([
-                        contact.point.0 * frame.width as f64,
-                        contact.point.1 * frame.height as f64,
-                    ])?;
-                    let shadow = registration.inverse_point([
-                        shadow?.0 * frame.width as f64,
-                        shadow?.1 * frame.height as f64,
-                    ])?;
-                    Some(jump::JumpObservation {
-                        foot,
-                        shadow: Some(shadow),
-                        error_pixels: contact.error + registration.error_pixels,
-                        observed_at: captured_at,
-                        ground,
-                    })
+            physical_contact(frame).ok().and_then(|contact| {
+                let (ground, shadow) = grounding(frame, contact);
+                let current = Snapshot::capture(frame, session.included, &session.excluded).ok()?;
+                let limit = session.runner.camera_shift_limit();
+                let registration = if ground == jump::Grounding::Supported
+                    && session.runner.landing_expected()
+                    && session.landing.is_some()
+                {
+                    scene::register_local(
+                        &session.reference,
+                        &current,
+                        limit,
+                        session.landing.as_ref()?.region,
+                    )
+                    .ok()?
+                } else {
+                    let anchor =
+                        foot_anchor(session.body, session.included, (frame.width, frame.height))?;
+                    scene::register_anchored(&session.reference, &current, limit, anchor).ok()?
+                };
+                let foot = registration.inverse_point([
+                    contact.point.0 * frame.width as f64,
+                    contact.point.1 * frame.height as f64,
+                ])?;
+                let shadow = registration.inverse_point([
+                    shadow?.0 * frame.width as f64,
+                    shadow?.1 * frame.height as f64,
+                ])?;
+                Some(jump::JumpObservation {
+                    foot,
+                    shadow: Some(shadow),
+                    error_pixels: contact.error + registration.error_pixels,
+                    observed_at: captured_at,
+                    ground,
                 })
+            })
         });
         if frame.is_some() {
             if observation.is_none_or(|o| o.ground == jump::Grounding::Unknown) {
@@ -948,21 +938,30 @@ impl Wayfinder {
         }
     }
 
-    fn start_survey(&mut self, frame: &Frame<'_>, words: &[Word], grid: Grid, goal: Point) -> Tick {
-        let body = match avatar_contact(frame, words, &self.settings.player_label) {
+    fn start_survey(
+        &mut self,
+        frame: &Frame<'_>,
+        words: &[Word],
+        _grid: Grid,
+        goal: Point,
+    ) -> Tick {
+        let body = match physical_contact(frame) {
             Ok(v) => v,
             Err(e) => return self.retry_observation(&e),
         };
-        let included = grid.included().region(grid.geometry).unwrap();
-        let mut excluded: Vec<_> = exclusions(
+        let grid = match Grid::observe(
             frame,
-            words,
-            &self.settings.excluded,
-            &self.settings.player_label,
-        )
-        .into_iter()
-        .filter_map(|r| r.region(grid.geometry))
-        .collect();
+            body,
+            &exclusions(frame, words, &self.settings.excluded),
+        ) {
+            Ok(grid) => grid,
+            Err(error) => return self.retry_observation(&error),
+        };
+        let included = grid.included().region(grid.geometry).unwrap();
+        let mut excluded: Vec<_> = exclusions(frame, words, &self.settings.excluded)
+            .into_iter()
+            .filter_map(|r| r.region(grid.geometry))
+            .collect();
         // A vertical body is not a ground-plane feature. The observed body in
         // the second frame is added to BOTH masks before matching the pair.
         if let Some(mask) = body.bounds.region(grid.geometry) {
@@ -1003,19 +1002,14 @@ impl Wayfinder {
         };
         self.phase = Phase::Locate;
         self.survey_failed = true;
-        let contact = match avatar_contact(frame, words, &self.settings.player_label) {
+        let contact = match physical_contact(frame) {
             Ok(v) => v,
             Err(e) => return self.retry_observation(&e),
         };
         let mut grid = match Grid::observe(
             frame,
             contact,
-            &exclusions(
-                frame,
-                words,
-                &self.settings.excluded,
-                &self.settings.player_label,
-            ),
+            &exclusions(frame, words, &self.settings.excluded),
         ) {
             Ok(v) => v,
             Err(e) => return self.retry_observation(&e),
@@ -1703,17 +1697,14 @@ fn task_ui(destination: Destination, frame: &Frame<'_>, words: &[Word]) -> bool 
     }
 }
 
-fn exclusions(frame: &Frame<'_>, words: &[Word], saved: &[Rect], player: &str) -> Vec<Rect> {
+fn exclusions(frame: &Frame<'_>, words: &[Word], saved: &[Rect]) -> Vec<Rect> {
     let mut values = saved.to_vec();
     values.extend([
         Rect(0., 0., 1., 0.08),
         Rect(0., 0.08, 0.12, 1.),
         Rect(0., 0.82, 1., 1.),
     ]);
-    let names: Vec<_> = player.split('|').collect();
-    let own_labels = matching_words(words, &names, false);
     for word in words {
-        let s = normalized(&word.text);
         if word.rect.0 > 0.68
             && word.rect.1 < 0.65
             && has(
@@ -1726,84 +1717,69 @@ fn exclusions(frame: &Frame<'_>, words: &[Word], saved: &[Rect], player: &str) -
         {
             values.push(Rect(word.rect.0, 0., 1., 0.78));
         }
-        if !s.is_empty()
-            && !own_labels
-                .iter()
-                .any(|label| inside(label.rect, center(word.rect)))
-            && word.rect.1 > 0.1
-            && word.rect.1 < 0.8
-            && s.chars().any(|c| c.is_ascii_digit())
-            && s.len() >= 5
-        {
-            values.push(expand(word.rect, 0.025, 0.055));
-        }
     }
     values.truncate(23);
     values.retain(|r| r.region((frame.width, frame.height)).is_some());
     values
 }
 
-/// Locate a name-associated BODY silhouette and its visible two-foot base.
-/// A glow, overhead word or screen center is never used as a foot observation.
-fn avatar_contact(frame: &Frame<'_>, words: &[Word], player: &str) -> Result<Contact, String> {
-    let names: Vec<_> = player.split('|').filter(|s| !s.trim().is_empty()).collect();
-    let labels = matching_words(words, &names, false);
-    let ambiguous = || {
-        "자기 캐릭터의 표시 이름을 하나로 구분하지 못했습니다. 이름과 발이 가려지지 않게 해 주세요."
-            .to_owned()
+/// The game camera follows the player. Walking and remembering a place use
+/// this camera origin even when an aura hides the body or names are disabled.
+/// The central occupancy mask is not evidence of feet, height or grounding.
+fn avatar_contact(frame: &Frame<'_>) -> Result<Contact, String> {
+    if !frame.is_full() || frame.width < 16 || frame.height < 16 {
+        return Err("플레이어 중심을 확인할 전체 게임 화면이 필요합니다.".into());
+    }
+    let radius = (frame.height as f64 * 0.035).max(4.);
+    let dx = radius / frame.width as f64;
+    let dy = radius / frame.height as f64;
+    let mut contact = Contact {
+        point: Point(0.5, 0.5),
+        bounds: Rect(0.5 - dx, 0.5 - dy * 2., 0.5 + dx, 0.5 + dy),
+        radius,
+        error: (frame.height as f64 / 540.).max(1.) * 3.,
+        physical: false,
     };
-    if labels.is_empty()
-        || labels.iter().enumerate().any(|(i, a)| {
-            labels[..i]
-                .iter()
-                .any(|b| normalized(&a.text) == normalized(&b.text))
-        })
-    {
-        return Err(ambiguous());
+    if let Ok(body) = physical_contact(frame) {
+        // A visible body improves the occupancy mask; its location does not
+        // replace the player-follow camera origin used by walking.
+        contact.bounds = Rect(
+            body.bounds.0.min(contact.bounds.0),
+            body.bounds.1.min(contact.bounds.1),
+            body.bounds.2.max(contact.bounds.2),
+            body.bounds.3.max(contact.bounds.3),
+        );
+        contact.radius = contact.radius.max(body.radius);
+        contact.error = contact.error.max(body.error);
     }
-    let mut contacts = labels.iter().map(|word| contact_below_label(frame, word));
-    let first = contacts.next().unwrap()?;
-    for contact in contacts {
-        let contact = contact?;
-        // Display name and account name may occupy two overhead rows. They
-        // identify one avatar only when both independently find the SAME feet.
-        if distance(
-            [
-                first.point.0 * frame.width as f64,
-                first.point.1 * frame.height as f64,
-            ],
-            [
-                contact.point.0 * frame.width as f64,
-                contact.point.1 * frame.height as f64,
-            ],
-        ) > first.error.max(contact.error)
-        {
-            return Err(ambiguous());
-        }
-    }
-    Ok(first)
+    Ok(contact)
 }
 
-fn contact_below_label(frame: &Frame<'_>, word: &Word) -> Result<Contact, String> {
-    let label = word
-        .rect
-        .region((frame.width, frame.height))
-        .ok_or("표시 이름의 화면 영역이 올바르지 않습니다.")?;
-    let pad = (label.height * 3)
-        .max(frame.height / 40)
-        .min(frame.height / 12);
-    let x0 = label.x.saturating_sub(pad);
-    let x1 = (label.x + label.width + pad).min(frame.width);
-    let y0 = label.y + label.height;
-    let y1 = (y0 + (label.height * 7).max(frame.height / 10)).min(frame.height - 4);
+/// Pixel-only silhouette analysis around the known camera subject. This is
+/// used for physical jump evidence, never to identify the walking origin.
+fn physical_contact(frame: &Frame<'_>) -> Result<Contact, String> {
+    let pad = (frame.height / 9).max(12);
+    let x0 = (frame.width / 2).saturating_sub(pad);
+    let x1 = (frame.width / 2 + pad).min(frame.width);
+    let y0 = (frame.height / 2).saturating_sub(frame.height / 4);
+    let y1 = (frame.height / 2 + frame.height / 8).min(frame.height - 4);
+    let contact = body_contact(frame, (x0, y0, x1, y1))?;
+    if (contact.point.0 - 0.5).abs() * frame.width as f64 > contact.radius {
+        return Err("화면 중심의 캐릭터 몸과 발을 확인하지 못했습니다.".into());
+    }
+    Ok(contact)
+}
+
+fn body_contact(frame: &Frame<'_>, area: (usize, usize, usize, usize)) -> Result<Contact, String> {
+    let (x0, y0, x1, y1) = area;
     if x1 <= x0 + 8 || y1 <= y0 + 8 {
         return Err("캐릭터의 몸과 발을 관측할 영역이 부족합니다.".into());
     }
     let step = (frame.height / 540).max(1);
     let w = (x1 - x0).div_ceil(step);
     let h = (y1 - y0).div_ceil(step);
-    if w * h > 40000 {
-        return Err("표시 이름 영역이 너무 커서 캐릭터를 구분하지 못했습니다.".into());
+    if w * h > 100000 {
+        return Err("캐릭터의 몸을 관측할 영역이 너무 큽니다.".into());
     }
     let mut surrounding = Vec::new();
     for y in (y0..y1).step_by(step * 3) {
@@ -1819,14 +1795,17 @@ fn contact_below_label(frame: &Frame<'_>, word: &Word) -> Result<Contact, String
     if luminance(bg) < 18 {
         return Err("현재 화면이 너무 어두워 몸과 발의 접점을 구분할 수 없습니다.".into());
     }
+    let mut floor_variation: Vec<_> = surrounding.iter().map(|&p| color_distance(p, bg)).collect();
+    floor_variation.sort_by(f64::total_cmp);
+    let body_threshold = (floor_variation[floor_variation.len() * 19 / 20] + 4.).max(25.);
     let mut mask = vec![false; w * h];
     for y in 0..h {
         for x in 0..w {
             if let Some(p) = frame.pixel(x0 + x * step, y0 + y * step) {
                 // Clothing can be darker OR brighter than the observed floor.
-                // The name association, bounded body shape, two separate soles
-                // and visible floor below carry identity/contact evidence.
-                mask[y * w + x] = color_distance(p, bg) > 25. && !shadow_of(p, bg);
+                // Bounded body shape, two separate soles and visible floor
+                // below supply physical evidence independently of any name.
+                mask[y * w + x] = color_distance(p, bg) > body_threshold && !shadow_of(p, bg);
             }
         }
     }
@@ -1913,6 +1892,7 @@ fn contact_below_label(frame: &Frame<'_>, word: &Word) -> Result<Contact, String
             bounds,
             radius: (bw as f64 * 0.55).max(4.),
             error: (step * 3) as f64,
+            physical: true,
         });
     }
     if candidates.len() != 1 {
@@ -1996,6 +1976,9 @@ fn shadow_of(pixel: [u8; 3], floor: [u8; 3]) -> bool {
 /// being sent. Missing/overlapping/colored shadows remain unknown.
 fn grounding(frame: &Frame<'_>, contact: Contact) -> (jump::Grounding, Option<Point>) {
     use jump::Grounding;
+    if !contact.physical {
+        return (Grounding::Unknown, None);
+    }
     let g = (frame.width, frame.height);
     let Some(body) = contact.bounds.region(g) else {
         return (Grounding::Unknown, None);
@@ -2192,13 +2175,23 @@ impl Grid {
                         if let (Some(xx), Some(yy)) =
                             (px.checked_add_signed(dx), py.checked_add_signed(dy))
                         {
+                            // A floor sample beside the avatar/UI must not
+                            // include pixels from the masked object. Otherwise
+                            // the kernel creates a false wall along its edge.
+                            let sample =
+                                Point(xx as f64 / geometry.0 as f64, yy as f64 / geometry.1 as f64);
+                            if inside(self_mask, sample)
+                                || excluded.iter().any(|r| inside(*r, sample))
+                            {
+                                continue;
+                            }
                             if let Some(rgb) = frame.pixel(xx, yy) {
                                 values.push(rgb)
                             }
                         }
                     }
                 }
-                if let Some(rgb) = median_rgb(&values) {
+                if let Some(rgb) = (values.len() >= 3).then(|| median_rgb(&values)).flatten() {
                     colors[at] = rgb;
                     texture[at] = values.iter().map(|p| color_distance(*p, rgb)).sum::<f64>()
                         / values.len() as f64;
@@ -2692,10 +2685,12 @@ impl Grid {
             measured.error_pixels + registration.error_pixels + contact.error + self.step as f64;
         let r = contact.radius + uncertainty + 3.;
         let mut best: Option<(f64, jump::Candidate)> = None;
+
         for index in (0..self.land.len()).step_by(2) {
             if !self.land[index] || !self.clear(index, r * 1.5) {
                 continue;
             }
+
             let takeoff = self.pixel(index);
             if distance(takeoff, foot) > self.geometry.0.min(self.geometry.1) as f64 * 0.4 {
                 continue;
@@ -2704,6 +2699,7 @@ impl Grid {
             else {
                 continue;
             };
+
             for sample in &measured.samples {
                 let height = raised.map_or(0., |p| p.height);
                 let height_error = raised.map_or(0., |p| p.height_error);
@@ -2726,6 +2722,7 @@ impl Grid {
                 {
                     continue;
                 }
+
                 let landing_radius = r + prediction_error + height_error;
                 let landing_support = if let Some(plane) = raised {
                     self.raised_patch(
@@ -2742,6 +2739,7 @@ impl Grid {
                 let Some(landing_support) = landing_support else {
                     continue;
                 };
+
                 let samples = (range / self.step as f64).ceil() as usize;
                 if let Some(plane) = raised {
                     let top = |i: usize| {
@@ -2818,6 +2816,7 @@ impl Grid {
                         takeoff[1] + endpoint[1] * i / samples as f64,
                     ]
                 };
+
                 let near_edge = at(near as f64 - 0.5);
                 let far_edge = at(far as f64 + 0.5);
                 let middle = at((near + far) as f64 / 2.);
@@ -2832,6 +2831,7 @@ impl Grid {
                 else {
                     continue;
                 };
+
                 let mapped: Vec<_> = old_contour
                     .iter()
                     .copied()
@@ -2847,6 +2847,7 @@ impl Grid {
                 {
                     continue;
                 }
+
                 let nearest = |p: [f64; 2], set: &[[f64; 2]]| {
                     set.iter()
                         .map(|q| distance(p, *q))
@@ -2886,6 +2887,7 @@ impl Grid {
                         error_pixels: tolerance,
                     })
                 };
+
                 let candidate = jump::Candidate {
                     takeoff,
                     landing,
@@ -3430,21 +3432,37 @@ mod tests {
         word("Alice", (142, 88, 172, 99))
     }
 
+    fn fixture_body(frame: &Frame<'_>, label: &Word) -> Contact {
+        let r = label.rect.region((frame.width, frame.height)).unwrap();
+        let pad = (r.height * 3).max(frame.height / 40).min(frame.height / 12);
+        body_contact(
+            frame,
+            (
+                r.x.saturating_sub(pad),
+                r.y + r.height,
+                (r.x + r.width + pad).min(frame.width),
+                (r.y + r.height + (r.height * 7).max(frame.height / 10)).min(frame.height - 4),
+            ),
+        )
+        .unwrap()
+    }
+
     #[test]
-    fn actual_name_body_and_two_feet_are_required_away_from_screen_center() {
+    fn camera_origin_does_not_need_names_or_visible_body_and_is_not_a_jump_contact() {
         let mut b = floor();
-        body(&mut b);
-        let f = frame(&b);
-        let contact = avatar_contact(&f, &[own()], "Alice").unwrap();
-        assert!(contact.point.0 < 0.4 && contact.point.1 > 0.5);
-        assert!((contact.point.1 * H as f64 - 145.).abs() < 2.);
-        assert!(avatar_contact(&f, &[own(), own()], "Alice").is_err());
-        assert!(avatar_contact(&f, &[word("Bob", (142, 88, 172, 99))], "Alice").is_err());
+        body(&mut b); // Another silhouette is deliberately away from camera center.
+        let contact = avatar_contact(&frame(&b)).unwrap();
+        assert_eq!((contact.point.0, contact.point.1), (0.5, 0.5));
+        assert!(!contact.physical);
+        assert_eq!(grounding(&frame(&b), contact).0, jump::Grounding::Unknown);
+        assert!(physical_contact(&frame(&b)).is_err());
         paint(&mut b, (140, 100, 175, 150), [245; 3]);
-        assert!(
-            avatar_contact(&frame(&b), &[own()], "Alice").is_err(),
-            "a glow cannot become a foot contact"
+        let obscured = avatar_contact(&frame(&b)).unwrap();
+        assert_eq!(
+            (obscured.point.0, obscured.point.1),
+            (contact.point.0, contact.point.1)
         );
+        assert_eq!(grounding(&frame(&b), obscured).0, jump::Grounding::Unknown);
     }
 
     #[test]
@@ -3456,9 +3474,8 @@ mod tests {
                 pixel[..3].copy_from_slice(&[230, 220, 210]);
             }
         }
-        assert!(avatar_contact(&frame(&b), &[own()], "Alice").is_ok());
+        assert!(body_contact(&frame(&b), (120, 99, 195, 176)).is_ok());
         let settings = Settings {
-            player_label: "Alice".into(),
             ..Settings::default()
         };
         let words = [own(), word("Captain Flarg", (190, 120, 260, 135))];
@@ -3486,7 +3503,7 @@ mod tests {
     }
 
     #[test]
-    fn split_ocr_words_identify_names_register_places_and_find_the_same_goal() {
+    fn split_facility_words_register_places_without_a_visible_player_name() {
         let mut b = floor();
         body(&mut b);
         let f = frame(&b);
@@ -3497,17 +3514,16 @@ mod tests {
             word("Captain", (190, 120, 227, 135)),
             word("Flarg", (232, 121, 260, 135)),
         ];
-        let contact = avatar_contact(&f, &words, "Alice Smith").unwrap();
-        assert!((contact.point.1 * H as f64 - 145.).abs() < 2.);
+        let contact = avatar_contact(&f).unwrap();
+        assert_eq!((contact.point.0, contact.point.1), (0.5, 0.5));
         let settings = Settings {
-            player_label: "Alice Smith".into(),
             ..Settings::default()
         };
         let memory =
             Wayfinder::mark(Destination::Sell, settings.clone(), (W, H), &f, &words).unwrap();
         assert_eq!(memory.anchors[0].label, "Captain Flarg");
         let finder = Wayfinder::start(Destination::Sell, settings, 0.).unwrap();
-        let grid = Grid::observe(&f, contact, &exclusions(&f, &words, &[], "Alice Smith")).unwrap();
+        let grid = Grid::observe(&f, contact, &exclusions(&f, &words, &[])).unwrap();
         assert_eq!(
             finder.goal(&f, &words, &grid, contact).unwrap().1,
             "Captain Flarg"
@@ -3536,37 +3552,23 @@ mod tests {
     }
 
     #[test]
-    fn display_and_account_rows_must_independently_identify_the_same_visible_feet() {
-        let mut b = floor();
-        body(&mut b);
-        let f = frame(&b);
-        let names = [
-            word("Alice Smith", (142, 77, 172, 87)),
-            word("@alice_account", (135, 88, 179, 99)),
-        ];
-        let contact = avatar_contact(&f, &names, "Alice Smith|alice_account").unwrap();
-        assert!((contact.point.1 * H as f64 - 145.).abs() < 2.);
-        assert!(avatar_contact(
-            &f,
-            &[names[0].clone(), names[0].clone()],
-            "Alice Smith|alice_account"
-        )
-        .is_err());
-        let other = word("@alice_account", (310, 88, 354, 99));
-        assert!(
-            avatar_contact(&f, &[names[0].clone(), other], "Alice Smith|alice_account").is_err()
-        );
+    fn retired_name_settings_load_but_are_not_kept_or_used() {
+        let settings: Settings =
+            serde_json::from_value(serde_json::json!({"playerLabel":"not visible"})).unwrap();
+        let saved = serde_json::to_value(&settings).unwrap();
+        assert!(saved.get("playerLabel").is_none());
+        assert!(Wayfinder::start(Destination::Sell, settings, 0.).is_ok());
     }
 
     #[test]
-    fn split_names_do_not_turn_their_numeric_word_into_an_obstacle() {
+    fn central_overlay_text_does_not_relocate_or_block_the_camera_subject() {
         let b = floor();
-        let words = [
-            word("Alice", (142, 88, 157, 99)),
-            word("12345", (160, 88, 179, 99)),
-        ];
-        assert_eq!(exclusions(&frame(&b), &words, &[], "Alice 12345").len(), 3);
-        assert_eq!(exclusions(&frame(&b), &words, &[], "Bob").len(), 4);
+        let center_words = [word("12345", (225, 100, 255, 112))];
+        let other_words = [word("12345", (140, 100, 170, 112))];
+        assert_eq!(exclusions(&frame(&b), &center_words, &[]).len(), 3);
+        assert_eq!(exclusions(&frame(&b), &other_words, &[]).len(), 3);
+        let contact = avatar_contact(&frame(&b)).unwrap();
+        assert_eq!((contact.point.0, contact.point.1), (0.5, 0.5));
     }
 
     #[test]
@@ -3617,17 +3619,17 @@ mod tests {
         };
         let b = make(0);
         let f = frame(&b);
-        let contact = avatar_contact(&f, &[own()], "Alice").unwrap();
+        let contact = fixture_body(&f, &own());
         assert_eq!(grounding(&f, contact).0, jump::Grounding::Supported);
         let b = make(20);
         let f = frame(&b);
         let label = word("Alice", (142, 68, 172, 79));
-        let contact = avatar_contact(&f, &[label], "Alice").unwrap();
+        let contact = fixture_body(&f, &label);
         assert_eq!(grounding(&f, contact).0, jump::Grounding::Airborne);
         let mut b = floor();
         body(&mut b);
         let f = frame(&b);
-        let contact = avatar_contact(&f, &[own()], "Alice").unwrap();
+        let contact = fixture_body(&f, &own());
         assert_eq!(grounding(&f, contact).0, jump::Grounding::Unknown);
     }
 
@@ -3637,8 +3639,8 @@ mod tests {
         body(&mut b);
         paint(&mut b, (235, 60, 260, 180), [15; 3]);
         let f = frame(&b);
-        let contact = avatar_contact(&f, &[own()], "Alice").unwrap();
-        let excluded = exclusions(&f, &[own()], &[], "Alice");
+        let contact = fixture_body(&f, &own());
+        let excluded = exclusions(&f, &[own()], &[]);
         let grid = Grid::observe(&f, contact, &excluded).unwrap();
         let goal = Point(350. / W as f64, 145. / H as f64);
         assert!(!grid.line(
@@ -3664,8 +3666,8 @@ mod tests {
         body(&mut b);
         paint(&mut b, (380, 0, W, H), [180, 40, 40]);
         let f = frame(&b);
-        let contact = avatar_contact(&f, &[own()], "Alice").unwrap();
-        let grid = Grid::observe(&f, contact, &exclusions(&f, &[own()], &[], "Alice")).unwrap();
+        let contact = fixture_body(&f, &own());
+        let grid = Grid::observe(&f, contact, &exclusions(&f, &[own()], &[])).unwrap();
         let shore = grid.coast(contact.point, &[], 12.).unwrap();
         assert!(shore.0 * (W as f64) < 380. && shore.0 * (W as f64) > 320.);
         assert!(grid.walkable(shore, 12.));
@@ -3720,17 +3722,17 @@ mod tests {
     }
 
     #[test]
-    fn automatic_name_and_ground_observation_reaches_the_shared_motion_controller() {
+    fn nameless_camera_origin_reaches_the_shared_motion_controller() {
         let mut b = floor();
         body(&mut b);
         let f = frame(&b);
-        let words = [own(), word("Captain Flarg", (330, 120, 400, 135))];
+        let words = [word("Captain Flarg", (330, 120, 400, 135))];
         let settings = Settings {
             controls: Some(Controls {
                 stick_center: Point(0.15, 0.78),
                 stick_edge: Point(0.20, 0.78),
             }),
-            player_label: "Alice".into(),
+
             ..Settings::default()
         };
         let mut finder = Wayfinder::start(Destination::Sell, settings, 0.).unwrap();
@@ -3751,7 +3753,8 @@ mod tests {
             "{}",
             finder.state.message
         );
-        assert!(finder.state.avatar.unwrap().0 < 0.4);
+        let avatar = finder.state.avatar.unwrap();
+        assert_eq!((avatar.0, avatar.1), (0.5, 0.5));
         finder.ack(false, 0.45);
         assert!(matches!(
             finder.tick(0.7, (W, H), Some(&f), &words, Some((0.7, 0.7 + 0.300))),
@@ -3761,6 +3764,73 @@ mod tests {
             finder.memory().anchors.is_empty(),
             "approach alone must not teach a confirmed destination"
         );
+    }
+
+    #[test]
+    fn follow_camera_calibrates_walking_from_scrolling_ground_with_no_name_or_body() {
+        let terrain = floor();
+        let settings = Settings {
+            controls: Some(Controls {
+                stick_center: Point(0.15, 0.78),
+                stick_edge: Point(0.20, 0.78),
+            }),
+            ..Settings::default()
+        };
+        let mut finder = Wayfinder::start(Destination::Sell, settings, 0.).unwrap();
+        finder.phase = Phase::Locate;
+        let mut clock = 0.1;
+        let mut displacement = [0isize, 0isize];
+        for _ in 0..24 {
+            let pixels = follow_camera(
+                &terrain,
+                W,
+                H,
+                [
+                    (W as isize / 2 + displacement[0]) as usize,
+                    (H as isize / 2 + displacement[1]) as usize,
+                ],
+            );
+            let labels = [word(
+                "Captain Flarg",
+                (
+                    (330 - displacement[0]) as usize,
+                    (120 - displacement[1]) as usize,
+                    (400 - displacement[0]) as usize,
+                    (135 - displacement[1]) as usize,
+                ),
+            )];
+            let tick = finder.tick(
+                clock,
+                (W, H),
+                Some(&frame(&pixels)),
+                &labels,
+                Some((clock, clock + 0.3)),
+            );
+            if let Some(avatar) = finder.state.avatar {
+                assert_eq!((avatar.0, avatar.1), (0.5, 0.5));
+            }
+            match tick {
+                Tick::Command(Command::Gesture(Gesture::Stick { from, to, ms, .. })) => {
+                    let dx = (to.0 - from.0) * W as f64;
+                    let dy = (to.1 - from.1) * H as f64;
+                    let norm = dx.hypot(dy);
+                    displacement[0] += (dx / norm * 8.).round() as isize;
+                    displacement[1] += (dy / norm * 8.).round() as isize;
+                    clock += ms as f64 / 1000.;
+                    finder.ack(true, clock);
+                }
+                Tick::Stopped(error) => panic!("{error}"),
+                _ => {}
+            }
+            if finder.walk.is_some() {
+                break;
+            }
+            clock += 0.25;
+        }
+        let walk = finder.walk.expect("the observed floor must provide nonzero two-axis motion while the player stays centered");
+        assert!(walk.right[0] > 0.02 && walk.up[1] < -0.02);
+        assert_eq!(finder.state.avatar.map(|p| (p.0, p.1)), Some((0.5, 0.5)));
+        assert!(finder.memory().anchors.is_empty());
     }
 
     #[test]
@@ -3883,6 +3953,32 @@ mod tests {
             ),
         )
     }
+    fn follow_camera(source: &[u8], width: usize, height: usize, subject: [usize; 2]) -> Vec<u8> {
+        let mut out = vec![0; source.len()];
+        for y in 0..height {
+            for x in 0..width {
+                let u = x as isize + subject[0] as isize - width as isize / 2;
+                let v = y as isize + subject[1] as isize - height as isize / 2;
+                let p = (y * width + x) * 4;
+                let q = (v.rem_euclid(height as isize) as usize * width
+                    + u.rem_euclid(width as isize) as usize)
+                    * 4;
+                out[p..p + 4].copy_from_slice(&source[q..q + 4]);
+            }
+        }
+        out
+    }
+    fn follow_word(mut word: Word, geometry: (usize, usize), subject: [usize; 2]) -> Word {
+        let dx = 0.5 - subject[0] as f64 / geometry.0 as f64;
+        let dy = 0.5 - subject[1] as f64 / geometry.1 as f64;
+        word.rect = Rect(
+            word.rect.0 + dx,
+            word.rect.1 + dy,
+            word.rect.2 + dx,
+            word.rect.3 + dy,
+        );
+        word
+    }
     fn camera_view(source: &[u8], angle: f64, pivot: [f64; 2]) -> Vec<u8> {
         let mut out = vec![0; source.len()];
         let (c, s) = (angle.cos(), angle.sin());
@@ -3933,18 +4029,20 @@ mod tests {
             paint(&mut terrain, (230, 65, 245, 207), [160, 55, 45]);
             let mut before = terrain.clone();
             let name = scene_avatar_height(&mut before, [157, 145], [157, 146], initial_height);
+            let subject_before = [157, 145 - initial_height / 2];
+            let before = follow_camera(&before, W, H, subject_before);
             let settings = Settings {
                 controls: Some(Controls {
                     stick_center: Point(0.15, 0.78),
                     stick_edge: Point(0.20, 0.78),
                 }),
                 jump: Some(Point(0.9, 0.8)),
-                player_label: "Alice".into(),
+
                 ..Settings::default()
             };
             let f = frame(&before);
-            let contact = avatar_contact(&f, &[name.clone()], "Alice").unwrap();
-            let excluded = exclusions(&f, &[name.clone()], &[], "Alice");
+            let contact = physical_contact(&f).unwrap();
+            let excluded = exclusions(&f, &[name.clone()], &[]);
             let grid = Grid::observe(&f, contact, &excluded).unwrap();
             let included = grid.included().region((W, H)).unwrap();
             let regions: Vec<_> = excluded.iter().filter_map(|r| r.region((W, H))).collect();
@@ -3963,7 +4061,7 @@ mod tests {
                     lift: [0., -1.],
                     apex_pixels: 24.,
                     shadow_per_height: [0., 0.],
-                    supported_foot_minus_shadow: [0., -1.],
+                    supported_foot_minus_shadow: [0., -2.],
                     samples: vec![
                         measured_sample([1., 0.], [150., 0.], 24.),
                         measured_sample([0., 1.], [0., -90.], 24.),
@@ -3976,7 +4074,11 @@ mod tests {
                 excluded: regions,
                 body: contact,
             });
-            let labels = [name.clone(), word("Captain Flarg", (330, 138, 400, 151))];
+            let labels = [follow_word(
+                word("Captain Flarg", (320, 138, 390, 151)),
+                (W, H),
+                subject_before,
+            )];
             assert!(
                 matches!(
                     finder.tick(0.1, (W, H), Some(&f), &labels, Some((0.1, 0.1 + 0.300))),
@@ -4002,6 +4104,10 @@ mod tests {
             let after_terrain = camera_view(&terrain, 0., [157., 145.]);
             let mut after = after_terrain.clone();
             let name = scene_avatar(&mut after, [157, 145], [157, 146]);
+            // The camera targets the player's body, not its projected soles.
+            // W pitch change can move the feet while keeping the body centered.
+            let subject_after = [157, 145 - 45 / 2];
+            let after = follow_camera(&after, W, H, subject_after);
             let result = finder.tick(
                 0.5,
                 (W, H),
@@ -4030,8 +4136,9 @@ mod tests {
             );
             let landing = finder.state.route[1];
             let land = [
-                (landing.0 * W as f64).round() as usize,
-                (landing.1 * H as f64).round() as usize,
+                (landing.0 * W as f64).round() as usize - (W / 2 - 157),
+                ((landing.1 * H as f64).round() as isize + subject_after[1] as isize
+                    - H as isize / 2) as usize,
             ];
             assert!(
                 land[0] > 245,
@@ -4055,6 +4162,7 @@ mod tests {
             finder.ack(true, 0.7);
             let mut air = after_terrain.clone();
             let name = scene_avatar(&mut air, [190, 100], [190, 146]);
+            let air = follow_camera(&air, W, H, [190, 100 - 45 / 2]);
             assert!(
                 matches!(
                     finder.tick(
@@ -4071,6 +4179,7 @@ mod tests {
             );
             let mut landed = after_terrain;
             let name = scene_avatar(&mut landed, land, [land[0], land[1] + 1]);
+            let landed = follow_camera(&landed, W, H, [land[0], land[1] - 45 / 2]);
             assert!(
                 matches!(
                     finder.tick(
@@ -4121,18 +4230,17 @@ mod tests {
             let terrain = floor();
             let mut before = terrain.clone();
             let name = scene_avatar(&mut before, [157, 145], [157, 146]);
+            let before = follow_camera(&before, W, H, [157, 145]);
             let f = frame(&before);
-            let contact = avatar_contact(&f, &[name.clone()], "Alice").unwrap();
-            let grid =
-                Grid::observe(&f, contact, &exclusions(&f, &[name.clone()], &[], "Alice")).unwrap();
+            let contact = physical_contact(&f).unwrap();
+            let grid = Grid::observe(&f, contact, &exclusions(&f, &[name.clone()], &[])).unwrap();
             let settings = Settings {
-                player_label: "Alice".into(),
                 ..Settings::default()
             };
             let mut finder = Wayfinder::start(Destination::Sell, settings, 0.).unwrap();
             finder.last_now = 0.1;
             assert!(matches!(
-                finder.start_survey(&f, &[name], grid, Point(350. / W as f64, 145. / H as f64)),
+                finder.start_survey(&f, &[name], grid, Point(420. / W as f64, 135. / H as f64)),
                 Tick::Command(_)
             ));
             finder.ack(true, 0.23);
@@ -4142,6 +4250,7 @@ mod tests {
                 [157 + displacement, 145],
                 [157 + displacement, 146],
             );
+            let after = follow_camera(&after, W, H, [157 + displacement, 145]);
             assert!(matches!(
                 finder.tick(
                     0.5,
@@ -4172,13 +4281,13 @@ mod tests {
 
     #[test]
     fn two_observed_planes_plan_and_confirm_a_raised_landing() {
-        const A: usize = 1280;
-        const B: usize = 810;
+        const A: usize = 2048;
+        const B: usize = 1040;
         fn picture() -> Vec<u8> {
             let mut out = vec![0; A * B * 4];
             for y in 0..B {
                 for x in 0..A {
-                    let mut v = ((y / 3) * (A / 3 + 1) + x / 3 + 67) as u32;
+                    let mut v = ((y / 4) * (A / 4 + 1) + x / 4 + 67) as u32;
                     v ^= v << 13;
                     v ^= v >> 17;
                     v ^= v << 5;
@@ -4265,8 +4374,9 @@ mod tests {
             }
         }
         let mut before = upper.clone();
-        let name = avatar(&mut before, [300, 410], [300, 411], 40);
-        let contact = avatar_contact(&f(&before), &[name.clone()], "Alice").unwrap();
+        let name = avatar(&mut before, [300, 410], [300, 411], 84);
+        let before = follow_camera(&before, A, B, [300, 410 - 84 / 2]);
+        let contact = physical_contact(&f(&before)).unwrap();
         assert_eq!(
             grounding(&f(&before), contact).0,
             jump::Grounding::Supported
@@ -4277,11 +4387,11 @@ mod tests {
                 stick_edge: Point(0.20, 0.78),
             }),
             jump: Some(Point(0.9, 0.8)),
-            player_label: "Alice".into(),
+
             ..Settings::default()
         };
         let included = Rect(0.12, 0.08, 0.98, 0.82).region((A, B)).unwrap();
-        let mut excluded: Vec<_> = exclusions(&f(&before), &[name.clone()], &[], "Alice")
+        let mut excluded: Vec<_> = exclusions(&f(&before), &[name.clone()], &[])
             .iter()
             .filter_map(|r| r.region((A, B)))
             .collect();
@@ -4325,7 +4435,11 @@ mod tests {
             excluded,
             body: contact,
         });
-        let words = [name, text("Captain Flarg", [800, 365, 870, 380])];
+        let words = [follow_word(
+            text("Captain Flarg", [800, 365, 870, 380]),
+            (A, B),
+            [300, 410 - 84 / 2],
+        )];
         assert!(
             matches!(
                 finder.tick(
@@ -4342,7 +4456,7 @@ mod tests {
         );
         finder.ack(true, 0.31);
         let height = 90.;
-        let vertical_shift = height * (40. / 95. - 1.);
+        let vertical_shift = height * (84. / 180. - 1.);
         let mut terrain = vec![0; A * B * 4];
         for y in 0..B {
             for x in 0..A {
@@ -4361,7 +4475,8 @@ mod tests {
             }
         }
         let mut after = terrain.clone();
-        let name = avatar(&mut after, [300, 422], [300, 423], 95);
+        let name = avatar(&mut after, [300, 422], [300, 423], 180);
+        let after = follow_camera(&after, A, B, [300, 422 - 180 / 2]);
         let result = finder.tick(
             0.6,
             (A, B),
@@ -4396,8 +4511,9 @@ mod tests {
         );
         let landing = finder.state.route[1];
         let point = [
-            (landing.0 * A as f64).round() as usize,
-            (landing.1 * B as f64).round() as usize,
+            (landing.0 * A as f64).round() as usize - (A / 2 - 300),
+            ((landing.1 * B as f64).round() as isize + (422 - 180 / 2) as isize - B as isize / 2)
+                as usize,
         ];
         assert!(
             point[0] > 600 && point[1] < 410,
@@ -4420,7 +4536,8 @@ mod tests {
         );
         finder.ack(true, 0.8);
         let mut air = terrain.clone();
-        let name = avatar(&mut air, [500, 242], [500, 423], 95);
+        let name = avatar(&mut air, [500, 242], [500, 423], 180);
+        let air = follow_camera(&air, A, B, [500, 242 - 180 / 2]);
         assert!(
             matches!(
                 finder.tick(
@@ -4436,7 +4553,14 @@ mod tests {
             finder.state.message
         );
         let mut landed = terrain;
-        let name = avatar(&mut landed, point, [point[0], point[1] + 1], 95);
+        let name = avatar(&mut landed, point, [point[0], point[1] + 1], 180);
+        let landed = follow_camera(&landed, A, B, [point[0], point[1] - 180 / 2]);
+        let actual_landing = physical_contact(&f(&landed)).unwrap();
+        assert_eq!(
+            grounding(&f(&landed), actual_landing).0,
+            jump::Grounding::Supported,
+            "the landing fixture must show actual supported feet on the upper floor"
+        );
         assert!(
             matches!(
                 finder.tick(
