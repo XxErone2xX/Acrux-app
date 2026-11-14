@@ -615,6 +615,32 @@ public final class Vision {
     }
 
     // ---------------------------------------------------------------- 결과창 X 찾기
+    /** (x, y) 의 X 오른쪽에 결과창 테두리 (주변보다 밝고 얇은 세로줄) 가 아래로 길게 이어지는지
+     *  · 결과창이 반투명해서 밝은 땅 (눈 등) 위에서 창 모양을 못 찾을 때, 순위표 아이콘 같은 다른 X 모양과 구분하는 근거 */
+    public static boolean popupEdgeRight(Img im, int x, int y, int H) {
+        int from = Math.max(4, x + Math.max(2, (int) (H * 0.01)));
+        int to = Math.min(im.w - 5, x + (int) (H * 0.14));
+        int y0 = Math.max(0, y), y1 = Math.min(im.h, y + (int) (H * 0.40));
+        if (to <= from || y1 - y0 < 10) return false;
+        int need = (int) ((y1 - y0) * 0.7);
+        for (int c = from; c <= to; c++) {
+            int ok = 0;
+            for (int r = y0; r < y1; r++) {
+                boolean line = false;
+                for (int dc = -1; dc <= 1 && !line; dc++) {
+                    int k = r * im.w + c + dc;
+                    int v = (im.r[k] + im.g[k] + im.b[k]) / 3;
+                    int sl = (im.r[k - 3] + im.g[k - 3] + im.b[k - 3]) / 3;
+                    int sr = (im.r[k + 3] + im.g[k + 3] + im.b[k + 3]) / 3;
+                    line = v > 140 && im.max(k) - im.min(k) < 50 && v - Math.max(sl, sr) > 50;
+                }
+                if (line) ok++;
+            }
+            if (ok >= need) return true;
+        }
+        return false;
+    }
+
     /** 화면 안에서 흰 × 버튼 → {가운데 x, y} 또는 null · H = 창 높이 · want: 원래 X 자리 (있으면 가장 가까운 것) */
     public static double[] findCloseX(Img im, int H, double[] want) {
         return findCloseX(im, H, want, false);

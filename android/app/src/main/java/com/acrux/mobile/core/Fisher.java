@@ -384,7 +384,9 @@ public final class Fisher {
         int[] b = findX();
         int tol = Math.max(4, (int) (H() * 0.02));
         if (b == null || b[2] != a[2] || Math.abs(a[0] - b[0]) > tol || Math.abs(a[1] - b[1]) > tol) return false;
-        out.log(a[2] == 1 ? "결과창 X 를 결과창 모양으로 찾아서 누름" : "결과창이 다른 자리에 뜨거나 깨짐 — X 를 찾아서 누름", 'd');
+        out.log(a[2] == 1 ? "결과창 X 를 결과창 모양으로 찾아서 누름"
+                : a[2] == 3 ? "보정한 X 자리에 결과창이 없음 — 결과창 테두리 옆 X 를 찾아서 누름"
+                : "결과창이 다른 자리에 뜨거나 깨짐 — X 를 찾아서 누름", 'd');
         in.tap(b[0], b[1], 40);
         return true;
     }
@@ -417,8 +419,17 @@ public final class Fisher {
         if (right - left < 8 || bottom - top < 8) return null;
         Img im = grab(left, top, right - left, bottom - top);
         double[] f = Vision.findCloseX(im, H, p != null ? new double[]{p[0] - left, p[1] - top} : null);
-        if (f == null) return null;
-        return new int[]{left + (int) f[0], top + (int) f[1], 2};
+        if (f != null) return new int[]{left + (int) f[0], top + (int) f[1], 2};
+        // 3. 보정한 X 근처에 없으면 (결과창이 다른 크기 · 자리로 뜸 · 반투명 창이 눈 위에 떠서 창 모양을 못 찾음)
+        //    화면 오른쪽 위에서 X 를 찾되, X 오른쪽에 결과창 테두리가 아래로 길게 이어질 때만 (순위표 아이콘 등 제외)
+        Img all = full();
+        if (all.w != W || all.h != H) return null;
+        int l2 = (int) (W * 0.45), t2 = (int) (H * 0.02), r2 = (int) (W * 0.92), b2 = (int) (H * 0.45);
+        double[] g = Vision.findCloseX(all.crop(l2, t2, r2, b2), H, null);
+        if (g == null) return null;
+        int gx = l2 + (int) g[0], gy = t2 + (int) g[1];
+        if (!Vision.popupEdgeRight(all, gx, gy, H)) return null;
+        return new int[]{gx, gy, 3};
     }
 
     /** 결과창 X 누르기 (화면에서 찾은 X 먼저 · 없으면 보정한 자리) */

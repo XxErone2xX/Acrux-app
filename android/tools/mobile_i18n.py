@@ -199,6 +199,7 @@ E = [
     ['판매 장소로 다시 가는 중', 'Moving to the sell spot again', '販売場所へ再移動中'],
     ['낚시 장소로 다시 가는 중', 'Going back to the fishing spot', '釣り場へ戻り中'], ['결과창 X 를 결과창 모양으로 찾아서 누름', 'Found the result window X by the window shape and tapped it', '結果ウィンドウの形から X を見つけて押した'],
     ['결과창이 다른 자리에 뜨거나 깨짐 — X 를 찾아서 누름', 'The result window appeared elsewhere or broken — found the X and tapped it', '結果ウィンドウが別の場所に出たか崩れた — X を見つけて押した'],
+    ['보정한 X 자리에 결과창이 없음 — 결과창 테두리 옆 X 를 찾아서 누름', 'No result window at the calibrated X spot — found the X next to the result window border and tapped it', '補正した X の位置に結果ウィンドウがない — 結果ウィンドウの枠の横の X を見つけて押した'],
     ['화면 복구 중', 'Recovering the screen', '画面を復旧中'], ['결과창 닫는 중', 'Closing the result window', '結果ウィンドウを閉じ中'],
     ['결과창을 닫은 뒤 {0}초 동안 Fish 버튼이 보이지 않음 — 다시 확인', 'Fish button not visible for {0} s after closing the result window — checking again', '結果ウィンドウを閉じて {0} 秒 Fish ボタンが見えない — 再確認'],
     ['결과창을 못 닫은 화면을 사진첩 Pictures/Acrux 에 남김 — 보내 주면 원인을 볼 수 있음', 'Saved the screen where the result could not be closed to Pictures/Acrux — send it to find the cause', '結果ウィンドウを閉じられなかった画面を Pictures/Acrux に保存 — 送ってくれれば原因を確認できます'],

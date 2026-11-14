@@ -1,3 +1,15 @@
+## Acrux Mobile V1.5.5 업데이트
+- 낚시: 결과창이 보정한 자리와 다르게 뜨면 결과창을 못 닫던 문제 수정
+  - 원인: 결과창이 반투명해서 밝은 땅 [ 눈 등 ] 위에서는 창 모양을 못 찾음 · X 는 보정한 X 자리 근처에서만 찾아서, 결과창이 다른 크기로 뜨면 아무것도 안 누름
+  - 보정한 X 자리 근처에 없으면 화면 오른쪽 위에서 X 를 한 번 더 찾음
+  - 이때는 X 오른쪽에 결과창 테두리가 아래로 길게 이어질 때만 누름 [ 순위표 아이콘 등을 X 로 잘못 누르지 않게 · 두 번 확인한 뒤에만 ]
+
+## Acrux Mobile V1.5.5 Update
+- Fishing: fixed the result window not closing when it appears differently from the calibrated one
+  - Cause: the result window is translucent, so its shape isn't found over bright ground [ snow etc. ] · the X was only searched near the calibrated X spot, so nothing was tapped when the window appeared in a different size
+  - If there is no X near the calibrated spot, the top right of the screen is searched once more
+  - In that case the X is tapped only if the result window border runs down to its right [ so leaderboard icons etc. aren't tapped as X · only after seeing it twice ]
+
 ## Acrux Mobile V1.5.4 업데이트
 - 낚시: 일부 기종에서 쓰레기가 뜨면 결과창을 못 닫던 문제 수정
   - 원인: X 를 잘못 누르지 않게 하면서, X 모양이 안 보이는 결과창은 보정한 결과창과 같은 자리일 때만 누르게 했음 → 크기가 다른 쓰레기 결과창은 아무것도 안 누름
