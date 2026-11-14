@@ -98,7 +98,12 @@ impl Capture {
                 })
             }
         }
-        create(target).map_err(|e| format!("Windows GPU 창 캡처를 시작하지 못했습니다: {e}"))
+        create(target).map_err(|e| {
+            format!(
+                "Windows GPU 창 캡처를 시작하지 못했습니다: 0x{:08X}",
+                e.code().0 as u32
+            )
+        })
     }
     pub(super) fn image(&mut self, target: Target) -> Result<(Image, f64), String> {
         if self.target != target {
@@ -122,7 +127,12 @@ impl Capture {
             match self.pool.TryGetNextFrame() {
                 Ok(frame) => break frame,
                 Err(_) if Instant::now() < deadline => thread::sleep(Duration::from_millis(4)),
-                Err(e) => return Err(format!("게임이 새 GPU 화면을 반환하지 않았습니다: {e}")),
+                Err(e) => {
+                    return Err(format!(
+                        "게임이 새 GPU 화면을 반환하지 않았습니다: 0x{:08X}",
+                        e.code().0 as u32
+                    ))
+                }
             }
         };
         let captured = (|| -> windows::core::Result<(Image, f64)> {
@@ -219,8 +229,18 @@ impl Capture {
             }
         })();
         let closed = frame.Close();
-        let (image, at) = captured.map_err(|e| format!("게임 GPU 화면을 읽지 못했습니다: {e}"))?;
-        closed.map_err(|e| format!("GPU 캡처 프레임을 해제하지 못했습니다: {e}"))?;
+        let (image, at) = captured.map_err(|e| {
+            format!(
+                "게임 GPU 화면을 읽지 못했습니다: 0x{:08X}",
+                e.code().0 as u32
+            )
+        })?;
+        closed.map_err(|e| {
+            format!(
+                "GPU 캡처 프레임을 해제하지 못했습니다: 0x{:08X}",
+                e.code().0 as u32
+            )
+        })?;
         image.validate()?;
         Ok((image, at))
     }

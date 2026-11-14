@@ -42,6 +42,6 @@ OCR 영역은 `[left, top, right, bottom]`의 0~1 좌표다. 캡처 영역은 �
 
 ## 업데이트와 검사
 
-개발 앱의 업데이트는 정식 앱의 `latest`·`mobile-latest`와 분리한 `alpha`만 사용한다. dev의 Linux·Windows·Android 빌드와 macOS 빌드가 각각 실제 자산 및 `.sha256`을 게시한다. 앱은 SHA256을 검사하고, Android에서는 설치 패키지명과 서명도 검사한다. macOS는 압축 자산과 설치된 실행 파일의 해시를 함께 보관해 같은 업데이트를 반복 제안하지 않는다.
+개발 앱의 업데이트는 정식 앱의 `latest`·`mobile-latest`와 분리한 `dev-alpha`만 사용한다. dev의 Linux·Windows·Android·macOS 빌드가 모두 성공한 뒤 한 게시 작업에서 실제 자산 및 `.sha256`을 올린다. main의 기존 `alpha`는 이 앱의 업데이트 대상이 아니다. 앱은 SHA256을 검사하고, Android에서는 설치 패키지명과 서명도 검사한다. macOS는 압축 자산과 설치된 실행 파일의 해시를 함께 보관해 같은 업데이트를 반복 제안하지 않는다.
 
 현재 추가한 검사는 실제 `setup(ctx)`, 등록 API, 이벤트, 설정 왕복, BGRA 응답 복원과 패키지 교체·경로 검증을 다룬다. 실제 확장 설치·네트워크 다운로드·각 OS 설치 화면은 이 단위 검사의 완료만으로 실기 검증됐다고 보지 않는다.

@@ -132,6 +132,24 @@ impl Job {
             Self::Command { .. } => "sdk",
         }
     }
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Pop { .. } => "자동 팝핑",
+            Self::Items { .. } => "아이템 사용",
+            Self::InventoryOcr => "인벤토리 확인",
+            Self::Blood { .. } => "블러드 레인",
+            Self::Merchant { .. } => "상인 구매",
+            Self::Craft { .. } => "포션 제작",
+            Self::Match { .. } => "메모리 매치",
+            Self::Sell { .. } => "물고기 판매",
+            Self::SellCalibrate => "판매 보정",
+            Self::Return { .. } => "게임 복귀",
+            Self::Play { .. } => "게임 입장",
+            Self::Afk => "자리 비움 방지",
+            Self::Go { .. } => "목적지 이동",
+            Self::Command { .. } => "모드 작업",
+        }
+    }
     fn priority(&self) -> u8 {
         match self {
             Self::Return { .. } | Self::Play { .. } => 4,
@@ -1007,7 +1025,7 @@ impl Runner {
                 self.in_game = in_game;
                 if in_game {
                     self.missing_since = None;
-                } else if !available && self.missing_since.is_none() {
+                } else if self.missing_since.is_none() {
                     self.missing_since = Some(now);
                 }
                 self.status.recovery_left = if self.continuous && !self.recovery_cancelled {
@@ -1363,7 +1381,7 @@ impl Runner {
         };
         self.status.phase = job.feature().into();
         self.status.active = Some(job.clone());
-        self.status.message = format!("{} 실행 중", job.feature());
+        self.status.message = format!("{} 실행 중", job.label());
         let delay = match job {
             Job::Pop { .. } => self.cfg.number("mpop", "start_delay", 1.0),
             Job::Blood { .. } => self.cfg.number("mblood", "start_delay", 1.0),
@@ -1716,7 +1734,7 @@ impl Runner {
             self.status.completed += 1;
             self.last_activity = self.now;
             if !matches!(a.job, Job::InventoryOcr) {
-                self.note(format!("{} 작업 완료 · 실제 화면 확인", a.job.feature()));
+                self.note(format!("{} 작업 완료 · 실제 화면 확인", a.job.label()));
             }
         } else {
             self.status.failed += 1;
@@ -1913,6 +1931,13 @@ fn validate_command(command: &Command) -> Result<(), String> {
     Ok(())
 }
 
+pub(crate) fn lobby_text(text: &str) -> bool {
+    let words: std::collections::BTreeSet<_> = text.split_whitespace().collect();
+    (words.contains("home")
+        && (words.contains("friends") || words.contains("marketplace") || words.contains("avatar")))
+        || (words.contains("홈") && (words.contains("친구") || words.contains("아바타")))
+}
+
 pub(crate) fn game_url(value: &str) -> Result<String, String> {
     if value.len() > 4096 || value.chars().any(char::is_control) {
         return Err("Roblox 서버 링크를 확인하세요.".into());
@@ -1988,6 +2013,39 @@ pub(crate) fn default_template(biome: &str) -> Result<Value, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn a_visible_lobby_starts_recovery_but_a_missing_ocr_label_does_not_prove_lobby() {
+        assert!(lobby_text("home friends avatar"));
+        assert!(!lobby_text("go home buy potion"));
+        assert!(!lobby_text("auto roll inventory"));
+        let mut runner = Runner::new(json!({}), 0.0).unwrap();
+        runner.continuous = true;
+        runner.trigger(
+            Event::Game {
+                available: true,
+                in_game: false,
+            },
+            1.0,
+        );
+        assert_eq!(runner.missing_since, Some(1.0));
+        runner.trigger(
+            Event::Game {
+                available: true,
+                in_game: false,
+            },
+            9.0,
+        );
+        assert_eq!(runner.missing_since, Some(1.0));
+        runner.trigger(
+            Event::Game {
+                available: true,
+                in_game: true,
+            },
+            10.0,
+        );
+        assert!(runner.missing_since.is_none());
+    }
+
     #[test]
     fn missing_client_recovery_launches_without_a_viewport_and_ack_is_not_game_entry() {
         let config = json!({"ret":{"ps_link":"https://www.roblox.com/games/15532962292/?privateServerLinkCode=test","start_wait":0},"play":{"load_wait":0}});

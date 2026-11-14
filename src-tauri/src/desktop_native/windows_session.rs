@@ -1,11 +1,12 @@
-//! Owned Win32 desktop. Starting a URI here cannot activate the user's desktop.
+//! Normal Windows desktop. Existing Roblox is attached, never killed on detach.
 use super::Handle;
 use std::{
+    collections::BTreeSet,
     ffi::c_void,
     mem::{size_of, zeroed},
     path::PathBuf,
     ptr,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::atomic::Ordering,
 };
 #[repr(C)]
 struct Startup {
@@ -71,27 +72,10 @@ struct ProcessEntry {
 }
 #[link(name = "user32")]
 unsafe extern "system" {
-    fn CreateDesktopW(
-        name: *const u16,
-        device: *const u16,
-        mode: *const c_void,
-        flags: u32,
-        access: u32,
-        security: *const c_void,
-    ) -> Handle;
-    fn SetThreadDesktop(desktop: Handle) -> i32;
-    fn GetThreadDesktop(thread: u32) -> Handle;
-    fn CloseDesktop(desktop: Handle) -> i32;
-    fn EnumDesktopWindows(
-        desktop: Handle,
-        callback: unsafe extern "system" fn(Handle, isize) -> i32,
-        param: isize,
-    ) -> i32;
+    fn EnumWindows(callback: unsafe extern "system" fn(Handle, isize) -> i32, param: isize) -> i32;
 }
 #[link(name = "kernel32")]
 unsafe extern "system" {
-    fn GetCurrentThreadId() -> u32;
-    fn GetCurrentProcessId() -> u32;
     fn CreateProcessW(
         app: *const u16,
         args: *mut u16,
@@ -149,51 +133,24 @@ impl Drop for Owned {
 }
 
 pub(super) struct Session {
-    desktop: Handle,
-    original: Handle,
-    name: Vec<u16>,
+    attached: BTreeSet<(u32, u64)>,
     job: Owned,
     executable: PathBuf,
     arguments: Vec<String>,
 }
 impl Session {
-    pub(super) fn new() -> Result<Self, String> {
-        if !roblox_processes()?.is_empty() {
-            return Err("기존 Roblox가 실행 중입니다. 게임을 직접 종료한 뒤 백그라운드 게임을 여세요. 기존 게임은 자동으로 종료하지 않습니다.".into());
-        }
+    pub(super) fn new(url: &str) -> Result<Self, String> {
         let (executable, arguments) = handler()?;
-        static NEXT: AtomicU64 = AtomicU64::new(1);
-        let label = format!(
-            "Acrux-{}-{}",
-            unsafe { GetCurrentProcessId() },
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        );
-        let name = wide(&format!("WinSta0\\{label}"));
-        let short = wide(&label);
-        let original = unsafe { GetThreadDesktop(GetCurrentThreadId()) };
-        // No DESKTOP_SWITCHDESKTOP access is requested or used.
-        let desktop = unsafe {
-            CreateDesktopW(
-                short.as_ptr(),
-                ptr::null(),
-                ptr::null(),
-                0,
-                0xff,
-                ptr::null(),
-            )
-        };
-        if desktop == 0 {
-            return Err("사용자 화면과 분리된 Windows 데스크톱을 만들지 못했습니다.".into());
-        }
+        let attached = all_windows()
+            .into_iter()
+            .map(|target| (target.pid, target.birth))
+            .collect();
         let job = Owned(unsafe { CreateJobObjectW(ptr::null(), ptr::null()) });
         if job.0 == 0 {
-            unsafe {
-                CloseDesktop(desktop);
-            }
-            return Err("소유 게임의 프로세스 그룹을 만들지 못했습니다.".into());
+            return Err("게임 프로세스 그룹을 만들지 못했습니다.".into());
         }
         let mut limits: Limits = unsafe { zeroed() };
-        limits.basic.flags = 0x2000;
+        limits.basic.flags = 0x2000; // Only processes started by Acrux die with this Job.
         if unsafe {
             SetInformationJobObject(
                 job.0,
@@ -202,22 +159,24 @@ impl Session {
                 size_of::<Limits>() as u32,
             )
         } == 0
-            || unsafe { SetThreadDesktop(desktop) } == 0
         {
-            unsafe {
-                CloseDesktop(desktop);
-            }
-            return Err("독립 Windows 게임 실행을 준비하지 못했습니다.".into());
+            return Err("게임 프로세스 관리를 준비하지 못했습니다.".into());
         }
         let session = Self {
-            desktop,
-            original,
-            name,
+            attached,
             job,
             executable,
             arguments,
         };
-        session.open("roblox://")?;
+        if session.attached.is_empty() {
+            if !roblox_processes()?.is_empty() {
+                return Err(
+                    "Roblox가 시작 중이거나 최소화돼 있습니다. 게임 창을 연 뒤 다시 연결하세요."
+                        .into(),
+                );
+            }
+            session.open(url)?;
+        }
         Ok(session)
     }
     pub(super) fn owns(&self, pid: u32) -> bool {
@@ -229,27 +188,17 @@ impl Session {
         unsafe { IsProcessInJob(process.0, self.job.0, &mut yes) != 0 && yes != 0 }
     }
     pub(super) fn windows(&self) -> Vec<super::Target> {
-        let mut targets: Vec<super::Target> = Vec::new();
-        unsafe {
-            EnumDesktopWindows(
-                self.desktop,
-                super::collect,
-                &mut targets as *mut Vec<super::Target> as isize,
-            );
-        }
-        targets.retain(|target| self.owns(target.pid));
-        targets
+        all_windows()
+            .into_iter()
+            .filter(|target| self.accepts(*target))
+            .collect()
+    }
+    pub(super) fn accepts(&self, target: super::Target) -> bool {
+        self.owns(target.pid) || self.attached.contains(&(target.pid, target.birth))
     }
     pub(super) fn open(&self, url: &str) -> Result<(), String> {
         if super::super::STOP.load(Ordering::Acquire) || !valid_url(url) {
             return Err("Roblox 실행 주소나 실행 상태가 올바르지 않습니다.".into());
-        }
-        // A global singleton elsewhere could consume a URI. Refuse if a game
-        // outside our Job appeared after this private session was created.
-        if roblox_processes()?.into_iter().any(|pid| !self.owns(pid)) {
-            return Err(
-                "다른 Roblox 프로세스가 실행 중이라 독립 세션 재접속을 취소했습니다.".into(),
-            );
         }
         let executable = self
             .executable
@@ -263,7 +212,6 @@ impl Session {
         let mut command = wide(&arguments.join(" "));
         let mut startup: Startup = unsafe { zeroed() };
         startup.size = size_of::<Startup>() as u32;
-        startup.desktop = self.name.as_ptr() as *mut u16;
         startup.flags = 1;
         startup.show = 5;
         let mut info: Process = unsafe { zeroed() };
@@ -284,7 +232,7 @@ impl Session {
             )
         } == 0
         {
-            return Err("독립 Windows 데스크톱에서 Roblox를 실행하지 못했습니다.".into());
+            return Err("Roblox를 실행하지 못했습니다.".into());
         }
         let process = Owned(info.process);
         let thread = Owned(info.thread);
@@ -300,17 +248,15 @@ impl Session {
         Ok(())
     }
 }
-impl Drop for Session {
-    fn drop(&mut self) {
-        // Drop the sole Job handle first; only its owned descendants are terminated.
-        let old = std::mem::replace(&mut self.job, Owned(0));
-        drop(old);
-        unsafe {
-            if SetThreadDesktop(self.original) != 0 {
-                CloseDesktop(self.desktop);
-            }
-        }
+fn all_windows() -> Vec<super::Target> {
+    let mut targets = Vec::new();
+    unsafe {
+        EnumWindows(
+            super::collect,
+            &mut targets as *mut Vec<super::Target> as isize,
+        );
     }
+    targets
 }
 fn valid_url(url: &str) -> bool {
     url.starts_with("roblox://")

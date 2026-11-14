@@ -23,9 +23,9 @@
 
 ## 받기
 
-- [Acrux-Alpha.apk](https://github.com/XxErone2xX/Acrux-app/releases/download/alpha/Acrux-Alpha.apk) — Android (arm64) · 패키지 `com.acrux.next` (정식 앱과 따로 깔림)
-- [Acrux-Alpha.exe](https://github.com/XxErone2xX/Acrux-app/releases/download/alpha/Acrux-Alpha.exe) — Windows
-- `src-tauri/` · `frontend/` 등이 바뀐 커밋이 `dev`에 들어오면 `.github/workflows/alpha.yml`이 Linux·Windows·Android를, Apple workflow가 macOS를 빌드합니다. 공개 alpha 자산은 실제 원격 workflow가 완료한 버전입니다.
+- [Acrux-Alpha.apk](https://github.com/XxErone2xX/Acrux-app/releases/download/dev-alpha/Acrux-Alpha.apk) — Android (arm64) · 패키지 `com.acrux.next` (정식 앱과 따로 깔림)
+- [Acrux-Alpha.exe](https://github.com/XxErone2xX/Acrux-app/releases/download/dev-alpha/Acrux-Alpha.exe) — Windows
+- `src-tauri/` · `frontend/` 등이 바뀐 커밋이 `dev`에 들어오면 `.github/workflows/alpha.yml`이 Linux·Windows·Android를, Apple workflow가 macOS를 빌드합니다. 공개 dev-alpha 자산은 네 플랫폼 빌드를 모두 통과한 실행에서 갱신합니다. main의 기존 alpha는 개발 앱 업데이트 대상이 아닙니다.
 - 서명: 비밀값 `ACRUX_ALPHA_KEYSTORE_B64` · `ACRUX_ALPHA_KEYSTORE_PASS` 를 넣으면 그 키로 · 없으면 CI 가 캐시한 디버그 키 (7일 넘게 빌드가 없으면 키가 바뀌어서 한 번 지우고 다시 깔아야 함)
 
 ## 현재 상태
@@ -43,7 +43,7 @@ Android는 기존 모바일 탭·카드, 데스크톱은 기존 PC HTML·CSS를 
 
 Android의 바이옴 기능은 앱 내부 무선 디버깅 페어링과 로그 수집을 사용합니다. 로그 재연결 시 이어 읽기와 2분 정체 감지, 웹후크별 순차 전송·429 재시도를 포함합니다. 사용자 수는 `https://acruxmacro.com/api/`에서 읽습니다.
 
-데스크톱 연결은 Linux의 전용 Gamescope/Xwayland, Windows의 소유 private desktop/프로세스와 PrintWindow/WGC, macOS의 창 전용 캡처·PID 입력·Vision OCR을 사용합니다. 화면이 사라지면 입력 세대를 폐기하고 실제 창 없이 실행 가능한 재접속만 처리한 뒤 새 화면과 입장 근거를 기다립니다. 사용자 데스크톱의 전역 입력으로 우회하지 않습니다. PC 확장은 [모드 SDK](native-mod-sdk.md), 업데이트는 별도 alpha 자산/해시 검증·플랫폼 설치 경로에 연결합니다. 모바일에는 Python 모드 실행기를 넣지 않습니다. 정식 앱과 dev 앱의 저장소는 분리됩니다.
+데스크톱 연결은 Linux의 전용 Gamescope/Xwayland, Windows의 일반 데스크톱 Roblox 연결과 PrintWindow/WGC·전경 SendInput, macOS의 창 전용 캡처·PID 입력·Vision OCR을 사용합니다. 화면이 사라지면 입력 세대를 폐기하고 실제 창 없이 실행 가능한 재접속만 처리한 뒤 새 화면과 입장 근거를 기다립니다. Windows는 사용자가 허용한 전경 입력 모드이며 다른 창으로 전환하면 작업을 중지합니다. Linux와 macOS의 기존 입력 방식은 유지합니다. PC 확장은 [모드 SDK](native-mod-sdk.md), 업데이트는 별도 dev-alpha 자산/해시 검증·플랫폼 설치 경로에 연결합니다. 모바일에는 Python 모드 실행기를 넣지 않습니다. 정식 앱과 dev 앱의 저장소는 분리됩니다.
 
 ### Android DUA 시작 흐름
 

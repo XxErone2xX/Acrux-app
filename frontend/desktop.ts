@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { biomeStatus, saveBiome, type BiomeSettings } from "./biome";
 import defaults from "./desktop-defaults.json";
-import { control, saveTuning, status, type SessionStatus, type Status, type Tuning } from "./engine";
+import { control, status, type SessionStatus, type Status, type Tuning } from "./engine";
 
 const key = "acrux.desktop.preferences";
 type Bag = Record<string, unknown>;
@@ -94,16 +94,17 @@ function applyStatus(s: Status) {
 }
 
 function reportError(message: string) {
+  void invoke("service_action", { action: "diagnostic", payload: { message } }).catch(() => {});
   window.dispatchEvent(new CustomEvent("acrux-desktop-error", { detail: message }));
 }
 
 function snapshotPixels(buffer: ArrayBuffer) {
-  if (!(buffer instanceof ArrayBuffer) || buffer.byteLength < 8) throw new Error("Sober 화면 데이터를 읽을 수 없습니다.");
+  if (!(buffer instanceof ArrayBuffer) || buffer.byteLength < 8) throw new Error("게임 화면 데이터를 읽을 수 없습니다.");
   const header = new DataView(buffer);
   const width = header.getUint32(0, true), height = header.getUint32(4, true);
   const bytes = width * height * 4;
   if (width < 1 || height < 1 || width > 16384 || height > 16384 || bytes > 256 * 1024 * 1024 || buffer.byteLength !== 8 + bytes) {
-    throw new Error("Sober 화면 크기나 픽셀 데이터가 올바르지 않습니다.");
+    throw new Error("게임 화면 크기나 픽셀 데이터가 올바르지 않습니다.");
   }
   return { width, height, pixels: new Uint8ClampedArray(buffer, 8) };
 }
@@ -135,7 +136,7 @@ async function openGameView() {
     await gameInputCleanup;
     let current = await status();
     if (revision !== gameViewRevision) throw new Error("화면 열기를 취소했습니다.");
-    if (!current.dua.background || current.session.state !== "ready") throw new Error("앱 전용 게임을 먼저 여세요.");
+    if (!current.captureReady || !current.inputReady || current.session.state !== "ready") throw new Error("[게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요.");
     const dialog = document.createElement("dialog");
     dialog.id = "desktopGameView";
     dialog.className = "card";
@@ -151,7 +152,7 @@ async function openGameView() {
     canvas.setAttribute("aria-label", "앱 전용 게임 조작 화면");
     Object.assign(canvas.style, { display: "block", maxWidth: "min(88vw, 1200px)", maxHeight: "70vh", width: "auto", height: "auto", touchAction: "none" });
     const context = canvas.getContext("2d");
-    if (!context) throw new Error("Sober 화면을 표시할 수 없습니다.");
+    if (!context) throw new Error("게임 화면을 표시할 수 없습니다.");
     const buttons = document.createElement("div");
     buttons.className = "confirm-btns";
     const close = document.createElement("button");
@@ -175,9 +176,9 @@ async function openGameView() {
     let pointer: Position = [0.5, 0.5];
     let lastPointer: Position | undefined;
     let look: Position = [0, 0];
-    const manualAllowed = () => !closed && current.dua.background && current.session.state === "ready"
+    const manualAllowed = () => !closed && current.platform !== "windows" && current.captureReady && current.inputReady && current.session.state === "ready"
       && !config.macro_on && !current.dua.running && current.phase === "idle";
-    const modeHint = () => { hint.textContent = manualAllowed()
+    const modeHint = () => { hint.textContent = current.platform === "windows" ? "Windows에서는 Roblox 창에서 직접 조작하세요. 이 화면은 미리보기입니다." : manualAllowed()
       ? "화면을 클릭한 뒤 키보드로 조작하세요. 우클릭 드래그로 시점을 움직입니다."
       : "매크로 실행 중에는 보기만 가능합니다. 조작하려면 매크로를 중지하세요."; };
     const clearHeld = () => {
@@ -336,7 +337,7 @@ async function openGameView() {
         current = next;
         if (changed) await release();
         modeHint();
-        if (!current.dua.background || current.session.state !== "ready") throw new Error(current.session.message);
+        if (!current.captureReady || !current.inputReady || current.session.state !== "ready") throw new Error(current.session.message);
         const image = snapshotPixels(await invoke<ArrayBuffer>("desktop_snapshot"));
         if (closed) return;
         canvas.width = image.width; canvas.height = image.height;
@@ -369,7 +370,7 @@ async function pickDesktop(): Promise<Position> {
     await gameInputCleanup;
     const current = await status();
     if (revision !== pickRevision) throw new Error("위치 지정을 취소했습니다.");
-    if (!current.dua.background || current.session.state !== "ready") throw new Error("앱 전용 게임을 먼저 여세요.");
+    if (!current.captureReady || !current.inputReady || current.session.state !== "ready") throw new Error("[게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요.");
     if (current.dua.running || current.phase !== "idle") throw new Error("실행 중인 작업을 먼저 중지하세요.");
     const buffer = await invoke<ArrayBuffer>("desktop_snapshot");
     if (revision !== pickRevision) throw new Error("위치 지정을 취소했습니다.");
@@ -384,19 +385,19 @@ async function pickDesktop(): Promise<Position> {
     });
     const title = document.createElement("h3");
     title.id = "desktopPickTitle";
-    title.textContent = "Sober 화면에서 저장할 위치를 클릭하세요.";
+    title.textContent = "게임 화면에서 저장할 위치를 클릭하세요.";
     const hint = document.createElement("p");
     hint.className = "hint";
-    hint.textContent = "캡처한 Sober 화면입니다. Esc 또는 취소로 닫을 수 있습니다.";
+    hint.textContent = "캡처한 게임 화면입니다. Esc 또는 취소로 닫을 수 있습니다.";
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
-    canvas.setAttribute("aria-label", "Sober 위치 선택 화면");
+    canvas.setAttribute("aria-label", "게임 위치 선택 화면");
     Object.assign(canvas.style, {
       display: "block", maxWidth: "min(88vw, 1200px)", maxHeight: "70vh", width: "auto", height: "auto", cursor: "crosshair",
     });
     const context = canvas.getContext("2d");
-    if (!context) throw new Error("Sober 화면을 표시할 수 없습니다.");
+    if (!context) throw new Error("게임 화면을 표시할 수 없습니다.");
     context.putImageData(new ImageData(pixels, width, height), 0, 0);
     const buttons = document.createElement("div");
     buttons.className = "confirm-btns";
@@ -448,7 +449,7 @@ async function syncDesktop(revision = desktopRevision) {
   const current = await status();
   if (revision !== desktopRevision || !config.macro_on) return;
   if (current.dua.running) return;
-  if (!current.dua.background || current.session.state !== "ready") throw new Error("앱 전용 게임을 먼저 여세요.");
+  if (!current.captureReady || !current.inputReady || current.session.state !== "ready") throw new Error("[게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요.");
   await releaseGameInput?.();
   if (revision !== desktopRevision || !config.macro_on) return;
   await invoke<Status>("desktop_start", { features: enabledFeatures(), generation: current.generation });
@@ -471,9 +472,9 @@ async function loadNativeConfig() {
   return configLoaded;
 }
 let configSaves = Promise.resolve();
-async function saveNativeConfig() {
+async function saveNativeConfig(candidate: Config = config) {
   const running = config.macro_on;
-  const native = await invoke<Config>("save_macro_settings", { config: { ...structuredClone(config), macro_on: false } });
+  const native = await invoke<Config>("save_macro_settings", { config: { ...structuredClone(candidate), macro_on: false } });
   Object.assign(config, native, { macro_on: running && config.macro_on });
   persist();
 }
@@ -521,16 +522,8 @@ async function setConfig(patch: Bag) {
     const changed = previous !== JSON.stringify(next);
     const current = await status();
     if (changed && (current.dua.running || current.phase !== "idle")) await control("stop");
-    Object.assign(config, next, { macro_on: desiredMacro });
-    if (changed) {
-      const fish = patch.mfish as Bag | undefined;
-      if (fish) {
-        const tuning = { ...current.tuning };
-        for (const [ui, rust] of Object.entries(tuningKeys)) if (typeof fish[ui] === "number") tuning[rust] = fish[ui] as number;
-        if (JSON.stringify(tuning) !== JSON.stringify(current.tuning)) await saveTuning(tuning);
-      }
-      await saveNativeConfig();
-    }
+    if (changed) await saveNativeConfig(next);
+    config.macro_on = desiredMacro;
     if (revision === desktopRevision && config.macro_on) await syncDesktop(revision);
     persist();
     return saved();
@@ -538,7 +531,7 @@ async function setConfig(patch: Bag) {
   configSaves = save.then(() => undefined, () => undefined);
   try { return await save; } catch (error) {
     if (revision === desktopRevision) { desiredMacro = false; config.macro_on = false; persist(); reportError(String(error)); }
-    return saved();
+    return { ...saved(), error: error instanceof Error ? error.message : String(error) };
   } finally { desktopPending--; }
 }
 
@@ -626,41 +619,44 @@ function numberStats(value: unknown): Record<string, number> {
 }
 async function desktopApi(name: string, payload: Bag) {
   try { return await request(name, payload); }
-  catch (error) { return { error: error instanceof Error ? error.message : String(error) }; }
+  catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (name === "state") return { ...saved(), version: "0.1.0", status: stopped, mods: [], error: message };
+    if (name === "poll") return { error: message, status: stopped, macro_on: false,
+      session: { supported: true, state: "error", message, width: 0, height: 0 } };
+    return { error: message };
+  }
 }
 
 async function request(name: string, payload: Bag) {
   switch (name) {
     case "state": {
-      await loadNativeConfig();
-      const s = await status();
-      const mods = await service("mods_list");
+      const errors: string[] = [];
+      const attempt = async <T>(label: string, run: () => Promise<T>, fallback: T): Promise<T> => {
+        try { return await run(); } catch (error) { errors.push(`${label}: ${String(error)}`); reportError(`${label}: ${String(error)}`); return fallback; }
+      };
+      await attempt("설정", loadNativeConfig, undefined);
+      const [s, mods, biome, online] = await Promise.all([
+        attempt("게임 상태", status, null),
+        attempt<Bag>("모드", () => service("mods_list"), { mods: [] }),
+        attempt("바이옴", biomeStatus, null),
+        attempt("온라인", () => invoke<{ share: boolean }>("online_status"), null),
+      ]);
       haveMods = Array.isArray(mods.mods) && mods.mods.some((mod: Bag) => mod.loaded === true);
-      let biome = await biomeStatus();
-      if (!localStorage.getItem("acrux.desktop.biome-migrated")) {
-        if (!biome.settings.enabled && !biome.settings.player && !biome.settings.webhooks.length && config.biome) {
-          biome = await saveBiome(biomeSettings(config.biome as Bag));
-        }
-        localStorage.setItem("acrux.desktop.biome-migrated", "true");
-      }
-      if (!localStorage.getItem("acrux.desktop.online-migrated")) {
-        await invoke("save_online", { share: config.online_share !== false });
-        localStorage.setItem("acrux.desktop.online-migrated", "true");
-      }
-      config.biome = { enabled: biome.settings.enabled, player: biome.settings.player, ps_link: biome.settings.psLink, webhooks: biome.settings.webhooks, everyone: biome.settings.mentions, roles: biome.settings.roles };
-      const online = await invoke<{ share: boolean }>("online_status");
-      config.online_share = online.share;
-      applyStatus(s);
-      const output = { ...saved(), version: s.version, status: desktopStatus(s), dua: s.dua, session: s.session, mods: mods.mods ?? [], mods_error: mods.error };
-      const changed = await hook("state", [output]);
+      if (biome) config.biome = { enabled: biome.settings.enabled, player: biome.settings.player, ps_link: biome.settings.psLink, webhooks: biome.settings.webhooks, everyone: biome.settings.mentions, roles: biome.settings.roles };
+      if (online) config.online_share = online.share;
+      if (s) applyStatus(s);
+      const output = { ...saved(), version: s?.version ?? "0.1.0", status: s ? desktopStatus(s) : stopped,
+        dua: s?.dua, session: s?.session, mods: mods.mods ?? [], mods_error: mods.error, error: errors.join("\n") || undefined };
+      const changed = await attempt<Bag>("모드 상태", () => hook("state", [output]), {});
       return Array.isArray(changed.args) && changed.args[0] && typeof changed.args[0] === "object" ? changed.args[0] : output;
     }
     case "poll": {
       const s = await status();
-      const biome = await biomeStatus();
-      const online = await invoke<{ online: number | null }>("online_status");
+      const biome = await biomeStatus().catch(() => ({ current: null, history: [], owner: null, watching: false }));
+      const online = await invoke<{ online: number | null }>("online_status").catch(() => ({ online: null }));
       const automation = (s as Status & { automation?: Bag }).automation ?? {};
-      const native = await service("runtime_metadata");
+      const native = await service("runtime_metadata").catch(() => ({} as Bag));
       const active = automation.active as Bag | null;
       const activity = (kind: string) => ({ running: !!automation.running && active?.kind === kind, msg: String(automation.message ?? s.message) });
       const move = { ...activity("go"), running: s.phase === "moving" || active?.kind === "go", measuring: null };
@@ -681,7 +677,7 @@ async function request(name: string, payload: Bag) {
         blood_used: Number(used["Cursed Rune Fragment"] ?? 0), merch_bought: bought,
         crafted: Number(automation.crafted ?? 0), match_played: Number(automation.played ?? 0), match_ads: Number(automation.ads ?? 0),
       };
-      const statsHook = await hook("stats");
+      const statsHook = await hook("stats").catch(() => ({} as Bag));
       for (const extra of statsHook.results as unknown[] ?? []) Object.assign(sessionStats, numberStats(extra));
       const output: Bag = {
         biome: { current: biome.current, history: biome.history, owner: biome.owner, log: biome.watching },
@@ -810,7 +806,12 @@ async function request(name: string, payload: Bag) {
     case "mmerch_check": case "mmerch_buy_test": case "mmerch_stop":
     case "mcraft_test": case "mcraft_stop": case "mmatch_test": case "mmatch_stop":
     case "go": case "waypoint_mark": case "waypoint_cancel":
-    case "sell_test": case "ret_join": case "ret_test": case "play_test": case "play_stop":
+    case "ret_join": {
+      const current = await status();
+      if (current.session.state !== "ready") return { session: await invoke<SessionStatus>("desktop_session_start") };
+      return nativeAction(name, payload);
+    }
+    case "sell_test": case "ret_test": case "play_test": case "play_stop":
     case "crash_cancel": case "ocr_info": case "ocr_test":
       return nativeAction(name, payload);
     default:

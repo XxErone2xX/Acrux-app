@@ -1,8 +1,9 @@
-//! Win32 calls are restricted to the selected Roblox HWND. Never use SendInput.
+//! Foreground Windows input, guarded by the selected Roblox process identity.
 use super::{image_bytes, Image, Target, Word};
 use crate::vision::Rect;
 use std::{
     cell::{Cell, RefCell},
+    collections::BTreeSet,
     ffi::c_void,
     mem::{size_of, zeroed},
     ptr, thread,
@@ -17,6 +18,8 @@ use windows::{
     Media::Ocr::OcrEngine,
     Storage::Streams::DataWriter,
 };
+
+use windows::Win32::UI::Input::KeyboardAndMouse::*;
 
 type Handle = isize;
 #[repr(C)]
@@ -71,7 +74,10 @@ unsafe extern "system" {
     fn GetDC(hwnd: Handle) -> Handle;
     fn ReleaseDC(hwnd: Handle, dc: Handle) -> i32;
     fn PrintWindow(hwnd: Handle, dc: Handle, flags: u32) -> i32;
-    fn PostMessageW(hwnd: Handle, message: u32, wparam: usize, lparam: isize) -> i32;
+    fn GetForegroundWindow() -> Handle;
+    fn SetForegroundWindow(hwnd: Handle) -> i32;
+    fn ShowWindow(hwnd: Handle, command: i32) -> i32;
+    fn GetSystemMetrics(index: i32) -> i32;
     fn MapVirtualKeyW(code: u32, map_type: u32) -> u32;
 }
 #[link(name = "dwmapi")]
@@ -123,10 +129,13 @@ pub(super) struct Native {
     gpu: RefCell<Option<capture::Capture>>,
     session: session::Session,
     captured_at: Cell<f64>,
+    keys: RefCell<BTreeSet<u16>>,
+    buttons: RefCell<BTreeSet<bool>>,
 }
 impl Native {
     pub(super) fn new() -> Result<Self, String> {
-        let session = session::Session::new()?;
+        let url = crate::game_launch_url()?;
+        let session = session::Session::new(&url)?;
         // A worker owns its MTA apartment, including WinRT OCR asynchronous work.
         let hr = unsafe { RoInitialize(1) };
         if hr < 0 {
@@ -137,6 +146,8 @@ impl Native {
             gpu: RefCell::new(None),
             session,
             captured_at: Cell::new(0.0),
+            keys: RefCell::new(BTreeSet::new()),
+            buttons: RefCell::new(BTreeSet::new()),
         })
     }
     pub(super) fn find_now(&self) -> Result<Option<Target>, String> {
@@ -153,10 +164,10 @@ impl Native {
         self.session.open(&url)
     }
     pub(super) fn valid(&self, target: Target) -> bool {
-        self.session.owns(target.pid) && inspect(target.id as Handle) == Some(target)
+        self.session.accepts(target) && inspect(target.id as Handle) == Some(target)
     }
     fn owned(&self, target: Target) -> bool {
-        self.session.owns(target.pid)
+        self.session.accepts(target)
             && identity(target.id as Handle)
                 .is_some_and(|(pid, birth)| pid == target.pid && birth == target.birth)
     }
@@ -175,7 +186,13 @@ impl Native {
             }
             *gpu = Some(capture::Capture::new(target)?);
         }
-        let (image, captured_at) = gpu.as_mut().unwrap().image(target)?;
+        let (image, captured_at) = match gpu.as_mut().unwrap().image(target) {
+            Ok(frame) => frame,
+            Err(error) => {
+                gpu.take();
+                return Err(error);
+            }
+        };
         self.captured_at.set(captured_at);
         if !self.valid(target) {
             return Err("GPU 캡처 중 게임 창이 변경됐습니다.".into());
@@ -253,20 +270,32 @@ impl Native {
             Ok(image)
         }
     }
-    fn message(
-        &self,
-        target: Target,
-        message: u32,
-        wparam: usize,
-        lparam: isize,
-    ) -> Result<(), String> {
+    pub(super) fn foreground(&self, target: Target) -> bool {
+        self.owned(target) && unsafe { GetForegroundWindow() } == target.id as Handle
+    }
+    pub(super) fn activate(&self, target: Target) -> Result<(), String> {
         if !self.owned(target) {
-            return Err("원래 게임 입력 대상이 사라졌습니다.".into());
+            return Err("게임 창이 연결되지 않았습니다.".into());
         }
-        if unsafe { PostMessageW(target.id as Handle, message, wparam, lparam) } == 0 {
+        unsafe {
+            ShowWindow(target.id as Handle, 9);
+            SetForegroundWindow(target.id as Handle);
+        }
+        if self.foreground(target) {
+            Ok(())
+        } else {
+            Err("Roblox 창을 앞에 둔 뒤 다시 시작하세요.".into())
+        }
+    }
+    fn send(&self, target: Target, input: INPUT, release: bool) -> Result<(), String> {
+        // Key/button ups release only keys injected by this Native instance.
+        // Releases must run even after Alt-Tab; no new press or pointer move may.
+        if !release && !self.foreground(target) {
+            return Err("다른 창으로 전환되어 게임 입력을 중지했습니다.".into());
+        }
+        if unsafe { SendInput(&[input], size_of::<INPUT>() as i32) } != 1 {
             return Err(
-                "Windows가 게임 창 입력을 거부했습니다. 앱과 게임의 실행 권한이 다를 수 있습니다."
-                    .into(),
+                "Windows가 입력을 거부했습니다. 앱과 Roblox의 실행 권한을 맞추세요.".into(),
             );
         }
         Ok(())
@@ -275,30 +304,66 @@ impl Native {
         if !key_supported(vk) {
             return Err("지원하지 않는 Windows 키입니다.".into());
         }
-        let scan = unsafe { MapVirtualKeyW(vk.into(), 0) };
+        if !down && !self.keys.borrow().contains(&vk) {
+            return Ok(());
+        }
         let extended = matches!(vk, 0x21..=0x28 | 0x2d | 0x2e | 0x6f | 0xa3 | 0xa5);
-        let param = 1u32
-            | ((scan & 255) << 16)
-            | ((extended as u32) << 24)
-            | if down { 0 } else { 0xc0000000 };
-        self.message(
-            target,
-            if down { 0x100 } else { 0x101 },
-            vk as usize,
-            param as i32 as isize,
-        )
+        let flags = KEYEVENTF_SCANCODE
+            | if extended {
+                KEYEVENTF_EXTENDEDKEY
+            } else {
+                KEYBD_EVENT_FLAGS(0)
+            }
+            | if down {
+                KEYBD_EVENT_FLAGS(0)
+            } else {
+                KEYEVENTF_KEYUP
+            };
+        let input = INPUT {
+            r#type: INPUT_KEYBOARD,
+            Anonymous: INPUT_0 {
+                ki: KEYBDINPUT {
+                    wScan: unsafe { MapVirtualKeyW(vk.into(), 0) } as u16,
+                    dwFlags: flags,
+                    ..Default::default()
+                },
+            },
+        };
+        self.send(target, input, !down)?;
+        if down {
+            self.keys.borrow_mut().insert(vk);
+        } else {
+            self.keys.borrow_mut().remove(&vk);
+        }
+        Ok(())
     }
     pub(super) fn move_pointer(
         &self,
         target: Target,
         at: (i32, i32),
-        right_drag: bool,
+        _right_drag: bool,
     ) -> Result<(), String> {
-        self.message(
+        let mut point = WinPoint { x: at.0, y: at.1 };
+        if !self.valid(target) || unsafe { ClientToScreen(target.id as Handle, &mut point) } == 0 {
+            return Err("게임 화면 좌표를 확인하지 못했습니다.".into());
+        }
+        let (x, y, w, h) = unsafe {
+            (
+                GetSystemMetrics(76),
+                GetSystemMetrics(77),
+                GetSystemMetrics(78),
+                GetSystemMetrics(79),
+            )
+        };
+        let (dx, dy) = absolute_position((point.x, point.y), (x, y, w, h))?;
+        self.send(
             target,
-            0x200,
-            if right_drag { 2 } else { 0 },
-            coordinates(at),
+            mouse_input(
+                dx,
+                dy,
+                MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK,
+            ),
+            false,
         )
     }
     pub(super) fn button(
@@ -308,25 +373,25 @@ impl Native {
         right: bool,
         down: bool,
     ) -> Result<(), String> {
-        self.message(
-            target,
-            match (right, down) {
-                (false, true) => 0x201,
-                (false, false) => 0x202,
-                (true, true) => 0x204,
-                (true, false) => 0x205,
-            },
-            if down {
-                if right {
-                    2
-                } else {
-                    1
-                }
-            } else {
-                0
-            },
-            coordinates(at),
-        )
+        if !down && !self.buttons.borrow().contains(&right) {
+            return Ok(());
+        }
+        if down {
+            self.move_pointer(target, at, false)?;
+        }
+        let flags = match (right, down) {
+            (false, true) => MOUSEEVENTF_LEFTDOWN,
+            (false, false) => MOUSEEVENTF_LEFTUP,
+            (true, true) => MOUSEEVENTF_RIGHTDOWN,
+            (true, false) => MOUSEEVENTF_RIGHTUP,
+        };
+        self.send(target, mouse_input(0, 0, flags), !down)?;
+        if down {
+            self.buttons.borrow_mut().insert(right);
+        } else {
+            self.buttons.borrow_mut().remove(&right);
+        }
+        Ok(())
     }
     pub(super) fn replace_text(
         &self,
@@ -357,7 +422,18 @@ impl Native {
                 if !current() {
                     return Err("텍스트 입력을 취소했습니다.".into());
                 }
-                self.message(target, 0x102, c as usize, 1)?;
+                let input = |flags| INPUT {
+                    r#type: INPUT_KEYBOARD,
+                    Anonymous: INPUT_0 {
+                        ki: KEYBDINPUT {
+                            wScan: c,
+                            dwFlags: flags,
+                            ..Default::default()
+                        },
+                    },
+                };
+                self.send(target, input(KEYEVENTF_UNICODE), false)?;
+                self.send(target, input(KEYEVENTF_UNICODE | KEYEVENTF_KEYUP), true)?;
             }
             Ok(())
         })();
@@ -370,7 +446,7 @@ impl Native {
         result
     }
     pub(super) fn launch(&self, target: Target, url: &str) -> Result<(), String> {
-        if !self.session.owns(target.pid) {
+        if !self.session.accepts(target) {
             return Err("앱이 소유한 Roblox 프로세스가 아닙니다.".into());
         }
         self.launch_missing(url)
@@ -491,8 +567,31 @@ impl Drop for Native {
 pub(super) fn key_supported(vk: u16) -> bool {
     matches!(vk,0x08|0x09|0x0d|0x10..=0x14|0x1b|0x20..=0x28|0x2d|0x2e|0x30..=0x39|0x41..=0x5a|0x60..=0x6f|0x70..=0x7b|0xa0..=0xa5|0xba..=0xc0|0xdb..=0xde)
 }
-fn coordinates(at: (i32, i32)) -> isize {
-    ((at.0 as u16 as u32) | ((at.1 as u16 as u32) << 16)) as i32 as isize
+fn mouse_input(dx: i32, dy: i32, flags: MOUSE_EVENT_FLAGS) -> INPUT {
+    INPUT {
+        r#type: INPUT_MOUSE,
+        Anonymous: INPUT_0 {
+            mi: MOUSEINPUT {
+                dx,
+                dy,
+                dwFlags: flags,
+                ..Default::default()
+            },
+        },
+    }
+}
+fn absolute_position(
+    point: (i32, i32),
+    bounds: (i32, i32, i32, i32),
+) -> Result<(i32, i32), String> {
+    let (x, y, w, h) = bounds;
+    if w <= 1 || h <= 1 || point.0 < x || point.1 < y || point.0 >= x + w || point.1 >= y + h {
+        return Err("게임 좌표가 현재 모니터 범위 밖입니다.".into());
+    }
+    Ok((
+        ((point.0 - x) as i64 * 65535 / (w - 1) as i64) as i32,
+        ((point.1 - y) as i64 * 65535 / (h - 1) as i64) as i32,
+    ))
 }
 unsafe extern "system" fn collect(hwnd: Handle, param: isize) -> i32 {
     if let Some(target) = inspect(hwnd) {

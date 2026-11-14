@@ -8,6 +8,7 @@ use crate::{
     vision::{Frame, Point, Region},
     DeviceTick, GameInput,
 };
+use crate::{claim_evidence, input_evidence_current, observed_tick};
 use std::{
     collections::{BTreeSet, VecDeque},
     io,
@@ -221,10 +222,12 @@ pub fn session_status() -> crate::BackgroundStatus {
         })
 }
 fn set_status(state: &'static str, message: impl Into<String>, target: Option<Target>) {
+    let message = message.into();
+    crate::services::diagnostic(&format!("game session {state}: {message}"));
     *STATUS.lock().unwrap_or_else(|e| e.into_inner()) = Some(crate::BackgroundStatus {
         supported: true,
         state,
-        message: message.into(),
+        message,
         width: target.map_or(0, |t| t.width),
         height: target.map_or(0, |t| t.height),
     });
@@ -248,13 +251,13 @@ pub fn launch_session() -> Result<crate::BackgroundStatus, String> {
                 let mut native = platform::Native::new()?;
                 {
                     let mut r = runtime();
-                    r.capture = true;
-                    r.input = true;
-                    r.dua.background = true;
+                    r.capture = false;
+                    r.input = false;
+                    r.dua.background = !cfg!(target_os = "windows");
                     r.dua.hotkeys = false;
                 }
                 set_status(
-                    "ready",
+                    "starting",
                     "기기 연결을 준비했습니다. 게임 창을 기다립니다.",
                     None,
                 );
@@ -382,6 +385,9 @@ fn worker(native: &mut platform::Native) -> Result<(), String> {
     let mut selected: Option<Target> = None;
     let mut held = Held::default();
     let mut manual_generation = runtime().generation;
+    let mut capture_failures = 0u32;
+    #[cfg(target_os = "windows")]
+    let mut was_active = false;
     let result = (|| {
         loop {
             let started = Instant::now();
@@ -395,13 +401,16 @@ fn worker(native: &mut platform::Native) -> Result<(), String> {
                     held.release(native, old);
                 }
                 AVAILABLE.store(false, Ordering::Release);
-                runtime().no_target();
+                {
+                    let mut r = runtime();
+                    r.no_target();
+                    r.capture = false;
+                    r.input = false;
+                }
+                set_status("starting", "게임 창을 기다리고 있습니다.", None);
                 match native.find_now()? {
                     Some(target) => {
-                        native.capture(target)?.validate()?;
                         selected = Some(target);
-                        AVAILABLE.store(true, Ordering::Release);
-                        set_status("ready", "소유 게임 창에 연결됐습니다.", Some(target));
                         target
                     }
                     None => {
@@ -444,13 +453,27 @@ fn worker(native: &mut platform::Native) -> Result<(), String> {
                     }
                 }
             };
+            if !AVAILABLE.load(Ordering::Acquire) {
+                if capture(native, target, &mut capture_failures)?.is_none() {
+                    continue;
+                }
+            }
             let generation = runtime().generation;
             if manual_generation != generation {
                 held.release(native, target);
                 manual_generation = generation;
             }
             if let Some(reply) = SNAPSHOT.lock().unwrap_or_else(|e| e.into_inner()).take() {
-                let _ = reply.send(native.capture(target).and_then(|image| image.encode()));
+                let result = capture(native, target, &mut capture_failures);
+                let _ = reply.send(match &result {
+                    Ok(Some(image)) => image.encode(),
+                    Ok(None) => Err("게임 화면을 다시 연결하고 있습니다.".into()),
+                    Err(error) => Err(error.clone()),
+                });
+                result?;
+                if capture_failures > 0 {
+                    continue;
+                }
             }
             for request in std::mem::take(&mut *MANUAL.lock().unwrap_or_else(|e| e.into_inner())) {
                 let allowed = {
@@ -495,8 +518,30 @@ fn worker(native: &mut platform::Native) -> Result<(), String> {
                 (r.active(), r.phase())
             };
             if !active {
+                #[cfg(target_os = "windows")]
+                {
+                    was_active = false;
+                }
                 thread::sleep(Duration::from_millis(100));
                 continue;
+            }
+            #[cfg(target_os = "windows")]
+            {
+                if !was_active {
+                    if let Err(error) = native.activate(target) {
+                        runtime().stop_automation(error);
+                        continue;
+                    }
+                    was_active = true;
+                }
+                if !native.foreground(target) {
+                    held.release(native, target);
+                    runtime().stop(
+                        "다른 창으로 전환되어 매크로를 중지했습니다. Roblox에서 다시 시작하세요.",
+                    );
+                    was_active = false;
+                    continue;
+                }
             }
             held.release(native, target);
             let (mut step, mut generation) = {
@@ -508,12 +553,21 @@ fn worker(native: &mut platform::Native) -> Result<(), String> {
                 // OCR sees this exact capture; stale text must not drive the next state.
                 // The acquisition request bounds OS capture/copy time too.
                 let captured_at = now();
-                let image = native.capture(target)?;
+                let Some(image) = capture(native, target, &mut capture_failures)? else {
+                    held.release(native, target);
+                    continue;
+                };
                 #[cfg(target_os = "windows")]
                 let captured_at = captured_at.min(native.captured_at());
-                image.validate()?;
+                let ocr_started = need_ocr.then(crate::now);
                 let words = if need_ocr {
-                    ocr_words(&image, region, |crop| native.ocr(crop))?
+                    match ocr_words(&image, region, |crop| native.ocr(crop)) {
+                        Ok(words) => words,
+                        Err(error) => {
+                            runtime().stop_automation(error);
+                            continue;
+                        }
+                    }
                 } else {
                     Vec::new()
                 };
@@ -526,10 +580,19 @@ fn worker(native: &mut platform::Native) -> Result<(), String> {
                     continue;
                 }
                 r.request_ocr = false;
-                let frame = image
-                    .frame(region)
-                    .ok_or("게임 화면 영역이 잘못됐습니다.")?;
-                step = observed_tick(&mut r, target.geometry(), &frame, words, captured_at, now());
+                let Some(frame) = image.frame(region) else {
+                    r.stop("화면 크기가 바뀌어 기기 동작을 중지했습니다.");
+                    continue;
+                };
+                step = observed_tick(
+                    &mut r,
+                    target.geometry(),
+                    &frame,
+                    words,
+                    captured_at,
+                    now(),
+                    ocr_started,
+                );
                 generation = r.generation;
             }
             if let DeviceTick::Input(input) = step {
@@ -547,7 +610,7 @@ fn worker(native: &mut platform::Native) -> Result<(), String> {
                     if stale {
                         continue;
                     }
-                    return Err(error);
+                    r.stop_automation(error);
                 }
             }
             let period = if phase == Phase::Reeling { 8 } else { 50 };
@@ -559,42 +622,60 @@ fn worker(native: &mut platform::Native) -> Result<(), String> {
     }
     result
 }
-fn input_evidence_current(state: &crate::Runtime, at: f64) -> bool {
-    at.is_finite()
-        && at >= 0.0
-        && state
-            .frame_expires
-            .is_none_or(|deadline| deadline.is_finite() && at <= deadline)
-}
-fn claim_evidence(state: &mut crate::Runtime, at: f64) -> bool {
-    if !input_evidence_current(state, at) {
-        return false;
+
+fn capture(
+    native: &platform::Native,
+    target: Target,
+    failures: &mut u32,
+) -> Result<Option<Image>, String> {
+    match native.capture(target).and_then(|image| {
+        image.validate()?;
+        Ok(image)
+    }) {
+        Ok(image) => {
+            let reconnected = !AVAILABLE.swap(true, Ordering::AcqRel);
+            *failures = 0;
+            let mut r = runtime();
+            r.capture = true;
+            r.input = true;
+            if reconnected {
+                if !r.active() {
+                    r.stop("게임 화면에 연결됐습니다. 작업을 기다립니다.");
+                }
+                set_status(
+                    "ready",
+                    if cfg!(target_os = "windows") {
+                        "게임 연결됨 · Windows에서는 Roblox를 앞에 두고 실행합니다."
+                    } else {
+                        "게임 화면에 연결됐습니다."
+                    },
+                    Some(target),
+                );
+            }
+            Ok(Some(image))
+        }
+        Err(error) => {
+            *failures += 1;
+            AVAILABLE.store(false, Ordering::Release);
+            {
+                let mut r = runtime();
+                r.capture = false;
+                r.input = false;
+            }
+            if *failures >= 5 {
+                return Err(format!("게임 화면 연결이 5회 연속 실패했습니다: {error}"));
+            }
+            set_status(
+                "recovering",
+                format!("게임 화면 재시도 중 ({failures}/5): {error}"),
+                Some(target),
+            );
+            thread::sleep(Duration::from_millis(500));
+            Ok(None)
+        }
     }
-    state.frame_expires = None;
-    true
 }
-fn observed_tick(
-    state: &mut crate::Runtime,
-    geometry: (usize, usize),
-    frame: &Frame<'_>,
-    words: Vec<Word>,
-    captured_at: f64,
-    at: f64,
-) -> DeviceTick {
-    state.frame_expires = Some(captured_at + 0.300);
-    state.ocr_words.clear();
-    if !captured_at.is_finite()
-        || captured_at < 0.0
-        || at < captured_at
-        || !input_evidence_current(state, at)
-    {
-        return DeviceTick::Observe(Some(frame.coverage()));
-    }
-    state.ocr_words = words;
-    let step = state.tick(at, geometry, Some(frame));
-    state.ocr_words.clear();
-    step
-}
+
 fn ocr_words(
     image: &Image,
     region: Option<Region>,
@@ -630,6 +711,10 @@ fn ocr_words(
     Ok(words)
 }
 fn current(native: &platform::Native, target: Target, generation: i32) -> bool {
+    #[cfg(target_os = "windows")]
+    if !native.foreground(target) {
+        return false;
+    }
     !STOP.load(Ordering::Acquire) && runtime().input_current(generation) && native.valid(target)
 }
 fn wait(native: &platform::Native, target: Target, generation: i32, ms: u32) -> Result<(), String> {

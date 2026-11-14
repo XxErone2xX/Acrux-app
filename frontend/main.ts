@@ -340,7 +340,7 @@ function settings() {
     text("연결하면 디스코드 봇 (/상태 · /통계 · /로그) 으로 이 매크로를 볼 수 있음", 12)
     + row("디스코드 계정", "", '<strong id="discord-name">-</strong>')
     + `<p id="discord-state" class="readout"></p><div class="buttons">${button("디스코드 로그인", "discord-link", "accent", "discord-action")}</div>`
-    + text("연결한 동안 보내는 것: 매크로 작동 여부 · 지금 하는 일 · 켜진 기능 · 바이옴 · 통계 · 최근 기록 30줄 (작동 중 15초 · 꺼져 있으면 1분마다)", 12)
+    + text("봇에서 요청할 때만 상태 · 통계 · 기록 중 요청한 항목을 보냅니다. 기록은 최대 100줄입니다.", 12)
     + text("화면 · 파일 · 웹후크 주소는 보내지 않음 · 연결된 앱은 acruxmacro.com/link 에서도 끊을 수 있음", 12))
   + card("overlay-settings", "조작 창",
     text("떠 있는 Acrux 창 · 어디든 잡고 끌면 움직임", 12)

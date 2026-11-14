@@ -553,7 +553,20 @@ async function sendSave() {
   if (!Object.keys(p).length) return;
   try {
     const keep = Object.fromEntries(LOCAL_KEYS.map(k => [k, config[k]]));   // 편집 중인 값은 화면 쪽 객체를 그대로 유지
-    config = (await api('set_config', { patch: p }, 15000)).config;
+    const result = await api('set_config', { patch: p }, 15000);
+    if (result.error) {
+      const state = result.config ? result : await api('state');
+      if (state.config) {
+        for (const key of Object.keys(p)) if (!(key in pending)) keep[key] = state.config[key];
+        config = state.config;
+        for (const [key, value] of Object.entries(keep)) if (value) config[key] = value;
+        renderMfish();
+        renderMitem(); renderMmerch(); renderMcraft(); renderMmatch(); renderMblood();
+      }
+      toast(result.error);
+      return;
+    }
+    config = result.config;
     for (const [k, v] of Object.entries(keep)) if (v) config[k] = v;
     saveFails = 0;
     renderSummary();
@@ -663,7 +676,7 @@ function updateSession(st) {
   lastSession = st;
   setText($('desktopSessionMessage'), st.message || '게임을 열어 주세요.');
   $('desktopSessionStart').disabled = !st.supported || st.state === 'ready' || st.state === 'starting' || st.state === 'recovering';
-  $('desktopSessionStop').disabled = st.state === 'stopped' || st.state === 'unsupported';
+  $('desktopSessionStop').disabled = !['ready', 'starting', 'recovering'].includes(st.state);
   $('desktopGameViewOpen').disabled = st.state !== 'ready';
 }
 function applyDesktopText() {
@@ -699,7 +712,7 @@ function syncMainTiles() {
   Mods.emit('tiles');
 }
 
-function setStatus([state, text]) {
+function setStatus([state, text] = ['stopped', '대기']) {
   document.querySelectorAll('[data-status-dot]').forEach(d => setData(d, 's', state));
   document.querySelectorAll('[data-status-text]').forEach(t => setText(t, shortcutText(text)));
 }
@@ -709,6 +722,7 @@ let pollFails = 0;
 async function poll() {
   try {
     const r = await api('poll', { since: seq }, 8000);
+    if (r.error) { updateSession(r.session); throw new Error(r.error); }
     pollFails = 0;
     seq = r.seq;
     updateDua(r.dua);
@@ -838,6 +852,7 @@ $('rbxClose').addEventListener('click', () => { rbxDismissed = true; updateRbxNo
 $('rbxJoin').addEventListener('click', async () => {
   const r = await api('ret_join');
   if (r.error) return toast(r.error);
+  if (r.session) updateSession(r.session);
   $('rbxJoin').disabled = true; $('rbxJoin').textContent = '접속 중… (로블록스가 뜨면 사라짐)';
   toast('내 서버로 접속');
 });
@@ -1129,11 +1144,12 @@ const saveMfish = () => queueSave({ mfish: JSON.parse(JSON.stringify(mfish())) }
 const MFISH_POS = [['fish_btn', 'Fish 버튼', 'Fish / Exit 버튼 가운데 (같은 자리)'], ['close_pos', '결과창 X', '낚시 결과창 오른쪽 위 X'],
   ['title_pos', '결과창 제목', '선택 · 제목 색으로 성공 / 쓰레기 / 실패 구분']];
 const MFISH_REQ = ['fish_btn', 'bar_region', ...(window.acruxDesktopApi ? [] : ['close_pos'])];
-const MFISH_TUNE = [['bite_max', '입질 최대 대기', '이 시간 동안 입질이 없으면 Exit 후 다시 던짐 (초)', 60, 5, 1],
+const MFISH_TUNE = [['bite_max', '입질 최대 대기', '이 시간 동안 입질이 없으면 Exit 후 다시 던짐 (초)', 60, 1, 1],
   ['target_pct', '목표 위치', '구간 왼쪽 변에서 몇 % 지점에서 누를지 · 0 = 왼쪽 변, 50 = 가운데 (%)', 0, 0, 5],
   ['lead_ms', '미리 누르기', '이만큼 미리 누름 · 늦게 눌리면 조금 늘림 (ms)', 0, 0, 10],
   ['click_gap_ms', '클릭 최소 간격', '릴링 중 클릭 사이 최소 간격 (ms)', 45, 10, 5],
   ['cast_retry', 'Fish 다시 누르기', '반응이 없을 때 다시 누르는 횟수 · 넘으면 인벤토리 가득', 3, 1, 1]];
+const MFISH_MAX = { bite_max: 600, target_pct: 60, lead_ms: 500, click_gap_ms: 500, cast_retry: 10 };
 function renderMfish() {
   const m = mfish();
   $('mfishForm').innerHTML = onRow('mfish', '매크로가 켜져 있는 동안 낚시 장소에서 계속 낚시') + readyRow('mfish') + `
@@ -1141,14 +1157,18 @@ function renderMfish() {
   syncReady('mfish');
   $('mfishTune').innerHTML = MFISH_TUNE.map(([k, name, sub, def, min, step]) => `
     <label class="row"><span>${name}<small>${sub} · 기본 ${def}</small></span>
-      <input type="number" min="${min}" step="${step}" data-mfish-tune="${k}" value="${m[k] ?? def}"></label>`).join('');
+      <input type="number" min="${min}" max="${MFISH_MAX[k]}" step="${step}" data-mfish-tune="${k}" value="${m[k] ?? def}"></label>`).join('');
   $('mfishTune').insertAdjacentHTML('beforeend', `
     <label class="row"><span>릴링 기록 저장<small>문제 확인용 기록 (데이터 폴더의 fishing_log.csv)</small></span>
       <span class="switch"><input type="checkbox" id="mfishDebug" ${m.debug_log ? 'checked' : ''}><i></i></span></label>`);
   $('mfishDebug').addEventListener('change', e => { m.debug_log = e.target.checked; saveMfish(); });
   $('mfishTune').querySelectorAll('[data-mfish-tune]').forEach(i => i.addEventListener('input', () => {
     const n = parseFloat(i.value);
-    if (Number.isFinite(n) && n >= parseFloat(i.min)) { m[i.dataset.mfishTune] = n; saveMfish(); }
+    if (Number.isFinite(n) && n >= parseFloat(i.min) && n <= parseFloat(i.max) && (i.dataset.mfishTune !== 'cast_retry' || Number.isInteger(n))) { m[i.dataset.mfishTune] = n; i.setCustomValidity(''); saveMfish(); }
+    else i.setCustomValidity(`${i.min}–${i.max}`);
+  }));
+  $('mfishTune').querySelectorAll('[data-mfish-tune]').forEach(i => i.addEventListener('change', () => {
+    if (!i.validity.valid) { i.value = m[i.dataset.mfishTune] ?? MFISH_TUNE.find(row => row[0] === i.dataset.mfishTune)[3]; i.setCustomValidity(''); }
   }));
   if (lastMfish) updateMfish(lastMfish);
 }
@@ -3233,10 +3253,11 @@ setTimeout(() => document.body.classList.remove('booting'), 4000);   // 켜다�
   applyDesktopText();
   I18N.init();
   const s = await api('state');
-  config = s.config;
+  config = s.config || {};
+  if (s.error) setTimeout(() => toast('초기 상태를 읽지 못했습니다: ' + s.error), 0);
   updateDua(s.dua);
   updateSession(s.session);
-  await Mods.load(s.mods);               // 모드 화면 · 탭 · 메뉴를 먼저 붙이고 메뉴를 만듦
+  try { await Mods.load(s.mods || []); } catch (error) { toast(String(error)); }               // 모드 화면 · 탭 · 메뉴를 먼저 붙이고 메뉴를 만듦
   buildMenu();
   buildLang($('langBox'), false);
   buildLang($('tutLangBox'), true);

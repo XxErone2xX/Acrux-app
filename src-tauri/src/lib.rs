@@ -51,6 +51,61 @@ fn runtime() -> MutexGuard<'static, Runtime> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
+fn input_evidence_current(state: &Runtime, at: f64) -> bool {
+    at.is_finite()
+        && at >= 0.0
+        && state
+            .frame_expires
+            .is_none_or(|deadline| deadline.is_finite() && at <= deadline)
+}
+
+fn claim_evidence(state: &mut Runtime, at: f64) -> bool {
+    if !input_evidence_current(state, at) {
+        return false;
+    }
+    // The first input consumes the evidence. A bounded action must still release
+    // its keys after this deadline; generation and target guards remain active.
+    state.frame_expires = None;
+    true
+}
+
+fn observed_tick(
+    state: &mut Runtime,
+    geometry: (usize, usize),
+    frame: &vision::Frame<'_>,
+    words: Vec<automation::Word>,
+    captured_at: f64,
+    at: f64,
+    ocr_started: Option<f64>,
+) -> DeviceTick {
+    state.ocr_words.clear();
+    state.frame_captured = Some(captured_at);
+    // Capture must be fresh when processing starts. OCR gets its own bounded
+    // processing budget, followed by 300 ms to begin the resulting action.
+    // Never rewrite capture time: reeling prediction and landing geometry use it.
+    let acquired = ocr_started.unwrap_or(at);
+    let valid = captured_at.is_finite()
+        && captured_at >= 0.0
+        && acquired.is_finite()
+        && acquired >= captured_at
+        && acquired - captured_at <= 0.300
+        && at.is_finite()
+        && at >= acquired
+        && at - acquired <= 5.0;
+    state.frame_expires = Some(if valid && ocr_started.is_some() {
+        at + 0.300
+    } else {
+        captured_at + 0.300
+    });
+    if !valid || !input_evidence_current(state, at) {
+        return DeviceTick::Observe(Some(frame.coverage()));
+    }
+    state.ocr_words = words;
+    let step = state.tick(at, geometry, Some(frame));
+    state.ocr_words.clear();
+    step
+}
+
 #[derive(Default)]
 struct Runtime {
     fishing: Fishing,
@@ -88,6 +143,7 @@ struct Runtime {
     fishing_settings_dirty: bool,
     target_missing: bool,
     frame_expires: Option<f64>,
+    frame_captured: Option<f64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -429,6 +485,7 @@ impl Runtime {
         self.request_ocr = false;
         if frame.is_none() {
             self.frame_expires = None;
+            self.frame_captured = None;
         }
         if !self.active() {
             return DeviceTick::Wait;
@@ -589,10 +646,7 @@ impl Runtime {
             self.settings.as_deref().and_then(std::path::Path::parent),
             debug_log,
         );
-        let captured_at = self
-            .frame_expires
-            .map(|expires| expires - 0.300)
-            .unwrap_or(at);
+        let captured_at = self.frame_captured.unwrap_or(at);
         let tap = self.fishing.frame(captured_at, frame);
         if let Some(error) = self.fishing.log_error() {
             if self.log.len() == 300 {
@@ -719,7 +773,12 @@ impl Runtime {
             return Err("실행 중인 작업을 먼저 중지하세요.".into());
         }
         if !self.capture || !self.input {
-            return Err("화면 캡처와 입력을 먼저 준비하세요.".into());
+            return Err(if cfg!(desktop) {
+                "[게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요."
+            } else {
+                "화면 캡처와 입력을 먼저 준비하세요."
+            }
+            .into());
         }
         #[cfg(target_os = "android")]
         if !self.phone.foreground {
@@ -810,7 +869,7 @@ impl Runtime {
                 geometry,
                 frame,
                 &self.ocr_words,
-                self.frame_expires.map(|expires| expires - 0.300),
+                self.frame_captured.zip(self.frame_expires),
             );
             self.macro_message = Some(navigation.status().message.clone());
             let result = match step {
@@ -881,6 +940,9 @@ impl Runtime {
             let in_game = (text.contains("auto") && text.contains("roll"))
                 || (text.contains("자동") && (text.contains("뽑기") || text.contains("롤")))
                 || self.fishing.phase == Phase::Reeling;
+            if !in_game && automation::lobby_text(&text) {
+                self.game_observed = false;
+            }
             if in_game {
                 self.game_observed = true;
                 self.game_disconnected = false;
@@ -1073,11 +1135,15 @@ impl Runtime {
         if self.active() {
             return Err("실행 중인 작업을 먼저 중지하세요.");
         }
-        if !foreground_required && !self.dua.background {
+        if !foreground_required && !cfg!(target_os = "windows") && !self.dua.background {
             return Err("사용자 입력과 분리된 백그라운드 게임을 먼저 열어 주세요.");
         }
         if !self.capture || !self.input {
-            return Err("화면 캡처와 입력을 먼저 준비하세요.");
+            return Err(if cfg!(desktop) {
+                "[게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요."
+            } else {
+                "화면 캡처와 입력을 먼저 준비하세요."
+            });
         }
         let mut runner = automation::Runner::start_settings(self.macro_config(), features, at)
             .map_err(|_| "자동 매크로 설정의 값과 필수 위치를 확인하세요.")?;
@@ -1445,6 +1511,7 @@ impl Runtime {
         }
         self.log
             .push_back((chrono::Utc::now().timestamp_millis(), message.clone()));
+        services::diagnostic(&message);
         self.logged = Some(message);
         services::emit_hook(
             "log",
@@ -1480,7 +1547,12 @@ impl Runtime {
             return Err("실행 중인 DUA를 먼저 중지하세요.".into());
         }
         if !self.capture || !self.input {
-            return Err("화면 캡처와 입력을 먼저 준비하세요.".into());
+            return Err(if cfg!(desktop) {
+                "[게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요."
+            } else {
+                "화면 캡처와 입력을 먼저 준비하세요."
+            }
+            .into());
         }
         #[cfg(target_os = "android")]
         if !self.phone.foreground {
@@ -1523,7 +1595,11 @@ impl Runtime {
             return Err("시간 기반 이동과 판매는 사용할 수 없습니다. 지도 관측 연결이 필요합니다.");
         }
         if !self.capture || !self.input {
-            return Err("화면 캡처와 입력을 먼저 준비하세요.");
+            return Err(if cfg!(desktop) {
+                "[게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요."
+            } else {
+                "화면 캡처와 입력을 먼저 준비하세요."
+            });
         }
         if self.active() {
             return Err("실행 중인 작업을 먼저 중지하세요.");
@@ -1544,6 +1620,17 @@ impl Runtime {
         }
         Ok(())
     }
+}
+
+#[cfg(target_os = "windows")]
+fn game_launch_url() -> Result<String, String> {
+    let config = runtime().macro_config();
+    let link = config["ret"]["ps_link"].as_str().unwrap_or("").trim();
+    automation::game_url(if link.is_empty() {
+        "roblox://placeId=15532962292"
+    } else {
+        link
+    })
 }
 
 fn game_available() -> bool {
@@ -1656,8 +1743,8 @@ fn desktop_start(features: Vec<String>, generation: i32) -> Result<Status, Strin
 }
 
 fn validate_desktop_entry(state: &Runtime) -> Result<(), String> {
-    if !state.dua.background {
-        return Err("백그라운드 게임을 먼저 열어 주세요.".into());
+    if !state.capture || !state.input {
+        return Err("[게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요.".into());
     }
     Ok(())
 }
@@ -2193,7 +2280,12 @@ pub(crate) fn automation_call(
                 .ok_or_else(|| format!("알 수 없는 매크로 작업: {action}"))?
         };
     if !state.capture || !state.input {
-        return Err("화면 캡처와 입력을 먼저 준비하세요.".into());
+        return Err(if cfg!(desktop) {
+            "[게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요."
+        } else {
+            "화면 캡처와 입력을 먼저 준비하세요."
+        }
+        .into());
     }
     #[cfg(not(target_os = "android"))]
     validate_desktop_entry(&state)?;
@@ -2356,6 +2448,14 @@ async fn discord_logout() -> Result<discord::PublicState, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default();
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _, _| {
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.unminimize();
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }));
     #[cfg(target_os = "android")]
     let builder = builder.plugin(android::plugin());
     builder
@@ -2363,6 +2463,7 @@ pub fn run() {
         .setup(|app| {
             let dir = app.path().app_config_dir()?;
             fs::create_dir_all(&dir)?;
+            services::init_diagnostics(&dir);
             runtime().load(dir.join("profile.json"));
             services::init(app.handle()).map_err(std::io::Error::other)?;
             {
@@ -2434,6 +2535,49 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ocr_processing_does_not_expire_fresh_capture_or_rewrite_its_time() {
+        let mut state = desktop_runtime();
+        state.start_desktop(&["mfish".into()], 1.0).unwrap();
+        let pixels = vec![0; 480 * 270 * 4];
+        let frame = vision::Frame::new(&pixels, 480, 270, 1920, 4, false).unwrap();
+        let words = vec![automation::Word {
+            text: "Auto Roll".into(),
+            rect: vision::Rect(0.1, 0.1, 0.2, 0.2),
+        }];
+        let before = state.dua.screenshot_frames;
+        observed_tick(&mut state, (480, 270), &frame, words, 1.1, 2.0, Some(1.12));
+        assert!(state.dua.screenshot_frames > before);
+        assert!(state.game_observed);
+        assert_eq!(state.frame_captured, Some(1.1));
+        assert!(input_evidence_current(&state, 2.2));
+        assert!(!input_evidence_current(&state, 2.301));
+        let before = state.dua.screenshot_frames;
+        // A cached frame already old before OCR cannot acquire a fresh lifetime.
+        assert!(matches!(
+            observed_tick(&mut state, (480, 270), &frame, vec![], 1.0, 2.0, Some(1.5)),
+            DeviceTick::Observe(_)
+        ));
+        assert_eq!(state.dua.screenshot_frames, before);
+        // A non-OCR reel frame retains the original 300 ms deadline.
+        assert!(matches!(
+            observed_tick(&mut state, (480, 270), &frame, vec![], 3.0, 3.4, None),
+            DeviceTick::Observe(_)
+        ));
+        assert!(matches!(
+            observed_tick(
+                &mut state,
+                (480, 270),
+                &frame,
+                vec![],
+                4.0,
+                10.0,
+                Some(4.01)
+            ),
+            DeviceTick::Observe(_)
+        ));
+    }
 
     #[test]
     fn explicit_template_reset_replaces_custom_rows_persists_and_rolls_back_on_write_failure() {
@@ -2531,8 +2675,10 @@ mod tests {
             input: true,
             ..Runtime::default()
         };
-        assert!(state.start_desktop(&["mfish".into()], 0.0).is_err());
-        assert!(!state.active());
+        if !cfg!(target_os = "windows") {
+            assert!(state.start_desktop(&["mfish".into()], 0.0).is_err());
+            assert!(!state.active());
+        }
         state.dua.background = true;
         state.navigation.options.use_move = true;
         state.navigation.options.use_sell = true;
@@ -2592,6 +2738,7 @@ mod tests {
         let pixels = fishing_screen();
         let frame = vision::Frame::new(&pixels, 480, 270, 1920, 4, false).unwrap();
         state.frame_expires = Some(10.2 + 0.300);
+        state.frame_captured = Some(10.2);
         assert!(!matches!(
             state.tick(10.2, (480, 270), Some(&frame)),
             DeviceTick::Input(GameInput::Motion(_))
@@ -2609,6 +2756,7 @@ mod tests {
             "arrival still requires a fresh tool observation"
         );
         state.frame_expires = Some(10.31 + 0.300);
+        state.frame_captured = Some(10.31);
         assert!(matches!(
             state.tick(10.31, (480, 270), Some(&frame)),
             DeviceTick::Wait

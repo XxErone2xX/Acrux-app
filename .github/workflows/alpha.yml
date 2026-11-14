@@ -1,15 +1,15 @@
 # Acrux 알파 (Tauri) 빌드 — 정식 PC·모바일 앱과 따로
-#   dev 에서는 Linux · Android · Windows를 검사하고 alpha 미리 보기 릴리스를 갱신
-#   'alpha' 는 최신 릴리스로 표시하지 않음 (PC 실행기는 releases/latest · 모바일 업데이트는 mobile-latest 를 봄 → 정식 앱 업데이트에 안 섞임)
+#   dev 에서는 Linux · Android · Windows를 검사하고 dev-alpha 릴리스를 갱신
+#   'dev-alpha' 는 최신 릴리스로 표시하지 않음 (PC 실행기는 releases/latest · 모바일 업데이트는 mobile-latest 를 봄 → 정식 앱 업데이트에 안 섞임)
 #   빌드가 실패하면 기록을 alpha-build-log 릴리스에 올림 (원인 확인용)
 name: Alpha
 
 on:
   workflow_dispatch:
   push:
-    branches: [main, dev]
+    branches: [dev]
     paths: ["src-tauri/**", "frontend/**", "package.json", "package-lock.json", "tsconfig.json",
-            "android/app/src/main/assets/i18n/**", "src/web/**", "tests/**", ".github/workflows/alpha.yml"]
+            "android/app/src/main/assets/i18n/**", "src/web/**", "tests/**", ".github/workflows/alpha.yml", ".github/workflows/apple.yml"]
 
 permissions:
   contents: write
@@ -32,7 +32,7 @@ jobs:
       - name: Install Linux build and X11 test libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb xauth tesseract-ocr tesseract-ocr-eng tesseract-ocr-kor tesseract-ocr-jpn
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb xauth dbus-x11 tesseract-ocr tesseract-ocr-eng tesseract-ocr-kor tesseract-ocr-jpn
       - name: Check desktop and native X11 adapter
         run: |
           npm ci
@@ -48,12 +48,14 @@ jobs:
           export XDG_CONFIG_HOME="$RUNNER_TEMP/acrux-linux-profile"
           mkdir -p "$XDG_CONFIG_HOME/com.acrux.next"
           echo '{"online":{"share":false}}' > "$XDG_CONFIG_HOME/com.acrux.next/profile.json"
-          GDK_BACKEND=x11 xvfb-run -a python3 - <<'PY'
+          GDK_BACKEND=x11 dbus-run-session -- xvfb-run -a python3 - <<'PY'
           import subprocess, time
           app = subprocess.Popen(['src-tauri/target/release/acrux'])
           try:
               time.sleep(5)
               assert app.poll() is None, f'Acrux exited during startup ({app.returncode})'
+              second = subprocess.run(['src-tauri/target/release/acrux'], timeout=10)
+              assert second.returncode == 0 and app.poll() is None, 'Single instance check failed'
           finally:
               if app.poll() is None:
                   app.terminate()
@@ -67,6 +69,7 @@ jobs:
           if-no-files-found: error
 
   android:
+    if: github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -115,7 +118,7 @@ jobs:
           path: Acrux-Alpha.apk
           if-no-files-found: error
       - name: Upload build log on failure
-        if: failure() && github.ref == 'refs/heads/main'
+        if: failure() && github.ref == 'refs/heads/dev'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -125,6 +128,7 @@ jobs:
           [ -f android-build.log ] && gh release upload alpha-build-log android-build.log --clobber --repo "$GITHUB_REPOSITORY" || true
 
   windows:
+    if: github.ref == 'refs/heads/dev'
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
@@ -153,6 +157,9 @@ jobs:
           try {
             Start-Sleep -Seconds 5
             if ($app.HasExited) { throw "Acrux exited during startup ($($app.ExitCode))" }
+            $second = Start-Process -FilePath "src-tauri/target/release/acrux.exe" -PassThru
+            if (!$second.WaitForExit(10000)) { Stop-Process -Id $second.Id; throw "Second instance stayed running" }
+            if ($second.ExitCode -ne 0 -or $app.HasExited) { throw "Single instance check failed" }
           } finally {
             if (!$app.HasExited) { Stop-Process -Id $app.Id }
           }
@@ -162,7 +169,7 @@ jobs:
           path: Acrux-Alpha.exe
           if-no-files-found: error
       - name: Upload build log on failure
-        if: failure() && github.ref == 'refs/heads/main'
+        if: failure() && github.ref == 'refs/heads/dev'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -171,9 +178,13 @@ jobs:
             gh release create alpha-build-log --prerelease --latest=false --title "Alpha build log" --notes "알파 빌드 실패 기록" --repo "$GITHUB_REPOSITORY"
           [ -f windows-build.log ] && gh release upload alpha-build-log windows-build.log --clobber --repo "$GITHUB_REPOSITORY" || true
 
+  macos:
+    if: github.ref == 'refs/heads/dev'
+    uses: ./.github/workflows/apple.yml
+
   publish:
-    needs: [linux, android, windows]
-    if: always() && github.ref == 'refs/heads/dev' && (needs.linux.result == 'success' || needs.android.result == 'success' || needs.windows.result == 'success')
+    needs: [linux, android, windows, macos]
+    if: github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -187,10 +198,11 @@ jobs:
         run: |
           shopt -s nullglob
           files=()
-          for file in Acrux-Alpha.apk Acrux-Alpha.exe Acrux-Dev-Linux; do
-            [ ! -f "$file" ] || files+=("$file")
+          for file in Acrux-Alpha.apk Acrux-Alpha.exe Acrux-Dev-Linux Acrux-macos-universal.zip; do
+            test -f "$file"
+            files+=("$file")
           done
-          test "${#files[@]}" -gt 0
+          test "${#files[@]}" -eq 4
           checksums=()
           for file in "${files[@]}"; do
             sha256sum "$file" | cut -d' ' -f1 > "$file.sha256"
@@ -202,14 +214,14 @@ jobs:
           - Acrux-Alpha.apk: Android (arm64) · 패키지 com.acrux.next (정식 앱과 따로 깔림)
           - Acrux-Alpha.exe: Windows (WebView2 필요 · 윈도우 10/11 은 대부분 이미 있음)
           - Acrux-Dev-Linux: Linux (WebKitGTK 4.1 · Tesseract OCR eng/kor/jpn 필요)
-          - Acrux-macos-universal.zip: macOS (Apple workflow에서 별도 게시)
+          - Acrux-macos-universal.zip: macOS (Intel + Apple Silicon)
           
           Acrux alpha (Tauri) · commit $short · experimental dev build, separate from stable desktop and mobile apps"
-          if gh release view alpha --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload alpha "${files[@]}" "${checksums[@]}" --clobber --repo "$GITHUB_REPOSITORY"
-            gh release edit alpha --notes "$notes" --title "Acrux Alpha ($short)" --repo "$GITHUB_REPOSITORY"
+          if gh release view dev-alpha --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload dev-alpha "${files[@]}" "${checksums[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit dev-alpha --notes "$notes" --title "Acrux Alpha ($short)" --repo "$GITHUB_REPOSITORY"
           else
-            gh release create alpha --prerelease --latest=false --target "$GITHUB_SHA" --title "Acrux Alpha ($short)" --notes "$notes" --repo "$GITHUB_REPOSITORY" || \
-              gh release view alpha --repo "$GITHUB_REPOSITORY"
-            gh release upload alpha "${files[@]}" "${checksums[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+            gh release create dev-alpha --prerelease --latest=false --target "$GITHUB_SHA" --title "Acrux Alpha ($short)" --notes "$notes" --repo "$GITHUB_REPOSITORY" || \
+              gh release view dev-alpha --repo "$GITHUB_REPOSITORY"
+            gh release upload dev-alpha "${files[@]}" "${checksums[@]}" --clobber --repo "$GITHUB_REPOSITORY"
           fi

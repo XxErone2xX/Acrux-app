@@ -1,3 +1,4 @@
+use crate::{claim_evidence, input_evidence_current, observed_tick};
 use crate::{
     fishing::{Phase, Tap},
     now, runtime,
@@ -1024,6 +1025,7 @@ fn worker(connection: Connection, session: &mut session::Session) -> WorkerExit 
             // than granting a fresh lifetime after a slow reply/pixel copy.
             let captured_at = now();
             let image = connection.capture_region(target, region);
+            let ocr_started = needs_ocr.then(crate::now);
             let words = if needs_ocr {
                 image
                     .as_ref()
@@ -1048,9 +1050,15 @@ fn worker(connection: Connection, session: &mut session::Session) -> WorkerExit 
                 }
             };
             step = match image.as_ref().and_then(Image::frame) {
-                Some(frame) => {
-                    observed_tick(&mut state, geometry, &frame, words, captured_at, now())
-                }
+                Some(frame) => observed_tick(
+                    &mut state,
+                    geometry,
+                    &frame,
+                    words,
+                    captured_at,
+                    now(),
+                    ocr_started,
+                ),
                 None => {
                     state.stop("Sober 화면을 캡처하지 못했습니다.");
                     DeviceTick::Wait
@@ -1096,45 +1104,6 @@ fn worker(connection: Connection, session: &mut session::Session) -> WorkerExit 
         let period = if phase == Phase::Reeling { 8 } else { 50 };
         thread::sleep(Duration::from_millis(period).saturating_sub(started.elapsed()));
     }
-}
-
-fn input_evidence_current(state: &crate::Runtime, at: f64) -> bool {
-    at.is_finite()
-        && at >= 0.0
-        && state
-            .frame_expires
-            .is_none_or(|deadline| deadline.is_finite() && at <= deadline)
-}
-fn claim_evidence(state: &mut crate::Runtime, at: f64) -> bool {
-    if !input_evidence_current(state, at) {
-        return false;
-    }
-    // Only the beginning is evidence-bound. A bounded drag/chord/text transfer
-    // continues under generation/target guards, including its required release.
-    state.frame_expires = None;
-    true
-}
-fn observed_tick(
-    state: &mut crate::Runtime,
-    geometry: (usize, usize),
-    frame: &Frame<'_>,
-    words: Vec<crate::automation::Word>,
-    captured_at: f64,
-    at: f64,
-) -> DeviceTick {
-    state.frame_expires = Some(captured_at + 0.300);
-    state.ocr_words.clear();
-    if !captured_at.is_finite()
-        || captured_at < 0.0
-        || at < captured_at
-        || !input_evidence_current(state, at)
-    {
-        return DeviceTick::Observe(Some(frame.coverage()));
-    }
-    state.ocr_words = words;
-    let step = state.tick(at, geometry, Some(frame));
-    state.ocr_words.clear();
-    step
 }
 
 fn keep_input(connection: &Connection, target: Target, generation: i32) -> bool {
@@ -2126,7 +2095,7 @@ mod tests {
         };
         let words = slow_ocr();
         assert!(matches!(
-            observed_tick(&mut state, geometry, &frame, words, captured, now()),
+            observed_tick(&mut state, geometry, &frame, words, captured, now(), None),
             DeviceTick::Observe(_)
         ));
         assert!(
@@ -2137,7 +2106,7 @@ mod tests {
         assert_eq!(state.generation, generation);
         assert_eq!(state.dua.screenshot_frames, frames);
         let fresh = now();
-        let step = observed_tick(&mut state, geometry, &frame, vec![], fresh, now());
+        let step = observed_tick(&mut state, geometry, &frame, vec![], fresh, now(), None);
         assert!(matches!(step, DeviceTick::Wait));
         assert!(state.fishing.calibration.is_some());
         assert!(!input_evidence_current(&state, fresh + 0.301));

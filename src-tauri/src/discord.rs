@@ -41,9 +41,6 @@ struct Connection {
     starting: bool,
     revision: u64,
     error: String,
-    next_push: Instant,
-    cooldown: Instant,
-    last_running: Option<bool>,
 }
 
 impl Default for Connection {
@@ -54,9 +51,6 @@ impl Default for Connection {
             starting: false,
             revision: 0,
             error: String::new(),
-            next_push: Instant::now(),
-            cooldown: Instant::now(),
-            last_running: None,
         }
     }
 }
@@ -83,30 +77,6 @@ impl Connection {
     fn current(&self, revision: u64, token: &str) -> bool {
         self.revision == revision && self.settings.token == token
     }
-    fn due(&self, running: bool, now: Instant) -> bool {
-        now >= self.cooldown && (now >= self.next_push || self.last_running != Some(running))
-    }
-    fn pushed(&mut self, running: bool, response: &Result<(u16, Value), String>, now: Instant) {
-        let body = response
-            .as_ref()
-            .ok()
-            .filter(|(status, _)| *status == 200)
-            .map(|(_, body)| body);
-        let skipped = body.is_some_and(|body| body["skipped"] == true);
-        if body.is_some_and(|body| body["ok"] == true) && !skipped {
-            let seconds = body
-                .and_then(|body| body["next"].as_u64())
-                .unwrap_or(60)
-                .clamp(10, 300);
-            self.next_push = now + Duration::from_secs(seconds);
-            self.cooldown = now + Duration::from_secs(4);
-            self.last_running = Some(running);
-        } else {
-            let seconds = if skipped { 4 } else { 60 };
-            self.next_push = now + Duration::from_secs(seconds);
-            self.cooldown = self.next_push;
-        }
-    }
 }
 
 static STATE: LazyLock<Mutex<Connection>> = LazyLock::new(|| Mutex::new(Connection::default()));
@@ -124,9 +94,6 @@ pub fn load(mut settings: Settings) {
     let mut state = lock();
     state.cancel();
     state.settings = settings;
-    state.next_push = Instant::now();
-    state.cooldown = Instant::now();
-    state.last_running = None;
 }
 pub fn settings() -> Settings {
     lock().settings.clone()
@@ -167,6 +134,9 @@ fn request(
     token: Option<&str>,
 ) -> Result<(u16, Value), String> {
     let mut request = client.post(format!("{base}{path}")).json(&body);
+    if path == "/macro/wait" {
+        request = request.timeout(Duration::from_secs(55));
+    }
     if let Some(token) = token {
         request = request.bearer_auth(token);
     }
@@ -319,9 +289,6 @@ fn save_link(revision: u64, poll: &str, next: Settings) -> bool {
     state.settings = next;
     state.pending = None;
     state.error.clear();
-    state.next_push = Instant::now();
-    state.cooldown = Instant::now();
-    state.last_running = None;
     true
 }
 
@@ -334,7 +301,6 @@ fn disconnect(expected: Option<(u64, &str)>) -> (String, Result<(), String>) {
     let token = state.settings.token.clone();
     state.cancel();
     state.settings = Settings::default();
-    state.last_running = None;
     let result = runtime.save_profile(
         runtime.fishing.tuning,
         crate::biome::settings(),
@@ -418,25 +384,53 @@ fn worker(client: Client) {
                 }
             }
         } else if !token.is_empty() {
-            let running = crate::runtime().macro_running();
-            let due = {
-                let state = lock();
-                state.current(revision, &token) && state.due(running, Instant::now())
-            };
-            if due {
-                let payload = {
-                    let mut runtime = crate::runtime();
-                    snapshot(&mut runtime, crate::biome::status())
-                };
-                let running = payload["running"].as_bool().unwrap_or(false);
-                let response = request(&client, API, "/macro/state", payload, Some(&token));
-                if matches!(&response, Ok((401, _))) {
+            let response = request(
+                &client,
+                API,
+                "/macro/wait",
+                json!({"v":env!("CARGO_PKG_VERSION")}),
+                Some(&token),
+            );
+            if !lock().current(revision, &token) {
+                continue;
+            }
+            match response {
+                Ok((401, _)) => {
                     let _ = disconnect(Some((revision, &token)));
-                } else {
-                    let mut state = lock();
-                    if state.current(revision, &token) {
-                        state.pushed(running, &response, Instant::now());
+                }
+                Ok((200, body)) if body["req"].is_null() => {
+                    lock().error.clear();
+                }
+                Ok((200, body)) => {
+                    if let Some((id, need, lines)) = bot_request(&body["req"]) {
+                        let payload = {
+                            let mut runtime = crate::runtime();
+                            requested_snapshot(&mut runtime, crate::biome::status(), need, lines)
+                        };
+                        if !lock().current(revision, &token) {
+                            continue;
+                        }
+                        let reply = request(
+                            &client,
+                            API,
+                            "/macro/reply",
+                            json!({"id":id,"state":payload}),
+                            Some(&token),
+                        );
+                        if matches!(reply, Ok((401, _))) {
+                            let _ = disconnect(Some((revision, &token)));
+                        } else if lock().current(revision, &token) {
+                            lock().error = if matches!(reply, Ok((200, _))) {
+                                String::new()
+                            } else {
+                                "봇 요청에 응답하지 못했습니다.".into()
+                            };
+                        }
                     }
+                }
+                _ => {
+                    lock().error = "봇 요청 서버에 연결하지 못했습니다. 다시 연결합니다.".into();
+                    wait(Some(Duration::from_secs(10)));
                 }
             }
         }
@@ -449,6 +443,43 @@ fn worker(client: Client) {
         } else {
             Some(Duration::from_secs(1))
         });
+    }
+}
+
+fn bot_request(request: &Value) -> Option<(&str, &str, usize)> {
+    let id = request["id"].as_str()?;
+    let need = request["need"].as_str()?;
+    if id.len() != 16
+        || !id.bytes().all(|c| c.is_ascii_hexdigit())
+        || !["status", "stats", "logs"].contains(&need)
+    {
+        return None;
+    }
+    Some((
+        id,
+        need,
+        request["lines"].as_u64().unwrap_or(50).clamp(1, 100) as usize,
+    ))
+}
+fn requested_snapshot(
+    runtime: &mut crate::Runtime,
+    biome: crate::biome::Status,
+    need: &str,
+    lines: usize,
+) -> Value {
+    let mut data = snapshot(runtime, biome);
+    match need {
+        "status" => {
+            data.as_object_mut().unwrap().remove("logs");
+            data.as_object_mut().unwrap().remove("stats");
+            data
+        }
+        "stats" => json!({"v":data["v"], "stats":data["stats"], "started":data["started"]}),
+        "logs" => {
+            let logs = data["logs"].as_array().unwrap();
+            json!({"v":data["v"], "logs":&logs[logs.len().saturating_sub(lines)..]})
+        }
+        _ => Value::Null,
     }
 }
 
@@ -469,7 +500,20 @@ fn snapshot(runtime: &mut crate::Runtime, biome: crate::biome::Status) -> Value 
     let running = runtime.macro_running();
     let mut features = Vec::new();
     if running {
-        features.push("자동 낚시");
+        let config = runtime.macro_config();
+        for (key, label) in [
+            ("mfish", "자동 낚시"),
+            ("mpop", "자동 팝핑"),
+            ("mitem", "아이템 사용"),
+            ("mmerch", "상인 구매"),
+            ("mcraft", "포션 제작"),
+            ("mmatch", "메모리 매치"),
+            ("mblood", "블러드 레인"),
+        ] {
+            if config[key]["enabled"] == true {
+                features.push(label);
+            }
+        }
     }
     if biome.settings.enabled {
         features.push("바이옴 알림");
@@ -478,7 +522,7 @@ fn snapshot(runtime: &mut crate::Runtime, biome: crate::biome::Status) -> Value 
         .log
         .iter()
         .rev()
-        .take(30)
+        .take(100)
         .rev()
         .map(|(time, message)| {
             let time = chrono::DateTime::from_timestamp_millis(*time)
@@ -500,27 +544,27 @@ fn snapshot(runtime: &mut crate::Runtime, biome: crate::biome::Status) -> Value 
 mod tests {
     use super::*;
     #[test]
-    fn skipped_transitions_are_retried_after_the_server_gap_and_errors_back_off() {
-        let now = Instant::now();
-        let mut state = Connection::default();
-        state.pushed(true, &Ok((200, json!({"ok":true,"next":15}))), now);
-        assert_eq!(state.last_running, Some(true));
-        assert!(!state.due(false, now + Duration::from_secs(3)));
-        assert!(state.due(false, now + Duration::from_secs(4)));
-        let later = now + Duration::from_secs(4);
-        state.pushed(
-            false,
-            &Ok((200, json!({"ok":true,"skipped":true,"next":60}))),
-            later,
+    fn bot_request_is_bounded_and_replies_only_with_requested_data() {
+        assert!(bot_request(&json!({"id":"invalid","need":"logs"})).is_none());
+        assert!(bot_request(&json!({"id":"abcdef0123456789","need":"config"})).is_none());
+        assert_eq!(
+            bot_request(&json!({"id":"abcdef0123456789","need":"logs","lines":999}))
+                .unwrap()
+                .2,
+            100
         );
-        assert_eq!(state.last_running, Some(true));
-        assert!(!state.due(false, later + Duration::from_secs(3)));
-        assert!(state.due(false, later + Duration::from_secs(4)));
-        state.pushed(false, &Err("network".into()), later);
-        assert!(!state.due(false, later + Duration::from_secs(59)));
-        assert!(state.due(false, later + Duration::from_secs(60)));
-        state.pushed(false, &Ok((200, json!({"ok":true,"next":60}))), later);
-        assert_eq!(state.last_running, Some(false));
+        let mut runtime = crate::Runtime::default();
+        runtime.log.push_back((0, "private test log".into()));
+        let status = requested_snapshot(&mut runtime, crate::biome::status(), "status", 100);
+        assert!(status.get("logs").is_none() && status.get("stats").is_none());
+        let stats = requested_snapshot(&mut runtime, crate::biome::status(), "stats", 100);
+        assert!(
+            stats.get("stats").is_some()
+                && stats.get("logs").is_none()
+                && stats.get("action").is_none()
+        );
+        let logs = requested_snapshot(&mut runtime, crate::biome::status(), "logs", 1);
+        assert!(logs["logs"].as_array().unwrap().len() <= 1 && logs.get("stats").is_none());
     }
     #[test]
     fn authentication_rejection_survives_non_json_error_bodies() {

@@ -127,7 +127,7 @@ function desktop(saved, options = {}) {
   window.confirm = () => options.confirm !== false;
   const stats = { success: 0, junk: 0, fail: 0, full: 0 };
   const status = {
-    phase: 'idle', positions: null,
+    phase: 'idle', positions: null, platform: options.platform ?? 'linux', captureReady: options.background !== false, inputReady: options.background !== false,
     tuning: { biteSeconds: 60, leadMs: 0, targetPercent: 0, clickGapMs: 45, castRetries: 3 }, stats, totals: stats,
     message: '대기 중', gameAvailable: false, version: '0.1.0',
     measuredSeconds: null, measuringElapsed: null,
@@ -162,6 +162,7 @@ function desktop(saved, options = {}) {
       }
       if (command === 'save_macro_settings') {
         if (options.configSaveWait) await options.configSaveWait;
+        if (Number(payload.config.mfish?.bite_max) > 600) throw new Error('낚시 설정의 범위를 확인하세요.');
         if (status.dua.running || status.phase !== 'idle') throw new Error('설정을 바꾸기 전에 실행 중인 작업을 중지하세요.');
         nativeConfig = structuredClone(payload.config);
         return structuredClone(nativeConfig);
@@ -193,7 +194,7 @@ function desktop(saved, options = {}) {
       }
       if (command === 'desktop_session_start') {
         if (!status.session.supported) throw new Error('지원하지 않는 환경입니다.');
-        status.session.state = 'ready'; status.dua.background = true;
+        status.session.state = 'ready'; status.dua.background = true; status.captureReady = true; status.inputReady = true;
         return structuredClone(status.session);
       }
       if (command === 'desktop_session_stop') {
@@ -257,6 +258,26 @@ function desktop(saved, options = {}) {
     },
   };
 }
+
+test('rejected fishing settings do not poison a later unrelated save', async () => {
+  const app = desktop({});
+  const initial = await app.api('state', {});
+  const rejected = await app.api('set_config', { patch: { mfish: { ...initial.config.mfish, bite_max: 9999 } } });
+  assert.match(rejected.error, /범위/);
+  assert.equal(rejected.config.mfish.bite_max, initial.config.mfish.bite_max);
+  const next = await app.api('set_config', { patch: { mitem: { ...initial.config.mitem, enabled: true } } });
+  assert.equal(next.error, undefined);
+  assert.equal(next.config.mitem.enabled, true);
+  assert.notEqual(app.calls.filter(([name]) => name === 'save_macro_settings').at(-1)[1].config.mfish.bite_max, 9999);
+});
+
+test('initial state failure still returns usable configuration and an error', async () => {
+  const app = desktop({}, { serviceError: '모드 서비스 연결 실패' });
+  const result = await app.api('state', {});
+  assert.match(result.error, /모드 서비스/);
+  assert.ok(result.config);
+  assert.ok(Array.isArray(result.mods));
+});
 
 test('old desktop preferences retain shared positions and remove retired settings', async () => {
   const app = desktop({
@@ -411,7 +432,7 @@ test('snapshot picker rejects invalid dimensions and truncated or extra pixel da
   for (const data of [new ArrayBuffer(4), snapshot(0, 1), snapshot(16384, 16384), snapshot(2, 1, [1, 2, 3, 4]), snapshot(1, 1, [1, 2, 3, 4, 5])]) {
     const app = desktop({}, { snapshot: data });
     const result = await app.api('mpos_point', { feat: 'base', key: 'chat_pos' });
-    assert.match(result.error, /Sober 화면/);
+    assert.match(result.error, /게임 화면/);
     assert.equal(app.elements.some(el => el.tag === 'dialog'), false);
     assert.equal(app.stored().base.chat_pos, null);
   }
@@ -450,10 +471,10 @@ test('canceling a pending snapshot cannot reopen a stale picker', async () => {
 test('shared host fallback is refused for both main start and position picking', async () => {
   const app = desktop({ mfish: { enabled: true } }, { background: false, session: { state: 'stopped' } });
   const result = await app.api('mpos_point', { feat: 'base', key: 'chat_pos' });
-  assert.match(result.error, /앱 전용 게임/);
+  assert.match(result.error, /게임 열기/);
   const started = await app.api('set_config', { patch: { macro_on: true } });
   assert.equal(started.config.macro_on, false);
-  assert.match(app.errors[0], /앱 전용 게임/);
+  assert.match(app.errors[0], /게임 열기/);
   assert.equal(app.calls.some(([name]) => ['desktop_pick', 'desktop_start', 'desktop_navigation'].includes(name)), false);
 });
 
@@ -467,7 +488,7 @@ test('session start and stop use only the private session commands and publish i
   assert.deepEqual(app.calls.filter(([name]) => name.startsWith('desktop_session')).map(([name]) => name), ['desktop_session_start', 'desktop_session_stop']);
   const unsupported = desktop({}, { background: false, session: { supported: false, state: 'unsupported' } });
   assert.match((await unsupported.api('session_start', {})).error, /지원하지 않는/);
-  assert.match((await unsupported.api('game_view', {})).error, /앱 전용 게임/);
+  assert.match((await unsupported.api('game_view', {})).error, /게임 열기/);
 });
 
 test('game view renders actual pixels, has one capture in flight, and stops after close', async () => {
@@ -1270,4 +1291,94 @@ test('finishing mobile preparation opens a fishing guide only when fishing is se
     for (let i = 0; i < app.ui.guideSteps.ready.length; i++) app.ui.moveGuide(1, true);
     assert.equal(app.ui.guide?.id ?? null, fishing ? 'fish' : null);
   }
+});
+
+test('Windows foreground connection starts DUA without claiming background input', async () => {
+  const app = desktop({ mfish: { enabled: true } }, { platform: 'windows' });
+  app.status.dua.background = false;
+  const started = await app.api('set_config', { patch: { macro_on: true } });
+  assert.equal(started.error, undefined);
+  assert.equal(started.config.macro_on, true);
+  assert.equal((await app.api('poll', {})).dua.background, false);
+});
+
+test('optional service failure keeps the connection and controls available', async () => {
+  const app = desktop({ mfish: { enabled: true } }, { serviceError: 'extension host offline' });
+  const state = await app.api('state', {});
+  assert.equal(state.version, '0.1.0');
+  assert.equal(state.session.state, 'ready');
+  assert.ok(state.error);
+  const started = await app.api('set_config', { patch: { macro_on: true } });
+  assert.equal(started.config.macro_on, true);
+  const poll = await app.api('poll', {});
+  assert.equal(poll.error, undefined);
+  assert.equal(poll.session.state, 'ready');
+});
+
+test('join notice opens a disconnected game instead of submitting an impossible task', async () => {
+  const app = desktop({}, { background: false, session: { state: 'stopped' } });
+  const result = await app.api('ret_join', {});
+  assert.equal(result.session.state, 'ready');
+  assert.ok(app.calls.some(([name]) => name === 'desktop_session_start'));
+  assert.ok(!app.calls.some(([name]) => name === 'automation_action'));
+});
+
+test('native session and task messages translate including retries and backend details', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../src/web/i18n.js'), 'utf8');
+  const body = { querySelectorAll: () => [], childNodes: [] };
+  const context = { document: { body, documentElement: {}, createTreeWalker: () => ({ nextNode: () => false }) }, NodeFilter: { SHOW_TEXT: 4 } };
+  vm.runInNewContext(source + '\nglobalThis.translations = I18N;', context);
+  const messages = [
+    '[게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요.',
+    '백그라운드 게임 연결이 종료됐습니다.',
+    '게임 화면에 연결됐습니다. 작업을 기다립니다.',
+    '게임 복귀 실행 중',
+    'Windows GPU 창 캡처를 시작하지 못했습니다: 0x80070057',
+    '게임 화면 재시도 중 (2/5): 게임 창이 변경됐거나 최소화됐습니다.',
+    '다른 창으로 전환되어 매크로를 중지했습니다. Roblox에서 다시 시작하세요.',
+    '이동할 지면과 목적지를 확인합니다.',
+    '게임 연결됨 · Windows에서는 Roblox를 앞에 두고 실행합니다.',
+  ];
+  for (const lang of ['en', 'ja']) {
+    context.translations.set(lang);
+    for (const message of messages) assert.doesNotMatch(context.translations.t(message), /[가-힣]/, message);
+    assert.match(context.translations.t(messages.find(message => message.includes('재시도'))), /2\/5/);
+  }
+});
+
+test('fishing numeric controls reject both bounds and restore the last valid value', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../src/web/app.js'), 'utf8');
+  const inputs = [], saves = [];
+  const tune = {
+    set innerHTML(html) {
+      for (const match of html.matchAll(/<input type="number" min="([^"]+)" max="([^"]+)" step="([^"]+)" data-mfish-tune="([^"]+)" value="([^"]+)"/g)) {
+        const listeners = {};
+        inputs.push({ min: match[1], max: match[2], dataset: { mfishTune: match[4] }, value: match[5], invalid: '',
+          addEventListener: (kind, fn) => listeners[kind] = fn,
+          setCustomValidity(value) { this.invalid = value; },
+          get validity() { return { valid: !this.invalid }; },
+          emit(kind) { listeners[kind](); },
+        });
+      }
+    },
+    insertAdjacentHTML() {}, querySelectorAll: () => inputs,
+  };
+  const config = { mfish: { bite_max: 60 } };
+  const elements = { mfishTune: tune, mfishForm: {}, mfishDebug: { addEventListener() {} } };
+  const context = { config, window: { acruxDesktopApi: true }, $: id => elements[id],
+    queueSave: p => saves.push(structuredClone(p)), onRow: () => '', readyRow: () => '', syncReady() {}, lastMfish: null };
+  vm.runInNewContext(source.slice(source.indexOf('const mfish ='), source.indexOf('function updateMfish')) + '\nrenderMfish();', context);
+  const input = inputs.find(i => i.dataset.mfishTune === 'bite_max');
+  assert.equal(input.max, '600');
+  for (const bad of ['-5', '9999']) {
+    input.value = bad; input.emit('input');
+    assert.equal(config.mfish.bite_max, 60);
+    assert.ok(input.invalid);
+    input.emit('change');
+    assert.equal(Number(input.value), 60);
+  }
+  assert.equal(saves.length, 0);
+  input.value = '75'; input.emit('input'); input.emit('change');
+  assert.equal(config.mfish.bite_max, 75);
+  assert.equal(saves[0].mfish.bite_max, 75);
 });

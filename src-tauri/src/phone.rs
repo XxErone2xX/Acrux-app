@@ -473,6 +473,7 @@ pub(super) fn observe_with_age(
     }
     state.phone.observation = None;
     state.frame_expires = Some(at + 0.300 - age);
+    state.frame_captured = Some(at - age);
     let step = state.tick(at, observation.geometry, Some(frame));
     settle_return(state);
     let result = input(state, step, observation.geometry, at);

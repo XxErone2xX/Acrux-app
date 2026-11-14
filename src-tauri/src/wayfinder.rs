@@ -378,7 +378,7 @@ impl Wayfinder {
         geometry: (usize, usize),
         frame: Option<&Frame<'_>>,
         words: &[Word],
-        captured_at: Option<f64>,
+        observation: Option<(f64, f64)>,
     ) -> Tick {
         if matches!(self.phase, Phase::Arrived) {
             return Tick::Arrived;
@@ -434,9 +434,16 @@ impl Wayfinder {
         if !frame.is_full() || (frame.width, frame.height) != geometry {
             return observe();
         }
-        let Some(captured_at) = captured_at
-            .filter(|t| t.is_finite() && *t >= 0. && *t <= now + 0.02 && now - *t <= 0.300)
-        else {
+        // The transport grants a processing-aware input deadline. Capture time
+        // remains physical evidence for movement/jump measurements.
+        let Some((captured_at, _)) = observation.filter(|(captured, deadline)| {
+            captured.is_finite()
+                && *captured >= 0.
+                && *captured <= now + 0.02
+                && deadline.is_finite()
+                && now <= *deadline
+                && now - *captured <= 5.3
+        }) else {
             return self
                 .stop("실제 화면 캡처 시각이 없거나 화면이 오래되어 이동 입력을 중지합니다.");
         };
@@ -3476,30 +3483,45 @@ mod tests {
     }
 
     #[test]
+    fn navigation_uses_processing_deadline_without_changing_capture_timestamp() {
+        let b = floor();
+        let f = frame(&b);
+        let mut finder = Wayfinder::start(Destination::Sell, Settings::default(), 0.).unwrap();
+        let step = finder.tick(1.0, (W, H), Some(&f), &[], Some((0.1, 1.3)));
+        assert!(matches!(step, Tick::Command(_)));
+        assert_eq!(finder.last_frame, 0.1);
+        let mut expired = Wayfinder::start(Destination::Sell, Settings::default(), 0.).unwrap();
+        assert!(matches!(
+            expired.tick(1.0, (W, H), Some(&f), &[], Some((0.1, 0.4))),
+            Tick::Stopped(_)
+        ));
+    }
+
+    #[test]
     fn camera_waits_for_ack_and_never_replays_after_failure() {
         let b = floor();
         let f = frame(&b);
         let mut finder = Wayfinder::start(Destination::Sell, Settings::default(), 0.).unwrap();
         assert!(matches!(
-            finder.tick(0.1, (W, H), None, &[], Some(0.1)),
+            finder.tick(0.1, (W, H), None, &[], Some((0.1, 0.1 + 0.300))),
             Tick::Observe { .. }
         ));
         assert!(matches!(
-            finder.tick(0.2, (W, H), Some(&f), &[], Some(0.2)),
+            finder.tick(0.2, (W, H), Some(&f), &[], Some((0.2, 0.2 + 0.300))),
             Tick::Command(Command::Gesture(Gesture::Drag { .. }))
         ));
         assert!(matches!(
-            finder.tick(0.3, (W, H), Some(&f), &[], Some(0.3)),
+            finder.tick(0.3, (W, H), Some(&f), &[], Some((0.3, 0.3 + 0.300))),
             Tick::Wait(_)
         ));
         finder.ack(false, 0.4);
         assert!(matches!(
-            finder.tick(0.5, (W, H), Some(&f), &[], Some(0.5)),
+            finder.tick(0.5, (W, H), Some(&f), &[], Some((0.5, 0.5 + 0.300))),
             Tick::Stopped(_)
         ));
         assert_eq!(finder.state.actions, 1);
         assert!(matches!(
-            finder.tick(0.6, (W + 1, H), Some(&f), &[], Some(0.6)),
+            finder.tick(0.6, (W + 1, H), Some(&f), &[], Some((0.6, 0.6 + 0.300))),
             Tick::Stopped(_)
         ));
     }
@@ -3520,14 +3542,14 @@ mod tests {
         };
         let mut finder = Wayfinder::start(Destination::Sell, settings, 0.).unwrap();
         finder.phase = Phase::Locate;
-        let first = finder.tick(0.1, (W, H), Some(&f), &words, Some(0.1));
+        let first = finder.tick(0.1, (W, H), Some(&f), &words, Some((0.1, 0.1 + 0.300)));
         assert!(
             matches!(first, Tick::Observe { .. }),
             "{}",
             finder.state.message
         );
         assert!(finder.navigator.is_some(), "{}", finder.state.message);
-        let next = finder.tick(0.4, (W, H), Some(&f), &words, Some(0.4));
+        let next = finder.tick(0.4, (W, H), Some(&f), &words, Some((0.4, 0.4 + 0.300)));
         assert!(
             matches!(
                 next,
@@ -3539,7 +3561,7 @@ mod tests {
         assert!(finder.state.avatar.unwrap().0 < 0.4);
         finder.ack(false, 0.45);
         assert!(matches!(
-            finder.tick(0.7, (W, H), Some(&f), &words, Some(0.7)),
+            finder.tick(0.7, (W, H), Some(&f), &words, Some((0.7, 0.7 + 0.300))),
             Tick::Stopped(_)
         ));
         assert!(
@@ -3557,7 +3579,7 @@ mod tests {
         let mut finder = Wayfinder::start(Destination::Base, Settings::default(), 0.).unwrap();
         assert!(
             matches!(
-                finder.tick(0.1, (W, H), Some(&f), &labels, Some(0.1)),
+                finder.tick(0.1, (W, H), Some(&f), &labels, Some((0.1, 0.1 + 0.300))),
                 Tick::Command(_)
             ),
             "a visible leaderboard alone is not arrival"
@@ -3570,7 +3592,7 @@ mod tests {
         assert!(!task_ui(Destination::Sell, &f, &craft));
         let mut ready = Wayfinder::start(Destination::Craft, Settings::default(), 0.).unwrap();
         assert!(matches!(
-            ready.tick(0.1, (W, H), Some(&f), &craft, Some(0.1)),
+            ready.tick(0.1, (W, H), Some(&f), &craft, Some((0.1, 0.1 + 0.300))),
             Tick::Arrived
         ));
         assert_eq!(
@@ -3599,7 +3621,7 @@ mod tests {
             word("Captain Flarg", (160, 90, 260, 110)),
         ];
         assert!(matches!(
-            finder.tick(0.1, (W, H), Some(&f), &ui, Some(0.1)),
+            finder.tick(0.1, (W, H), Some(&f), &ui, Some((0.1, 0.1 + 0.300))),
             Tick::Arrived
         ));
         assert_eq!(finder.memory().anchors.len(), 1);
@@ -3764,7 +3786,7 @@ mod tests {
             let labels = [name.clone(), word("Captain Flarg", (330, 138, 400, 151))];
             assert!(
                 matches!(
-                    finder.tick(0.1, (W, H), Some(&f), &labels, Some(0.1)),
+                    finder.tick(0.1, (W, H), Some(&f), &labels, Some((0.1, 0.1 + 0.300))),
                     Tick::Command(_)
                 ),
                 "{}",
@@ -3772,7 +3794,13 @@ mod tests {
             );
             assert!(
                 matches!(
-                    finder.tick(0.2, (W, H), Some(&f), &[name.clone()], Some(0.2)),
+                    finder.tick(
+                        0.2,
+                        (W, H),
+                        Some(&f),
+                        &[name.clone()],
+                        Some((0.2, 0.2 + 0.300))
+                    ),
                     Tick::Wait(_)
                 ),
                 "camera input requires an ACK"
@@ -3786,7 +3814,7 @@ mod tests {
                 (W, H),
                 Some(&frame(&after)),
                 &[name.clone()],
-                Some(0.5),
+                Some((0.5, 0.5 + 0.300)),
             );
             assert!(
                 matches!(result, Tick::Observe { .. }),
@@ -3816,7 +3844,13 @@ mod tests {
                 land[0] > 245,
                 "the observed landing must be across the actual barrier"
             );
-            let result = finder.tick(0.6, (W, H), Some(&frame(&after)), &[name], Some(0.6));
+            let result = finder.tick(
+                0.6,
+                (W, H),
+                Some(&frame(&after)),
+                &[name],
+                Some((0.6, 0.6 + 0.300)),
+            );
             assert!(
                 matches!(
                     result,
@@ -3830,7 +3864,13 @@ mod tests {
             let name = scene_avatar(&mut air, [190, 100], [190, 146]);
             assert!(
                 matches!(
-                    finder.tick(0.8, (W, H), Some(&frame(&air)), &[name], Some(0.8)),
+                    finder.tick(
+                        0.8,
+                        (W, H),
+                        Some(&frame(&air)),
+                        &[name],
+                        Some((0.8, 0.8 + 0.300))
+                    ),
                     Tick::Observe { .. }
                 ),
                 "{}",
@@ -3845,7 +3885,7 @@ mod tests {
                         (W, H),
                         Some(&frame(&landed)),
                         &[name.clone()],
-                        Some(1.2)
+                        Some((1.2, 1.2 + 0.300))
                     ),
                     Tick::Observe { .. }
                 ),
@@ -3854,7 +3894,13 @@ mod tests {
             );
             assert!(
                 matches!(
-                    finder.tick(1.3, (W, H), Some(&frame(&landed)), &[name], Some(1.3)),
+                    finder.tick(
+                        1.3,
+                        (W, H),
+                        Some(&frame(&landed)),
+                        &[name],
+                        Some((1.3, 1.3 + 0.300))
+                    ),
                     Tick::Observe { .. }
                 ),
                 "{}",
@@ -3904,7 +3950,13 @@ mod tests {
                 [157 + displacement, 146],
             );
             assert!(matches!(
-                finder.tick(0.5, (W, H), Some(&frame(&after)), &[name], Some(0.5)),
+                finder.tick(
+                    0.5,
+                    (W, H),
+                    Some(&frame(&after)),
+                    &[name],
+                    Some((0.5, 0.5 + 0.300))
+                ),
                 Tick::Observe { .. }
             ));
             assert!(matches!(finder.phase, Phase::Locate));
@@ -4083,7 +4135,13 @@ mod tests {
         let words = [name, text("Captain Flarg", [800, 365, 870, 380])];
         assert!(
             matches!(
-                finder.tick(0.1, (A, B), Some(&f(&before)), &words, Some(0.1)),
+                finder.tick(
+                    0.1,
+                    (A, B),
+                    Some(&f(&before)),
+                    &words,
+                    Some((0.1, 0.1 + 0.300))
+                ),
                 Tick::Command(_)
             ),
             "{}",
@@ -4111,7 +4169,13 @@ mod tests {
         }
         let mut after = terrain.clone();
         let name = avatar(&mut after, [300, 422], [300, 423], 95);
-        let result = finder.tick(0.6, (A, B), Some(&f(&after)), &[name.clone()], Some(0.6));
+        let result = finder.tick(
+            0.6,
+            (A, B),
+            Some(&f(&after)),
+            &[name.clone()],
+            Some((0.6, 0.6 + 0.300)),
+        );
         assert!(
             matches!(result, Tick::Observe { .. }),
             "{}",
@@ -4146,7 +4210,13 @@ mod tests {
             point[0] > 600 && point[1] < 410,
             "the planned actual floor is above takeoff"
         );
-        let result = finder.tick(0.7, (A, B), Some(&f(&after)), &[name], Some(0.7));
+        let result = finder.tick(
+            0.7,
+            (A, B),
+            Some(&f(&after)),
+            &[name],
+            Some((0.7, 0.7 + 0.300)),
+        );
         assert!(
             matches!(
                 result,
@@ -4160,7 +4230,13 @@ mod tests {
         let name = avatar(&mut air, [500, 242], [500, 423], 95);
         assert!(
             matches!(
-                finder.tick(0.9, (A, B), Some(&f(&air)), &[name], Some(0.9)),
+                finder.tick(
+                    0.9,
+                    (A, B),
+                    Some(&f(&air)),
+                    &[name],
+                    Some((0.9, 0.9 + 0.300))
+                ),
                 Tick::Observe { .. }
             ),
             "{}",
@@ -4170,7 +4246,13 @@ mod tests {
         let name = avatar(&mut landed, point, [point[0], point[1] + 1], 95);
         assert!(
             matches!(
-                finder.tick(1.3, (A, B), Some(&f(&landed)), &[name.clone()], Some(1.3)),
+                finder.tick(
+                    1.3,
+                    (A, B),
+                    Some(&f(&landed)),
+                    &[name.clone()],
+                    Some((1.3, 1.3 + 0.300))
+                ),
                 Tick::Observe { .. }
             ),
             "{}",
@@ -4178,7 +4260,13 @@ mod tests {
         );
         assert!(
             matches!(
-                finder.tick(1.4, (A, B), Some(&f(&landed)), &[name], Some(1.4)),
+                finder.tick(
+                    1.4,
+                    (A, B),
+                    Some(&f(&landed)),
+                    &[name],
+                    Some((1.4, 1.4 + 0.300))
+                ),
                 Tick::Observe { .. }
             ),
             "{}",

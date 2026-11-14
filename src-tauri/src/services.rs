@@ -18,6 +18,7 @@ const MAX_PACKAGE: usize = 30 * 1024 * 1024;
 const MAX_MESSAGE: usize = 16 * 1024 * 1024;
 const REPO: &str = "XxErone2xX/Acrux-app";
 const RESERVED: &[&str] = &[
+    "diagnostic",
     "state",
     "poll",
     "set_config",
@@ -98,6 +99,39 @@ struct State {
     closing: AtomicBool,
 }
 static STATE: OnceLock<Arc<State>> = OnceLock::new();
+static DIAGNOSTIC_PATH: OnceLock<PathBuf> = OnceLock::new();
+static DIAGNOSTIC_WRITE: Mutex<()> = Mutex::new(());
+
+pub(crate) fn init_diagnostics(root: &Path) {
+    let _ = DIAGNOSTIC_PATH.set(root.join("diagnostics.log"));
+    diagnostic(&format!(
+        "Acrux {} · {} startup",
+        env!("CARGO_PKG_VERSION"),
+        std::env::consts::OS
+    ));
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        diagnostic(&format!("panic: {info}"));
+        previous(info);
+    }));
+}
+
+pub(crate) fn diagnostic(message: &str) {
+    let Some(path) = DIAGNOSTIC_PATH.get() else {
+        return;
+    };
+    // A panic may originate inside this writer. Never block the panic hook.
+    let Ok(_guard) = DIAGNOSTIC_WRITE.try_lock() else {
+        return;
+    };
+    if fs::metadata(path).is_ok_and(|m| m.len() > 512 * 1024) {
+        let _ = fs::rename(path, path.with_extension("previous.log"));
+    }
+    if let Ok(mut file) = fs::OpenOptions::new().create(true).append(true).open(path) {
+        let text: String = message.chars().take(4096).collect();
+        let _ = writeln!(file, "{} {text}", chrono::Utc::now().to_rfc3339());
+    }
+}
 
 fn lock<T>(value: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     value.lock().unwrap_or_else(|e| e.into_inner())
@@ -431,6 +465,8 @@ fn notes(body: &str) -> Value {
     }
     json!({"ko":ko.join("\n").trim(),"en":en.join("\n").trim()})
 }
+// A dedicated channel prevents legacy main workflows from replacing dev binaries.
+const DEV_RELEASE: &str = "dev-alpha";
 fn releases(state: &State, refresh: bool) -> Result<Value, String> {
     if !refresh {
         if let Some((at, value)) = &*lock(&state.releases) {
@@ -440,48 +476,34 @@ fn releases(state: &State, refresh: bool) -> Result<Value, String> {
         }
     }
     let value: Value = serde_json::from_slice(&fetch(
-        &format!("https://api.github.com/repos/{REPO}/releases?per_page=100"),
+        &format!("https://api.github.com/repos/{REPO}/releases/tags/{DEV_RELEASE}"),
         4 * 1024 * 1024,
     )?)
     .map_err(|e| e.to_string())?;
-    if !value.is_array() {
-        return Err("릴리스 응답이 올바르지 않습니다.".into());
-    }
+    validate_dev_release(&value)?;
     *lock(&state.releases) = Some((Instant::now(), value.clone()));
     Ok(value)
 }
-fn changelog(state: &State, refresh: bool) -> Result<Value, String> {
-    let mut entries = Vec::new();
-    for release in releases(state, refresh)?.as_array().unwrap() {
-        if release["draft"].as_bool() == Some(true) {
-            continue;
-        }
-        let tag = release["tag_name"].as_str().unwrap_or("");
-        if !tag.starts_with('v') && !tag.starts_with("mobile-v") && tag != "alpha" {
-            continue;
-        }
-        let mut entry = notes(release["body"].as_str().unwrap_or(""));
-        entry["version"] = json!(tag
-            .strip_prefix("mobile-v")
-            .unwrap_or_else(|| tag.strip_prefix('v').unwrap_or(tag)));
-        entry["date"] = json!(release["published_at"]
-            .as_str()
-            .unwrap_or("")
-            .chars()
-            .take(10)
-            .collect::<String>());
-        entries.push(entry);
+fn validate_dev_release(value: &Value) -> Result<(), String> {
+    if value["tag_name"] != DEV_RELEASE || value["draft"] != false || !value["assets"].is_array() {
+        return Err("개발 버전 릴리스 응답이 올바르지 않습니다.".into());
     }
-    Ok(json!({"entries":entries,"current":env!("CARGO_PKG_VERSION")}))
+    Ok(())
+}
+fn changelog(state: &State, refresh: bool) -> Result<Value, String> {
+    let release = releases(state, refresh)?;
+    let mut entry = notes(release["body"].as_str().unwrap_or(""));
+    entry["version"] = release["name"].clone();
+    entry["date"] = json!(release["published_at"]
+        .as_str()
+        .unwrap_or("")
+        .chars()
+        .take(10)
+        .collect::<String>());
+    Ok(json!({"entries":[entry],"current":env!("CARGO_PKG_VERSION")}))
 }
 fn release_asset(state: &State, refresh: bool) -> Result<Value, String> {
-    let all = releases(state, refresh)?;
-    let release = all
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|r| r["tag_name"] == "alpha" && r["draft"] != true)
-        .ok_or("알파 릴리스가 아직 게시되지 않았습니다.")?;
+    let release = releases(state, refresh)?;
     let filename = if cfg!(target_os = "android") {
         "Acrux-Alpha.apk"
     } else if cfg!(target_os = "windows") {
@@ -1268,6 +1290,10 @@ pub(crate) async fn service_action(
 fn service(app: &AppHandle, action: &str, payload: Value) -> Result<Value, String> {
     let state = state()?;
     match action {
+        "diagnostic" => {
+            diagnostic(payload["message"].as_str().unwrap_or("UI error"));
+            Ok(json!({"ok":true}))
+        }
         "runtime_metadata" => {
             let runtime = crate::runtime();
             let logs: Vec<_> = runtime
@@ -1456,6 +1482,19 @@ fn service(app: &AppHandle, action: &str, payload: Value) -> Result<Value, Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn development_updates_never_accept_the_legacy_alpha_or_stable_release() {
+        let mut release = json!({"tag_name":"dev-alpha","draft":false,"assets":[]});
+        assert!(validate_dev_release(&release).is_ok());
+        for tag in ["alpha", "v3.2.3", "mobile-latest"] {
+            release["tag_name"] = json!(tag);
+            assert!(validate_dev_release(&release).is_err());
+        }
+        release["tag_name"] = json!(DEV_RELEASE);
+        release["draft"] = true.into();
+        assert!(validate_dev_release(&release).is_err());
+    }
+
     use zip::write::SimpleFileOptions;
     struct Folder(PathBuf);
     impl Folder {
