@@ -71,6 +71,9 @@ unsafe extern "system" {
     fn GetClientRect(hwnd: Handle, rect: *mut WinRect) -> i32;
     fn GetWindowRect(hwnd: Handle, rect: *mut WinRect) -> i32;
     fn ClientToScreen(hwnd: Handle, point: *mut WinPoint) -> i32;
+    fn ScreenToClient(hwnd: Handle, point: *mut WinPoint) -> i32;
+    fn GetCursorPos(point: *mut WinPoint) -> i32;
+    fn GetAsyncKeyState(key: i32) -> i16;
     fn GetDC(hwnd: Handle) -> Handle;
     fn ReleaseDC(hwnd: Handle, dc: Handle) -> i32;
     fn PrintWindow(hwnd: Handle, dc: Handle, flags: u32) -> i32;
@@ -272,6 +275,72 @@ impl Native {
     }
     pub(super) fn foreground(&self, target: Target) -> bool {
         self.owned(target) && unsafe { GetForegroundWindow() } == target.id as Handle
+    }
+    /// Select in the live foreground game, using its client coordinates even
+    /// when the window is on a scaled or secondary display. This observes real
+    /// user input; it does not inject a click or use a desktop screenshot.
+    pub(super) fn pick(
+        &self,
+        target: Target,
+        region: bool,
+        current: impl Fn() -> bool,
+    ) -> Result<Vec<f64>, String> {
+        if !current() {
+            return Err("위치 지정을 취소했습니다.".into());
+        }
+        self.activate(target)?;
+        let deadline = Instant::now() + Duration::from_secs(120);
+        let mut armed = false;
+        let mut start = None;
+        loop {
+            if !current() || unsafe { GetAsyncKeyState(0x1b) } < 0 {
+                return Err("위치 지정을 취소했습니다.".into());
+            }
+            if Instant::now() >= deadline {
+                return Err("위치 지정 시간이 초과됐습니다. 다시 시도하세요.".into());
+            }
+            if !self.valid(target) || !self.foreground(target) {
+                return Err("게임 창이 변경되어 위치 지정을 취소했습니다.".into());
+            }
+            let down = unsafe { GetAsyncKeyState(0x01) } < 0;
+            // Ignore the mouse press that opened the picker in the app.
+            if !armed {
+                armed = !down;
+            } else if down && start.is_none() || !down && start.is_some() {
+                let mut point = WinPoint::default();
+                if unsafe { GetCursorPos(&mut point) } == 0
+                    || unsafe { ScreenToClient(target.id as Handle, &mut point) } == 0
+                    || point.x < 0
+                    || point.y < 0
+                    || point.x >= target.width as i32
+                    || point.y >= target.height as i32
+                {
+                    return Err("게임 화면 안의 위치를 지정하세요.".into());
+                }
+                let point = (point.x, point.y);
+                if down {
+                    start = Some(point);
+                } else {
+                    let first = start.unwrap();
+                    if !region {
+                        return Ok(vec![
+                            first.0 as f64 / target.width as f64,
+                            first.1 as f64 / target.height as f64,
+                        ]);
+                    }
+                    if first.0 == point.0 || first.1 == point.1 {
+                        return Err("영역의 서로 다른 두 모서리를 고르세요.".into());
+                    }
+                    return Ok(vec![
+                        first.0.min(point.0) as f64 / target.width as f64,
+                        first.1.min(point.1) as f64 / target.height as f64,
+                        first.0.max(point.0) as f64 / target.width as f64,
+                        first.1.max(point.1) as f64 / target.height as f64,
+                    ]);
+                }
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
     }
     pub(super) fn activate(&self, target: Target) -> Result<(), String> {
         if !self.owned(target) {

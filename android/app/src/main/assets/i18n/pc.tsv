@@ -1,8 +1,74 @@
 # PC 버전 src/web/i18n.js 에서 자동으로 뽑음 — 고치지 말고 PC 사전을 고칠 것 (android/tools/export_pc_i18n.py)
+[게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요.	Connect Roblox with [Open game], then try again.	［ゲームを開く］でRobloxに接続してから再試行してください。
+게임 화면에 연결됐습니다. 작업을 기다립니다.	Game screen connected. Waiting for a task.	ゲーム画面に接続しました。操作を待っています。
+게임 화면에 연결됐습니다.	Game screen connected.	ゲーム画面に接続しました。
+게임 연결됨	Game connected	ゲーム接続済み
+Windows에서는 Roblox를 앞에 두고 실행합니다.	On Windows, keep Roblox in the foreground while running.	WindowsではRobloxを手前に表示して実行します。
+Windows에서는 Roblox 창에서 직접 조작하세요. 이 화면은 미리보기입니다.	On Windows, control Roblox directly in its own window. This is a preview.	WindowsではRobloxのウィンドウで直接操作してください。この画面はプレビューです。
+Roblox 창을 앞에 둔 뒤 다시 시작하세요.	Bring Roblox to the foreground, then start again.	Robloxを手前に表示してから再開してください。
+다른 창으로 전환되어 게임 입력을 중지했습니다.	Game input stopped because you switched to another window.	別のウィンドウに切り替わったためゲーム入力を停止しました。
+다른 창으로 전환되어 매크로를 중지했습니다. Roblox에서 다시 시작하세요.	Macro stopped because you switched windows. Return to Roblox and start again.	別のウィンドウに切り替わったため停止しました。Robloxに戻って再開してください。
+Windows가 입력을 거부했습니다. 앱과 Roblox의 실행 권한을 맞추세요.	Windows rejected input. Run Acrux and Roblox with the same privilege level.	Windowsが入力を拒否しました。AcruxとRobloxの実行権限を合わせてください。
+게임 화면을 다시 연결하고 있습니다.	Reconnecting the game screen.	ゲーム画面に再接続しています。
+게임 창이 연결되지 않았습니다.	No game window is connected.	ゲームウィンドウが接続されていません。
+게임 연결이 종료됐습니다.	Game connection ended.	ゲーム接続が終了しました。
+게임 연결을 종료했습니다.	Game connection closed.	ゲーム接続を終了しました。
+게임 연결을 종료합니다.	Closing the game connection.	ゲーム接続を終了します。
+백그라운드 게임 연결이 종료됐습니다.	Game connection ended.	ゲーム接続が終了しました。
+백그라운드 게임 연결을 시작해 주세요.	Open the game connection to begin.	ゲームに接続して開始してください。
+Roblox 창과 캡처 권한을 확인합니다.	Checking the Roblox window and capture permission.	Robloxのウィンドウとキャプチャ権限を確認しています。
+기기 연결을 준비했습니다. 게임 창을 기다립니다.	Device connection prepared. Waiting for the game window.	接続準備ができました。ゲームウィンドウを待っています。
+게임 창을 기다리고 있습니다.	Waiting for the game window.	ゲームウィンドウを待っています。
+Roblox가 시작 중이거나 최소화돼 있습니다. 게임 창을 연 뒤 다시 연결하세요.	Roblox is starting or minimized. Open its window, then reconnect.	Robloxが起動中または最小化されています。ウィンドウを開いて再接続してください。
+게임 화면에서 저장할 위치를 클릭하세요.	Click the position to save on the game screen.	ゲーム画面で保存する位置をクリックしてください。
+캡처한 게임 화면입니다. Esc 또는 취소로 닫을 수 있습니다.	Captured game screen. Press Esc or Cancel to close.	キャプチャしたゲーム画面です。Escまたはキャンセルで閉じられます。
+게임 화면 데이터를 읽을 수 없습니다.	Could not read the game screen data.	ゲーム画面データを読み取れません。
+게임 화면 크기나 픽셀 데이터가 올바르지 않습니다.	The game screen dimensions or pixel data are invalid.	ゲーム画面のサイズまたはピクセルデータが不正です。
+게임 화면을 표시할 수 없습니다.	Could not display the game screen.	ゲーム画面を表示できません。
+게임이 검은 화면을 반환했습니다. 최소화를 해제하고 화면 캡처 권한을 확인하세요.	The game returned a blank frame. Restore its window and check capture permission.	ゲームが空の画面を返しました。最小化を解除してキャプチャ権限を確認してください。
+게임 창이 변경됐거나 최소화됐습니다.	The game window changed or was minimized.	ゲームウィンドウが変更または最小化されました。
+새 게임 화면을 다시 확인해야 합니다.	A fresh game frame is required.	新しいゲーム画面の確認が必要です。
+게임 입력 대상이 바뀌었습니다.	The game input target changed.	ゲーム入力の対象が変わりました。
+게임 화면의 입력 유효 시간이 지났습니다.	The game frame expired before input began.	入力開始前にゲーム画面の有効期限が切れました。
+게임 창에 입력을 전달하지 못했습니다. 연결 상태와 OS 권한을 확인하세요.	Could not send game input. Check the connection and OS permissions.	ゲームに入力できません。接続とOS権限を確認してください。
+화면 크기가 바뀌어 기기 동작을 중지했습니다.	Device action stopped because the screen size changed.	画面サイズが変わったため操作を停止しました。
+기기의 짧은 입력을 실행합니다.	Performing a short device action.	短い入力操作を実行しています。
+다음 관측 시각까지 기다립니다.	Waiting for the next observation.	次の観測時刻まで待っています。
+기기 동작 완료	Device action completed	入力操作完了
+이동할 지면과 목적지를 확인합니다.	Checking the terrain and destination.	地面と目的地を確認しています。
+관측한 경로의 짧은 동작을 실행합니다.	Following the observed route in short steps.	観測した経路を短い操作で進んでいます。
+자동 작업의 실제 화면을 확인합니다.	Checking the screen for the current task.	現在の作業の画面を確認しています。
+확인된 자동 작업의 입력을 실행합니다.	Sending input for the verified task.	確認した作業の入力を実行しています。
+자동 작업 완료	Automatic task completed	自動作業完了
+자동 작업을 중지했습니다.	Automatic task stopped.	自動作業を停止しました。
+게임 연결을 다시 확인합니다.	Checking the game connection again.	ゲーム接続を再確認しています。
+게임 실행을 다시 요청합니다.	Requesting a game relaunch.	ゲームの再起動を要求しています。
+Roblox 화면이 바뀌어 기기 동작을 중지했습니다.	Device action stopped because the Roblox screen changed.	Robloxの画面が変わったため操作を停止しました。
+Roblox 화면이 바뀌어 이동 · 판매를 중지했습니다.	Travel and selling stopped because the Roblox screen changed.	Robloxの画面が変わったため移動と売却を停止しました。
+게임 복귀	Return to game	ゲームに復帰
+게임 입장	Enter game	ゲームに入場
+목적지 이동	Travel to destination	目的地に移動
+인벤토리 확인	Check inventory	インベントリ確認
+판매 보정	Calibrate selling	売却の補正
+모드 작업	Mod task	Modの作業
+자리 비움 방지	Keep active	放置防止
+낚시 설정의 범위를 확인하세요.	Check the fishing setting limits.	釣り設定の範囲を確認してください。
+개발 버전 릴리스 응답이 올바르지 않습니다.	The development release response is invalid.	開発版リリースの応答が不正です。
+현재 운영체제의 알파 배포 파일이 아직 없습니다.	No development build is available for this operating system yet.	このOS向けの開発版はまだ公開されていません。
+봇 요청에 응답하지 못했습니다.	Could not reply to the bot request.	ボットの要求に応答できませんでした。
+봇 요청 서버에 연결하지 못했습니다. 다시 연결합니다.	Could not connect to the bot request server. Reconnecting.	ボットの要求サーバーに接続できません。再接続します。
 운영체제 자동 선택	Selected automatically for this OS	OSに合わせて自動選択
 아이템 · 상점 · 제작 · 메모리 매치 화면의 글자를 이 기기에서 읽습니다.	Reads item, shop, crafting and memory match text on this device.	アイテム・ショップ・製作・メモリーマッチの文字をこの端末で読み取ります。
 이 앱은 운영체제에 맞는 OCR 엔진을 자동으로 사용합니다.	This app automatically uses the OCR engine for your operating system.	このアプリはOSに合わせたOCRエンジンを自動で使用します。
 브라우저에서 [연결] 을 눌러 주세요 · 코드 {0}	Press [Link] in the browser · code {0}	ブラウザで [連携] を押してください · コード {0}
+내 캐릭터의 표시 이름	My avatar's display name	自分のキャラクターの表示名
+다른 플레이어와 구분하는 데 사용합니다. 머리 위에 보이는 이름을 입력하세요. 비우면 바이옴 설정의 플레이어 이름을 사용합니다.	Identifies your avatar among other players. Enter the name shown above its head. Leave blank to use the player name in Biome settings.	他のプレイヤーと区別するために使います。頭上に表示される名前を入力してください。空欄の場合はバイオーム設定のプレイヤー名を使います。
+현재 위치와 지형을 화면에서 확인하고 이동합니다. [현재 장소 기억]은 자기 캐릭터의 이름·발·주변 지면과 목적지 표식이 함께 보일 때 사용할 수 있습니다.	Uses the current screen and terrain to navigate. [Remember current location] requires your avatar's name, feet, surrounding ground and the destination landmark to be visible together.	画面の現在位置と地形を確認して移動します。[現在地を記憶]には自分の名前、足、周囲の地面と目的地の目印が同時に見える必要があります。
+이동에 사용할 내 이름은 공통 위치 → 이동 · 기준 장소에서 설정합니다.	Set your avatar name under Shared positions → Movement · base spot.	移動に使う自分の名前は共通位置 → 移動・基準地点で設定します。
+장소 저장됨	Location saved	場所を保存済み
+저장된 장소 없음	No saved location	保存された場所なし
+위치 지정 시간이 초과됐습니다. 다시 시도하세요.	Position selection timed out. Try again.	位置指定がタイムアウトしました。もう一度お試しください。
+게임 창이 변경되어 위치 지정을 취소했습니다.	Position selection was canceled because the game window changed.	ゲームウィンドウが変わったため位置指定をキャンセルしました。
 캐릭터 이름 (표시명|계정명)	Avatar name (display name|account name)	キャラクター名（表示名|アカウント名）
 비우면 바이옴 설정의 플레이어 이름을 사용합니다.	Leave blank to use the player name in Biome settings.	空欄の場合はバイオーム設定のプレイヤー名を使用します。
 현재 위치와 지형을 화면에서 확인하고 장애물과 점프 구간을 고려해 이동합니다. 목적지 앞에서 [현재 장소 기억]을 누르면 실제 화면을 다음 이동에 사용합니다.	Uses the screen to locate the avatar, terrain, obstacles and jump sections. Press [Remember current location] at a destination to use its actual view on later trips.	画面で現在位置、地形、障害物とジャンプ区間を確認して移動します。目的地の前で[現在地を記憶]を押すと、次の移動で実際の画面を使用します。
@@ -75,7 +141,9 @@ alpha 배포 확인	Check alpha release	alphaリリースを確認
 앱의 시작·중지 버튼	Start/Stop button in the app	アプリの開始・停止ボタン
 F7 또는 앱의 중지 버튼	F7 or the Stop button in the app	F7またはアプリの停止ボタン
 Sober 화면에서 저장할 위치를 클릭하세요.	Click the position to save in the Sober image.	Soberの画像で保存する位置をクリックしてください。
+게임 화면에서 저장할 위치를 클릭하세요.	Click the position to save in the game image.	ゲーム画面で保存する位置をクリックしてください。
 캡처한 Sober 화면입니다. Esc 또는 취소로 닫을 수 있습니다.	This is a captured Sober image. Press Esc or Cancel to close.	Soberのキャプチャ画像です。Escまたはキャンセルで閉じられます。
+캡처한 게임 화면입니다. Esc 또는 취소로 닫을 수 있습니다.	This is a captured game image. Press Esc or Cancel to close.	ゲームのキャプチャ画面です。Escまたはキャンセルで閉じられます。
 Sober 위치 선택 화면	Sober position picker	Sober位置選択画面
 Sober 화면 데이터를 읽을 수 없습니다.	Could not read the Sober image data.	Soberの画像データを読み取れませんでした。
 Sober 화면 크기나 픽셀 데이터가 올바르지 않습니다.	The Sober image size or pixel data is invalid.	Soberの画像サイズまたはピクセルデータが正しくありません。
@@ -1405,60 +1473,3 @@ Acrux 웹사이트	Acrux website	Acruxウェブサイト
 삭제함 · 다시 켜면 적용	Deleted · applies after restart	削除しました・再起動後に適用
 Acrux 를 다시 켜는 중…	Restarting Acrux…	Acruxを再起動中…
 켜기 · 끄기	On · off	オン・オフ
-[게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요.	Connect Roblox with [Open game], then try again.	［ゲームを開く］でRobloxに接続してから再試行してください。
-게임 화면에 연결됐습니다. 작업을 기다립니다.	Game screen connected. Waiting for a task.	ゲーム画面に接続しました。操作を待っています。
-게임 화면에 연결됐습니다.	Game screen connected.	ゲーム画面に接続しました。
-게임 연결됨	Game connected	ゲーム接続済み
-Windows에서는 Roblox를 앞에 두고 실행합니다.	On Windows, keep Roblox in the foreground while running.	WindowsではRobloxを手前に表示して実行します。
-Windows에서는 Roblox 창에서 직접 조작하세요. 이 화면은 미리보기입니다.	On Windows, control Roblox directly in its own window. This is a preview.	WindowsではRobloxのウィンドウで直接操作してください。この画面はプレビューです。
-Roblox 창을 앞에 둔 뒤 다시 시작하세요.	Bring Roblox to the foreground, then start again.	Robloxを手前に表示してから再開してください。
-다른 창으로 전환되어 게임 입력을 중지했습니다.	Game input stopped because you switched to another window.	別のウィンドウに切り替わったためゲーム入力を停止しました。
-다른 창으로 전환되어 매크로를 중지했습니다. Roblox에서 다시 시작하세요.	Macro stopped because you switched windows. Return to Roblox and start again.	別のウィンドウに切り替わったため停止しました。Robloxに戻って再開してください。
-Windows가 입력을 거부했습니다. 앱과 Roblox의 실행 권한을 맞추세요.	Windows rejected input. Run Acrux and Roblox with the same privilege level.	Windowsが入力を拒否しました。AcruxとRobloxの実行権限を合わせてください。
-게임 화면을 다시 연결하고 있습니다.	Reconnecting the game screen.	ゲーム画面に再接続しています。
-게임 창이 연결되지 않았습니다.	No game window is connected.	ゲームウィンドウが接続されていません。
-게임 연결이 종료됐습니다.	Game connection ended.	ゲーム接続が終了しました。
-게임 연결을 종료했습니다.	Game connection closed.	ゲーム接続を終了しました。
-게임 연결을 종료합니다.	Closing the game connection.	ゲーム接続を終了します。
-백그라운드 게임 연결이 종료됐습니다.	Game connection ended.	ゲーム接続が終了しました。
-백그라운드 게임 연결을 시작해 주세요.	Open the game connection to begin.	ゲームに接続して開始してください。
-Roblox 창과 캡처 권한을 확인합니다.	Checking the Roblox window and capture permission.	Robloxのウィンドウとキャプチャ権限を確認しています。
-기기 연결을 준비했습니다. 게임 창을 기다립니다.	Device connection prepared. Waiting for the game window.	接続準備ができました。ゲームウィンドウを待っています。
-게임 창을 기다리고 있습니다.	Waiting for the game window.	ゲームウィンドウを待っています。
-Roblox가 시작 중이거나 최소화돼 있습니다. 게임 창을 연 뒤 다시 연결하세요.	Roblox is starting or minimized. Open its window, then reconnect.	Robloxが起動中または最小化されています。ウィンドウを開いて再接続してください。
-게임 화면에서 저장할 위치를 클릭하세요.	Click the position to save on the game screen.	ゲーム画面で保存する位置をクリックしてください。
-캡처한 게임 화면입니다. Esc 또는 취소로 닫을 수 있습니다.	Captured game screen. Press Esc or Cancel to close.	キャプチャしたゲーム画面です。Escまたはキャンセルで閉じられます。
-게임 화면 데이터를 읽을 수 없습니다.	Could not read the game screen data.	ゲーム画面データを読み取れません。
-게임 화면 크기나 픽셀 데이터가 올바르지 않습니다.	The game screen dimensions or pixel data are invalid.	ゲーム画面のサイズまたはピクセルデータが不正です。
-게임 화면을 표시할 수 없습니다.	Could not display the game screen.	ゲーム画面を表示できません。
-게임이 검은 화면을 반환했습니다. 최소화를 해제하고 화면 캡처 권한을 확인하세요.	The game returned a blank frame. Restore its window and check capture permission.	ゲームが空の画面を返しました。最小化を解除してキャプチャ権限を確認してください。
-게임 창이 변경됐거나 최소화됐습니다.	The game window changed or was minimized.	ゲームウィンドウが変更または最小化されました。
-새 게임 화면을 다시 확인해야 합니다.	A fresh game frame is required.	新しいゲーム画面の確認が必要です。
-게임 입력 대상이 바뀌었습니다.	The game input target changed.	ゲーム入力の対象が変わりました。
-게임 화면의 입력 유효 시간이 지났습니다.	The game frame expired before input began.	入力開始前にゲーム画面の有効期限が切れました。
-게임 창에 입력을 전달하지 못했습니다. 연결 상태와 OS 권한을 확인하세요.	Could not send game input. Check the connection and OS permissions.	ゲームに入力できません。接続とOS権限を確認してください。
-화면 크기가 바뀌어 기기 동작을 중지했습니다.	Device action stopped because the screen size changed.	画面サイズが変わったため操作を停止しました。
-기기의 짧은 입력을 실행합니다.	Performing a short device action.	短い入力操作を実行しています。
-다음 관측 시각까지 기다립니다.	Waiting for the next observation.	次の観測時刻まで待っています。
-기기 동작 완료	Device action completed	入力操作完了
-이동할 지면과 목적지를 확인합니다.	Checking the terrain and destination.	地面と目的地を確認しています。
-관측한 경로의 짧은 동작을 실행합니다.	Following the observed route in short steps.	観測した経路を短い操作で進んでいます。
-자동 작업의 실제 화면을 확인합니다.	Checking the screen for the current task.	現在の作業の画面を確認しています。
-확인된 자동 작업의 입력을 실행합니다.	Sending input for the verified task.	確認した作業の入力を実行しています。
-자동 작업 완료	Automatic task completed	自動作業完了
-자동 작업을 중지했습니다.	Automatic task stopped.	自動作業を停止しました。
-게임 연결을 다시 확인합니다.	Checking the game connection again.	ゲーム接続を再確認しています。
-게임 실행을 다시 요청합니다.	Requesting a game relaunch.	ゲームの再起動を要求しています。
-Roblox 화면이 바뀌어 기기 동작을 중지했습니다.	Device action stopped because the Roblox screen changed.	Robloxの画面が変わったため操作を停止しました。
-Roblox 화면이 바뀌어 이동 · 판매를 중지했습니다.	Travel and selling stopped because the Roblox screen changed.	Robloxの画面が変わったため移動と売却を停止しました。
-게임 복귀	Return to game	ゲームに復帰
-목적지 이동	Travel to destination	目的地に移動
-인벤토리 확인	Check inventory	インベントリ確認
-판매 보정	Calibrate selling	売却の補正
-모드 작업	Mod task	Modの作業
-자리 비움 방지	Keep active	放置防止
-낚시 설정의 범위를 확인하세요.	Check the fishing setting limits.	釣り設定の範囲を確認してください。
-개발 버전 릴리스 응답이 올바르지 않습니다.	The development release response is invalid.	開発版リリースの応答が不正です。
-현재 운영체제의 알파 배포 파일이 아직 없습니다.	No development build is available for this operating system yet.	このOS向けの開発版はまだ公開されていません。
-봇 요청에 응답하지 못했습니다.	Could not reply to the bot request.	ボットの要求に応答できませんでした。
-봇 요청 서버에 연결하지 못했습니다. 다시 연결합니다.	Could not connect to the bot request server. Reconnecting.	ボットの要求サーバーに接続できません。再接続します。

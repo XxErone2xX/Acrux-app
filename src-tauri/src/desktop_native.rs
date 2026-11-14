@@ -1,4 +1,4 @@
-//! Window-scoped desktop access. No global keyboard, cursor, or foreground APIs.
+//! Native capture and serialized input for the selected Roblox window.
 use crate::{
     automation::{Command, Word},
     device::Gesture,
@@ -34,6 +34,20 @@ static STATUS: Mutex<Option<crate::BackgroundStatus>> = Mutex::new(None);
 static WORKER: Mutex<Option<thread::JoinHandle<()>>> = Mutex::new(None);
 static SNAPSHOT: Mutex<Option<mpsc::Sender<Result<Vec<u8>, String>>>> = Mutex::new(None);
 static MANUAL: Mutex<VecDeque<ManualRequest>> = Mutex::new(VecDeque::new());
+#[cfg(target_os = "windows")]
+static PICK: Mutex<Option<PickRequest>> = Mutex::new(None);
+#[cfg(target_os = "windows")]
+static PICKING: AtomicBool = AtomicBool::new(false);
+#[cfg(target_os = "windows")]
+static PICK_REVISION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+#[cfg(target_os = "windows")]
+struct PickRequest {
+    region: bool,
+    generation: i32,
+    revision: u64,
+    reply: mpsc::Sender<Result<Vec<f64>, String>>,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Target {
@@ -277,6 +291,7 @@ pub fn launch_session() -> Result<crate::BackgroundStatus, String> {
             if let Some(reply) = SNAPSHOT.lock().unwrap_or_else(|e| e.into_inner()).take() {
                 let _ = reply.send(Err("게임 연결이 종료됐습니다.".into()));
             }
+            cancel_pick();
             match result {
                 Ok(()) => set_status("stopped", "게임 연결을 종료했습니다.", None),
                 Err(e) => set_status("error", e, None),
@@ -293,6 +308,7 @@ pub fn launch_session() -> Result<crate::BackgroundStatus, String> {
 }
 pub fn stop_session() {
     STOP.store(true, Ordering::Release);
+    cancel_pick();
     runtime().stop("게임 연결을 종료합니다.");
 }
 pub fn shutdown() {
@@ -327,9 +343,63 @@ pub fn snapshot() -> Result<Vec<u8>, String> {
         .map_err(|_| "게임 화면 확인 시간이 초과됐습니다.".to_owned())?
 }
 pub fn pick() -> Result<Point, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let point = pick_area(false)?;
+        return Ok(Point(point[0], point[1]));
+    }
+    #[cfg(not(target_os = "windows"))]
     Err("앱의 게임 미리보기에서 위치를 지정하세요.".into())
 }
+#[cfg(target_os = "windows")]
+pub fn pick_area(region: bool) -> Result<Vec<f64>, String> {
+    if PICKING
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return Err("위치를 이미 지정 중입니다.".into());
+    }
+    let result = (|| {
+        if !game_available() || STOP.load(Ordering::Acquire) {
+            return Err("실행 중인 게임 창을 먼저 연결해 주세요.".into());
+        }
+        let generation = {
+            let r = runtime();
+            if r.active() {
+                return Err("작업을 중지한 뒤 위치를 지정하세요.".into());
+            }
+            r.generation
+        };
+        let revision = PICK_REVISION.fetch_add(1, Ordering::AcqRel).wrapping_add(1);
+        let (reply, receive) = mpsc::channel();
+        *PICK.lock().unwrap_or_else(|e| e.into_inner()) = Some(PickRequest {
+            region,
+            generation,
+            revision,
+            reply,
+        });
+        if !game_available() || STOP.load(Ordering::Acquire) {
+            cancel_pick();
+        }
+        match receive.recv_timeout(Duration::from_secs(120)) {
+            Ok(result) => result,
+            Err(_) => {
+                cancel_pick();
+                Err("위치 지정 시간이 초과됐습니다. 다시 시도하세요.".into())
+            }
+        }
+    })();
+    PICKING.store(false, Ordering::Release);
+    result
+}
 pub fn cancel_pick() {
+    #[cfg(target_os = "windows")]
+    {
+        PICK_REVISION.fetch_add(1, Ordering::AcqRel);
+        if let Some(request) = PICK.lock().unwrap_or_else(|e| e.into_inner()).take() {
+            let _ = request.reply.send(Err("위치 지정을 취소했습니다.".into()));
+        }
+    }
     if let Some(reply) = SNAPSHOT.lock().unwrap_or_else(|e| e.into_inner()).take() {
         let _ = reply.send(Err("위치 지정을 취소했습니다.".into()));
     }
@@ -399,6 +469,7 @@ fn worker(native: &mut platform::Native) -> Result<(), String> {
             } else {
                 if let Some(old) = selected.take() {
                     held.release(native, old);
+                    cancel_pick();
                 }
                 AVAILABLE.store(false, Ordering::Release);
                 {
@@ -455,6 +526,29 @@ fn worker(native: &mut platform::Native) -> Result<(), String> {
             };
             if !AVAILABLE.load(Ordering::Acquire) {
                 if capture(native, target, &mut capture_failures)?.is_none() {
+                    continue;
+                }
+            }
+            #[cfg(target_os = "windows")]
+            {
+                let request = PICK.lock().unwrap_or_else(|e| e.into_inner()).take();
+                if let Some(request) = request {
+                    held.release(native, target);
+                    let current = || {
+                        if STOP.load(Ordering::Acquire)
+                            || PICK_REVISION.load(Ordering::Acquire) != request.revision
+                        {
+                            return false;
+                        }
+                        let r = runtime();
+                        r.generation == request.generation && !r.active()
+                    };
+                    let result = if current() {
+                        native.pick(target, request.region, current)
+                    } else {
+                        Err("위치 지정을 취소했습니다.".into())
+                    };
+                    let _ = request.reply.send(result);
                     continue;
                 }
             }
@@ -527,20 +621,33 @@ fn worker(native: &mut platform::Native) -> Result<(), String> {
             }
             #[cfg(target_os = "windows")]
             {
-                if !was_active {
-                    if let Err(error) = native.activate(target) {
-                        runtime().stop_automation(error);
+                // A place snapshot or OCR inspection only reads pixels. Only
+                // work that can send real input needs to own the foreground.
+                let input_active = {
+                    let r = runtime();
+                    r.dua.running
+                        || r.device_action.is_some()
+                        || r.phase().active()
+                        || matches!(r.sdk_request, Some(crate::sdk::Request::Input { .. }))
+                };
+                if input_active {
+                    if !was_active {
+                        if let Err(error) = native.activate(target) {
+                            runtime().stop_automation(error);
+                            continue;
+                        }
+                        was_active = true;
+                    }
+                    if !native.foreground(target) {
+                        held.release(native, target);
+                        runtime().stop(
+                            "다른 창으로 전환되어 매크로를 중지했습니다. Roblox에서 다시 시작하세요.",
+                        );
+                        was_active = false;
                         continue;
                     }
-                    was_active = true;
-                }
-                if !native.foreground(target) {
-                    held.release(native, target);
-                    runtime().stop(
-                        "다른 창으로 전환되어 매크로를 중지했습니다. Roblox에서 다시 시작하세요.",
-                    );
+                } else {
                     was_active = false;
-                    continue;
                 }
             }
             held.release(native, target);
@@ -551,14 +658,17 @@ fn worker(native: &mut platform::Native) -> Result<(), String> {
             if let DeviceTick::Observe(region) = step {
                 let need_ocr = runtime().request_ocr;
                 // OCR sees this exact capture; stale text must not drive the next state.
-                // The acquisition request bounds OS capture/copy time too.
+                // PrintWindow uses its acquisition start; WGC supplies the
+                // delivered frame's render time, including time spent waiting
+                // for that frame rather than aging it from the request start.
+                #[cfg(not(target_os = "windows"))]
                 let captured_at = now();
                 let Some(image) = capture(native, target, &mut capture_failures)? else {
                     held.release(native, target);
                     continue;
                 };
                 #[cfg(target_os = "windows")]
-                let captured_at = captured_at.min(native.captured_at());
+                let captured_at = native.captured_at();
                 let ocr_started = need_ocr.then(crate::now);
                 let words = if need_ocr {
                     match ocr_words(&image, region, |crop| native.ocr(crop)) {

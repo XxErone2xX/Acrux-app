@@ -210,6 +210,15 @@ function desktop(saved, options = {}) {
         if (options.manualWait) await options.manualWait(payload);
         return;
       }
+      if (command === 'pick_macro_position') {
+        if (options.pickWait) await options.pickWait;
+        if (options.pickError) throw new Error(options.pickError);
+        assert.equal(payload.generation, status.generation);
+        const pos = payload.region ? [.1, .2, .7, .8] : [.2, .3];
+        nativeConfig[payload.feat][payload.key] = pos;
+        return { pos, config: structuredClone(nativeConfig) };
+      }
+      if (command === 'desktop_cancel_pick') { options.cancelPick?.(); return; }
       if (command === 'desktop_snapshot') {
         if (options.snapshotWait) await options.snapshotWait();
         if (!options.snapshot) throw new Error('No snapshot fixture configured');
@@ -426,6 +435,44 @@ test('private game picks a normalized position from the actual snapshot pixels i
   assert.deepEqual(app.stored().base.chat_pos, [0.25, 0.75]);
   assert.equal(dialog.removed, true);
   assert.equal(app.calls.some(([name]) => name === 'desktop_pick'), false);
+});
+
+test('Windows position and region settings use live game selection and keep the saved native config', async () => {
+  for (const [action, payload, expected] of [
+    ['mpos_point', { feat: 'base', key: 'chat_pos' }, [.2, .3]],
+    ['mpos_region', { feat: 'mfish', key: 'panel_region' }, [.1, .2, .7, .8]],
+    ['play_pos', { which: 'skip' }, [.2, .3]],
+  ]) {
+    const app = desktop({}, { platform: 'windows' });
+    const result = await app.api(action, payload);
+    assert.deepEqual(result.pos, expected);
+    const pick = app.calls.find(([name]) => name === 'pick_macro_position')[1];
+    assert.equal(pick.region, action === 'mpos_region');
+    assert.equal(pick.generation, 0);
+    assert.deepEqual(app.stored()[pick.feat][pick.key], expected);
+    assert.equal(app.elements.some(el => el.tag === 'dialog'), false);
+    assert.equal(app.calls.some(([name]) => name === 'desktop_snapshot' || name === 'save_macro_settings'), false);
+  }
+});
+
+test('Windows live selection cancels through the native owner without persisting a coordinate', async () => {
+  let cancel;
+  const wait = new Promise((_, reject) => { cancel = () => reject(new Error('위치 지정을 취소했습니다.')); });
+  const app = desktop({}, { platform: 'windows', pickWait: wait, cancelPick: () => cancel() });
+  const pending = app.api('mpos_point', { feat: 'base', key: 'chat_pos' });
+  await flush();
+  await app.api('pick_cancel', {});
+  assert.match((await pending).error, /취소/);
+  assert.equal(app.stored().base.chat_pos, null);
+  assert.equal(app.calls.filter(([name]) => name === 'desktop_cancel_pick').length, 1);
+});
+
+test('place actions keep their own errors while disconnected instead of silently opening a session', async () => {
+  const app = desktop({}, { background: false, session: { state: 'stopped' }, automationError: '게임 캡처와 입력을 먼저 연결하세요.' });
+  for (const action of ['go', 'waypoint_mark', 'waypoint_cancel']) {
+    assert.match((await app.api(action, { destination: 'sell' })).error, /먼저 연결/);
+  }
+  assert.equal(app.calls.some(([name]) => name === 'desktop_session_start'), false);
 });
 
 test('snapshot picker rejects invalid dimensions and truncated or extra pixel data before creating a dialog', async () => {

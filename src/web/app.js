@@ -1620,19 +1620,26 @@ function renderNativeTravel(el, kind, feat) {
     : kind === 'movebaserev' || feat === 'mcraft' ? [['craft', '포션 제작 장소']]
     : feat === 'mmatch' ? [['match', '메모리 매치 장소']]
     : [['coast', '낚시 장소'], ['sell', '판매 장소']];
-  el.innerHTML = `<p class="hint">현재 위치와 지형을 화면에서 확인하고 장애물과 점프 구간을 고려해 이동합니다. 목적지 앞에서 [현재 장소 기억]을 누르면 실제 화면을 다음 이동에 사용합니다.</p>`
-    + `<label class="row"><span>캐릭터 이름 (표시명|계정명)<small>비우면 바이옴 설정의 플레이어 이름을 사용합니다.</small></span><input type="text" maxlength="160" data-native-label value="${esc(config.player_label || '')}"></label>`
-    + destinations.map(([destination, name]) => `<div class="row"><span>${name}<small>시간 기록 없이 이동 · 도착은 화면에서 확인</small></span><span class="pos"><button class="btn mini" type="button" data-native-go="${destination}">이 장소로 이동</button><button class="btn mini ghost" type="button" data-native-mark="${destination}">현재 장소 기억</button></span></div>`).join('')
+  el.innerHTML = `<p class="hint">현재 위치와 지형을 화면에서 확인하고 이동합니다. [현재 장소 기억]은 자기 캐릭터의 이름·발·주변 지면과 목적지 표식이 함께 보일 때 사용할 수 있습니다.</p>`
+    + (kind === 'movebase' ? `<label class="row"><span>내 캐릭터의 표시 이름<small>다른 플레이어와 구분하는 데 사용합니다. 머리 위에 보이는 이름을 입력하세요. 비우면 바이옴 설정의 플레이어 이름을 사용합니다.</small></span><input type="text" maxlength="160" data-native-label value="${esc(config.player_label || '')}"></label>` : `<p class="hint">이동에 사용할 내 이름은 공통 위치 → 이동 · 기준 장소에서 설정합니다.</p>`)
+    + destinations.map(([destination, name]) => `<div class="row"><span>${name}<small>${lastMove?.remembered?.includes(destination) ? '장소 저장됨' : '저장된 장소 없음'} · 도착은 화면에서 확인</small></span><span class="pos"><button class="btn mini" type="button" data-native-go="${destination}">이 장소로 이동</button><button class="btn mini ghost" type="button" data-native-mark="${destination}">현재 장소 기억</button></span></div>`).join('')
     + (feat === 'mfish' ? [['useMove', '시작할 때 낚시 장소로 이동'], ['useSell', '가득 차면 판매하러 가기']].map(([key, label]) => `<label class="row"><span>${label}</span><span class="switch"><input type="checkbox" data-native-travel="${key}" ${config[key] !== false && mfish()[key] !== false ? 'checked' : ''}><i></i></span></label>`).join('') : '')
     + `<div class="row"><span class="move-state">${esc(lastMove?.msg || '대기')}</span><span class="pos"><button class="btn mini ghost" type="button" data-native-cancel>관측 취소</button><button class="btn mini ghost" type="button" data-native-stop>이동 정지</button></span></div>`;
-  el.querySelector('[data-native-label]').addEventListener('change', event => {
+  el.querySelector('[data-native-label]')?.addEventListener('change', event => {
     config.player_label = event.target.value.trim();
     queueSave({ player_label: config.player_label });
   });
-  el.querySelectorAll('[data-native-go]').forEach(b => b.addEventListener('click', () => moveCall('go', { destination: b.dataset.nativeGo }, '화면에서 경로를 확인하며 이동합니다.')));
+  el.querySelectorAll('[data-native-go]').forEach(b => b.addEventListener('click', async () => {
+    await flushSave();
+    moveCall('go', { destination: b.dataset.nativeGo }, '화면에서 경로를 확인하며 이동합니다.');
+  }));
   el.querySelectorAll('[data-native-mark]').forEach(b => b.addEventListener('click', async () => {
-    const r = await api('waypoint_mark', { destination: b.dataset.nativeMark });
-    toast(r.error || '실제 목적지 화면을 기억했습니다.');
+    b.disabled = true;
+    try {
+      await flushSave();
+      const r = await api('waypoint_mark', { destination: b.dataset.nativeMark });
+      toast(r.error || '실제 목적지 화면을 기억했습니다.');
+    } finally { b.disabled = false; }
   }));
   el.querySelector('[data-native-cancel]').addEventListener('click', () => moveCall('waypoint_cancel', {}, '목적지 관측을 취소했습니다.'));
   el.querySelector('[data-native-stop]').addEventListener('click', () => api('move_stop'));
@@ -1901,14 +1908,15 @@ setInterval(() => {
 function updateMove(st) {
   const was = !!(lastMove && lastMove.running), now = !!(st && st.running);
   const measChanged = !!(lastMove && lastMove.measuring) !== !!(st && st.measuring);
+  const placesChanged = JSON.stringify(lastMove?.remembered) !== JSON.stringify(st?.remembered);
   lastMove = st;
   if (!document.querySelector('[data-mpos-custom]')) return;
-  if (was !== now || measChanged) {
+  if (was !== now || measChanged || placesChanged) {
     if (was && !now) api('move_get').then(r => { if (r.move) { config.move = r.move; rerenderMove(); } });
     else rerenderMove();
     return;
   }
-  document.querySelectorAll('.move-state').forEach(s => setText(s, shortcutText(now ? (st.msg || '이동 중') : '대기')));
+  document.querySelectorAll('.move-state').forEach(s => setText(s, shortcutText(window.acruxDesktopApi ? (st?.msg || '대기') : now ? (st.msg || '이동 중') : '대기')));
 }
 // 위치는 서버가 이미 저장함 → 화면만 다시 그림 (준비 상태 · ▾ · 왼쪽 목록 표시도)
 function mposChanged(feat) {

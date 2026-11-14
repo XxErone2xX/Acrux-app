@@ -60,6 +60,7 @@ export interface Status {
   dua: DuaStatus;
   session: SessionStatus;
   generation: number;
+  rememberedDestinations?: string[];
 }
 
 export const status = () => invoke<Status>("status");

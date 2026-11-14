@@ -353,11 +353,13 @@ async function openGameView() {
 
 let pickRevision = 0;
 let pickingDesktop = false;
+let pickingLive = false;
 let cancelPreview: (() => void) | undefined;
 
 async function cancelDesktopPick() {
   ++pickRevision;
   cancelPreview?.();
+  if (pickingLive) await invoke("desktop_cancel_pick");
 }
 
 async function pickDesktop(): Promise<Position> {
@@ -556,9 +558,30 @@ async function pickFile() {
 }
 
 async function pickSetting(feat: string, key: string, region: boolean) {
+  await configSaves;
   await loadNativeConfig();
   if (!Object.hasOwn(config, feat) || !["base", "mfish", "mmerch", "mcraft", "mmatch", "play", "move"].includes(feat)
       || !/^[a-z_]+$/.test(key)) throw new Error("저장할 위치를 확인하세요.");
+  const current = await status();
+  if (current.platform === "windows") {
+    if (pickingDesktop) throw new Error("위치를 이미 지정 중입니다.");
+    if (!current.captureReady || !current.inputReady || current.session.state !== "ready") throw new Error("[게임 열기]로 Roblox를 연결한 뒤 다시 시도하세요.");
+    if (current.dua.running || current.phase !== "idle") throw new Error("실행 중인 작업을 먼저 중지하세요.");
+    pickingDesktop = true;
+    const revision = ++pickRevision;
+    try {
+      ++gameViewRevision;
+      closeGameView?.();
+      await gameInputCleanup;
+      if (revision !== pickRevision) throw new Error("위치 지정을 취소했습니다.");
+      pickingLive = true;
+      const result = await invoke<{ pos: number[]; config: Config }>("pick_macro_position", { feat, key, region, generation: current.generation });
+      if (revision !== pickRevision) throw new Error("위치 지정을 취소했습니다.");
+      Object.assign(config, result.config, { macro_on: config.macro_on });
+      persist();
+      return { [feat]: structuredClone(config[feat]), pos: result.pos };
+    } finally { pickingLive = false; pickingDesktop = false; }
+  }
   const first = await pickDesktop();
   let pos: number[] = first;
   if (region) {
@@ -566,9 +589,10 @@ async function pickSetting(feat: string, key: string, region: boolean) {
     pos = [Math.min(first[0], second[0]), Math.min(first[1], second[1]), Math.max(first[0], second[0]), Math.max(first[1], second[1])];
     if (pos[0] === pos[2] || pos[1] === pos[3]) throw new Error("영역의 서로 다른 두 모서리를 고르세요.");
   }
-  const group = config[feat] as Bag;
+  const candidate = structuredClone(config);
+  const group = candidate[feat] as Bag;
   group[key] = pos;
-  await saveNativeConfig();
+  await saveNativeConfig(candidate);
   return { [feat]: structuredClone(group), pos };
 }
 
@@ -659,7 +683,8 @@ async function request(name: string, payload: Bag) {
       const native = await service("runtime_metadata").catch(() => ({} as Bag));
       const active = automation.active as Bag | null;
       const activity = (kind: string) => ({ running: !!automation.running && active?.kind === kind, msg: String(automation.message ?? s.message) });
-      const move = { ...activity("go"), running: s.phase === "moving" || active?.kind === "go", measuring: null };
+      const move = { ...activity("go"), running: s.phase === "moving" || active?.kind === "go", msg: s.message,
+        remembered: s.rememberedDestinations ?? [], measuring: null };
       if (!s.dua.running && s.phase === "idle" && config.macro_on && !desktopPending) { desiredMacro = false; config.macro_on = false; }
       const message = s.dua.running ? `DUA · ${s.dua.route ?? "대기"} · ${s.dua.reason} · ${s.message}` : s.message;
       const logs = message === last ? [] : [{ seq: ++seq, time: Date.now() / 1000, msg: message, color: "d" }];
@@ -806,6 +831,8 @@ async function request(name: string, payload: Bag) {
     case "mmerch_check": case "mmerch_buy_test": case "mmerch_stop":
     case "mcraft_test": case "mcraft_stop": case "mmatch_test": case "mmatch_stop":
     case "go": case "waypoint_mark": case "waypoint_cancel":
+      await configSaves;
+      return nativeAction(name, payload);
     case "ret_join": {
       const current = await status();
       if (current.session.state !== "ready") return { session: await invoke<SessionStatus>("desktop_session_start") };

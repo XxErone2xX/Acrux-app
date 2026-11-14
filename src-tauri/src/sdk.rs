@@ -271,14 +271,18 @@ pub(crate) fn inspect(
                 _ => return Err("목적지를 확인하세요.".into()),
             };
             let settings = state.movement_settings();
-            state.wayfinding.memory = crate::wayfinder::Wayfinder::mark(
+            let memory = crate::wayfinder::Wayfinder::mark(
                 destination,
                 settings,
                 geometry,
                 frame,
                 &state.ocr_words,
             )?;
-            state.save(state.fishing.tuning)?;
+            let previous = std::mem::replace(&mut state.wayfinding.memory, memory);
+            if let Err(error) = state.save(state.fishing.tuning) {
+                state.wayfinding.memory = previous;
+                return Err(error);
+            }
             return Ok(json!({"ok":true,"message":"현재 관측에서 목적지 기준점을 저장했습니다."}));
         }
         if method == "grab" {

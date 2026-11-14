@@ -287,6 +287,7 @@ struct Status {
     dua: DuaStatus,
     generation: i32,
     automation: serde_json::Value,
+    remembered_destinations: Vec<navigator::Destination>,
 }
 
 #[derive(Serialize)]
@@ -374,6 +375,15 @@ impl Runtime {
                 .as_ref()
                 .map(|runner| serde_json::to_value(runner.status()).unwrap_or_default())
                 .unwrap_or_else(|| self.last_automation.clone()),
+            remembered_destinations: self.wayfinding.memory.anchors.iter().fold(
+                Vec::new(),
+                |mut places, anchor| {
+                    if !places.contains(&anchor.destination) {
+                        places.push(anchor.destination);
+                    }
+                    places
+                },
+            ),
         }
     }
 
@@ -821,6 +831,18 @@ impl Runtime {
             });
         }
         settings.jump = self.macro_point("jump_btn").or(settings.jump);
+        #[cfg(desktop)]
+        {
+            // Desktop adapters decode Stick into WASD and jump into Space.
+            // These coordinates encode a direction, not an on-screen joystick.
+            let (w, h) = self.last_geometry.unwrap_or((1, 1));
+            let radius = w.min(h) as f64 * 0.1 / w.max(1) as f64;
+            settings.controls = Some(navigator::Controls {
+                stick_center: vision::Point(0.5, 0.5),
+                stick_edge: vision::Point(0.5 + radius, 0.5),
+            });
+            settings.jump = Some(vision::Point(0.5, 0.5));
+        }
         let config = self.macro_config();
         settings.player_label = config["player_label"]
             .as_str()
@@ -2084,7 +2106,16 @@ async fn pick_macro_position(
         let label = key.clone();
         tauri::async_runtime::spawn_blocking(move||android::pick_macro(&app,serde_json::json!({"label":label,"region":region,"initial":initial.as_array().cloned().unwrap_or_default()}))).await.map_err(|e|e.to_string())??
     };
-    #[cfg(desktop)]
+    #[cfg(target_os = "windows")]
+    let result = {
+        let _ = (app, initial);
+        tauri::async_runtime::spawn_blocking(move || {
+            desktop::pick_area(region).map(|pos| serde_json::json!({"pos":pos}))
+        })
+        .await
+        .map_err(|e| e.to_string())??
+    };
+    #[cfg(all(desktop, not(target_os = "windows")))]
     let result = {
         let _ = (app, initial);
         tauri::async_runtime::spawn_blocking(move || {
@@ -2535,6 +2566,23 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(desktop)]
+    fn desktop_travel_encodes_keyboard_without_mobile_joystick_configuration() {
+        let mut state = Runtime::default();
+        state.last_geometry = Some((1920, 1080));
+        state.macro_settings = state.macro_config();
+        for key in ["stick_center", "stick_edge", "jump_btn"] {
+            state.macro_settings["base"][key] = serde_json::Value::Null;
+        }
+        let settings = state.movement_settings();
+        let controls = settings.controls.expect("desktop direction encoding");
+        assert!(controls.stick_edge.0 > controls.stick_center.0);
+        assert_eq!(controls.stick_center.1, controls.stick_edge.1);
+        assert!(settings.jump.is_some(), "desktop jump maps to Space");
+        assert!(state.status().remembered_destinations.is_empty());
+    }
 
     #[test]
     fn ocr_processing_does_not_expire_fresh_capture_or_rewrite_its_time() {

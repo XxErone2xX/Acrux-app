@@ -82,6 +82,14 @@ const I18N = (() => {
 
     ["브라우저에서 [연결] 을 눌러 주세요 · 코드 {0}", "Press [Link] in the browser · code {0}", "ブラウザで [連携] を押してください · コード {0}"],
     // Native DUA navigation and development updater.
+    ["내 캐릭터의 표시 이름", "My avatar's display name", "自分のキャラクターの表示名"],
+    ["다른 플레이어와 구분하는 데 사용합니다. 머리 위에 보이는 이름을 입력하세요. 비우면 바이옴 설정의 플레이어 이름을 사용합니다.", "Identifies your avatar among other players. Enter the name shown above its head. Leave blank to use the player name in Biome settings.", "他のプレイヤーと区別するために使います。頭上に表示される名前を入力してください。空欄の場合はバイオーム設定のプレイヤー名を使います。"],
+    ["현재 위치와 지형을 화면에서 확인하고 이동합니다. [현재 장소 기억]은 자기 캐릭터의 이름·발·주변 지면과 목적지 표식이 함께 보일 때 사용할 수 있습니다.", "Uses the current screen and terrain to navigate. [Remember current location] requires your avatar's name, feet, surrounding ground and the destination landmark to be visible together.", "画面の現在位置と地形を確認して移動します。[現在地を記憶]には自分の名前、足、周囲の地面と目的地の目印が同時に見える必要があります。"],
+    ["이동에 사용할 내 이름은 공통 위치 → 이동 · 기준 장소에서 설정합니다.", "Set your avatar name under Shared positions → Movement · base spot.", "移動に使う自分の名前は共通位置 → 移動・基準地点で設定します。"],
+    ["장소 저장됨", "Location saved", "場所を保存済み"],
+    ["저장된 장소 없음", "No saved location", "保存された場所なし"],
+    ["위치 지정 시간이 초과됐습니다. 다시 시도하세요.", "Position selection timed out. Try again.", "位置指定がタイムアウトしました。もう一度お試しください。"],
+    ["게임 창이 변경되어 위치 지정을 취소했습니다.", "Position selection was canceled because the game window changed.", "ゲームウィンドウが変わったため位置指定をキャンセルしました。"],
     ["캐릭터 이름 (표시명|계정명)", "Avatar name (display name|account name)", "キャラクター名（表示名|アカウント名）"],
     ["비우면 바이옴 설정의 플레이어 이름을 사용합니다.", "Leave blank to use the player name in Biome settings.", "空欄の場合はバイオーム設定のプレイヤー名を使用します。"],
     ["현재 위치와 지형을 화면에서 확인하고 장애물과 점프 구간을 고려해 이동합니다. 목적지 앞에서 [현재 장소 기억]을 누르면 실제 화면을 다음 이동에 사용합니다.", "Uses the screen to locate the avatar, terrain, obstacles and jump sections. Press [Remember current location] at a destination to use its actual view on later trips.", "画面で現在位置、地形、障害物とジャンプ区間を確認して移動します。目的地の前で[現在地を記憶]を押すと、次の移動で実際の画面を使用します。"],

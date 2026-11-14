@@ -238,19 +238,14 @@ impl Wayfinder {
             ],
             Destination::Match => &["memorymatch", "메모리매치"],
         };
-        let candidates: Vec<_> = words
-            .iter()
-            .filter(|w| {
-                let text = normalized(&w.text);
-                labels.iter().any(|label| text == normalized(label))
-                    && w.rect.1 > 0.08
-                    && w.rect.3 < 0.82
-            })
+        let candidates: Vec<_> = matching_words(words, labels, false)
+            .into_iter()
+            .filter(|w| w.rect.1 > 0.08 && w.rect.3 < 0.82)
             .collect();
         if candidates.len() != 1 {
             return Err("이 목적지의 실제 표식을 하나로 구분하지 못했습니다. 자기 캐릭터와 목적지 표식이 함께 보이게 해 주세요.".into());
         }
-        let word = candidates[0];
+        let word = &candidates[0];
         let rect = expand(word.rect, 0.06, 0.12);
         let anchor = capture_anchor(frame, rect, contact.point, destination, word.text.clone())
             .ok_or("현재 화면의 목적지 표식 이미지를 저장하지 못했습니다.")?;
@@ -1415,9 +1410,8 @@ impl Wayfinder {
             Destination::Craft => &["stella", "스텔라"],
             Destination::Match => &["memorymatch", "메모리매치"],
         };
-        for word in words {
-            let text = normalized(&word.text);
-            if labels.iter().any(|label| text.contains(&normalized(label))) && word.rect.1 < 0.82 {
+        for word in matching_words(words, labels, true) {
+            if word.rect.1 < 0.82 {
                 if let Some(p) = grid.near_label(word.rect, contact.radius * 2.) {
                     return Some((p, word.text.clone(), Some(expand(word.rect, 0.04, 0.06))));
                 }
@@ -1602,19 +1596,77 @@ fn normalized(text: &str) -> String {
         .flat_map(char::to_lowercase)
         .collect()
 }
-fn find<'a>(words: &'a [Word], labels: &[&str]) -> Option<&'a Word> {
-    words.iter().find(|w| {
-        labels
-            .iter()
-            .any(|label| normalized(&w.text) == normalized(label))
-    })
+/// OCR engines may return either lines or individual words. Join only adjacent
+/// words on the same visible line, and only while they can form a known label.
+/// Unrelated rows, gaps and intervening words never become a landmark/name.
+fn matching_words(words: &[Word], labels: &[&str], partial: bool) -> Vec<Word> {
+    let labels: Vec<_> = labels
+        .iter()
+        .map(|s| normalized(s))
+        .filter(|s| !s.is_empty())
+        .collect();
+    let text: Vec<_> = words.iter().map(|w| normalized(&w.text)).collect();
+    let mut matches = Vec::new();
+    for (i, first) in words.iter().enumerate() {
+        if !rect_valid(first.rect) || text[i].is_empty() {
+            continue;
+        }
+        let mut current = first.clone();
+        let mut joined = text[i].clone();
+        for _ in 0..12 {
+            if labels.iter().any(|label| {
+                if partial {
+                    joined.contains(label)
+                } else {
+                    joined == *label
+                }
+            }) {
+                matches.push(current.clone());
+            }
+            if !labels
+                .iter()
+                .any(|label| label.len() > joined.len() && label.starts_with(&joined))
+            {
+                break;
+            }
+            let height = current.rect.3 - current.rect.1;
+            let next = words
+                .iter()
+                .enumerate()
+                .filter(|(j, word)| {
+                    let r = word.rect;
+                    let h = r.3 - r.1;
+                    let overlap = current.rect.3.min(r.3) - current.rect.1.max(r.1);
+                    *j != i
+                        && !text[*j].is_empty()
+                        && rect_valid(r)
+                        && r.0 >= current.rect.2 - height * 0.15
+                        && r.2 > current.rect.2
+                        && r.0 - current.rect.2 <= height.max(h) * 0.9
+                        && overlap >= height.max(h) * 0.65
+                        && h >= height * 0.65
+                        && h <= height * 1.5
+                })
+                .min_by(|(_, a), (_, b)| a.rect.0.total_cmp(&b.rect.0));
+            let Some((index, next)) = next else { break };
+            joined.push_str(&text[index]);
+            current.text.push(' ');
+            current.text.push_str(&next.text);
+            current.rect = Rect(
+                current.rect.0,
+                current.rect.1.min(next.rect.1),
+                next.rect.2,
+                current.rect.3.max(next.rect.3),
+            );
+        }
+    }
+    matches
+}
+fn find(words: &[Word], labels: &[&str]) -> Option<Word> {
+    matching_words(words, labels, false).into_iter().next()
 }
 fn has(words: &[Word], labels: &[&str]) -> bool {
-    words.iter().any(|w| {
-        labels
-            .iter()
-            .any(|label| normalized(&w.text).contains(&normalized(label)))
-    })
+    !matching_words(words, labels, true).is_empty()
 }
 fn task_ui(destination: Destination, frame: &Frame<'_>, words: &[Word]) -> bool {
     match destination {
@@ -1658,6 +1710,8 @@ fn exclusions(frame: &Frame<'_>, words: &[Word], saved: &[Rect], player: &str) -
         Rect(0., 0.08, 0.12, 1.),
         Rect(0., 0.82, 1., 1.),
     ]);
+    let names: Vec<_> = player.split('|').collect();
+    let own_labels = matching_words(words, &names, false);
     for word in words {
         let s = normalized(&word.text);
         if word.rect.0 > 0.68
@@ -1673,7 +1727,9 @@ fn exclusions(frame: &Frame<'_>, words: &[Word], saved: &[Rect], player: &str) -
             values.push(Rect(word.rect.0, 0., 1., 0.78));
         }
         if !s.is_empty()
-            && !player.split('|').any(|p| normalized(p) == s)
+            && !own_labels
+                .iter()
+                .any(|label| inside(label.rect, center(word.rect)))
             && word.rect.1 > 0.1
             && word.rect.1 < 0.8
             && s.chars().any(|c| c.is_ascii_digit())
@@ -1690,19 +1746,45 @@ fn exclusions(frame: &Frame<'_>, words: &[Word], saved: &[Rect], player: &str) -
 /// Locate a name-associated BODY silhouette and its visible two-foot base.
 /// A glow, overhead word or screen center is never used as a foot observation.
 fn avatar_contact(frame: &Frame<'_>, words: &[Word], player: &str) -> Result<Contact, String> {
-    let names: Vec<_> = player
-        .split('|')
-        .map(normalized)
-        .filter(|s| !s.is_empty())
-        .collect();
-    let labels: Vec<_> = words
-        .iter()
-        .filter(|w| names.contains(&normalized(&w.text)))
-        .collect();
-    if labels.len() != 1 {
-        return Err("자기 캐릭터의 표시 이름을 하나로 구분하지 못했습니다. 이름과 발이 가려지지 않게 해 주세요.".into());
+    let names: Vec<_> = player.split('|').filter(|s| !s.trim().is_empty()).collect();
+    let labels = matching_words(words, &names, false);
+    let ambiguous = || {
+        "자기 캐릭터의 표시 이름을 하나로 구분하지 못했습니다. 이름과 발이 가려지지 않게 해 주세요."
+            .to_owned()
+    };
+    if labels.is_empty()
+        || labels.iter().enumerate().any(|(i, a)| {
+            labels[..i]
+                .iter()
+                .any(|b| normalized(&a.text) == normalized(&b.text))
+        })
+    {
+        return Err(ambiguous());
     }
-    let word = labels[0];
+    let mut contacts = labels.iter().map(|word| contact_below_label(frame, word));
+    let first = contacts.next().unwrap()?;
+    for contact in contacts {
+        let contact = contact?;
+        // Display name and account name may occupy two overhead rows. They
+        // identify one avatar only when both independently find the SAME feet.
+        if distance(
+            [
+                first.point.0 * frame.width as f64,
+                first.point.1 * frame.height as f64,
+            ],
+            [
+                contact.point.0 * frame.width as f64,
+                contact.point.1 * frame.height as f64,
+            ],
+        ) > first.error.max(contact.error)
+        {
+            return Err(ambiguous());
+        }
+    }
+    Ok(first)
+}
+
+fn contact_below_label(frame: &Frame<'_>, word: &Word) -> Result<Contact, String> {
     let label = word
         .rect
         .region((frame.width, frame.height))
@@ -3401,6 +3483,117 @@ mod tests {
         assert!(
             Wayfinder::mark(Destination::Sell, settings, (W + 1, H), &frame(&b), &words).is_err()
         );
+    }
+
+    #[test]
+    fn split_ocr_words_identify_names_register_places_and_find_the_same_goal() {
+        let mut b = floor();
+        body(&mut b);
+        let f = frame(&b);
+        // Windows.Media.Ocr emits these individual word boxes, not a line.
+        let words = [
+            word("Alice", (142, 88, 156, 99)),
+            word("Smith", (159, 88, 172, 99)),
+            word("Captain", (190, 120, 227, 135)),
+            word("Flarg", (232, 121, 260, 135)),
+        ];
+        let contact = avatar_contact(&f, &words, "Alice Smith").unwrap();
+        assert!((contact.point.1 * H as f64 - 145.).abs() < 2.);
+        let settings = Settings {
+            player_label: "Alice Smith".into(),
+            ..Settings::default()
+        };
+        let memory =
+            Wayfinder::mark(Destination::Sell, settings.clone(), (W, H), &f, &words).unwrap();
+        assert_eq!(memory.anchors[0].label, "Captain Flarg");
+        let finder = Wayfinder::start(Destination::Sell, settings, 0.).unwrap();
+        let grid = Grid::observe(&f, contact, &exclusions(&f, &words, &[], "Alice Smith")).unwrap();
+        assert_eq!(
+            finder.goal(&f, &words, &grid, contact).unwrap().1,
+            "Captain Flarg"
+        );
+    }
+
+    #[test]
+    fn split_words_cannot_join_other_rows_distant_words_or_skip_an_intervening_word() {
+        for words in [
+            vec![
+                word("Captain", (190, 120, 227, 135)),
+                word("Flarg", (232, 141, 260, 155)),
+            ],
+            vec![
+                word("Captain", (190, 120, 227, 135)),
+                word("Flarg", (270, 120, 300, 135)),
+            ],
+            vec![
+                word("Captain", (190, 120, 227, 135)),
+                word("Other", (231, 120, 250, 135)),
+                word("Flarg", (254, 120, 280, 135)),
+            ],
+        ] {
+            assert!(matching_words(&words, &["captainflarg"], false).is_empty());
+        }
+    }
+
+    #[test]
+    fn display_and_account_rows_must_independently_identify_the_same_visible_feet() {
+        let mut b = floor();
+        body(&mut b);
+        let f = frame(&b);
+        let names = [
+            word("Alice Smith", (142, 77, 172, 87)),
+            word("@alice_account", (135, 88, 179, 99)),
+        ];
+        let contact = avatar_contact(&f, &names, "Alice Smith|alice_account").unwrap();
+        assert!((contact.point.1 * H as f64 - 145.).abs() < 2.);
+        assert!(avatar_contact(
+            &f,
+            &[names[0].clone(), names[0].clone()],
+            "Alice Smith|alice_account"
+        )
+        .is_err());
+        let other = word("@alice_account", (310, 88, 354, 99));
+        assert!(
+            avatar_contact(&f, &[names[0].clone(), other], "Alice Smith|alice_account").is_err()
+        );
+    }
+
+    #[test]
+    fn split_names_do_not_turn_their_numeric_word_into_an_obstacle() {
+        let b = floor();
+        let words = [
+            word("Alice", (142, 88, 157, 99)),
+            word("12345", (160, 88, 179, 99)),
+        ];
+        assert_eq!(exclusions(&frame(&b), &words, &[], "Alice 12345").len(), 3);
+        assert_eq!(exclusions(&frame(&b), &words, &[], "Bob").len(), 4);
+    }
+
+    #[test]
+    fn split_ocr_task_titles_confirm_only_the_matching_destination() {
+        let b = floor();
+        let f = frame(&b);
+        let sell = [
+            word("Sell", (180, 40, 210, 55)),
+            word("Fish", (215, 40, 245, 55)),
+            word("Sell", (180, 80, 210, 95)),
+            word("All", (215, 80, 245, 95)),
+        ];
+        let craft = [
+            word("Stella's", (180, 40, 222, 55)),
+            word("Workshop", (227, 40, 280, 55)),
+            word("Item", (180, 80, 210, 95)),
+        ];
+        let game = [
+            word("Memory", (180, 40, 222, 55)),
+            word("Match", (227, 40, 260, 55)),
+            word("Available", (180, 80, 245, 95)),
+        ];
+        assert!(task_ui(Destination::Sell, &f, &sell));
+        assert!(task_ui(Destination::Craft, &f, &craft));
+        assert!(task_ui(Destination::Match, &f, &game));
+        assert!(!task_ui(Destination::Sell, &f, &craft));
+        assert!(!task_ui(Destination::Craft, &f, &game));
     }
 
     #[test]
