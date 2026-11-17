@@ -2329,7 +2329,7 @@ function updateRet(st) {
 }
 
 // ---------------------------------------------------------------- 바이옴 매크로
-const bio = () => (config.biome ||= { enabled: false, player: '', ps_link: '', webhooks: ['', ''], everyone: {}, roles: {} });
+const bio = () => (config.biome ||= { enabled: false, player: '', ps_link: '', webhooks: ['', ''], everyone: {}, roles: {}, safe_mode: true, safe_v2: true });
 // 덜 희귀한 것 → 희귀한 것 (멘션 설정에는 거꾸로: 희귀한 것부터)
 const BIOME_LIST = ['WINDY', 'SNOWY', 'RAINY', 'SANDSTORM', 'HELL', 'STARFALL', 'HEAVEN', 'CORRUPTION', 'NULL',
                     'GLITCHED', 'DREAMSPACE', 'CYBERSPACE', 'LOSTFOREST', 'SINGULARITY', 'RADIANTFOREST',

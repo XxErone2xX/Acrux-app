@@ -18,7 +18,9 @@ import numpy as np
 
 W_MAX = 900                     # 글자 줄 최대 폭 (넘으면 줄바꿈)
 PAD_X, PAD_Y, GAP = 6, 6, 4
-OUTLINE = 2.2                   # 검은 외곽선 두께 (px · 화면 크기에 맞춰 늘어남)
+SCALE_MIN, SCALE_MAX = 0.35, 3.0   # 글자 크기 배율 범위 (게임 창 1920x1080 = 1)
+TOP = 50                        # 게임 화면 위에서 얼마나 내려서 띄울지 (px · 1080 기준 · 로블록스 위쪽 버튼 아래)
+OUTLINE = 3.0                   # 검은 외곽선 두께 (px · 화면 크기에 맞춰 늘어남)
 SS = 3                          # 글자를 3배로 그린 뒤 줄여서 테두리를 부드럽게 (작은 글씨에서 계단 현상 없앰)
 BG = (18, 18, 22)               # 단순한 창(겹친 창을 못 쓸 때) 배경
 LABEL, VALUE, ACCENT, NOTE = "#9AA0AC", "#FFFFFF", "#7FD1FF", "#FFD166"
@@ -102,7 +104,7 @@ class Renderer:
         return lines or [[]], space
 
     def render(self, rows, scale=1.0):
-        s = max(0.5, min(2.0, float(scale)))
+        s = max(SCALE_MIN, min(SCALE_MAX, float(scale)))
         inner = int(W_MAX * s)
         items = []                               # ("div", 높이) · ("text", 위 여백, 높이, [(마스크, 색, x)])
         for r in rows:
@@ -275,14 +277,22 @@ def run(path, parent=None, lang="ko", font="Malgun Gothic", rect_fn=None, alive_
             return
         rect = rect_fn() if rect_fn else None
         if rect and rect[2] > 200:
-            x, y = rect[0] + (rect[2] - w) // 2, rect[1] + int(8 * st["scale"])
+            x, y = rect[0] + (rect[2] - w) // 2, rect[1] + int(TOP * st["scale"])
         else:
-            x, y = (root.winfo_screenwidth() - w) // 2, 8
+            x, y = (root.winfo_screenwidth() - w) // 2, TOP
         bl = _Blend(0, 0, int(255 * max(0.0, min(1.0, st["alpha"]))), 1)
         u.UpdateLayeredWindow(hwnd, screen, ctypes.byref(W.POINT(x, y)), ctypes.byref(W.SIZE(w, h)), mem,
                               ctypes.byref(W.POINT(0, 0)), 0, ctypes.byref(bl), 2)
         if st["n"] % 40 == 0:                               # 다른 창이 맨 위로 올라와도 다시 위로
             u.SetWindowPos(hwnd, ctypes.c_void_p(-1), 0, 0, 0, 0, 0x1 | 0x2 | 0x10)
+
+    def fit():
+        """게임 창 크기 → 글자 배율 (가로 1920 · 세로 1080 중 작은 쪽 기준 · 0.05 단위로 맞춰서 자주 다시 안 그림)"""
+        rect = rect_fn() if rect_fn else None
+        if not rect or rect[2] < 50 or rect[3] < 50:
+            return st["scale"]
+        k = min(rect[2] / 1920, rect[3] / 1080)
+        return max(SCALE_MIN, min(SCALE_MAX, round(k * 20) / 20))
 
     def tick():
         st["n"] += 1
@@ -297,11 +307,15 @@ def run(path, parent=None, lang="ko", font="Malgun Gothic", rect_fn=None, alive_
                     raise ValueError
                 rows = [[r[0], labels.get(r[1], r[1]), _value(r[2], lang)] + list(r[3:4])
                         for r in (d.get("rows") or []) if isinstance(r, list) and len(r) >= 3]
-                rect = rect_fn() if rect_fn else None
-                scale = max(0.6, min(1.5, rect[3] / 1080)) if rect and rect[3] > 200 else 1.0
+                scale = fit()
                 if rows != st["rows"] or scale != st["scale"]:
                     st["rows"], st["scale"] = rows, scale
                     upload(rnd.render(rows, scale))
+            elif st["rows"] is not None and st["n"] % 2 == 0:
+                scale = fit()                        # 글자가 그대로여도 창 크기가 바뀌면 다시 그림
+                if scale != st["scale"]:
+                    st["scale"] = scale
+                    upload(rnd.render(st["rows"], scale))
         except (OSError, ValueError):
             pass
         dt, st["t"] = time.time() - st["t"], time.time()

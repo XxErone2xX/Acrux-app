@@ -832,7 +832,7 @@ public class TapService extends AccessibilityService {
 
     String page = "home";
     LinearLayout pageBox;
-    TextView dot, clock, bioState;
+    TextView dot, clock, bioState, safeNote;
     Toggle bioSw;
     /** 지금 페이지에서 상태가 바뀌면 다시 쓸 것들 */
     final List<Runnable> live = new ArrayList<>();
@@ -911,6 +911,13 @@ public class TapService extends AccessibilityService {
         LinearLayout.LayoutParams brp = mw();
         brp.topMargin = Ui.dp(this, 2);
         box.addView(br, brp);
+        // 안전 모드로 바이옴 알림을 기다리는 중: 안내 (누르면 1분 타이머 건너뜀 · PC 의 K 키)
+        safeNote = reg("safe", Ui.text(this, "", 10, C_WARN, false));
+        safeNote.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 6));
+        safeNote.setBackground(press());
+        safeNote.setOnClickListener(v -> Biome.skipSafe());
+        safeNote.setVisibility(Biome.waiting() ? View.VISIBLE : View.GONE);
+        box.addView(safeNote, mw());
         box.addView(section("기능"), mw());
         LinearLayout list = scroll(box);
         for (String[] p : PAGES) if (p[1].equals("home")) featRow(list, p[0]);
@@ -1481,9 +1488,14 @@ public class TapService extends AccessibilityService {
         }
         if (bioState != null) {
             boolean bio = Biome.on();
-            Ui.set(bioState, bio ? Biome.status : "꺼짐");
-            bioState.setTextColor(!bio ? C_DIM : Biome.watching ? C_ACC : C_WARN);
+            Ui.set(bioState, bio ? (Biome.waiting() ? "안전 모드 " + Biome.safeLeft() + "초" : Biome.status) : "꺼짐");
+            bioState.setTextColor(!bio ? C_DIM : Biome.waiting() ? C_WARN : Biome.watching ? C_ACC : C_WARN);
             bioSw.set(bio);
+        }
+        if (safeNote != null) {
+            boolean w = Biome.waiting();
+            if (w) Ui.set(safeNote, "[ 안전 모드 ] 가 활성화되어있습니다. 1분 타이머를 스킵하려면 여기를 눌러주세요.");
+            safeNote.setVisibility(w ? View.VISIBLE : View.GONE);
         }
         for (Runnable r : live) r.run();
         recBox.setVisibility(Hub.measuring ? View.VISIBLE : View.GONE);

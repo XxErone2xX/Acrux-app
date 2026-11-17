@@ -18,7 +18,7 @@ from pathlib import Path
 
 from version import VERSION
 # 매크로 받는 곳 — 디스코드 서버 초대 링크
-DISCORD_URL = "https://discord.gg/B9QzJuseHR"
+DISCORD_URL = "https://discord.gg/cc9APrrnNv"
 MACRO_NAME_LABEL = f"Acrux macro V{VERSION}"
 EMBED_COLOR = 0xFFFFFF
 EXIT_COLOR = 0xFF0000

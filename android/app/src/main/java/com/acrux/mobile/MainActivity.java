@@ -616,6 +616,11 @@ public class MainActivity extends Activity {
                 v -> Hub.prefs().edit().putString("biomePs", v).apply()), Ui.fill(this, 4));
         bm.addView(sw("레어 바이옴 @everyone [ GLITCHED, DREAMSPACE, CYBERSPACE ]", Biome.everyone(),
                 on -> Hub.prefs().edit().putBoolean("biomeEveryone", on).apply()), Ui.fill(this, 10));
+        bm.addView(sw("안전 모드", Biome.safe(), on -> {
+            Hub.prefs().edit().putBoolean("biomeSafe", on).apply();
+            Hub.changed();
+        }), Ui.fill(this, 10));
+        bm.addView(Ui.text(this, "서버 ID 가 1분 이상 그대로일 때만 바이옴 알림을 보내요 · 다른 사람 서버에 잠깐 들어갔을 때 알림이 안 가게 · 미니 UI 의 안내를 누르면 타이머 건너뛰기", 12, Ui.MUTED, false), Ui.fill(this, 4));
         bm.addView(Ui.button(this, "웹후크 테스트", Ui.MUTED, v -> {
             if (Biome.hooks().isEmpty()) {
                 Hub.log("웹후크를 먼저 입력해 주세요", 'y');
@@ -652,7 +657,8 @@ public class MainActivity extends Activity {
         if (biomeState == null) return;
         if (biomeSw != null && biomeSw.isChecked() != Biome.on()) biomeSw.setChecked(Biome.on());   // 미니 UI 의 [바이옴] 으로 바꿨을 때
         String st = Biome.on() ? Biome.status : "꺼짐";
-        Ui.set(biomeState, "지금 바이옴: " + Biome.show(Biome.current) + " · " + Ui.tr(st));
+        String sf = Biome.waiting() ? " · " + Ui.tr("안전 모드 " + Biome.safeLeft() + "초 · " + Biome.show(Biome.held) + " 알림 대기") : "";
+        Ui.set(biomeState, "지금 바이옴: " + Biome.show(Biome.current) + " · " + Ui.tr(st) + sf);
         biomeState.setTextColor(Biome.watching ? Ui.GREEN : Ui.MUTED);
     }
 

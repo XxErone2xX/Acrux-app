@@ -1112,9 +1112,9 @@ def _show_status_simple(path, parent=None):
         w, h = root.winfo_reqwidth(), root.winfo_reqheight()
         rect = client_rect(roblox_window_cached(2.0)) if IS_WIN else None
         if rect and rect[2] > 200:
-            x, y = rect[0] + (rect[2] - w) // 2, rect[1] + 8
+            x, y = rect[0] + (rect[2] - w) // 2, rect[1] + int(overlay.TOP * max(overlay.SCALE_MIN, min(overlay.SCALE_MAX, min(rect[2] / 1920, rect[3] / 1080))))
         else:
-            x, y = (root.winfo_screenwidth() - w) // 2, 8
+            x, y = (root.winfo_screenwidth() - w) // 2, overlay.TOP
         geo = f"{w}x{h}+{x}+{y}"
         if geo != st["geo"]:
             st["geo"] = geo
