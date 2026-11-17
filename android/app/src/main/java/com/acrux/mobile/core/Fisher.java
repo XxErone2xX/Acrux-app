@@ -158,8 +158,12 @@ public final class Fisher {
         int size = Math.max(3, (int) (W() * (x2 - x1) * 0.012));
         int[] p = px(x1 + rel[0] * (x2 - x1), y1 + rel[1] * (y2 - y1));
         Img im = grab(p[0] - size, p[1] - size, size * 2 + 1, size * 2 + 1);
+        // ◇ 는 흰색 — 화면이 어두우면 (기기 밝기 필터 · 어두운 바이옴 등) 180 정도로 보임 → 가장 밝은 값 기준으로 낮춤 (150 아래로는 안 내림)
+        int peak = 0;
+        for (int k = 0; k < im.w * im.h; k++) peak = Math.max(peak, im.min(k));
+        int thr = Math.max(150, Math.min(200, peak - 25));
         int c = 0;
-        for (int k = 0; k < im.w * im.h; k++) if (im.min(k) > 200) c++;
+        for (int k = 0; k < im.w * im.h; k++) if (im.min(k) > thr) c++;
         return c;
     }
 

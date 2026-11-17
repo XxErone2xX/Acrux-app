@@ -138,7 +138,9 @@ public final class Vision {
 
     static boolean isFill(double[] p) {
         double r = p[0], g = p[1], b = p[2];
-        return r < 100 && g >= 80 && b >= 140 && (b - g) >= -15 && (b - g) <= 85;
+        if (r < 100 && g >= 80 && b >= 140 && (b - g) >= -15 && (b - g) <= 85) return true;
+        // 화면이 어두울 때 (기기 밝기 필터 · 어두운 바이옴 등) 같은 파란 막대가 (34, 84, 135) 처럼 어둡게 보임 → 밝기 대신 파란 정도로
+        return r < 100 && g >= 55 && b >= 95 && (b - r) >= 60 && (b - g) >= -15 && (b - g) <= 85;
     }
 
     static boolean leftOk(double[][] band) {
@@ -559,7 +561,11 @@ public final class Vision {
             int ty0 = Math.max(0, (int) (barTop - barH * 1.7)), ty1 = Math.min(im.h, (int) barTop - 1);
             int rows = Math.max(1, ty1 - ty0);
             double[] cnt = new double[w];
-            for (int y = ty0; y < ty1; y++) for (int x = 0; x < w; x++) if (im.min(y * w + x) > 185) cnt[x]++;
+            // ◇ 는 흰색 — 화면이 어두우면 (기기 밝기 필터 등) 175~185 정도로 보임 → 그 줄에서 가장 밝은 값 기준으로 낮춤 (140 아래로는 안 내림)
+            int peak = 0;
+            for (int y = ty0; y < ty1; y++) for (int x = 0; x < w; x++) peak = Math.max(peak, im.min(y * w + x));
+            int thr = Math.max(140, Math.min(185, peak - 25));
+            for (int y = ty0; y < ty1; y++) for (int x = 0; x < w; x++) if (im.min(y * w + x) > thr) cnt[x]++;
             double[] orig = cnt.clone();
             for (int x = 0; x < w; x++) {
                 double side = Math.max(x - 2 >= 0 ? orig[x - 2] : 0, x + 2 < w ? orig[x + 2] : 0);

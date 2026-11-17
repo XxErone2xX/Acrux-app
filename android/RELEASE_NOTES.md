@@ -1,3 +1,15 @@
+## Acrux Mobile V1.5.6 업데이트
+- 이름 변경: 도감 → 아우라 도감 [ 공통 위치 · 상태 · 로그 ]
+- 낚시: 화면이 어두운 기기에서 릴링 미니게임을 계속 실패하던 문제 수정
+  - 원인: 화면이 어두우면 [ 기기 밝기 필터 · 어두운 바이옴 등 ] 파란 막대 · ◇ 가 원래보다 어둡게 보여서, 막대를 잡을 구간으로 · 내 위치를 맨 왼쪽으로 잘못 읽음 → 계속 누르기만 해서 오른쪽 끝으로 밀려남
+  - 파란 막대는 밝기 대신 파란 정도로 찾음 · ◇ 는 그 자리에서 가장 밝은 값 기준으로 찾음 [ 밝은 화면에서는 그대로 ]
+
+## Acrux Mobile V1.5.6 Update
+- Renamed: Collection → Aura collection [ common positions · status · log ]
+- Fishing: fixed the reeling minigame failing every time on devices with a dark screen
+  - Cause: on a dark screen [ device dimming filter · dark biomes etc. ] the blue bar and ◇ look darker than usual, so the bar was read as the catch zone and your position as the far left → it kept clicking and pushed you to the right end
+  - The blue bar is now found by how blue it is instead of brightness · ◇ is found relative to the brightest value there [ unchanged on bright screens ]
+
 ## Acrux Mobile V1.5.5 업데이트
 - 낚시: 결과창이 보정한 자리와 다르게 뜨면 결과창을 못 닫던 문제 수정
   - 원인: 결과창이 반투명해서 밝은 땅 [ 눈 등 ] 위에서는 창 모양을 못 찾음 · X 는 보정한 X 자리 근처에서만 찾아서, 결과창이 다른 크기로 뜨면 아무것도 안 누름

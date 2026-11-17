@@ -412,7 +412,7 @@ public final class Seller {
         out.state("판매 · 물고기 판매 장소로 가는 중");
         mv.goBase();
         mv.walk("물고기 판매 장소", sellRoute);
-        out.state("판매 · 카메라 정렬 (도감)");
+        out.state("판매 · 카메라 정렬 (아우라 도감)");
         mv.alignCamera();                              // 대화 버튼을 누르기 전에 화면부터 맞춤
         out.state("판매 · 대화");
         mv.tapUi(p("talk_btn"));                       // PC 의 E — 화면에 뜨는 대화 버튼
