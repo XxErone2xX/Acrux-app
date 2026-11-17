@@ -17,8 +17,9 @@ import time
 import numpy as np
 
 W_MAX = 900                     # 글자 줄 최대 폭 (넘으면 줄바꿈)
-PAD_X, PAD_Y, GAP = 36, 10, 4
-EDGE = 28                       # 양쪽 끝이 투명해지는 폭
+PAD_X, PAD_Y, GAP = 44, 18, 4
+EDGE_X, EDGE_Y = 40, 16         # 네 변이 서서히 투명해지는 폭 (좌우 · 위아래)
+SS = 3                          # 글자를 3배로 그린 뒤 줄여서 테두리를 부드럽게 (작은 글씨에서 계단 현상 없앰)
 BG = (18, 18, 22)
 BG_ALPHA = 0.85
 LABEL, VALUE, ACCENT, NOTE = "#9AA0AC", "#FFFFFF", "#7FD1FF", "#FFD166"
@@ -36,6 +37,17 @@ def _rgb(h):
         return 255, 255, 255
 
 
+def _shrink(m, k):
+    """k배로 그린 글자 모양 → 원래 크기 (k×k 칸 평균 · 안티에일리어싱)"""
+    if k <= 1 or m.size == 0:
+        return m
+    h, w = m.shape
+    H, W = -(-h // k), -(-w // k)
+    big = np.zeros((H * k, W * k), np.float32)
+    big[:h, :w] = m
+    return big.reshape(H, k, W, k).mean(axis=(1, 3)).round().astype(np.uint8)
+
+
 class Renderer:
     """줄들 → 픽셀마다 투명도가 있는 그림 (BGRA · 미리 곱한 알파) · mask(글자, 크기px) → 0~255 글자 모양 (높이 × 폭)"""
 
@@ -48,7 +60,7 @@ class Renderer:
         if k not in self.cache:
             if len(self.cache) > 400:
                 self.cache.clear()
-            self.cache[k] = self.mask(text, px)
+            self.cache[k] = _shrink(self.mask(text, px * SS), SS)
         return self.cache[k]
 
     def _wrap(self, segs, px, width):
@@ -104,10 +116,11 @@ class Renderer:
         for i, it in enumerate(items):
             H += (it[1] if it[0] == "div" else it[1] + it[2]) + (gap if i else 0)
         H = max(H, 2 * int(PAD_Y * s) + 1)
-        # 배경: 85% · 양쪽 끝 EDGE 만큼 서서히 투명
-        e = max(1, int(EDGE * s))
-        xs = np.arange(W, dtype=np.float32)
-        a = (np.clip(np.minimum(xs + 0.5, W - xs - 0.5) / e, 0, 1) * BG_ALPHA)[None, :].repeat(H, 0)
+        # 배경: 85% · 네 변 모두 서서히 투명 (부드러운 곡선)
+        def fade(n, e):
+            t = np.clip(np.minimum(np.arange(n) + 0.5, n - np.arange(n) - 0.5) / max(1.0, e), 0, 1).astype(np.float32)
+            return t * t * (3 - 2 * t)
+        a = fade(H, EDGE_Y * s)[:, None] * fade(W, EDGE_X * s)[None, :] * BG_ALPHA
         rgb = np.zeros((H, W, 3), np.float32)
         rgb[:] = BG
         y = int(PAD_Y * s)
@@ -201,7 +214,7 @@ def gdi_mask_factory(font="Malgun Gothic"):
     def mask(text, px):
         if px not in fonts:
             # 높이 -px = 글자 크기 px · ANTIALIASED_QUALITY (회색 테두리 · ClearType 아님)
-            fonts[px] = g.CreateFontW(-px, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 4, 0, font)
+            fonts[px] = g.CreateFontW(-px, 0, 0, 0, 600, 0, 0, 0, 1, 0, 0, 4, 0, font)
         old = g.SelectObject(dc, fonts[px])
         sz = W.SIZE()
         g.GetTextExtentPoint32W(dc, text, len(text), ctypes.byref(sz))
