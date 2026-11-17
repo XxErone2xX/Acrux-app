@@ -678,6 +678,26 @@ def pick_point(key="f8", timeout=30.0, stop=None):
 # 위치 지정 창 · 파일 선택 창 안내 글자 (앱이 ACRUX_LANG 로 화면 언어를 넘겨줌)
 _LANG = os.environ.get("ACRUX_LANG", "ko")
 _UI_FONT = {"ko": "Malgun Gothic", "en": "Segoe UI", "ja": "Yu Gothic UI"}
+GAME_FONT = "ONE Mobile POP"       # 게임 화면 위 글자 (현재 행동 · 안내 띠 · 위치 지정) — fonts/ONEMobilePOP.otf
+_GAME_FONT_OK = None
+
+
+def game_font():
+    """게임 화면 위 글자 글꼴 → (글꼴 이름, 굵게 할지)
+    앱 안의 글꼴 파일을 이 프로세스에서만 쓰게 등록 (설치 안 함) · 못 하면 언어별 기본 글꼴 (굵게)"""
+    global _GAME_FONT_OK
+    if _GAME_FONT_OK is None:
+        _GAME_FONT_OK = False
+        if IS_WIN:
+            dirs = [Path(__file__).resolve().parent, Path(getattr(sys, "_MEIPASS", "") or ".")]
+            f = next((d / "fonts" / "ONEMobilePOP.otf" for d in dirs if (d / "fonts" / "ONEMobilePOP.otf").is_file()), None)
+            try:
+                _GAME_FONT_OK = bool(f) and ctypes.windll.gdi32.AddFontResourceExW(str(f), 0x10, None) > 0   # FR_PRIVATE
+            except Exception:
+                _GAME_FONT_OK = False
+    if _GAME_FONT_OK:
+        return GAME_FONT, False
+    return _UI_FONT.get(_LANG, "Malgun Gothic"), True
 _GUIDE = {
     "ko": {"point": "클릭할 위치를 한 번 클릭   ·   Esc 취소", "region": "드래그로 OCR 영역 선택   ·   Esc 취소",
            "file": "실행할 프로그램 선택", "prog": "프로그램", "all": "모든 파일"},
@@ -747,7 +767,8 @@ def pick_region_overlay(mode="region"):
     BAR = 34
     cv.create_rectangle(0, 0, w, BAR, fill="#1e1f22", outline="", tags="guide")
     guide = _GUIDE.get(_LANG, _GUIDE["ko"])["point" if mode == "point" else "region"]
-    cv.create_text(w // 2, BAR // 2, text=guide, fill="#ffffff", font=(_UI_FONT.get(_LANG, "Malgun Gothic"), 11, "bold"), tags="guide")
+    gf, gb = game_font()
+    cv.create_text(w // 2, BAR // 2, text=guide, fill="#ffffff", font=(gf, 11, "bold") if gb else (gf, 11), tags="guide")
     state = {"x0": 0, "y0": 0, "bar_top": True}
 
     def on_bar(y):
@@ -991,7 +1012,8 @@ def show_banner(kind="autocal", seconds=240, progress=None, parent=None):
         root.attributes("-alpha", 0.92)
     except Exception:
         pass
-    font = (_UI_FONT.get(_LANG, "Malgun Gothic"), 12, "bold")
+    gf, gb = game_font()
+    font = (gf, 12, "bold") if gb else (gf, 12)
     probe = tk.Label(root, text=text, font=font, padx=22, pady=10)
     w, h = probe.winfo_reqwidth(), probe.winfo_reqheight()
     probe.destroy()
@@ -1039,7 +1061,8 @@ def show_status(path, parent=None):
     if IS_WIN:
         try:
             import overlay
-            overlay.run(path, parent, _LANG, _UI_FONT.get(_LANG, "Malgun Gothic"),
+            gf, gb = game_font()
+            overlay.run(path, parent, _LANG, gf, bold=gb,
                         rect_fn=lambda: client_rect(roblox_window_cached(2.0)), alive_fn=_pid_alive)
             return
         except Exception:
@@ -1054,7 +1077,7 @@ def _show_status_simple(path, parent=None):
     import overlay
     labels = overlay._labels(_LANG)
     BG, LINE = "#121216", "#2a2d35"
-    family = _UI_FONT.get(_LANG, "Malgun Gothic")
+    family = game_font()[0]
     root = tk.Tk()
     root.overrideredirect(True)
     root.attributes("-topmost", True)

@@ -206,7 +206,7 @@ def _bmi(w, h):
     return b
 
 
-def gdi_mask_factory(font="Malgun Gothic"):
+def gdi_mask_factory(font="Malgun Gothic", bold=True):
     u, g, W = _win()
     dc = g.CreateCompatibleDC(None)
     fonts = {}
@@ -214,7 +214,7 @@ def gdi_mask_factory(font="Malgun Gothic"):
     def mask(text, px):
         if px not in fonts:
             # 높이 -px = 글자 크기 px · ANTIALIASED_QUALITY (회색 테두리 · ClearType 아님)
-            fonts[px] = g.CreateFontW(-px, 0, 0, 0, 600, 0, 0, 0, 1, 0, 0, 4, 0, font)
+            fonts[px] = g.CreateFontW(-px, 0, 0, 0, 600 if bold else 400, 0, 0, 0, 1, 0, 0, 4, 0, font)
         old = g.SelectObject(dc, fonts[px])
         sz = W.SIZE()
         g.GetTextExtentPoint32W(dc, text, len(text), ctypes.byref(sz))
@@ -236,12 +236,12 @@ def gdi_mask_factory(font="Malgun Gothic"):
     return mask
 
 
-def run(path, parent=None, lang="ko", font="Malgun Gothic", rect_fn=None, alive_fn=None):
+def run(path, parent=None, lang="ko", font="Malgun Gothic", rect_fn=None, alive_fn=None, bold=True):
     """윈도우에서 현재 행동 창 띄우기 (tk 창을 겹친 창으로 바꿔서 그림만 UpdateLayeredWindow 로 넣음)"""
     import tkinter as tk
     u, g, W = _win()
     labels = _labels(lang)
-    rnd = Renderer(gdi_mask_factory(font))
+    rnd = Renderer(gdi_mask_factory(font, bold))
     root = tk.Tk()
     root.overrideredirect(True)
     root.attributes("-topmost", True)
