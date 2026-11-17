@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 현재 행동 창 — 로블록스 화면 위 가운데 (매크로 작동 중 · 안전 모드로 바이옴 알림을 붙잡는 중)
-  · 줄은 가운데 정렬 "라벨 값" (라벨 회색 #9AA0AC · 현재 행동은 하늘색 #7FD1FF · 안전 모드 안내는 노란색)
-  · 폭은 글자에 맞춤 (최대 W_MAX) · 배경 (18, 18, 22) 85% · 양쪽 끝은 서서히 투명
+  · 줄은 가운데 정렬 "라벨 값" · 배경 없이 흰 글자 + 검은 외곽선 (OUTLINE)
+  · 폭은 글자에 맞춤 (최대 W_MAX)
   · 켜질 때 · 꺼질 때 0.3초 동안 서서히
   · 클릭이 통과되고 포커스를 안 가져감 · 화면 캡처에는 안 찍힘 (매크로가 화면을 읽을 때 방해 안 되게)
 윈도우: 글자 모양을 GDI 로 그려서 numpy 로 합친 뒤 UpdateLayeredWindow (픽셀마다 투명도) · 실패하면 macro.show_status_simple
@@ -17,11 +17,10 @@ import time
 import numpy as np
 
 W_MAX = 900                     # 글자 줄 최대 폭 (넘으면 줄바꿈)
-PAD_X, PAD_Y, GAP = 44, 18, 4
-EDGE_X, EDGE_Y = 40, 16         # 네 변이 서서히 투명해지는 폭 (좌우 · 위아래)
+PAD_X, PAD_Y, GAP = 6, 6, 4
+OUTLINE = 2.2                   # 검은 외곽선 두께 (px · 화면 크기에 맞춰 늘어남)
 SS = 3                          # 글자를 3배로 그린 뒤 줄여서 테두리를 부드럽게 (작은 글씨에서 계단 현상 없앰)
-BG = (18, 18, 22)
-BG_ALPHA = 0.85
+BG = (18, 18, 22)               # 단순한 창(겹친 창을 못 쓸 때) 배경
 LABEL, VALUE, ACCENT, NOTE = "#9AA0AC", "#FFFFFF", "#7FD1FF", "#FFD166"
 # 종류 → (글자 크기, 위쪽 여백 더, 값 색)
 STYLE = {"line": (24, 0, VALUE), "act": (30, 0, ACCENT), "head": (22, 6, VALUE), "sub": (22, 0, VALUE),
@@ -35,6 +34,22 @@ def _rgb(h):
         return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
     except (ValueError, IndexError):
         return 255, 255, 255
+
+
+def _grow(m, r):
+    """글자 모양을 반지름 r 만큼 둥글게 넓힘 (외곽선 · 가장자리는 부드럽게)"""
+    out = m.copy()
+    R = int(np.ceil(r))
+    H, W = m.shape
+    for dy in range(-R, R + 1):
+        for dx in range(-R, R + 1):
+            w = min(1.0, max(0.0, r + 0.5 - (dx * dx + dy * dy) ** 0.5))
+            if w <= 0 or (dx == 0 and dy == 0):
+                continue
+            src = m[max(0, -dy):H - max(0, dy), max(0, -dx):W - max(0, dx)] * w
+            dst = out[max(0, dy):H - max(0, -dy), max(0, dx):W - max(0, -dx)]
+            np.maximum(dst, src, out=dst)
+    return out
 
 
 def _shrink(m, k):
@@ -116,46 +131,32 @@ class Renderer:
         for i, it in enumerate(items):
             H += (it[1] if it[0] == "div" else it[1] + it[2]) + (gap if i else 0)
         H = max(H, 2 * int(PAD_Y * s) + 1)
-        # 배경: 85% · 네 변 모두 서서히 투명 (부드러운 곡선)
-        def fade(n, e):
-            t = np.clip(np.minimum(np.arange(n) + 0.5, n - np.arange(n) - 0.5) / max(1.0, e), 0, 1).astype(np.float32)
-            return t * t * (3 - 2 * t)
-        a = fade(H, EDGE_Y * s)[:, None] * fade(W, EDGE_X * s)[None, :] * BG_ALPHA
-        rgb = np.zeros((H, W, 3), np.float32)
-        rgb[:] = BG
+        # 배경 없음 · 흰 글자 + 검은 외곽선 (글자 모양을 둥글게 넓혀서 그 아래에 깔음)
+        fill = np.zeros((H, W), np.float32)
         y = int(PAD_Y * s)
         x0, x1 = int(PAD_X * s), W - int(PAD_X * s)
         for i, it in enumerate(items):
             if i:
                 y += gap
             if it[0] == "div":
-                hh = it[1]
-                sl = (slice(y, y + hh), slice(x0, x1))
-                k = 0.1
-                rgb[sl] = rgb[sl] * (a[sl][..., None] * (1 - k)) / np.maximum(a[sl] * (1 - k) + k, 1e-6)[..., None] \
-                    + 255 * k / np.maximum(a[sl] * (1 - k) + k, 1e-6)[..., None]
-                a[sl] = a[sl] * (1 - k) + k
-                y += hh
+                y += it[1]
                 continue
             _, extra, hh, parts, tw = it
             y += extra
             left = x0 + (x1 - x0 - tw) // 2               # 가운데 정렬
-            for m, c, x in parts:
+            for m, _c, x in parts:
                 mh, mw = m.shape
                 yy, xx = y + (hh - mh), left + x
                 if mw == 0 or xx >= W or yy >= H:
                     continue
                 cov = m[: H - yy, : W - xx].astype(np.float32) / 255.0
                 sl = (slice(yy, yy + cov.shape[0]), slice(xx, xx + cov.shape[1]))
-                col = np.array(_rgb(c), np.float32)
-                old_a = a[sl]
-                new_a = cov + old_a * (1 - cov)
-                rgb[sl] = (col * cov[..., None] + rgb[sl] * (old_a * (1 - cov))[..., None]) / np.maximum(new_a, 1e-6)[..., None]
-                a[sl] = new_a
+                fill[sl] = np.maximum(fill[sl], cov)
             y += hh
+        line = _grow(fill, OUTLINE * s)
+        a = fill + line * (1 - fill)
         out = np.zeros((H, W, 4), np.uint8)
-        pa = a[..., None]
-        out[..., :3] = np.clip(rgb[..., ::-1] * pa, 0, 255).astype(np.uint8)     # BGR · 미리 곱한 알파
+        out[..., :3] = np.clip(fill * 255, 0, 255).astype(np.uint8)[..., None]     # 흰색 (미리 곱한 알파) · 외곽선은 검은색
         out[..., 3] = np.clip(a * 255, 0, 255).astype(np.uint8)
         return out
 
