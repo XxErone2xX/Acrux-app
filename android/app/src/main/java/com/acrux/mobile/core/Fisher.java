@@ -45,9 +45,6 @@ public final class Fisher {
     final Screen scr;
     final Input in;
     final Out out;
-    /** 결과창을 못 닫았을 때 지금 화면을 사진으로 남김 (기종마다 다른 결과창 확인용 · 한 번 켤 때 3장까지) — 안드로이드 쪽에서 넣어 줌 */
-    public java.util.function.Consumer<String> shot;
-    int shots;
     public final Settings cfg;
     volatile boolean stop;
     boolean diamondOk = false;
@@ -483,14 +480,6 @@ public final class Fisher {
         }
         if (!closed) {
             out.log("결과창을 닫은 뒤 " + (int) FINISH_MAX + "초 동안 Fish 버튼이 보이지 않음 — 다시 확인", 'y');
-            if (shot != null && shots < 3) {
-                shots++;
-                try {
-                    shot.accept("result_close");
-                    out.log("결과창을 못 닫은 화면을 사진첩 Pictures/Acrux 에 남김 — 보내 주면 원인을 볼 수 있음", 'y');
-                } catch (RuntimeException ignored) {
-                }
-            }
         }
         String kind = seenFail ? "fail" : seenSuccess ? "success" : seenJunk ? "junk" : "success";
         if (kind.equals("fail")) fail++;

@@ -48,7 +48,7 @@ class Hooks:
       ingame(path, reason)     Play 클릭으로 게임에 들어감 (reason 이 '복귀' 가 아닐 때)
       play_fail(reason)        Play 클릭으로 못 들어감 (reason 이 '복귀' 가 아닐 때)
       after_return(head, wait) 내 서버로 복귀 끝 (로블록스 꺼짐 복구 말고) → True 를 돌려주면 본체는 아무것도 안 함
-      biome(prev, found, away)  바이옴이 바뀜 (away: 모드가 들어간 다른 사람 서버인지)
+      biome(prev, found, held)  바이옴이 바뀜 (held: 안전 모드로 바이옴 웹후크를 붙잡는 중인지 — 서버 ID 가 1분 안 됨)
       macro(on)                매크로 버튼이 켜지거나 꺼짐
       stop()                   [정지] · F7 — 하던 일 멈춤
       ready()                  창이 뜨기 직전 (모든 모드를 불러온 뒤)

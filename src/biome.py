@@ -38,6 +38,9 @@ LOG_DIR = Path(os.environ.get("LOCALAPPDATA", "")) / "Roblox" / "logs"
 RPC_RE = re.compile(r'"largeImage"\s*:\s*\{[^}]*"hoverText"\s*:\s*"([^"]+)"')
 USER_RE = re.compile(r"Players\.([^.']+)\.PlayerGui:WaitForChild\((?:\"|\\\")TutorialCursor(?:\"|\\\")\)", re.I)
 DISCONNECT_MARK = "[FLog::Network] Client:Disconnect"
+# 서버에 들어갈 때마다 찍힘: [FLog::Output] ! Joining game '<서버 ID>' place <장소 ID> at <IP> — 이 서버 ID 로 내 서버인지 구분
+SAFE_SEC = 60                  # 안전 모드: 서버 ID 가 이만큼 그대로여야 바이옴 알림을 보냄 (초)
+JOIN_RE = re.compile(r"! Joining game '([0-9a-fA-F-]{36})' place (\d+)")
 
 
 def _log(msg, color=""):
@@ -302,7 +305,7 @@ class BiomeWatcher:
 
     def __init__(self, get_cfg, is_active, log_dir=None, on_change=None):
         self.get_cfg = get_cfg          # () -> biome 설정 dict
-        self.on_change = on_change      # (이전, 새 바이옴, 다른 서버 접속인지) — 바이옴이 바뀔 때마다 (웹후크와 무관)
+        self.on_change = on_change      # (이전, 새 바이옴, 안전 모드로 붙잡는 중인지) — 바이옴이 바뀔 때마다 (웹후크와 무관)
         self.is_active = is_active      # () -> 웹후크를 보낼 상태인지 (바이옴 매크로 토글 켜짐)
         self.log_dir = log_dir
         self.current = None             # 지금 바이옴 (예: 'GLITCHED')
@@ -319,30 +322,65 @@ class BiomeWatcher:
         self.history = []               # [(time, biome)]
         self.pending = None             # 계정 확인 전에 읽은 바이옴 (확인되면 적용)
         self.last_player = None
-        # 모드가 다른 사람 서버로 접속: 그 접속의 로그 파일 동안은 바이옴 웹후크를 안 보냄
-        self.away_pending, self.away_base, self.away_file = False, None, None
-        self.away_at = 0.0
+        # 안전 모드: 서버 ID (로그의 Joining game) 가 SAFE_SEC 초 이상 그대로일 때만 바이옴 웹후크를 보냄
+        # (다른 사람 서버에 잠깐 들어갔다 나오는 경우 알림이 안 가게) · K 키로 타이머 건너뜀
+        self.job = None                 # 지금 접속한 서버 ID (로그 파일이 바뀌어도 같은 서버면 이어서)
+        self.job_since = None           # 이 서버 ID 를 처음 본 시각
+        self.skip_job, self.skip_file = None, None    # K 로 건너뛴 서버 (서버 ID 를 모를 때 누르면 그 로그 파일)
+        self.held = None                # 안전 모드 때문에 아직 안 보낸 바이옴 (시작 알림)
+        self.announced = None           # 시작 알림을 보낸 바이옴 (안전 모드일 때 끝 알림은 이것만)
 
-    def away_next_session(self):
-        """모드가 다른 서버에 접속할 때 호출 — 다음에 새로 생기는 로그 파일(= 그 접속) 동안 웹후크 끔"""
-        self.away_base = latest_log(self.log_dir)
-        self.away_at = time.time()
-        self.away_pending = True
+    def safe_on(self):
+        return bool((self.get_cfg() or {}).get("safe_mode"))
 
-    def own_next_session(self):
-        """내 서버로 들어갈 때 호출 (매크로 복귀 · 내 브섭 바로 접속) — 다음 접속은 내 서버라 웹후크를 다시 보냄
-        다른 서버 접속이 로블록스를 못 띄웠으면 '다음 접속은 조용히' 가 남아서 내 서버가 조용해지던 문제를 막음
-        (다른 서버 접속의 로그가 이미 생겼는데 아직 못 읽었으면 그 로그만 조용히)"""
-        if not self.away_pending:
+    def safe_left(self):
+        """안전 모드 타이머 남은 초 · 0 이면 보내도 됨"""
+        if not self.safe_on():
+            return 0
+        if self.skip_file and self.skip_file == self.file and self.skip_job in (None, self.job):
+            return 0
+        if not self.job or self.job_since is None:
+            return SAFE_SEC
+        return max(0, int(SAFE_SEC - (time.time() - self.job_since) + 0.999))
+
+    def holding(self):
+        """안전 모드로 바이옴 알림을 붙잡는 중인지 (타이머가 안 끝남)"""
+        return self.safe_left() > 0
+
+    def skip_safe(self):
+        """K: 지금 서버의 안전 모드 타이머를 건너뜀 — 붙잡은 바이옴은 다음 확인 때 바로 보냄"""
+        if not self.holding():
+            return False
+        self.skip_job, self.skip_file = self.job, self.file
+        _log("안전 모드 타이머 건너뜀 (K)" + (f" — 서버 ID {self.job[:8]}" if self.job else ""), "g")
+        return True
+
+    def _server(self, lines):
+        """새 줄에서 서버 ID 를 읽음 (한 로그 파일 안에서도 텔레포트로 여러 번 들어갈 수 있음 → 마지막 것)"""
+        for ln in lines:
+            m = JOIN_RE.search(ln)
+            if not m:
+                continue
+            job = m.group(1).lower()
+            if job != self.job:
+                if self.skip_file == self.file and self.skip_job is None and self.job is None:
+                    self.skip_job = job          # 서버 ID 를 모를 때 K → 이 접속의 서버로
+                self.job, self.job_since = job, time.time()
+                if self.safe_on():
+                    _log(f"서버 접속 (서버 ID {job[:8]}) — 안전 모드: {SAFE_SEC}초 동안 그대로면 바이옴 알림 보냄", "d")
+
+    def _release(self, cfg, hooks, player, active):
+        """안전 모드 타이머가 끝나면 붙잡아 둔 바이옴 시작 알림을 보냄 (아직 그 바이옴일 때만)"""
+        if not self.held or self.holding():
             return
-        p = _scan_latest(Path(self.log_dir or LOG_DIR))      # 캐시 말고 지금 폴더 그대로
-        if p and p != self.away_base:
-            self.away_file = p
-        self.away_pending = False
-
-    def away(self):
-        """지금 로그가 다른 사람 서버 접속인지"""
-        return bool(self.file) and self.file == self.away_file
+        held, self.held = self.held, None
+        if held != self.current or not (active and hooks) or self.file_owner != "ok":
+            return
+        uptime = fmt_uptime(time.time() - (self.active_since or time.time()))
+        ps = (cfg.get("ps_link") or "").strip()
+        _log(f"안전 모드 통과 — {show_name(held)} 알림 보냄", "g")
+        self.announced = held
+        send_all(hooks, biome_payload(held, "started", player, ps, uptime, mention_text(held, cfg)))
 
     def start(self):
         if self.thread and self.thread.is_alive():
@@ -351,7 +389,10 @@ class BiomeWatcher:
         self.thread.start()
 
     def state(self):
-        return {"current": self.current, "log": bool(self.file), "owner": self.file_owner, "away": self.away(),
+        left = self.safe_left()
+        return {"current": self.current, "log": bool(self.file), "owner": self.file_owner,
+                "job": self.job[:8] if self.job else None,
+                "safe": self.safe_on(), "safe_left": left, "held": self.held if left else None,
                 "history": self.history[-50:]}
 
     # 설정값
@@ -388,22 +429,17 @@ class BiomeWatcher:
             return
 
         path = latest_log(self.log_dir)
-        if self.away_pending and time.time() - self.away_at > 900:
-            self.away_pending = False            # 15분 동안 새 접속이 안 생김 → 접속 못 한 것 (다음 접속을 조용히 하지 않음)
+        if not self.safe_on():
+            self.held = None
+        self._release(cfg, hooks, player, active)
         if path is None:
             self.file = None
             return
         new_file = path != self.file
         if new_file:
-            if self.file and self.file == self.away_file:
-                self.current = None              # 다른 서버에서 본 바이옴은 내 서버로 이어서 알리지 않음
             self.file, self.pos, self.file_owner, self.pending = path, 0, None, None
             self.fresh = True                    # 이 파일을 처음 읽는 중 (기존 기록은 알림 안 보냄)
             self.left_sent = False
-            if self.away_pending and path != self.away_base:
-                self.away_pending, self.away_file = False, path
-                self.current = None
-                _log("다른 서버 접속 — 이번 접속 동안 바이옴 웹후크 안 보냄", "y")
 
         try:
             text, self.pos = read_new(path, self.pos)     # 끝까지 써진 줄만 (반쯤 써진 줄은 다음에)
@@ -412,6 +448,7 @@ class BiomeWatcher:
         lines = text.splitlines()
         if not lines:
             return
+        self._server(lines)
 
         # 마지막으로 나온 바이옴
         found = None
@@ -445,7 +482,7 @@ class BiomeWatcher:
         if any(DISCONNECT_MARK in ln for ln in lines) and not self.left_sent:
             self.left_sent = True
             _log("로블록스 접속 끊김 감지 (로그)", "y")
-            if active and hooks and not self.away():
+            if active and hooks and not self.holding():
                 send_all(hooks, exit_payload(player))
 
         fresh, self.fresh = getattr(self, "fresh", False), False
@@ -460,18 +497,26 @@ class BiomeWatcher:
         _log(f"바이옴: {show_name(prev) or '-'} → {show_name(found)}", "g" if found in RARE_BIOMES else "c")
         if self.on_change:
             try:
-                self.on_change(prev, found, self.away())
+                self.on_change(prev, found, self.holding())
             except Exception as e:
                 _log(f"바이옴 변경 처리 오류: {e}", "r")
 
         # 앱을 켜거나 이름을 바꾼 직후 읽은 기존 기록이면 알림 없이 현재 바이옴만 맞춤
         if fresh and prev is None:
             return
-        if not (active and hooks) or self.away():
+        if not (active and hooks):
             return
+        safe = self.safe_on()
         uptime = fmt_uptime(time.time() - (self.active_since or time.time()))
         ps = (cfg.get("ps_link") or "").strip()
-        if prev and prev in TARGET_BIOMES and prev != found:
+        if prev and prev in TARGET_BIOMES and prev != found and (not safe or prev == self.announced):
             send_all(hooks, biome_payload(prev, "ended", player, ps, uptime))
+        if self.held and self.held != found:
+            self.held = None                     # 붙잡아 둔 바이옴이 끝남 → 안 보냄
         if found in TARGET_BIOMES:
+            if safe and self.holding():
+                self.held = found
+                _log(f"안전 모드 — {show_name(found)} 알림 대기 ({self.safe_left()}초 · K 로 건너뛰기)", "y")
+                return
+            self.announced = found
             send_all(hooks, biome_payload(found, "started", player, ps, uptime, mention_text(found, cfg)))

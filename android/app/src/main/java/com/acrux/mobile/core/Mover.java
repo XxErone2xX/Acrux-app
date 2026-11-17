@@ -173,14 +173,17 @@ public final class Mover {
         double[] center = {0.3, 0.25, 0.7, 0.7};
         tapUi(open);
         double t0 = now(), ready = -1;
-        int ocrFails = 0;
+        int ocrFails = 0, opens = 1;
         boolean seenOpen = false;
         while (now() - t0 < 15) {
             sleep(0.35);
             Boolean opened = hasText(exitBox, "exit", "collection");
             Boolean loading = hasText(center, "loading", "assets");
             if (opened == null || loading == null) {
-                if (++ocrFails >= 3) break;                       // 글자 읽기가 안 되는 기기 → 시간으로
+                if (++ocrFails >= 3) {                            // 글자 읽기가 안 되는 기기 → 시간으로
+                    out.log("아우라 도감 글자를 못 읽음 — 시간으로 닫음", 'd');
+                    break;
+                }
                 continue;
             }
             if (opened) seenOpen = true;
@@ -191,8 +194,16 @@ public final class Mover {
                 ready = -1;
                 if (loading) out.state("기준 장소로 이동 · 아우라 도감 Loading Assets 기다리는 중");
             }
-            // 6초 동안 [Exit] 글자를 한 번도 못 읽음 (글자가 작거나 읽기 실패) · 로딩도 안 보임 → 시간으로
-            if (!seenOpen && !loading && now() - t0 > 6) {
+            // 글자는 읽히는데 3초 동안 도감이 안 보임 → 버튼이 안 눌렸을 수 있음 (화면 가장자리 · 터치 씹힘) → 한 번 더 누름 (최대 3번)
+            if (!seenOpen && !loading && opens < 3 && now() - t0 > 3 * opens) {
+                opens++;
+                out.log("아우라 도감이 안 열림 — 아우라 도감 버튼 다시 누름 (" + opens + "/3)", 'y');
+                tapUi(open);
+                continue;
+            }
+            // 9초 동안 [Exit] 글자를 한 번도 못 읽음 (글자가 작거나 읽기 실패 · 도감이 안 열림) · 로딩도 안 보임 → 시간으로
+            if (!seenOpen && !loading && now() - t0 > 9) {
+                out.log("아우라 도감이 열린 걸 확인 못 함 — 카메라가 안 맞았을 수 있음 (Acrux 창 → 아우라 도감 버튼 위치 확인)", 'r');
                 ocrFails = 3;
                 break;
             }
@@ -210,7 +221,7 @@ public final class Mover {
             sleep(0.6);
             Boolean opened = hasText(exitBox, "exit", "collection");
             if (opened == null || !opened) {
-                if (i > 0) out.log("아우라 도감 닫힘", 'd');
+                out.log(i > 0 ? "아우라 도감 닫힘" : "카메라 정렬 끝 (아우라 도감 열고 닫음)", 'd');
                 return;                                           // 닫힘
             }
             Boolean loading = hasText(center, "loading", "assets");
@@ -272,6 +283,7 @@ public final class Mover {
         out.state("기준 장소로 이동 · 카메라 정렬 (아우라 도감)");
         alignCamera();
         out.state("기준 장소로 이동 · 걷기 (W+A → A → A+W → 쉼 → D)");
+        out.log("기준 장소로 걷기: W+A " + cfg.wa() + "초 (VIP " + (cfg.vip ? "있음" : "없음") + ") → A " + cfg.aTime + " → A+W " + cfg.awTime + " → 쉼 " + cfg.pauseTime + " → D " + cfg.dTime, 'd');
         hold(new String[]{"w", "a"}, cfg.wa());
         hold(new String[]{"a"}, cfg.aTime);
         hold(new String[]{"a", "w"}, cfg.awTime);

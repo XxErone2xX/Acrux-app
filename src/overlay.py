@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-현재 상태 창 — 매크로가 켜져 있는 동안 로블록스 화면 오른쪽 가운데 (스크립트 매크로의 상태 UI 와 같은 모양)
-  · 폭 560 · 오른쪽에서 20 · 세로 가운데 · 배경 (18, 18, 22) 을 왼쪽은 투명 → 오른쪽은 85% 로 (가로 그라디언트) · 각진 모서리
-  · 줄은 전부 오른쪽 정렬 "라벨 값" (라벨 회색 #9AA0AC · 값 흰색 · 현재 행동은 하늘색 #7FD1FF · 크게)
-  · 글자 크기: 기본 24 · 현재 행동 30 · 묶음 22 · 켜져 있는 기능 16 · 묶음 사이 흰색 10% 구분선
+현재 행동 창 — 로블록스 화면 위 가운데 (매크로 작동 중 · 안전 모드로 바이옴 알림을 붙잡는 중)
+  · 줄은 가운데 정렬 "라벨 값" (라벨 회색 #9AA0AC · 현재 행동은 하늘색 #7FD1FF · 안전 모드 안내는 노란색)
+  · 폭은 글자에 맞춤 (최대 W_MAX) · 배경 (18, 18, 22) 85% · 양쪽 끝은 서서히 투명
   · 켜질 때 · 꺼질 때 0.3초 동안 서서히
   · 클릭이 통과되고 포커스를 안 가져감 · 화면 캡처에는 안 찍힘 (매크로가 화면을 읽을 때 방해 안 되게)
 윈도우: 글자 모양을 GDI 로 그려서 numpy 로 합친 뒤 UpdateLayeredWindow (픽셀마다 투명도) · 실패하면 macro.show_status_simple
@@ -17,14 +16,15 @@ import time
 
 import numpy as np
 
-W_BASE = 560
-PAD_X, PAD_Y, GAP = 20, 16, 4
+W_MAX = 900                     # 글자 줄 최대 폭 (넘으면 줄바꿈)
+PAD_X, PAD_Y, GAP = 36, 10, 4
+EDGE = 28                       # 양쪽 끝이 투명해지는 폭
 BG = (18, 18, 22)
 BG_ALPHA = 0.85
-LABEL, VALUE, ACCENT = "#9AA0AC", "#FFFFFF", "#7FD1FF"
+LABEL, VALUE, ACCENT, NOTE = "#9AA0AC", "#FFFFFF", "#7FD1FF", "#FFD166"
 # 종류 → (글자 크기, 위쪽 여백 더, 값 색)
 STYLE = {"line": (24, 0, VALUE), "act": (30, 0, ACCENT), "head": (22, 6, VALUE), "sub": (22, 0, VALUE),
-         "shead": (16, 6, VALUE), "small": (16, 0, VALUE), "line6": (24, 6, VALUE)}
+         "shead": (16, 6, VALUE), "small": (16, 0, VALUE), "line6": (24, 6, VALUE), "note": (20, 4, NOTE)}
 FADE = 0.3
 
 
@@ -52,7 +52,7 @@ class Renderer:
         return self.cache[k]
 
     def _wrap(self, segs, px, width):
-        """[(글자, 색)] → 폭에 맞게 나눈 줄들 (낱말 단위 · 오른쪽 정렬이라 앞에서부터 채움)"""
+        """[(글자, 색)] → 폭에 맞게 나눈 줄들 (낱말 단위 · 앞에서부터 채움)"""
         words = []
         for text, col in segs:
             parts = str(text).split(" ")
@@ -76,8 +76,7 @@ class Renderer:
 
     def render(self, rows, scale=1.0):
         s = max(0.5, min(2.0, float(scale)))
-        W = int(W_BASE * s)
-        inner = W - 2 * int(PAD_X * s)
+        inner = int(W_MAX * s)
         items = []                               # ("div", 높이) · ("text", 위 여백, 높이, [(마스크, 색, x)])
         for r in rows:
             kind = r[0]
@@ -98,13 +97,17 @@ class Renderer:
                     parts.append((m, c, x))
                     x += m.shape[1] + (space if i < len(line) - 1 else 0)
                 items.append(("text", int(extra * s) if n == 0 else 0, h, parts, x))
+        tws = [it[4] for it in items if it[0] == "text"]
+        W = max(tws or [1]) + 2 * int(PAD_X * s)
         gap = int(GAP * s)
         H = 2 * int(PAD_Y * s)
         for i, it in enumerate(items):
             H += (it[1] if it[0] == "div" else it[1] + it[2]) + (gap if i else 0)
         H = max(H, 2 * int(PAD_Y * s) + 1)
-        # 배경: 왼쪽 투명 → 오른쪽 85% (스크립트의 UIGradient)
-        a = (np.linspace(0.0, 1.0, W) * BG_ALPHA)[None, :].repeat(H, 0)
+        # 배경: 85% · 양쪽 끝 EDGE 만큼 서서히 투명
+        e = max(1, int(EDGE * s))
+        xs = np.arange(W, dtype=np.float32)
+        a = (np.clip(np.minimum(xs + 0.5, W - xs - 0.5) / e, 0, 1) * BG_ALPHA)[None, :].repeat(H, 0)
         rgb = np.zeros((H, W, 3), np.float32)
         rgb[:] = BG
         y = int(PAD_Y * s)
@@ -123,7 +126,7 @@ class Renderer:
                 continue
             _, extra, hh, parts, tw = it
             y += extra
-            left = x1 - tw                              # 오른쪽 정렬
+            left = x0 + (x1 - x0 - tw) // 2               # 가운데 정렬
             for m, c, x in parts:
                 mh, mw = m.shape
                 yy, xx = y + (hh - mh), left + x
@@ -221,7 +224,7 @@ def gdi_mask_factory(font="Malgun Gothic"):
 
 
 def run(path, parent=None, lang="ko", font="Malgun Gothic", rect_fn=None, alive_fn=None):
-    """윈도우에서 상태 창 띄우기 (tk 창을 겹친 창으로 바꿔서 그림만 UpdateLayeredWindow 로 넣음)"""
+    """윈도우에서 현재 행동 창 띄우기 (tk 창을 겹친 창으로 바꿔서 그림만 UpdateLayeredWindow 로 넣음)"""
     import tkinter as tk
     u, g, W = _win()
     labels = _labels(lang)
@@ -258,9 +261,9 @@ def run(path, parent=None, lang="ko", font="Malgun Gothic", rect_fn=None, alive_
             return
         rect = rect_fn() if rect_fn else None
         if rect and rect[2] > 200:
-            x, y = rect[0] + rect[2] - w - int(20 * st["scale"]), rect[1] + (rect[3] - h) // 2
+            x, y = rect[0] + (rect[2] - w) // 2, rect[1] + int(8 * st["scale"])
         else:
-            x, y = root.winfo_screenwidth() - w - 20, (root.winfo_screenheight() - h) // 2
+            x, y = (root.winfo_screenwidth() - w) // 2, 8
         bl = _Blend(0, 0, int(255 * max(0.0, min(1.0, st["alpha"]))), 1)
         u.UpdateLayeredWindow(hwnd, screen, ctypes.byref(W.POINT(x, y)), ctypes.byref(W.SIZE(w, h)), mem,
                               ctypes.byref(W.POINT(0, 0)), 0, ctypes.byref(bl), 2)
@@ -323,7 +326,9 @@ VALUES = {
     "메모리 매치": ("Memory match", "メモリーマッチ"), "바이옴 매크로": ("Biome macro", "バイオームマクロ"),
     "이동": ("Moving", "移動"), "없음": ("None", "なし"), "대기": ("Idle", "待機"), "작동 중": ("Running", "動作中"),
     "이동 중": ("Moving", "移動中"), "켜진 기능 없음": ("No features on", "オンの機能なし"),
-    "다른 서버 접속 중이라 대기": ("Waiting (in another server)", "他のサーバーに接続中のため待機"),
+    "[ 안전 모드 ] 가 활성화되어있습니다. 1분 타이머를 스킵하려면 [ K ] 키를 눌러주세요.":
+        ("[ Safe mode ] is on. Press [ K ] to skip the 1 minute timer.",
+         "[ セーフモード ] が有効です。1分タイマーをスキップするには [ K ] キーを押してください。"),
     "준비됨": ("Ready", "準備完了"), "꺼짐": ("Off", "オフ"), "확인 중": ("Checking", "確認中"),
 }
 

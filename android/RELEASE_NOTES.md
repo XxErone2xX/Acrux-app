@@ -1,3 +1,17 @@
+## Acrux Mobile V1.5.7 업데이트
+- 기준 장소 이동: 아우라 도감이 안 열리면 버튼을 다시 누름 [ 최대 3번 ]
+  - 전에는 안 열려도 아무 표시 없이 시간으로 넘어가서, 카메라가 안 맞은 채로 걸어 엉뚱한 곳으로 가는 경우가 있었음
+  - 끝까지 열린 걸 확인 못 하면 로그에 빨간 줄로 알림 [ 아우라 도감 버튼 위치 확인 ]
+- 로그: 카메라 정렬 결과 · 기준 장소로 걷는 시간 [ W+A · A · A+W · 쉼 · D · VIP ] 을 남김 [ 길 오류를 알릴 때 원인 확인용 ]
+- 화면 사진 자동 저장 제거 [ 결과창을 못 닫았을 때 · 판매 버튼을 못 찾았을 때 사진첩 Pictures/Acrux 에 저장하던 것 ]
+
+## Acrux Mobile V1.5.7 Update
+- Base spot: if the aura collection doesn't open, the button is pressed again [ up to 3 times ]
+  - Before, it silently moved on by timing even if it didn't open, so it sometimes walked with the camera unaligned and went to the wrong place
+  - If it never confirms the collection opened, a red log line says so [ check the aura collection button position ]
+- Log: records the camera align result and the base walking times [ W+A · A · A+W · pause · D · VIP ] [ for finding the cause when reporting route errors ]
+- Removed automatic screenshot saving [ the ones saved to Pictures/Acrux when the result couldn't be closed or a sell button wasn't found ]
+
 ## Acrux Mobile V1.5.6 업데이트
 - 이름 변경: 도감 → 아우라 도감 [ 공통 위치 · 상태 · 로그 ]
 - 낚시: 화면이 어두운 기기에서 릴링 미니게임을 계속 실패하던 문제 수정
