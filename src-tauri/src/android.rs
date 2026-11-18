@@ -278,6 +278,10 @@ extern "system" fn Java_com_acrux_next_Native_frame(
     };
     let [w, h] = [frame.width as f64, frame.height as f64];
     let mut values = match input {
+        GameInput::Text { .. } => {
+            runtime().stop("안드로이드 텍스트 입력은 아직 지원하지 않습니다.");
+            return std::ptr::null_mut();
+        }
         GameInput::Tap(tap) => vec![
             0,
             tap.duration.as_millis() as i32,
@@ -319,9 +323,11 @@ extern "system" fn Java_com_acrux_next_Native_frame(
                 let [x, y] = px(point);
                 vec![0, ms as i32, x, y]
             }
-            Motion::Keys(..) | Motion::Click { .. } | Motion::Tilt { .. } => {
-                return std::ptr::null_mut()
-            }
+            Motion::Keys(..)
+            | Motion::KeysOverlap { .. }
+            | Motion::KeyEvent { .. }
+            | Motion::Click { .. }
+            | Motion::Tilt { .. } => return std::ptr::null_mut(),
             Motion::Swipe => {
                 let [x, y0] = px(Point(0.62, 0.22));
                 let [_, y1] = px(Point(0.62, 0.80));

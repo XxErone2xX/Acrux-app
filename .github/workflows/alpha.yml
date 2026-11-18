@@ -7,7 +7,7 @@ name: Alpha
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [dev]
     paths: ["src-tauri/**", "frontend/**", "package.json", "package-lock.json", "tsconfig.json",
             "android/app/src/main/assets/i18n/**", "src/web/**", ".github/workflows/alpha.yml"]
 

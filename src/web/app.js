@@ -554,9 +554,19 @@ async function sendSave() {
   if (!Object.keys(p).length) return;
   try {
     const keep = Object.fromEntries(LOCAL_KEYS.map(k => [k, config[k]]));   // 편집 중인 값은 화면 쪽 객체를 그대로 유지
-    config = (await api('set_config', { patch: p }, 15000)).config;
-    for (const [k, v] of Object.entries(keep)) if (v) config[k] = v;
+    const result = await api('set_config', { patch: p }, 15000);
+    config = result.config;
+    const rejected = !!window.acruxDesktopApi && !!result.error;
+    for (const [k, v] of Object.entries(keep)) if (v && (!rejected || !(k in p) || k in pending)) config[k] = v;
     saveFails = 0;
+    if (rejected) {
+      toast(result.error);
+      const refresh = { play: fillPlay, biome: fillBiome, pop: fillMpop, ret: fillRet, mpop: fillMpop,
+        mfish: renderMfish, mitem: renderMitem, mmerch: renderMmerch, mcraft: renderMcraft, mmatch: renderMmatch, mblood: renderMblood };
+      for (const k of Object.keys(p)) if (!(k in pending)) refresh[k]?.();
+      for (const k of ['base', 'mfish', 'mmerch', 'mcraft', 'mmatch']) if (k in p && !(k in pending)) renderMpos(k);
+      if ('move' in p && !('move' in pending)) rerenderMove();
+    }
     renderSummary();
   }
   catch {

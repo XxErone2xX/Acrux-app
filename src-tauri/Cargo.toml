@@ -19,6 +19,14 @@ reqwest = { version = "0.13.5", default-features = false, features = ["blocking"
 regex = "1"
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+unicode-normalization = "0.1"
+
+[target.'cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))'.dependencies]
+tauri-plugin-single-instance = "2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+x11rb = "=0.14.0"
+evdev = "=0.13.2"
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))'.dependencies]
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls"] }
@@ -32,6 +40,14 @@ jni = "0.21"
 reqwest = { version = "0.13.5", default-features = false, features = ["native-tls"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.62.2", features = [
+  "Foundation",
+  "Globalization",
+  "Graphics_Imaging",
+  "Media_Ocr",
+  "Storage_Streams",
+  "Win32_System_WinRT"
+] }
 windows-sys = { version = "0.61", features = [
   "Win32_Foundation",
   "Win32_Graphics_Gdi",

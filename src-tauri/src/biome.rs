@@ -158,11 +158,8 @@ pub fn configure(settings: Settings) {
     if !changed {
         return;
     }
-    state.current = None;
-    state.primary = 0;
-    state.disconnected = false;
-    state.watching = false;
-    state.announce = state.settings.enabled;
+    // Main keeps biome tracking alive when only webhook notifications are toggled.
+    state.announce = false;
     state.since = Instant::now();
     let enabled = state.settings.enabled;
     state.message = if enabled {
@@ -190,26 +187,23 @@ pub fn configure(settings: Settings) {
 }
 pub fn connection(watching: bool, message: String) {
     let mut state = lock();
-    if state.settings.enabled {
-        state.watching = watching;
-        state.message = message;
-    }
+    state.watching = watching;
+    state.message = message;
 }
 pub fn line(line: &str, source: i32, snapshot: bool) {
     lock().ingest(line, source, snapshot);
 }
 impl State {
     fn ingest(&mut self, line: &str, source: i32, snapshot: bool) {
-        if !self.settings.enabled {
-            return;
-        }
         if line.contains("Client:Disconnect") {
             if !snapshot && !self.disconnected {
-                let payload = self.embed(
-                    "> ## Player has left the game (Disconnected/Left)".into(),
-                    0xff0000,
-                );
-                self.send(payload);
+                if self.settings.enabled {
+                    let payload = self.embed(
+                        "> ## Player has left the game (Disconnected/Left)".into(),
+                        0xff0000,
+                    );
+                    self.send(payload);
+                }
                 self.log("로블록스 접속 끊김".into());
             }
             self.disconnected = true;
@@ -244,7 +238,7 @@ impl State {
             previous.as_deref().unwrap_or("-"),
             show(&name)
         ));
-        if !snapshot || previous.is_some() || self.announce {
+        if self.settings.enabled && (!snapshot || previous.is_some() || self.announce) {
             if let Some(previous) = previous.filter(|name| TARGETS.contains(&name.as_str())) {
                 let payload = self.biome(&previous, false);
                 self.send(payload);
@@ -465,8 +459,36 @@ pub fn test() -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(target_os = "windows")]
-pub fn watch_windows() {
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+fn log_directories() -> Vec<std::path::PathBuf> {
+    use std::path::PathBuf;
+    #[cfg(target_os = "windows")]
+    {
+        std::env::var_os("LOCALAPPDATA")
+            .map(PathBuf::from)
+            .map(|path| path.join("Roblox/logs"))
+            .into_iter()
+            .collect()
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let home = std::env::var_os("HOME").map(PathBuf::from);
+        let mut paths = Vec::new();
+        if let Some(home) = &home {
+            paths.push(home.join(".var/app/org.vinegarhq.Sober/data/sober/appData/logs"));
+        }
+        if let Some(data) = std::env::var_os("XDG_DATA_HOME")
+            .map(PathBuf::from)
+            .or_else(|| home.map(|path| path.join(".local/share")))
+        {
+            paths.push(data.join("sober/appData/logs"));
+        }
+        paths
+    }
+}
+
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+pub fn watch_desktop() {
     std::thread::spawn(|| {
         use std::{
             fs,
@@ -475,7 +497,6 @@ pub fn watch_windows() {
         };
         let mut file: Option<(PathBuf, u64)> = None;
         let mut pending = String::new();
-        let mut enabled = false;
         let mut player = String::new();
         let mut owner: Option<bool> = None;
         let mut initial: Option<String> = None;
@@ -485,27 +506,28 @@ pub fn watch_windows() {
         .unwrap();
         loop {
             let config = settings();
-            let active = config.enabled;
             let requested_player = config.player.trim().trim_start_matches('@').trim();
-            if (active && !enabled) || player != requested_player {
+            if player != requested_player {
                 file = None;
                 pending.clear();
                 owner = None;
                 initial = None;
+                let mut state = lock();
+                state.current = None;
+                state.primary = 0;
+                state.disconnected = false;
+                state.watching = false;
+                state.owner.clear();
             }
             player = requested_player.to_owned();
-            enabled = active;
-            if active && player.is_empty() {
+            if player.is_empty() {
                 lock().owner = "noname".into();
                 connection(false, "플레이어 이름 입력 필요".into());
             }
-            if active && !player.is_empty() {
-                let directory = std::env::var_os("LOCALAPPDATA")
-                    .map(PathBuf::from)
-                    .map(|p| p.join("Roblox/logs"));
-                let latest = directory
-                    .and_then(|p| fs::read_dir(p).ok())
+            if !player.is_empty() {
+                let latest = log_directories()
                     .into_iter()
+                    .filter_map(|path| fs::read_dir(path).ok())
                     .flatten()
                     .filter_map(Result::ok)
                     .filter(|entry| {

@@ -286,25 +286,8 @@ impl Navigation {
     }
 
     fn base(&self, queue: &mut VecDeque<Step>) -> Result<(), &'static str> {
-        if let Some(desktop) = &self.desktop {
-            key(queue, &[0x1b], 40, 0.5);
-            key(queue, &[0x52], 40, 0.5);
-            key(queue, &[0x0d], 40, desktop.reset_wait);
-            self.align(queue)?;
-            key(queue, &[0x57], millis(desktop.w_time), 0.0);
-            key(queue, &[0x57, 0x41], millis(desktop.wa_time), 0.0);
-            let tail = desktop.a_time.min(desktop.w2_time);
-            key(queue, &[0x41], millis(desktop.a_time - tail), 0.0);
-            key(queue, &[0x41, 0x57], millis(tail), 0.0);
-            key(queue, &[0x53, 0x44], millis(desktop.sd_time), 0.5);
-            queue.push_back(Step::Input(
-                Motion::Tilt {
-                    pixels: desktop.tilt_px,
-                    ms: millis(desktop.o_time),
-                },
-                0.3,
-            ));
-            return Ok(());
+        if self.desktop.is_some() {
+            return self.desktop_base(queue, false);
         }
         let reset = self
             .points(&BASE[..3])
@@ -370,28 +353,16 @@ impl Navigation {
 
     fn walk(&self, place: Place, queue: &mut VecDeque<Step>) -> Result<(), &'static str> {
         if let Some(desktop) = &self.desktop {
-            let route = desktop.waypoints(place);
-            if route.is_empty() {
-                return Err("이동할 장소의 지점을 먼저 지정하세요.");
-            }
-            for waypoint in route {
-                let point = waypoint
-                    .pos
-                    .filter(valid_point)
-                    .ok_or("이동 지점 위치를 먼저 지정하세요.")?;
-                let seconds = waypoint
-                    .time
-                    .filter(|s| (0.0..=300.0).contains(s))
-                    .ok_or("이동 지점의 시간을 먼저 저장하세요.")?;
-                queue.push_back(Step::Input(
-                    Motion::Click {
-                        point,
-                        right: desktop.button != "left",
-                    },
-                    seconds + desktop.margin,
-                ));
-            }
-            return Ok(());
+            let key = match place {
+                Place::Fish => "fish_spot",
+                Place::Sell => "sell_spot",
+            };
+            let index = desktop
+                .places
+                .iter()
+                .position(|place| place.key == key)
+                .ok_or("이동할 장소를 찾을 수 없습니다.")?;
+            return self.desktop_walk(index, queue);
         }
         let trace = match place {
             Place::Fish => &self.fish_trace,
@@ -430,6 +401,76 @@ impl Navigation {
         }
         queue.push_back(Step::Wait(self.options.margin));
         Ok(())
+    }
+
+    fn desktop_base(&self, queue: &mut VecDeque<Step>, reverse: bool) -> Result<(), &'static str> {
+        let desktop = self.desktop.as_ref().ok_or("PC 이동 설정이 없습니다.")?;
+        queue.push_back(Step::Wait(0.2));
+        key(queue, &[0x1b], 40, 0.5);
+        key(queue, &[0x52], 40, 0.5);
+        key(queue, &[0x0d], 40, desktop.reset_wait.max(0.5));
+        self.align(queue)?;
+        if !reverse {
+            key(queue, &[0x57], millis(desktop.w_time), 0.0);
+            key(queue, &[0x57, 0x41], millis(desktop.wa_time), 0.0);
+            overlap(queue, 0x41, desktop.a_time, 0x57, desktop.w2_time);
+            key(queue, &[0x53, 0x44], millis(desktop.sd_time), 0.5);
+        }
+        queue.push_back(Step::Input(
+            Motion::Tilt {
+                pixels: desktop.tilt_px,
+                ms: millis(desktop.o_time),
+            },
+            0.3,
+        ));
+        if reverse {
+            key(queue, &[0x53, 0x44], millis(desktop.rsd_time), 0.0);
+            overlap(queue, 0x53, desktop.rs_time, 0x41, desktop.ra_time);
+            queue.push_back(Step::Wait(0.5));
+        }
+        Ok(())
+    }
+
+    fn desktop_walk(&self, index: usize, queue: &mut VecDeque<Step>) -> Result<(), &'static str> {
+        let desktop = self.desktop.as_ref().ok_or("PC 이동 설정이 없습니다.")?;
+        let place = desktop
+            .places
+            .get(index)
+            .ok_or("이동할 장소를 찾을 수 없습니다.")?;
+        let route = place
+            .route
+            .as_ref()
+            .ok_or("장소의 길을 먼저 기록하세요.")?
+            .normalized()?;
+        queue.push_back(Step::Replay(route, desktop.margin));
+        Ok(())
+    }
+
+    pub fn desktop_move_place(&self, index: usize, now: f64) -> Result<Job, &'static str> {
+        let desktop = self.desktop.as_ref().ok_or("PC 이동 설정이 없습니다.")?;
+        let place = desktop
+            .places
+            .get(index)
+            .ok_or("이동할 장소를 찾을 수 없습니다.")?;
+        let mut job = Job::new(Task::Base, now, false);
+        self.desktop_base(&mut job.steps, place.feat == "mcraft")?;
+        self.desktop_walk(index, &mut job.steps)?;
+        Ok(job)
+    }
+
+    pub fn desktop_record(&self, index: usize, now: f64) -> Result<Job, &'static str> {
+        let desktop = self.desktop.as_ref().ok_or("PC 이동 설정이 없습니다.")?;
+        let place = desktop
+            .places
+            .get(index)
+            .ok_or("길을 기록할 장소를 찾을 수 없습니다.")?;
+        let mut job = Job::new(Task::Measure, now, false);
+        self.desktop_base(&mut job.steps, place.feat == "mcraft")?;
+        job.desktop_record = Some(DesktopRecording {
+            index,
+            ..DesktopRecording::default()
+        });
+        Ok(job)
     }
 
     pub fn desktop_waypoint(
@@ -489,6 +530,7 @@ impl Navigation {
         match action {
             Task::Measure => return Err("먼저 시간을 잴 지점을 지정하세요."),
             Task::Base => self.base(&mut steps)?,
+            Task::BaseRev => self.desktop_base(&mut steps, true)?,
             Task::Fish | Task::Shop => {
                 self.base(&mut steps)?;
                 self.walk(
@@ -562,6 +604,7 @@ impl Navigation {
 #[serde(rename_all = "camelCase")]
 pub enum Task {
     Base,
+    BaseRev,
     Fish,
     Shop,
     RecordFish,
@@ -594,6 +637,16 @@ pub enum Motion {
     Swipe,
     Pinch,
     Keys(&'static [u16], u32),
+    KeysOverlap {
+        main: u16,
+        extra: u16,
+        ms: u32,
+        extra_at: u32,
+    },
+    KeyEvent {
+        vk: u16,
+        down: bool,
+    },
     Click {
         point: Point,
         right: bool,
@@ -617,7 +670,8 @@ impl Motion {
         f64::from(match self {
             Self::Trace { events, .. } => events.last().map_or(0, |event| event.t.ceil() as u32),
             Self::Tap(_, ms) | Self::Stick { ms, .. } => *ms,
-            Self::Keys(_, ms) | Self::Tilt { ms, .. } => *ms,
+            Self::Keys(_, ms) | Self::KeysOverlap { ms, .. } | Self::Tilt { ms, .. } => *ms,
+            Self::KeyEvent { .. } => 0,
             Self::Click { .. } => 40,
             Self::Swipe => 250,
             Self::Pinch => 300,
@@ -629,6 +683,7 @@ enum Step {
     Input(Motion, f64),
     Wait(f64),
     Check(Check),
+    Replay(DesktopRoute, f64),
 }
 enum Check {
     Dialog(u8),
@@ -653,6 +708,7 @@ struct Sale {
 
 pub enum Tick {
     Input(Motion),
+    Observe,
     Wait,
     Done {
         resume: bool,
@@ -672,6 +728,8 @@ pub struct Job {
     steps: VecDeque<Step>,
     sale: Option<Sale>,
     resume: bool,
+    desktop_record: Option<DesktopRecording>,
+    replay: Option<Replay>,
 }
 
 impl Job {
@@ -686,10 +744,15 @@ impl Job {
             steps: VecDeque::new(),
             sale: None,
             resume,
+            desktop_record: None,
+            replay: None,
         }
     }
 
     pub fn message(&self) -> &'static str {
+        if self.desktop_recording() {
+            return "길 기록 중 · WASD·Space로 걸어가고 도착하면 F6 또는 도착을 누르세요.";
+        }
         match (self.action, self.recording_at) {
             (Task::Measure, Some(_)) => "시간 재는 중 · 도착하면 F6을 누르세요.",
             (_, Some(_)) => "길 기록 중 · 이동 버튼을 누르고 도착하면 저장하세요.",
@@ -700,18 +763,98 @@ impl Job {
         }
     }
 
+    pub fn desktop_recording(&self) -> bool {
+        self.desktop_record.is_some() && self.recording_at.is_some()
+    }
+
+    pub fn recording_status(&self, now: f64) -> Option<(usize, f64)> {
+        Some((
+            self.desktop_record.as_ref()?.index,
+            (now - self.recording_at?).max(0.),
+        ))
+    }
+
+    pub fn record_desktop(&mut self, keys: &[u16], left: bool, point: Point, now: f64) {
+        if !self.desktop_recording() || !now.is_finite() {
+            return;
+        }
+        if let Some(record) = self.desktop_record.as_mut() {
+            record.sample(keys, left, point, now);
+        }
+    }
+
+    pub fn finish_desktop_record(
+        &mut self,
+        now: f64,
+    ) -> Result<Option<(usize, serde_json::Value)>, &'static str> {
+        if !self.desktop_recording() {
+            return Ok(None);
+        }
+        if !now.is_finite() || now - self.recording_at.unwrap() > 300. {
+            return Err("길 기록 시간이 지나 저장하지 않았습니다.");
+        }
+        let record = self.desktop_record.as_mut().unwrap();
+        let route = record.finish(now)?;
+        Ok(Some((
+            record.index,
+            serde_json::to_value(route).map_err(|_| "길 기록을 저장하지 못했습니다.")?,
+        )))
+    }
+
+    pub fn needs_frame(&self) -> bool {
+        self.replay.is_none() && matches!(self.steps.front(), Some(Step::Check(_)))
+    }
+
     pub fn tick(&mut self, now: f64, frame: &Frame<'_>) -> Tick {
+        self.tick_inner(now, (frame.width, frame.height), Some(frame))
+    }
+
+    pub fn tick_without_frame(&mut self, now: f64, geometry: (usize, usize)) -> Tick {
+        self.tick_inner(now, geometry, None)
+    }
+
+    fn tick_inner(
+        &mut self,
+        now: f64,
+        geometry: (usize, usize),
+        frame: Option<&Frame<'_>>,
+    ) -> Tick {
+        if !now.is_finite() || now < 0. || geometry.0 == 0 || geometry.1 == 0 {
+            return Tick::Failed("이동 시각이나 화면 크기를 확인할 수 없습니다.");
+        }
         self.started = true;
-        let geometry = (frame.width, frame.height);
         if self.geometry.is_some_and(|previous| previous != geometry) {
             return Tick::Failed("화면 크기가 바뀌어 이동 · 판매를 중지했습니다.");
         }
         self.geometry = Some(geometry);
-        if self.recording_at.is_some_and(|start| now - start >= 300.0) {
+        if self.recording_at.is_some_and(|start| now - start >= 300.)
+            || self
+                .desktop_record
+                .as_ref()
+                .is_some_and(|record| record.ev.len() > 30000)
+        {
             return Tick::Failed("길 기록 시간이 지나 중지했습니다.");
         }
         if now < self.ready_at {
             return Tick::Wait;
+        }
+        if let Some(replay) = self.replay.as_mut() {
+            if let Some(event) = replay.route.ev.get(replay.next) {
+                if now < replay.started + event.at() {
+                    return Tick::Wait;
+                }
+                replay.next += 1;
+                return Tick::Input(event.motion());
+            }
+            if now < replay.started + replay.route.duration() {
+                return Tick::Wait;
+            }
+            self.ready_at = now + replay.margin;
+            self.replay = None;
+            return Tick::Wait;
+        }
+        if self.needs_frame() && frame.is_none() {
+            return Tick::Observe;
         }
         let Some(step) = self.steps.pop_front() else {
             if self.action.record().is_some() || self.action == Task::Measure {
@@ -736,7 +879,18 @@ impl Job {
                 self.ready_at = now + seconds;
                 Tick::Wait
             }
-            Step::Check(check) => self.check(now, frame, check),
+            Step::Check(check) => {
+                self.check(now, frame.expect("visual steps require a frame"), check)
+            }
+            Step::Replay(route, margin) => {
+                self.replay = Some(Replay {
+                    route,
+                    next: 0,
+                    started: now,
+                    margin,
+                });
+                self.tick_inner(now, geometry, frame)
+            }
         }
     }
 
@@ -852,6 +1006,194 @@ fn key(queue: &mut VecDeque<Step>, keys: &'static [u16], ms: u32, after: f64) {
     }
 }
 
+fn overlap(
+    queue: &mut VecDeque<Step>,
+    main: u16,
+    main_seconds: f64,
+    extra: u16,
+    extra_seconds: f64,
+) {
+    let seconds = main_seconds.max(extra_seconds);
+    if seconds > 0. {
+        queue.push_back(Step::Input(
+            Motion::KeysOverlap {
+                main,
+                extra,
+                ms: millis(seconds),
+                extra_at: millis((main_seconds - extra_seconds).max(0.)),
+            },
+            0.,
+        ));
+    }
+}
+
+const REC_KEYS: [(u16, &str); 5] = [
+    (0x57, "w"),
+    (0x41, "a"),
+    (0x53, "s"),
+    (0x44, "d"),
+    (0x20, "space"),
+];
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(untagged)]
+enum DesktopEvent {
+    Key(f64, String, u8),
+    Click(f64, String, Point),
+}
+impl DesktopEvent {
+    fn at(&self) -> f64 {
+        match self {
+            Self::Key(at, ..) | Self::Click(at, ..) => *at,
+        }
+    }
+    fn motion(&self) -> Motion {
+        match self {
+            Self::Key(_, name, down) => Motion::KeyEvent {
+                vk: REC_KEYS.iter().find(|(_, key)| name == key).unwrap().0,
+                down: *down == 1,
+            },
+            Self::Click(_, _, point) => Motion::Click {
+                point: *point,
+                right: false,
+            },
+        }
+    }
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+struct DesktopRoute {
+    ev: Vec<DesktopEvent>,
+    len: f64,
+}
+impl DesktopRoute {
+    fn duration(&self) -> f64 {
+        self.len.max(self.ev.last().map_or(0., DesktopEvent::at))
+    }
+    fn normalized(&self) -> Result<Self, &'static str> {
+        if self.ev.is_empty()
+            || self.ev.len() > 30000
+            || !self.len.is_finite()
+            || !(0.0..=300.).contains(&self.len)
+        {
+            return Err("장소의 길을 먼저 기록하세요.");
+        }
+        let mut route = self.clone();
+        let mut last = 0.;
+        let mut held = [false; 5];
+        for event in &route.ev {
+            let at = event.at();
+            if !at.is_finite() || at < last || at < 0. || at > self.len + 0.005 {
+                return Err("길 기록의 입력 시각이 올바르지 않습니다.");
+            }
+            last = at;
+            match event {
+                DesktopEvent::Key(_, name, value) => {
+                    let index = REC_KEYS
+                        .iter()
+                        .position(|(_, key)| name == key)
+                        .ok_or("길 기록에 지원하지 않는 키가 있습니다.")?;
+                    if *value > 1 {
+                        return Err("길 기록의 키 누름 값이 올바르지 않습니다.");
+                    }
+                    held[index] = *value == 1;
+                }
+                DesktopEvent::Click(_, name, point) => {
+                    if name != "click" || !valid_point(point) {
+                        return Err("길 기록의 클릭 위치가 올바르지 않습니다.");
+                    }
+                }
+            }
+        }
+        let end = route.duration();
+        for (index, active) in held.into_iter().enumerate() {
+            if active {
+                route
+                    .ev
+                    .push(DesktopEvent::Key(end, REC_KEYS[index].1.into(), 0));
+            }
+        }
+        Ok(route)
+    }
+}
+
+struct Replay {
+    route: DesktopRoute,
+    next: usize,
+    started: f64,
+    margin: f64,
+}
+#[derive(Default)]
+struct DesktopRecording {
+    index: usize,
+    initialized: bool,
+    held: [bool; 5],
+    left: bool,
+    first: Option<f64>,
+    ev: Vec<DesktopEvent>,
+}
+impl DesktopRecording {
+    fn sample(&mut self, keys: &[u16], left: bool, point: Point, now: f64) {
+        let held = REC_KEYS.map(|(vk, _)| keys.contains(&vk));
+        if !self.initialized {
+            self.held = held;
+            self.left = left;
+            self.initialized = true;
+            return;
+        }
+        for (index, down) in held.into_iter().enumerate() {
+            if self.held[index] == down {
+                continue;
+            }
+            self.held[index] = down;
+            if self.first.is_none() && !down {
+                continue;
+            }
+            let first = *self.first.get_or_insert(now);
+            self.ev.push(DesktopEvent::Key(
+                ((now - first) * 1000.).round() / 1000.,
+                REC_KEYS[index].1.into(),
+                u8::from(down),
+            ));
+        }
+        if left != self.left {
+            self.left = left;
+            if left && valid_point(&point) {
+                let first = *self.first.get_or_insert(now);
+                self.ev.push(DesktopEvent::Click(
+                    ((now - first) * 1000.).round() / 1000.,
+                    "click".into(),
+                    point,
+                ));
+            }
+        }
+    }
+    fn finish(&mut self, now: f64) -> Result<DesktopRoute, &'static str> {
+        let first = self
+            .first
+            .ok_or("아무 입력도 없어 길을 저장하지 않았습니다.")?;
+        if now < first || now - first > 300. || self.ev.is_empty() {
+            return Err("길 기록의 시간을 확인하세요.");
+        }
+        let end = ((now - first) * 1000.).round() / 1000.;
+        let mut ev = self.ev.clone();
+        for (index, down) in self.held.into_iter().enumerate() {
+            if down
+                && ev.iter().any(
+                    |event| matches!(event,DesktopEvent::Key(_,name,_) if name==REC_KEYS[index].1),
+                )
+            {
+                ev.push(DesktopEvent::Key(end, REC_KEYS[index].1.into(), 0));
+            }
+        }
+        DesktopRoute {
+            ev,
+            len: (end * 100.).round() / 100.,
+        }
+        .normalized()
+    }
+}
+
 fn valid_point(point: &Point) -> bool {
     (0.0..1.0).contains(&point.0) && (0.0..1.0).contains(&point.1)
 }
@@ -866,6 +1208,9 @@ pub struct DesktopMove {
     w2_time: f64,
     sd_time: f64,
     o_time: f64,
+    rsd_time: f64,
+    rs_time: f64,
+    ra_time: f64,
     tilt_px: i32,
     margin: f64,
     button: String,
@@ -882,6 +1227,9 @@ impl Default for DesktopMove {
             w2_time: 0.25,
             sd_time: 0.25,
             o_time: 2.5,
+            rsd_time: 1.,
+            rs_time: 6.,
+            ra_time: 1.,
             tilt_px: 800,
             margin: 0.3,
             button: "right".into(),
@@ -893,7 +1241,12 @@ impl Default for DesktopMove {
 #[derive(Clone, Deserialize)]
 struct DesktopPlace {
     key: String,
+    #[serde(default)]
+    feat: String,
+    #[serde(default)]
     points: Vec<Waypoint>,
+    #[serde(default)]
+    route: Option<DesktopRoute>,
 }
 
 #[derive(Clone, Deserialize)]
@@ -923,6 +1276,9 @@ impl DesktopMove {
             self.w2_time,
             self.sd_time,
             self.o_time,
+            self.rsd_time,
+            self.rs_time,
+            self.ra_time,
         ]
         .into_iter()
         .all(|v| (0.0..=30.0).contains(&v))
@@ -970,6 +1326,157 @@ impl Navigation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn desktop_nav(route: serde_json::Value, feat: &str) -> Navigation {
+        Navigation::desktop(serde_json::from_value(serde_json::json!({
+            "movement":{"places":[{"key":"fish_spot","feat":feat,"route":route,"points":[{"pos":[0.7,0.4],"time":1.}]}]},
+            "positions":{"chat_pos":[0.1,0.1],"collection_pos":[0.2,0.2],"collection_close":[0.3,0.3]},
+            "sell_max":1,"sell_delay":0.
+        })).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn pc_routes_replay_absolute_timestamps_with_simultaneous_keys_and_left_clicks() {
+        let route:DesktopRoute=serde_json::from_value(serde_json::json!({"ev":[[0.,"w",1],[0.1,"a",1],[0.2,"click",[0.7,0.4]],[0.3,"w",0],[0.3,"a",0]],"len":0.3})).unwrap();
+        let mut job = Job::new(Task::Base, 10., false);
+        job.steps
+            .push_back(Step::Replay(route.normalized().unwrap(), 0.3));
+        assert!(matches!(
+            job.tick_without_frame(10., (1920, 1080)),
+            Tick::Input(Motion::KeyEvent {
+                vk: 0x57,
+                down: true
+            })
+        ));
+        assert!(matches!(
+            job.tick_without_frame(10.05, (1920, 1080)),
+            Tick::Wait
+        ));
+        assert!(matches!(
+            job.tick_without_frame(10.12, (1920, 1080)),
+            Tick::Input(Motion::KeyEvent {
+                vk: 0x41,
+                down: true
+            })
+        ));
+        assert!(matches!(
+            job.tick_without_frame(10.21, (1920, 1080)),
+            Tick::Input(Motion::Click { right: false, .. })
+        ));
+        assert!(matches!(
+            job.tick_without_frame(10.3, (1920, 1080)),
+            Tick::Input(Motion::KeyEvent {
+                vk: 0x57,
+                down: false
+            })
+        ));
+        assert!(matches!(
+            job.tick_without_frame(10.3, (1920, 1080)),
+            Tick::Input(Motion::KeyEvent {
+                vk: 0x41,
+                down: false
+            })
+        ));
+        assert!(matches!(
+            job.tick_without_frame(10.3, (1920, 1080)),
+            Tick::Wait
+        ));
+        assert!(matches!(
+            job.tick_without_frame(10.61, (1920, 1080)),
+            Tick::Done { .. }
+        ));
+    }
+
+    #[test]
+    fn pc_recording_ignores_initial_holds_and_closes_remaining_keys_on_arrival() {
+        let mut job = Job::new(Task::Measure, 100., false);
+        job.desktop_record = Some(DesktopRecording {
+            index: 2,
+            ..DesktopRecording::default()
+        });
+        assert!(matches!(
+            job.tick_without_frame(100., (1920, 1080)),
+            Tick::Wait
+        ));
+        let point = Point(0.7, 0.4);
+        job.record_desktop(&[0x57], true, point, 100.);
+        job.record_desktop(&[], false, point, 100.1);
+        assert!(job.finish_desktop_record(100.2).is_err());
+        job.record_desktop(&[0x57], false, point, 101.);
+        job.record_desktop(&[0x57, 0x41], false, point, 101.25);
+        job.record_desktop(&[0x57, 0x41], true, point, 101.375);
+        job.record_desktop(&[0x41], false, point, 101.5);
+        let (index, route) = job.finish_desktop_record(102.).unwrap().unwrap();
+        assert_eq!(index, 2);
+        assert_eq!(
+            route,
+            serde_json::json!({"ev":[[0.,"w",1],[0.25,"a",1],[0.375,"click",[0.7,0.4]],[0.5,"w",0],[1.,"a",0]],"len":1.})
+        );
+        assert_eq!(job.recording_status(102.), Some((2, 2.)));
+    }
+
+    #[test]
+    fn pc_recording_starts_from_the_same_normal_or_reverse_base_as_main() {
+        let recorded = serde_json::json!({"ev":[[0.,"w",1],[1.,"w",0]],"len":1.});
+        let normal = desktop_nav(recorded.clone(), "mfish")
+            .desktop_record(0, 0.)
+            .unwrap();
+        assert!(normal.steps.iter().any(|step| matches!(
+            step,
+            Step::Input(
+                Motion::KeysOverlap {
+                    main: 0x41,
+                    extra: 0x57,
+                    ms: 1000,
+                    extra_at: 750
+                },
+                _
+            )
+        )));
+        let reverse = desktop_nav(recorded, "mcraft")
+            .desktop_record(0, 0.)
+            .unwrap();
+        let tilt = reverse
+            .steps
+            .iter()
+            .position(|step| matches!(step, Step::Input(Motion::Tilt { .. }, _)))
+            .unwrap();
+        let walk = reverse
+            .steps
+            .iter()
+            .position(|step| matches!(step, Step::Input(Motion::Keys(&[0x53, 0x44], 1000), _)))
+            .unwrap();
+        assert!(tilt < walk);
+        assert!(reverse.steps.iter().any(|step| matches!(
+            step,
+            Step::Input(
+                Motion::KeysOverlap {
+                    main: 0x53,
+                    extra: 0x41,
+                    ms: 6000,
+                    extra_at: 5000
+                },
+                _
+            )
+        )));
+        assert!(matches!(normal.steps.front(),Some(Step::Wait(delay)) if *delay==0.2));
+    }
+
+    #[test]
+    fn pc_missing_or_invalid_routes_never_fall_back_to_timed_click_points() {
+        let nav = desktop_nav(serde_json::Value::Null, "mfish");
+        assert!(nav.desktop_move_place(0, 0.).is_err());
+        assert!(nav.desktop_record(0, 0.).is_ok());
+        for route in [
+            serde_json::json!({"ev":[[0.,"q",1]],"len":1.}),
+            serde_json::json!({"ev":[[0.,"w",2]],"len":1.}),
+            serde_json::json!({"ev":[[0.5,"w",1],[0.1,"w",0]],"len":1.}),
+            serde_json::json!({"ev":[[0.,"click",[1.,0.5]]],"len":1.}),
+        ] {
+            let route: DesktopRoute = serde_json::from_value(route).unwrap();
+            assert!(route.normalized().is_err());
+        }
+    }
 
     #[test]
     fn sale_confirmation_requires_a_new_green_button() {

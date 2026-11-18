@@ -57,7 +57,7 @@ impl<'a> Frame<'a> {
         })
     }
 
-    fn pixel(&self, x: usize, y: usize) -> [u8; 3] {
+    pub(crate) fn pixel(&self, x: usize, y: usize) -> [u8; 3] {
         let p = y * self.stride + x * self.pixel_stride;
         let [r, g, b] = [self.bytes[p], self.bytes[p + 1], self.bytes[p + 2]];
         if self.bgra {
