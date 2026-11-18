@@ -30,6 +30,9 @@ const TARGETS: &[&str] = &[
     "BLOODRAIN",
 ];
 const RARE: &[&str] = &["GLITCHED", "DREAMSPACE", "CYBERSPACE"];
+const SAFE_SECONDS: u64 = 60;
+static JOIN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"! Joining game '([0-9a-fA-F-]{36})' place (\d+)").unwrap());
 static RPC: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#""largeImage"\s*:\s*\{[^}]*"hoverText"\s*:\s*"([^"]+)""#).unwrap()
 });
@@ -47,6 +50,8 @@ pub struct Settings {
     pub mentions: HashMap<String, bool>,
     pub roles: HashMap<String, String>,
     pub player: String,
+    pub safe_mode: bool,
+    pub safe_v2: bool,
 }
 impl Default for Settings {
     fn default() -> Self {
@@ -58,10 +63,20 @@ impl Default for Settings {
             mentions: HashMap::new(),
             roles: HashMap::new(),
             player: String::new(),
+            safe_mode: true,
+            safe_v2: false,
         }
     }
 }
 impl Settings {
+    pub fn normalized(mut self) -> Self {
+        if !self.safe_v2 {
+            self.safe_mode = true;
+            self.safe_v2 = true;
+        }
+        self
+    }
+
     pub fn validate(&self) -> Result<(), String> {
         if self.webhooks.len() > 32
             || self
@@ -87,6 +102,10 @@ pub struct Status {
     pub logs: Vec<String>,
     pub history: Vec<(i64, String)>,
     pub owner: String,
+    pub job: Option<String>,
+    pub safe: bool,
+    pub safe_left: u64,
+    pub held: Option<String>,
 }
 struct State {
     settings: Settings,
@@ -100,6 +119,14 @@ struct State {
     logs: VecDeque<String>,
     history: VecDeque<(i64, String)>,
     owner: String,
+    file: Option<String>,
+    job: Option<String>,
+    job_since: Option<Instant>,
+    skip_job: Option<String>,
+    skip_file: Option<String>,
+    skip_requested: bool,
+    held: Option<String>,
+    announced: Option<String>,
 }
 impl Default for State {
     fn default() -> Self {
@@ -115,6 +142,14 @@ impl Default for State {
             logs: VecDeque::new(),
             history: VecDeque::new(),
             owner: String::new(),
+            file: None,
+            job: None,
+            job_since: None,
+            skip_job: None,
+            skip_file: None,
+            skip_requested: false,
+            held: None,
+            announced: None,
         }
     }
 }
@@ -131,7 +166,9 @@ pub fn settings() -> Settings {
     lock().settings.clone()
 }
 pub fn status() -> Status {
-    let state = lock();
+    let mut state = lock();
+    state.release_held();
+    let left = state.safe_left();
     Status {
         settings: state.settings.clone(),
         current: state.current.clone(),
@@ -140,12 +177,16 @@ pub fn status() -> Status {
         logs: state.logs.iter().rev().cloned().collect(),
         history: state.history.iter().cloned().collect(),
         owner: state.owner.clone(),
+        job: state.job.as_ref().map(|job| job.chars().take(8).collect()),
+        safe: state.settings.safe_mode,
+        safe_left: left,
+        held: state.held.clone().filter(|_| left > 0),
     }
 }
 pub fn load(settings: Settings) {
     let mut state = lock();
     if settings.validate().is_ok() {
-        state.settings = settings;
+        state.settings = settings.normalized();
     }
     if state.settings.enabled {
         state.message = "로그 연결 대기 중".into();
@@ -154,7 +195,13 @@ pub fn load(settings: Settings) {
 pub fn configure(settings: Settings) {
     let mut state = lock();
     let changed = settings.enabled != state.settings.enabled;
-    state.settings = settings;
+    if settings.player != state.settings.player {
+        state.held = None;
+    }
+    state.settings = settings.normalized();
+    if !state.settings.safe_mode {
+        state.held = None;
+    }
     if !changed {
         return;
     }
@@ -170,7 +217,7 @@ pub fn configure(settings: Settings) {
     .into();
     let payload = state.embed(
         format!(
-            "> ## Biome Macro {}\nJoin discord to download macro\nhttps://discord.gg/B9QzJuseHR",
+            "> ## Biome Macro {}\nJoin discord to download macro\nhttps://discord.gg/cc9APrrnNv",
             if enabled { "Enabled" } else { "Disabled" }
         ),
         0xffffff,
@@ -191,13 +238,95 @@ pub fn connection(watching: bool, message: String) {
     state.message = message;
 }
 pub fn line(line: &str, source: i32, snapshot: bool) {
-    lock().ingest(line, source, snapshot);
+    let mut state = lock();
+    state.ingest(line, source, snapshot);
+    state.release_held();
+}
+pub fn skip_safe() -> bool {
+    let mut state = lock();
+    if state.safe_left() == 0 {
+        return false;
+    }
+    state.skip_job = state.job.clone();
+    state.skip_file = state.file.clone();
+    state.skip_requested = true;
+    state.log("안전 모드 타이머 건너뜀 (K)".into());
+    state.release_held();
+    true
 }
 impl State {
+    fn safe_left(&self) -> u64 {
+        if !self.settings.safe_mode {
+            return 0;
+        }
+        if self.skip_requested
+            && self.skip_file == self.file
+            && (self.skip_job.is_none() || self.skip_job == self.job)
+        {
+            return 0;
+        }
+        match (&self.job, self.job_since) {
+            (Some(_), Some(since)) => (SAFE_SECONDS as f64 - since.elapsed().as_secs_f64())
+                .max(0.0)
+                .ceil() as u64,
+            _ => SAFE_SECONDS,
+        }
+    }
+
+    fn server_line(&mut self, line: &str) {
+        let Some(join) = JOIN.captures(line) else {
+            return;
+        };
+        let job = join[1].to_ascii_lowercase();
+        if self.job.as_deref() == Some(job.as_str()) {
+            return;
+        }
+        if self.skip_requested
+            && self.skip_file == self.file
+            && self.skip_job.is_none()
+            && self.job.is_none()
+        {
+            self.skip_job = Some(job.clone());
+        }
+        self.job = Some(job.clone());
+        self.job_since = Some(Instant::now());
+        if self.settings.safe_mode {
+            self.log(format!(
+                "서버 접속 (서버 ID {}) — 안전 모드: 60초 동안 그대로면 바이옴 알림 보냄",
+                &job[..8]
+            ));
+        }
+    }
+
+    fn release_held(&mut self) {
+        if !self.settings.safe_mode {
+            self.held = None;
+            return;
+        }
+        if self.safe_left() > 0 {
+            return;
+        }
+        let Some(held) = self.held.take() else {
+            return;
+        };
+        let owner_ok = self.owner == "ok" || (cfg!(target_os = "android") && self.watching);
+        if self.current.as_deref() != Some(held.as_str())
+            || !self.settings.enabled
+            || !owner_ok
+            || !self.settings.webhooks.iter().any(|hook| !hook.is_empty())
+        {
+            return;
+        }
+        self.log(format!("안전 모드 통과 — {} 알림 보냄", show(&held)));
+        self.announced = Some(held.clone());
+        self.send(self.biome(&held, true));
+    }
+
     fn ingest(&mut self, line: &str, source: i32, snapshot: bool) {
+        self.server_line(line);
         if line.contains("Client:Disconnect") {
             if !snapshot && !self.disconnected {
-                if self.settings.enabled {
+                if self.settings.enabled && self.safe_left() == 0 {
                     let payload = self.embed(
                         "> ## Player has left the game (Disconnected/Left)".into(),
                         0xff0000,
@@ -238,14 +367,38 @@ impl State {
             previous.as_deref().unwrap_or("-"),
             show(&name)
         ));
-        if self.settings.enabled && (!snapshot || previous.is_some() || self.announce) {
-            if let Some(previous) = previous.filter(|name| TARGETS.contains(&name.as_str())) {
+        if self
+            .held
+            .as_deref()
+            .is_some_and(|held| held != name.as_str())
+        {
+            self.held = None;
+        }
+        if self.settings.enabled
+            && self.settings.webhooks.iter().any(|hook| !hook.is_empty())
+            && (!snapshot || previous.is_some() || self.announce)
+        {
+            if let Some(previous) = previous.filter(|name| {
+                TARGETS.contains(&name.as_str())
+                    && (!self.settings.safe_mode
+                        || self.announced.as_deref() == Some(name.as_str()))
+            }) {
                 let payload = self.biome(&previous, false);
                 self.send(payload);
             }
             if TARGETS.contains(&name.as_str()) {
-                let payload = self.biome(&name, true);
-                self.send(payload);
+                if self.settings.safe_mode && self.safe_left() > 0 {
+                    self.held = Some(name.clone());
+                    self.log(format!(
+                        "안전 모드 — {} 알림 대기 ({}초 · K 로 건너뛰기)",
+                        show(&name),
+                        self.safe_left()
+                    ));
+                } else {
+                    self.announced = Some(name.clone());
+                    let payload = self.biome(&name, true);
+                    self.send(payload);
+                }
             }
         }
         self.announce = false;
@@ -518,6 +671,8 @@ pub fn watch_desktop() {
                 state.disconnected = false;
                 state.watching = false;
                 state.owner.clear();
+                state.file = None;
+                state.held = None;
             }
             player = requested_player.to_owned();
             if player.is_empty() {
@@ -525,6 +680,7 @@ pub fn watch_desktop() {
                 connection(false, "플레이어 이름 입력 필요".into());
             }
             if !player.is_empty() {
+                lock().release_held();
                 let latest = log_directories()
                     .into_iter()
                     .filter_map(|path| fs::read_dir(path).ok())
@@ -550,6 +706,7 @@ pub fn watch_desktop() {
                             pending.clear();
                             owner = None;
                             initial = None;
+                            lock().file = Some(path.to_string_lossy().into_owned());
                         }
                         if reader.seek(SeekFrom::Start(previous)).is_ok() {
                             let mut bytes = Vec::new();
@@ -562,6 +719,12 @@ pub fn watch_desktop() {
                                     .collect();
                                 let consumed: usize = lines.iter().map(String::len).sum();
                                 pending.drain(..consumed);
+                                {
+                                    let mut state = lock();
+                                    for entry in &lines {
+                                        state.server_line(entry);
+                                    }
+                                }
                                 if owner != Some(true) {
                                     if let Some(name) = lines.iter().find_map(|entry| {
                                         user.captures(entry).map(|c| c[1].trim().to_owned())
@@ -588,7 +751,11 @@ pub fn watch_desktop() {
                                         line(&last, 1, true);
                                     } else {
                                         for entry in lines {
-                                            line(&entry, 1, false);
+                                            if parse(&entry).is_some()
+                                                || entry.contains("Client:Disconnect")
+                                            {
+                                                line(&entry, 1, false);
+                                            }
                                         }
                                     }
                                 }

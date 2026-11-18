@@ -68,7 +68,7 @@ const savedPage = restore<string>(tabKey, "home");
 const lastPage = savedPage === "move" ? "fish" : savedPage as Page;
 let page: Page = tabs.some(([id]) => id === lastPage) ? lastPage : "home";
 let current: Status | undefined;
-let biome: BiomeStatus = { settings: defaultBiome, current: null, watching: false, message: "꺼짐", logs: [], history: [], owner: "" };
+let biome: BiomeStatus = { settings: defaultBiome, current: null, watching: false, message: "꺼짐", logs: [], history: [], owner: "", job: null, safe: true, safeLeft: 60, held: null };
 let transport = { connection: "off", testOutput: "", testUntil: 0 };
 let online: { online: number | null; share: boolean } = { online: null, share: true };
 let busy = false;

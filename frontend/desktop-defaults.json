@@ -30,7 +30,9 @@
       "DREAMSPACE": true,
       "CYBERSPACE": true
     },
-    "roles": {}
+    "roles": {},
+    "safe_mode": true,
+    "safe_v2": false
   },
   "ocr_engine": "auto",
   "macro_on": false,

@@ -781,9 +781,15 @@ fn worker() {
     let mut previous_generation = runtime().generation;
     let mut recording_seen = false;
     let mut finish_held = false;
+    let mut safe_held = false;
     loop {
         let began = Instant::now();
         let target = desktop.game();
+        let safe_down = desktop.pressed(0x4b);
+        if safe_down && !safe_held && target.is_some_and(|target| desktop.foreground(target)) {
+            crate::biome::skip_safe();
+        }
+        safe_held = safe_down;
         AVAILABLE.store(target.is_some(), Ordering::Release);
         if input.is_some() && (target.is_some() || !OPENING.load(Ordering::Acquire)) {
             message(if target.is_some() {

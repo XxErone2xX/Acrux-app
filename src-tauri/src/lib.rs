@@ -720,6 +720,12 @@ impl Runtime {
                 }
             }
         }
+        let biome = biome::settings().normalized();
+        if !config["biome"].is_object() {
+            config["biome"] = serde_json::json!({});
+        }
+        config["biome"]["safe_mode"] = biome.safe_mode.into();
+        config["biome"]["safe_v2"] = biome.safe_v2.into();
         config["macro_on"] = self.coordinator.running.into();
         config
     }
@@ -1057,16 +1063,24 @@ fn save_macro_settings(mut config: serde_json::Value) -> Result<serde_json::Valu
         serde_json::from_value(tuning).map_err(|_| "낚시 설정의 숫자 형식을 확인하세요.")?;
     let tuning = tuning.validate()?;
     let source = &config["biome"];
-    let biome: biome::Settings = serde_json::from_value(serde_json::json!({
+    let biome = serde_json::from_value::<biome::Settings>(serde_json::json!({
         "enabled":source["enabled"].as_bool().unwrap_or(false),
         "webhooks":source.get("webhooks").cloned().unwrap_or(serde_json::json!([])),
         "psLink":source["ps_link"].as_str().unwrap_or(""),
         "player":source["player"].as_str().unwrap_or(""),
         "everyone":true,"mentions":source.get("everyone").cloned().unwrap_or(serde_json::json!({})),
-        "roles":source.get("roles").cloned().unwrap_or(serde_json::json!({}))
+        "roles":source.get("roles").cloned().unwrap_or(serde_json::json!({})),
+        "safeMode":source["safe_mode"].as_bool().unwrap_or(true),
+        "safeV2":source["safe_v2"].as_bool().unwrap_or(false)
     }))
-    .map_err(|_| "바이옴 설정 형식을 확인하세요.")?;
+    .map_err(|_| "바이옴 설정 형식을 확인하세요.")?
+    .normalized();
     biome.validate()?;
+    if !config["biome"].is_object() {
+        config["biome"] = serde_json::json!({});
+    }
+    config["biome"]["safe_mode"] = biome.safe_mode.into();
+    config["biome"]["safe_v2"] = biome.safe_v2.into();
     let online = online::Settings {
         share: config["online_share"].as_bool().unwrap_or(true),
         ..online::settings()
@@ -1401,6 +1415,7 @@ fn biome_status() -> biome::Status {
 
 #[tauri::command]
 fn save_biome(settings: biome::Settings) -> Result<biome::Status, String> {
+    let settings = settings.normalized();
     settings.validate()?;
     let state = runtime();
     state.save_biome_profile(state.fishing.tuning, settings.clone())?;

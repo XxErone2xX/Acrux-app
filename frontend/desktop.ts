@@ -26,6 +26,9 @@ function normalize(source: unknown): Config {
       config[key] = { ...structuredClone(fallback), ...(value && typeof value === "object" && !Array.isArray(value) ? structuredClone(value) : {}) };
     }
   }
+  const biome = config.biome as Bag;
+  if (!biome.safe_v2) Object.assign(biome, { safe_mode: true, safe_v2: true });
+  biome.safe_mode = !!biome.safe_mode;
   if (!Array.isArray(config.move.places)) config.move.places = [];
   for (const [key, name, feat, count] of [
     ["fish_spot", "낚시 장소", "mfish", 1], ["sell_spot", "물고기 판매 장소", "mfish", 1],
@@ -374,7 +377,10 @@ async function request(name: string, payload: Bag) {
       const stats = (value: Status["stats"]) => ({ fish_success: value.success, fish_junk: value.junk, fish_fail: value.fail, fish_full: value.full });
       const bio = biome.status === "fulfilled" ? biome.value : undefined;
       return {
-        biome: bio ? { current: bio.current, history: bio.history, owner: bio.owner, log: bio.watching, away: false } : null,
+        biome: bio ? {
+          current: bio.current, history: bio.history, owner: bio.owner, log: bio.watching,
+          job: bio.job, safe: bio.safe, safe_left: bio.safeLeft, held: bio.held,
+        } : null,
         online: online.status === "fulfilled" ? online.value.online : null, online_on: online.status === "fulfilled",
         seq, logs, status: statusLabel(s),
         roblox: s.gameAvailable, macro_on: s.macroRunning, move,

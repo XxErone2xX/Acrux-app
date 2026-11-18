@@ -60,6 +60,7 @@ fn worker() {
     let mut hotkey_held = false;
     let mut arrive_held = false;
     let mut recording_seen = false;
+    let mut safe_held = false;
     let mut record_geometry = None;
     let mut surface = None;
     let mut held = HeldKeys::default();
@@ -71,6 +72,15 @@ fn worker() {
         };
         let hwnd = unsafe { GetForegroundWindow() };
         held.sync(hwnd, generation, active.active());
+        let safe_down = pressed(0x4b);
+        if safe_down && !safe_held && !hwnd.is_null() {
+            let mut pid = 0;
+            unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
+            if pid != 0 && game_process(pid) {
+                crate::biome::skip_safe();
+            }
+        }
+        safe_held = safe_down;
         if active == Phase::Idle {
             surface = None;
             hotkey_held = false;

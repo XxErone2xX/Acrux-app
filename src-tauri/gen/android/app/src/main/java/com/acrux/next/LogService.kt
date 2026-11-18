@@ -20,6 +20,7 @@ class LogService : Service() {
     @Volatile private var resumeAt: String? = null
     @Volatile private var lastLineAt = 0L
     private val timestamp = Regex("^\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}")
+    private val joining = Regex("! Joining game '[0-9a-fA-F-]{36}'")
 
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -64,13 +65,18 @@ class LogService : Service() {
                 var from = resumeAt
                 if (from == null || System.currentTimeMillis() - lastLineAt > 300000) {
                     var last: String? = null
+                    var lastJoin: String? = null
                     try {
                         Adb.shell(this, SNAPSHOT, 20000) { line ->
                             val time = timestamp.find(line)?.value
                             if (time != null) from = time
+                            else if (joining.containsMatchIn(line)) lastJoin = line
                             else if (line.contains("BloxstrapRPC") || line.contains("Client:Disconnect")) last = line
                         }
-                        if (current()) last?.let { Native.biomeLine(it, 1, true) }
+                        if (current()) {
+                            lastJoin?.let { Native.biomeLine(it, 1, true) }
+                            last?.let { Native.biomeLine(it, 1, true) }
+                        }
                     } catch (_: Exception) { }
                 }
                 if (!current()) return
@@ -151,8 +157,9 @@ class LogService : Service() {
     companion object {
         private const val CHANNEL = "acrux_biome"
         private const val TEST = "com.acrux.next.BIOME_TEST"
-        private const val SNAPSHOT = "logcat -d -v time 2>/dev/null | tail -n 1; logcat -d -v brief 2>/dev/null | grep -a -e BloxstrapRPC -e Client:Disconnect | tail -n 3"
-        private const val FILES = "p=; f=; s=0; trap '[ -n \"\$p\" ] && kill \$p 2>/dev/null' EXIT; while :; do l=\$(find /sdcard/Android/data/com.roblox.client -iname '*.log' 2>/dev/null); n=; [ -n \"\$l\" ] && n=\$(ls -t \$l 2>/dev/null | head -n 1); if [ -n \"\$n\" ] && [ \"\$n\" != \"\$f\" ]; then [ -n \"\$p\" ] && kill \$p 2>/dev/null; f=\"\$n\"; if [ \$s = 0 ]; then tail -n 0 -f \"\$f\" & else tail -n +1 -f \"\$f\" & fi; p=\$!; s=1; fi; sleep 5; done"
+        private const val SNAPSHOT = "logcat -d -v time 2>/dev/null | tail -n 1; logcat -d -v brief 2>/dev/null | grep -a -e 'Joining game' | tail -n 1; logcat -d -v brief 2>/dev/null | grep -a -e BloxstrapRPC -e Client:Disconnect | tail -n 3"
+        // Empty lines tick Rust's held-notification timer even when Roblox emits no new log lines.
+        private const val FILES = "p=; f=; s=0; trap '[ -n \"\$p\" ] && kill \$p 2>/dev/null' EXIT; while :; do l=\$(find /sdcard/Android/data/com.roblox.client -iname '*.log' 2>/dev/null); n=; [ -n \"\$l\" ] && n=\$(ls -t \$l 2>/dev/null | head -n 1); if [ -n \"\$n\" ] && [ \"\$n\" != \"\$f\" ]; then [ -n \"\$p\" ] && kill \$p 2>/dev/null; f=\"\$n\"; if [ \$s = 0 ]; then tail -n 0 -f \"\$f\" & else tail -n +1 -f \"\$f\" & fi; p=\$!; s=1; fi; printf '\\n'; sleep 5; done"
         @Volatile var adbState = "off"
         @Volatile var testOutput = ""
         @Volatile var testUntil = 0L

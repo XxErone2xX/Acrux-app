@@ -130,10 +130,22 @@ impl<'a> Frame<'a> {
 
     pub fn diamond(&self, point: Point, radius: usize) -> bool {
         let (cx, cy) = self.position(point);
+        let (left, right) = (cx.saturating_sub(radius), (cx + radius).min(self.width - 1));
+        let (top, bottom) = (
+            cy.saturating_sub(radius),
+            (cy + radius).min(self.height - 1),
+        );
+        let mut peak = 0;
+        for y in top..=bottom {
+            for x in left..=right {
+                peak = peak.max(min(self.pixel(x, y)));
+            }
+        }
+        let threshold = peak.saturating_sub(25).clamp(150, 200);
         let mut count = 0;
-        for y in cy.saturating_sub(radius)..=(cy + radius).min(self.height - 1) {
-            for x in cx.saturating_sub(radius)..=(cx + radius).min(self.width - 1) {
-                count += usize::from(min(self.pixel(x, y)) > 200);
+        for y in top..=bottom {
+            for x in left..=right {
+                count += usize::from(min(self.pixel(x, y)) > threshold);
                 if count >= 6 {
                     return true;
                 }
@@ -291,7 +303,9 @@ fn colored(p: [u8; 3]) -> bool {
 }
 fn fill(p: [u8; 3]) -> bool {
     let [r, g, b] = p.map(i16::from);
-    r < 100 && g >= 80 && b >= 140 && (-15..=85).contains(&(b - g))
+    r < 100
+        && (-15..=85).contains(&(b - g))
+        && ((g >= 80 && b >= 140) || (g >= 55 && b >= 95 && b - r >= 60))
 }
 
 #[derive(Default)]
@@ -406,9 +420,16 @@ impl Bar {
         let rows = bottom - top;
         self.counts.resize(w, 0);
         self.counts.fill(0);
+        let mut peak = 0;
         for y in top..bottom.saturating_sub(1) {
             for x in 0..w {
-                self.counts[x] += usize::from(min(frame.pixel(left + x, y)) > 185);
+                peak = peak.max(min(frame.pixel(left + x, y)));
+            }
+        }
+        let threshold = peak.saturating_sub(25).clamp(140, 185);
+        for y in top..bottom.saturating_sub(1) {
+            for x in 0..w {
+                self.counts[x] += usize::from(min(frame.pixel(left + x, y)) > threshold);
             }
         }
         let radius = (w * 5 / 100).max(5) / 2;
