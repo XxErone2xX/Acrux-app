@@ -1,3 +1,45 @@
+## Acrux Mobile V1.5.8 업데이트
+- 바이옴 매크로 → 안전 모드 추가 [ 기본: 켜짐 · PC 와 같은 방식 ]
+  - 서버 ID 가 1분 이상 그대로일 때만 바이옴 알림을 보냄 [ 실수로 다른 사람 서버에 잠깐 들어갔다 나오면 핑이 안 감 ]
+  - 기다리는 동안 시작한 바이옴은 1분이 지나고 아직 그 바이옴이면 보냄 · 그 전에 끝나거나 서버를 옮기면 안 보냄
+  - 기다리는 동안 미니 UI 의 바이옴 매크로 아래에 안내가 뜸 · 누르면 1분 타이머를 건너뜀 [ PC 의 K 키 ]
+  - 로그에서 서버 ID 를 못 읽는 기기에서는 감시 시작 · 접속 끊김 뒤 1분 동안만 기다림
+- 웹후크의 디스코드 링크를 새 초대 링크로 변경 [ 예전 링크 만료 ]
+
+## Acrux Mobile V1.5.8 Update
+- Added Biome macro → Safe mode [ default: on · same as PC ]
+  - Biome notifications are sent only after the server ID has stayed the same for 1 minute or more [ briefly joining someone else's server by mistake sends no ping ]
+  - A biome that starts while waiting is sent once the minute passes if it's still that biome · not sent if it ends or you switch servers before that
+  - While waiting, a notice shows under Biome macro in the mini UI · tap it to skip the 1 minute timer [ the K key on PC ]
+  - On devices where the server ID can't be read from the log, it only waits 1 minute after watching starts or after a disconnect
+- Updated the Discord link in webhooks to the new invite [ the old one expired ]
+
+## Acrux Mobile V1.5.7 업데이트
+- 기준 장소 이동: 아우라 도감이 안 열리면 버튼을 다시 누름 [ 최대 3번 ]
+  - 전에는 안 열려도 아무 표시 없이 시간으로 넘어가서, 카메라가 안 맞은 채로 걸어 엉뚱한 곳으로 가는 경우가 있었음
+  - 끝까지 열린 걸 확인 못 하면 로그에 빨간 줄로 알림 [ 아우라 도감 버튼 위치 확인 ]
+- 로그: 카메라 정렬 결과 · 기준 장소로 걷는 시간 [ W+A · A · A+W · 쉼 · D · VIP ] 을 남김 [ 길 오류를 알릴 때 원인 확인용 ]
+- 화면 사진 자동 저장 제거 [ 결과창을 못 닫았을 때 · 판매 버튼을 못 찾았을 때 사진첩 Pictures/Acrux 에 저장하던 것 ]
+
+## Acrux Mobile V1.5.7 Update
+- Base spot: if the aura collection doesn't open, the button is pressed again [ up to 3 times ]
+  - Before, it silently moved on by timing even if it didn't open, so it sometimes walked with the camera unaligned and went to the wrong place
+  - If it never confirms the collection opened, a red log line says so [ check the aura collection button position ]
+- Log: records the camera align result and the base walking times [ W+A · A · A+W · pause · D · VIP ] [ for finding the cause when reporting route errors ]
+- Removed automatic screenshot saving [ the ones saved to Pictures/Acrux when the result couldn't be closed or a sell button wasn't found ]
+
+## Acrux Mobile V1.5.6 업데이트
+- 이름 변경: 도감 → 아우라 도감 [ 공통 위치 · 상태 · 로그 ]
+- 낚시: 화면이 어두운 기기에서 릴링 미니게임을 계속 실패하던 문제 수정
+  - 원인: 화면이 어두우면 [ 기기 밝기 필터 · 어두운 바이옴 등 ] 파란 막대 · ◇ 가 원래보다 어둡게 보여서, 막대를 잡을 구간으로 · 내 위치를 맨 왼쪽으로 잘못 읽음 → 계속 누르기만 해서 오른쪽 끝으로 밀려남
+  - 파란 막대는 밝기 대신 파란 정도로 찾음 · ◇ 는 그 자리에서 가장 밝은 값 기준으로 찾음 [ 밝은 화면에서는 그대로 ]
+
+## Acrux Mobile V1.5.6 Update
+- Renamed: Collection → Aura collection [ common positions · status · log ]
+- Fishing: fixed the reeling minigame failing every time on devices with a dark screen
+  - Cause: on a dark screen [ device dimming filter · dark biomes etc. ] the blue bar and ◇ look darker than usual, so the bar was read as the catch zone and your position as the far left → it kept clicking and pushed you to the right end
+  - The blue bar is now found by how blue it is instead of brightness · ◇ is found relative to the brightest value there [ unchanged on bright screens ]
+
 ## Acrux Mobile V1.5.5 업데이트
 - 낚시: 결과창이 보정한 자리와 다르게 뜨면 결과창을 못 닫던 문제 수정
   - 원인: 결과창이 반투명해서 밝은 땅 [ 눈 등 ] 위에서는 창 모양을 못 찾음 · X 는 보정한 X 자리 근처에서만 찾아서, 결과창이 다른 크기로 뜨면 아무것도 안 누름

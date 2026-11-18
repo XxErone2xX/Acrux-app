@@ -678,6 +678,26 @@ def pick_point(key="f8", timeout=30.0, stop=None):
 # 위치 지정 창 · 파일 선택 창 안내 글자 (앱이 ACRUX_LANG 로 화면 언어를 넘겨줌)
 _LANG = os.environ.get("ACRUX_LANG", "ko")
 _UI_FONT = {"ko": "Malgun Gothic", "en": "Segoe UI", "ja": "Yu Gothic UI"}
+GAME_FONT = "ONE Mobile POP"       # 게임 화면 위 글자 (현재 행동 · 안내 띠 · 위치 지정) — fonts/ONEMobilePOP.otf
+_GAME_FONT_OK = None
+
+
+def game_font():
+    """게임 화면 위 글자 글꼴 → (글꼴 이름, 굵게 할지)
+    앱 안의 글꼴 파일을 이 프로세스에서만 쓰게 등록 (설치 안 함) · 못 하면 언어별 기본 글꼴 (굵게)"""
+    global _GAME_FONT_OK
+    if _GAME_FONT_OK is None:
+        _GAME_FONT_OK = False
+        if IS_WIN:
+            dirs = [Path(__file__).resolve().parent, Path(getattr(sys, "_MEIPASS", "") or ".")]
+            f = next((d / "fonts" / "ONEMobilePOP.otf" for d in dirs if (d / "fonts" / "ONEMobilePOP.otf").is_file()), None)
+            try:
+                _GAME_FONT_OK = bool(f) and ctypes.windll.gdi32.AddFontResourceExW(str(f), 0x10, None) > 0   # FR_PRIVATE
+            except Exception:
+                _GAME_FONT_OK = False
+    if _GAME_FONT_OK:
+        return GAME_FONT, False
+    return _UI_FONT.get(_LANG, "Malgun Gothic"), True
 _GUIDE = {
     "ko": {"point": "클릭할 위치를 한 번 클릭   ·   Esc 취소", "region": "드래그로 OCR 영역 선택   ·   Esc 취소",
            "file": "실행할 프로그램 선택", "prog": "프로그램", "all": "모든 파일"},
@@ -747,7 +767,8 @@ def pick_region_overlay(mode="region"):
     BAR = 34
     cv.create_rectangle(0, 0, w, BAR, fill="#1e1f22", outline="", tags="guide")
     guide = _GUIDE.get(_LANG, _GUIDE["ko"])["point" if mode == "point" else "region"]
-    cv.create_text(w // 2, BAR // 2, text=guide, fill="#ffffff", font=(_UI_FONT.get(_LANG, "Malgun Gothic"), 11, "bold"), tags="guide")
+    gf, gb = game_font()
+    cv.create_text(w // 2, BAR // 2, text=guide, fill="#ffffff", font=(gf, 11, "bold") if gb else (gf, 11), tags="guide")
     state = {"x0": 0, "y0": 0, "bar_top": True}
 
     def on_bar(y):
@@ -991,7 +1012,8 @@ def show_banner(kind="autocal", seconds=240, progress=None, parent=None):
         root.attributes("-alpha", 0.92)
     except Exception:
         pass
-    font = (_UI_FONT.get(_LANG, "Malgun Gothic"), 12, "bold")
+    gf, gb = game_font()
+    font = (gf, 12, "bold") if gb else (gf, 12)
     probe = tk.Label(root, text=text, font=font, padx=22, pady=10)
     w, h = probe.winfo_reqwidth(), probe.winfo_reqheight()
     probe.destroy()
@@ -1031,15 +1053,16 @@ def show_banner(kind="autocal", seconds=240, progress=None, parent=None):
     root.mainloop()
 
 
-# ---------------------------------------------------------------- 현재 상태 (매크로 작동 중 · 로블록스 화면 오른쪽 가운데)
+# ---------------------------------------------------------------- 현재 행동 (로블록스 화면 위 가운데)
 def show_status(path, parent=None):
-    """매크로 작동 중 로블록스 화면 오른쪽 가운데에 뜨는 현재 상태 창 (스크립트 매크로의 상태 UI 와 같은 모양 · overlay.py)
+    """로블록스 화면 위 가운데에 뜨는 현재 행동 (+ 안전 모드 안내) · overlay.py
     (tkinter 라 별도 프로세스: macro.py --status 파일 · 앱이 파일에 줄들을 씀 · 앱이 꺼지면 같이 닫힘)
     윈도우에서 겹친 창(픽셀마다 투명도)을 못 만들면 단순한 창으로"""
     if IS_WIN:
         try:
             import overlay
-            overlay.run(path, parent, _LANG, _UI_FONT.get(_LANG, "Malgun Gothic"),
+            gf, gb = game_font()
+            overlay.run(path, parent, _LANG, gf, bold=gb,
                         rect_fn=lambda: client_rect(roblox_window_cached(2.0)), alive_fn=_pid_alive)
             return
         except Exception:
@@ -1048,13 +1071,13 @@ def show_status(path, parent=None):
 
 
 def _show_status_simple(path, parent=None):
-    """단순한 상태 창 (오른쪽 정렬 "라벨 값" 줄 · 창 전체 투명도) — 겹친 창을 못 쓸 때"""
+    """단순한 상태 창 (가운데 정렬 "라벨 값" 줄 · 창 전체 투명도 · 화면 위 가운데) — 겹친 창을 못 쓸 때"""
     import json as _json
     import tkinter as tk
     import overlay
     labels = overlay._labels(_LANG)
     BG, LINE = "#121216", "#2a2d35"
-    family = _UI_FONT.get(_LANG, "Malgun Gothic")
+    family = game_font()[0]
     root = tk.Tk()
     root.overrideredirect(True)
     root.attributes("-topmost", True)
@@ -1078,10 +1101,10 @@ def _show_status_simple(path, parent=None):
             size, extra, vcol = overlay.STYLE.get(kind, overlay.STYLE["line"])
             f = (family, max(7, int(size * 0.5)))
             line = tk.Frame(box, bg=BG)
-            line.pack(anchor="e", pady=(extra // 2, 0))
+            line.pack(anchor="center", pady=(extra // 2, 0))
             col = r[3] if len(r) > 3 and r[3] else vcol
             if r[2] not in (None, ""):
-                tk.Label(line, text=overlay._value(r[2], _LANG), bg=BG, fg=col, font=f, wraplength=240, justify="right").pack(side="right")
+                tk.Label(line, text=overlay._value(r[2], _LANG), bg=BG, fg=col, font=f, wraplength=480, justify="center").pack(side="right")
             tk.Label(line, text=labels.get(r[1], r[1]), bg=BG, fg=overlay.LABEL, font=f).pack(side="right")
 
     def place():
@@ -1089,9 +1112,9 @@ def _show_status_simple(path, parent=None):
         w, h = root.winfo_reqwidth(), root.winfo_reqheight()
         rect = client_rect(roblox_window_cached(2.0)) if IS_WIN else None
         if rect and rect[2] > 200:
-            x, y = rect[0] + rect[2] - w - 20, rect[1] + max(0, (rect[3] - h) // 2)
+            x, y = rect[0] + (rect[2] - w) // 2, rect[1] + int(overlay.TOP * max(overlay.SCALE_MIN, min(overlay.SCALE_MAX, min(rect[2] / 1920, rect[3] / 1080))))
         else:
-            x, y = root.winfo_screenwidth() - w - 20, max(0, (root.winfo_screenheight() - h) // 2)
+            x, y = (root.winfo_screenwidth() - w) // 2, overlay.TOP
         geo = f"{w}x{h}+{x}+{y}"
         if geo != st["geo"]:
             st["geo"] = geo
@@ -1130,9 +1153,6 @@ def _show_status_simple(path, parent=None):
 
 
 # ---------------------------------------------------------------- 화면 캡처 / OCR
-SHOT_DIR = None
-
-
 class ScreenGrabber:
     """with ScreenGrabber() as g: g.grab({"left", "top", "width", "height"}) → .bgra / .width / .height (mss 와 같은 모양)
     자주 찍는 곳(자동 낚시)용 — mss 는 BitBlt 에 CAPTUREBLT 를 붙여서 찍는데, 이러면 윈도우가 매번 모든 창을 다시 합쳐서
@@ -1265,18 +1285,6 @@ def grab(region):
         img = s.grab({"left": int(region[0]), "top": int(region[1]),
                       "width": max(1, int(region[2])), "height": max(1, int(region[3]))})
         return bytes(img.bgra), img.width, img.height
-
-
-def save_screenshot(folder, rect=None):
-    import mss
-    import mss.tools
-    Path(folder).mkdir(parents=True, exist_ok=True)
-    path = Path(folder) / time.strftime("shot_%Y%m%d_%H%M%S.png")
-    with mss.mss() as s:
-        mon = {"left": rect[0], "top": rect[1], "width": rect[2], "height": rect[3]} if rect else s.monitors[1]
-        img = s.grab(mon)
-        mss.tools.to_png(img.rgb, img.size, output=str(path))
-    return str(path)
 
 
 def _upscale_bgra(data, w, h, k):

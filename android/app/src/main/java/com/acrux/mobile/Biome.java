@@ -35,7 +35,7 @@ import java.util.regex.Pattern;
 final class Biome {
     private Biome() {}
 
-    static final String DISCORD_URL = "https://discord.gg/B9QzJuseHR";
+    static final String DISCORD_URL = "https://discord.gg/cc9APrrnNv";
     static final int EMBED_COLOR = 0xFFFFFF, EXIT_COLOR = 0xFF0000;
     static final String THUMB_URL = "https://raw.githubusercontent.com/rngenesis0-coder/Acrux-macro/refs/heads/main/%s.png";
     static final Set<String> RARE = new HashSet<>(Arrays.asList("GLITCHED", "DREAMSPACE", "CYBERSPACE"));
@@ -56,6 +56,9 @@ final class Biome {
     static final Pattern RPC = Pattern.compile("\"largeImage\"\\s*:\\s*\\{[^}]*\"hoverText\"\\s*:\\s*\"([^\"]+)\"");
     static final Pattern HOOK = Pattern.compile("https://(?:(?:ptb|canary)\\.)?discord(?:app)?\\.com/api/(?:v\\d+/)?webhooks/\\d+/[A-Za-z0-9_\\-]+/?(?:\\?[A-Za-z0-9_=&\\-]*)?");
     static final String DISCONNECT = "Client:Disconnect";
+    static final Pattern JOIN = Pattern.compile("! Joining game '([0-9a-fA-F-]{36})'");
+    /** 안전 모드: 서버 ID 가 이만큼 그대로여야 바이옴 알림을 보냄 (ms) */
+    static final long SAFE_MS = 60_000L;
 
     // ---- 설정 (Hub.prefs)
     static boolean on() {
@@ -76,6 +79,11 @@ final class Biome {
         return Hub.prefs().getBoolean("biomeEveryone", true);
     }
 
+    /** 안전 모드 (기본 켜짐): 서버 ID 가 1분 이상 그대로일 때만 바이옴 알림 · 미니 UI 안내를 눌러 건너뜀 */
+    static boolean safe() {
+        return Hub.prefs().getBoolean("biomeSafe", true);
+    }
+
     // ---- 상태
     static volatile String current;
     static volatile boolean watching;
@@ -90,6 +98,66 @@ final class Biome {
     static volatile int primary;
     /** 직접 켰음 → 지금 나와 있는 바이옴도 알림 */
     static volatile boolean announceNow;
+    // ---- 안전 모드 (PC biome.py 와 같음)
+    /** 지금 서버 ID (로그의 Joining game) · 그 서버를 처음 본 때 (서버 ID 를 모르면 감시 시작 · 접속 끊김 때부터) */
+    static volatile String job;
+    static volatile long jobSince;
+    /** 타이머를 건너뛴 서버 (서버 ID 를 모를 때 누르면 "?" → 다음에 들어가는 서버까지) */
+    static volatile String skipJob;
+    /** 안전 모드 때문에 아직 안 보낸 바이옴 (시작 알림) · 시작 알림을 보낸 바이옴 (안전 모드일 때 끝 알림은 이것만) */
+    static volatile String held, announced;
+    static Thread safeTick;
+
+    /** 안전 모드 타이머 남은 초 · 0 이면 보내도 됨 */
+    static int safeLeft() {
+        if (!safe()) return 0;
+        String k = job == null ? "?" : job;
+        if (k.equals(skipJob)) return 0;
+        long left = SAFE_MS - (System.currentTimeMillis() - jobSince);
+        return left <= 0 ? 0 : (int) ((left + 999) / 1000);
+    }
+
+    static boolean holding() {
+        return safeLeft() > 0;
+    }
+
+    /** 안전 모드로 붙잡아 둔 바이옴이 있음 (미니 UI 안내) */
+    static boolean waiting() {
+        return on() && held != null && holding();
+    }
+
+    /** 미니 UI 안내를 누름: 지금 서버의 안전 모드 타이머를 건너뜀 */
+    static synchronized void skipSafe() {
+        if (!holding()) return;
+        skipJob = job == null ? "?" : job;
+        Hub.log("안전 모드 타이머 건너뜀", 'g');
+        release();
+        Hub.changed();
+    }
+
+    static synchronized void server(String l) {
+        Matcher m = JOIN.matcher(l);
+        if (!m.find()) return;
+        String j = m.group(1).toLowerCase(Locale.ROOT);
+        if (j.equals(job)) return;
+        if ("?".equals(skipJob) && job == null) skipJob = j;      // 서버 ID 를 모를 때 건너뜀 → 이 접속의 서버로
+        job = j;
+        jobSince = System.currentTimeMillis();
+        if (safe()) Hub.log("서버 접속 (서버 ID " + j.substring(0, 8) + ") — 안전 모드: 60초 동안 그대로면 바이옴 알림 보냄", 'd');
+    }
+
+    /** 타이머가 끝나면 붙잡아 둔 바이옴 시작 알림을 보냄 (아직 그 바이옴일 때만) */
+    static synchronized void release() {
+        if (!safe()) held = null;
+        if (held == null || holding()) return;
+        String b = held;
+        held = null;
+        if (!b.equals(current) || !on() || loop == null) return;
+        Hub.log("안전 모드 통과 — " + show(b) + " 알림 보냄", 'g');
+        announced = b;
+        sendAll(biome(b, true));
+    }
+
     static final Pattern TS = Pattern.compile("^(\\d\\d-\\d\\d \\d\\d:\\d\\d:\\d\\d\\.\\d{3})");
 
     /** 켜기 / 끄기 (설정 저장 + 감시 시작 / 멈춤 + 켜짐 · 꺼짐 웹후크) */
@@ -119,6 +187,11 @@ final class Biome {
         resumeTs = null;
         primary = 0;
         announceNow = announce;
+        job = null;
+        jobSince = System.currentTimeMillis();
+        skipJob = null;
+        held = null;
+        announced = null;
         if (announce) {
             sendAll(toggle(true));
             Hub.log("바이옴 매크로 켜짐", 'c');
@@ -126,6 +199,17 @@ final class Biome {
         loop = new Thread(() -> run(ctx), "acrux-biome");
         loop.setDaemon(true);
         loop.start();
+        Thread me = loop;
+        safeTick = new Thread(() -> {                         // 1초마다: 안전 모드 타이머가 끝났는지 · 남은 초 표시
+            while (loop == me && on()) {
+                if (!sleep(1000)) return;
+                boolean w = held != null;
+                release();
+                if (w) Hub.changed();
+            }
+        }, "acrux-biome-safe");
+        safeTick.setDaemon(true);
+        safeTick.start();
     }
 
     static synchronized void stop(boolean say) {
@@ -134,6 +218,8 @@ final class Biome {
         watching = false;
         status = "꺼짐";
         if (t != null) t.interrupt();
+        if (safeTick != null) safeTick.interrupt();
+        held = null;
         if (say) {
             sendAll(toggle(false));
             Hub.log("바이옴 매크로 꺼짐", 'c');
@@ -193,13 +279,15 @@ final class Biome {
                     // 처음 · 오래 끊겼음: 로그에 남은 마지막 바이옴으로 맞추고 지금부터 읽음 (오래 지난 바이옴을 줄줄이 알리지 않게)
                     String[] last = {null}, ts = {null};
                     try {
-                        Adb.shell(c, "logcat -d -v time 2>/dev/null | tail -n 1; logcat -d -v brief 2>/dev/null | grep -a -e 'BloxstrapRPC' -e '" + DISCONNECT + "' | tail -n 3", 20000, l -> {
+                        Adb.shell(c, "logcat -d -v time 2>/dev/null | tail -n 1; logcat -d -v brief 2>/dev/null | grep -a -e 'BloxstrapRPC' -e '" + DISCONNECT + "' -e 'Joining game' | tail -n 6", 20000, l -> {
                             Matcher m = TS.matcher(l);
                             if (m.find()) {
                                 if (ts[0] == null) ts[0] = m.group(1);
                                 return;
                             }
-                            if (l.contains(DISCONNECT)) {
+                            if (JOIN.matcher(l).find()) {
+                                server(l);                       // 지금 서버 (타이머는 지금부터)
+                            } else if (l.contains(DISCONNECT)) {
                                 last[0] = null;                  // 그 뒤로 나갔음 → 지금 바이옴은 모름
                             } else {
                                 String b = parse(l);
@@ -241,7 +329,7 @@ final class Biome {
             leftSent = false;
             Hub.log("지금 바이옴: " + show(b), 'c');
             Hub.changed();
-            if (announceNow && TARGET.contains(b)) sendAll(biome(b, true));     // 켰을 때 이미 나와 있는 바이옴
+            if (announceNow && TARGET.contains(b)) started(b);     // 켰을 때 이미 나와 있는 바이옴
         } else if (!b.equals(current)) {
             change(b);
         }
@@ -259,11 +347,17 @@ final class Biome {
     /** 로그 한 줄 (src: 1 로그캣 · 2 로그 파일) */
     static synchronized void line(String l, int src) {
         if (!on() || loop == null) return;
+        if (l.contains("Joining game")) {
+            server(l);
+            return;
+        }
         if (l.contains(DISCONNECT)) {
             if (!leftSent) {
                 leftSent = true;
                 Hub.log("로블록스 접속 끊김", 'y');
-                sendAll(exit());
+                if (!holding()) sendAll(exit());
+                job = null;                                       // 다음 접속까지 서버 모름 · 타이머 다시
+                jobSince = System.currentTimeMillis();
             }
             return;
         }
@@ -280,8 +374,21 @@ final class Biome {
         leftSent = false;
         Hub.log("바이옴: " + (prev == null ? "-" : show(prev)) + " → " + show(b), RARE.contains(b) ? 'g' : 'c');
         Hub.changed();
-        if (prev != null && TARGET.contains(prev)) sendAll(biome(prev, false));
-        if (TARGET.contains(b)) sendAll(biome(b, true));
+        if (prev != null && TARGET.contains(prev) && (!safe() || prev.equals(announced))) sendAll(biome(prev, false));
+        if (held != null && !held.equals(b)) held = null;       // 붙잡아 둔 바이옴이 끝남 → 안 보냄
+        if (TARGET.contains(b)) started(b);
+    }
+
+    /** 바이옴 시작 알림 — 안전 모드 타이머가 안 끝났으면 붙잡아 둠 */
+    static void started(String b) {
+        if (safe() && holding()) {
+            held = b;
+            Hub.log("안전 모드 — " + show(b) + " 알림 대기 (" + safeLeft() + "초)", 'y');
+            Hub.changed();
+            return;
+        }
+        announced = b;
+        sendAll(biome(b, true));
     }
 
     static String parse(String l) {

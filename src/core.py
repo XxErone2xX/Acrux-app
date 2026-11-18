@@ -57,6 +57,7 @@ BIOME_DEFAULT = {
     "webhooks": ["", ""],     # 디스코드 웹후크 주소 (최대 2개)
     "everyone": {"GLITCHED": True, "DREAMSPACE": True, "CYBERSPACE": True},   # 희귀 바이옴별 @everyone
     "roles": {},              # 바이옴별 멘션할 역할 ID
+    "safe_mode": True,        # 안전 모드: 서버 ID 가 1분 이상 그대로일 때만 바이옴 웹후크 (K 로 건너뜀)
 }
 PLAY_DEFAULT = {
     "pos": None,              # Play 버튼 위치 (로블록스 창 기준 비율) — 플레이어가 직접 지정 (기본값 없음)
@@ -575,6 +576,9 @@ def normalize(raw):
     bio["webhooks"] = (hooks + ["", ""])[:2]
     bio["player"] = str(bio.get("player") or "").strip()
     bio["ps_link"] = str(bio.get("ps_link") or "").strip()
+    if not bio.get("safe_v2"):                   # V3.3.2: 기본값이 켜짐으로 바뀜 → 예전 기본값(꺼짐)으로 저장된 설정도 한 번 켬
+        bio["safe_mode"], bio["safe_v2"] = True, True
+    bio["safe_mode"] = bool(bio.get("safe_mode"))
     ev = dict(BIOME_DEFAULT["everyone"])
     if bio.get("ping_rare") is False:            # 예전 설정(희귀 바이옴 전체 @everyone 끔) 이어받기
         ev = {k: False for k in ev}

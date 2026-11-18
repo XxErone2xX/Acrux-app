@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-현재 상태 창 — 매크로가 켜져 있는 동안 로블록스 화면 오른쪽 가운데 (스크립트 매크로의 상태 UI 와 같은 모양)
-  · 폭 560 · 오른쪽에서 20 · 세로 가운데 · 배경 (18, 18, 22) 을 왼쪽은 투명 → 오른쪽은 85% 로 (가로 그라디언트) · 각진 모서리
-  · 줄은 전부 오른쪽 정렬 "라벨 값" (라벨 회색 #9AA0AC · 값 흰색 · 현재 행동은 하늘색 #7FD1FF · 크게)
-  · 글자 크기: 기본 24 · 현재 행동 30 · 묶음 22 · 켜져 있는 기능 16 · 묶음 사이 흰색 10% 구분선
+현재 행동 창 — 로블록스 화면 위 가운데 (매크로 작동 중 · 안전 모드로 바이옴 알림을 붙잡는 중)
+  · 줄은 가운데 정렬 "라벨 값" · 배경 없이 흰 글자 + 검은 외곽선 (OUTLINE)
+  · 폭은 글자에 맞춤 (최대 W_MAX)
   · 켜질 때 · 꺼질 때 0.3초 동안 서서히
   · 클릭이 통과되고 포커스를 안 가져감 · 화면 캡처에는 안 찍힘 (매크로가 화면을 읽을 때 방해 안 되게)
 윈도우: 글자 모양을 GDI 로 그려서 numpy 로 합친 뒤 UpdateLayeredWindow (픽셀마다 투명도) · 실패하면 macro.show_status_simple
@@ -17,14 +16,17 @@ import time
 
 import numpy as np
 
-W_BASE = 560
-PAD_X, PAD_Y, GAP = 20, 16, 4
-BG = (18, 18, 22)
-BG_ALPHA = 0.85
-LABEL, VALUE, ACCENT = "#9AA0AC", "#FFFFFF", "#7FD1FF"
+W_MAX = 900                     # 글자 줄 최대 폭 (넘으면 줄바꿈)
+PAD_X, PAD_Y, GAP = 6, 6, 4
+SCALE_MIN, SCALE_MAX = 0.35, 3.0   # 글자 크기 배율 범위 (게임 창 1920x1080 = 1)
+TOP = 50                        # 게임 화면 위에서 얼마나 내려서 띄울지 (px · 1080 기준 · 로블록스 위쪽 버튼 아래)
+OUTLINE = 3.0                   # 검은 외곽선 두께 (px · 화면 크기에 맞춰 늘어남)
+SS = 3                          # 글자를 3배로 그린 뒤 줄여서 테두리를 부드럽게 (작은 글씨에서 계단 현상 없앰)
+BG = (18, 18, 22)               # 단순한 창(겹친 창을 못 쓸 때) 배경
+LABEL, VALUE, ACCENT, NOTE = "#9AA0AC", "#FFFFFF", "#7FD1FF", "#FFD166"
 # 종류 → (글자 크기, 위쪽 여백 더, 값 색)
 STYLE = {"line": (24, 0, VALUE), "act": (30, 0, ACCENT), "head": (22, 6, VALUE), "sub": (22, 0, VALUE),
-         "shead": (16, 6, VALUE), "small": (16, 0, VALUE), "line6": (24, 6, VALUE)}
+         "shead": (16, 6, VALUE), "small": (16, 0, VALUE), "line6": (24, 6, VALUE), "note": (20, 4, NOTE)}
 FADE = 0.3
 
 
@@ -34,6 +36,33 @@ def _rgb(h):
         return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
     except (ValueError, IndexError):
         return 255, 255, 255
+
+
+def _grow(m, r):
+    """글자 모양을 반지름 r 만큼 둥글게 넓힘 (외곽선 · 가장자리는 부드럽게)"""
+    out = m.copy()
+    R = int(np.ceil(r))
+    H, W = m.shape
+    for dy in range(-R, R + 1):
+        for dx in range(-R, R + 1):
+            w = min(1.0, max(0.0, r + 0.5 - (dx * dx + dy * dy) ** 0.5))
+            if w <= 0 or (dx == 0 and dy == 0):
+                continue
+            src = m[max(0, -dy):H - max(0, dy), max(0, -dx):W - max(0, dx)] * w
+            dst = out[max(0, dy):H - max(0, -dy), max(0, dx):W - max(0, -dx)]
+            np.maximum(dst, src, out=dst)
+    return out
+
+
+def _shrink(m, k):
+    """k배로 그린 글자 모양 → 원래 크기 (k×k 칸 평균 · 안티에일리어싱)"""
+    if k <= 1 or m.size == 0:
+        return m
+    h, w = m.shape
+    H, W = -(-h // k), -(-w // k)
+    big = np.zeros((H * k, W * k), np.float32)
+    big[:h, :w] = m
+    return big.reshape(H, k, W, k).mean(axis=(1, 3)).round().astype(np.uint8)
 
 
 class Renderer:
@@ -48,11 +77,11 @@ class Renderer:
         if k not in self.cache:
             if len(self.cache) > 400:
                 self.cache.clear()
-            self.cache[k] = self.mask(text, px)
+            self.cache[k] = _shrink(self.mask(text, px * SS), SS)
         return self.cache[k]
 
     def _wrap(self, segs, px, width):
-        """[(글자, 색)] → 폭에 맞게 나눈 줄들 (낱말 단위 · 오른쪽 정렬이라 앞에서부터 채움)"""
+        """[(글자, 색)] → 폭에 맞게 나눈 줄들 (낱말 단위 · 앞에서부터 채움)"""
         words = []
         for text, col in segs:
             parts = str(text).split(" ")
@@ -75,9 +104,8 @@ class Renderer:
         return lines or [[]], space
 
     def render(self, rows, scale=1.0):
-        s = max(0.5, min(2.0, float(scale)))
-        W = int(W_BASE * s)
-        inner = W - 2 * int(PAD_X * s)
+        s = max(SCALE_MIN, min(SCALE_MAX, float(scale)))
+        inner = int(W_MAX * s)
         items = []                               # ("div", 높이) · ("text", 위 여백, 높이, [(마스크, 색, x)])
         for r in rows:
             kind = r[0]
@@ -98,48 +126,39 @@ class Renderer:
                     parts.append((m, c, x))
                     x += m.shape[1] + (space if i < len(line) - 1 else 0)
                 items.append(("text", int(extra * s) if n == 0 else 0, h, parts, x))
+        tws = [it[4] for it in items if it[0] == "text"]
+        W = max(tws or [1]) + 2 * int(PAD_X * s)
         gap = int(GAP * s)
         H = 2 * int(PAD_Y * s)
         for i, it in enumerate(items):
             H += (it[1] if it[0] == "div" else it[1] + it[2]) + (gap if i else 0)
         H = max(H, 2 * int(PAD_Y * s) + 1)
-        # 배경: 왼쪽 투명 → 오른쪽 85% (스크립트의 UIGradient)
-        a = (np.linspace(0.0, 1.0, W) * BG_ALPHA)[None, :].repeat(H, 0)
-        rgb = np.zeros((H, W, 3), np.float32)
-        rgb[:] = BG
+        # 배경 없음 · 흰 글자 + 검은 외곽선 (글자 모양을 둥글게 넓혀서 그 아래에 깔음)
+        fill = np.zeros((H, W), np.float32)
         y = int(PAD_Y * s)
         x0, x1 = int(PAD_X * s), W - int(PAD_X * s)
         for i, it in enumerate(items):
             if i:
                 y += gap
             if it[0] == "div":
-                hh = it[1]
-                sl = (slice(y, y + hh), slice(x0, x1))
-                k = 0.1
-                rgb[sl] = rgb[sl] * (a[sl][..., None] * (1 - k)) / np.maximum(a[sl] * (1 - k) + k, 1e-6)[..., None] \
-                    + 255 * k / np.maximum(a[sl] * (1 - k) + k, 1e-6)[..., None]
-                a[sl] = a[sl] * (1 - k) + k
-                y += hh
+                y += it[1]
                 continue
             _, extra, hh, parts, tw = it
             y += extra
-            left = x1 - tw                              # 오른쪽 정렬
-            for m, c, x in parts:
+            left = x0 + (x1 - x0 - tw) // 2               # 가운데 정렬
+            for m, _c, x in parts:
                 mh, mw = m.shape
                 yy, xx = y + (hh - mh), left + x
                 if mw == 0 or xx >= W or yy >= H:
                     continue
                 cov = m[: H - yy, : W - xx].astype(np.float32) / 255.0
                 sl = (slice(yy, yy + cov.shape[0]), slice(xx, xx + cov.shape[1]))
-                col = np.array(_rgb(c), np.float32)
-                old_a = a[sl]
-                new_a = cov + old_a * (1 - cov)
-                rgb[sl] = (col * cov[..., None] + rgb[sl] * (old_a * (1 - cov))[..., None]) / np.maximum(new_a, 1e-6)[..., None]
-                a[sl] = new_a
+                fill[sl] = np.maximum(fill[sl], cov)
             y += hh
+        line = _grow(fill, OUTLINE * s)
+        a = fill + line * (1 - fill)
         out = np.zeros((H, W, 4), np.uint8)
-        pa = a[..., None]
-        out[..., :3] = np.clip(rgb[..., ::-1] * pa, 0, 255).astype(np.uint8)     # BGR · 미리 곱한 알파
+        out[..., :3] = np.clip(fill * 255, 0, 255).astype(np.uint8)[..., None]     # 흰색 (미리 곱한 알파) · 외곽선은 검은색
         out[..., 3] = np.clip(a * 255, 0, 255).astype(np.uint8)
         return out
 
@@ -190,7 +209,7 @@ def _bmi(w, h):
     return b
 
 
-def gdi_mask_factory(font="Malgun Gothic"):
+def gdi_mask_factory(font="Malgun Gothic", bold=True):
     u, g, W = _win()
     dc = g.CreateCompatibleDC(None)
     fonts = {}
@@ -198,7 +217,7 @@ def gdi_mask_factory(font="Malgun Gothic"):
     def mask(text, px):
         if px not in fonts:
             # 높이 -px = 글자 크기 px · ANTIALIASED_QUALITY (회색 테두리 · ClearType 아님)
-            fonts[px] = g.CreateFontW(-px, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 4, 0, font)
+            fonts[px] = g.CreateFontW(-px, 0, 0, 0, 600 if bold else 400, 0, 0, 0, 1, 0, 0, 4, 0, font)
         old = g.SelectObject(dc, fonts[px])
         sz = W.SIZE()
         g.GetTextExtentPoint32W(dc, text, len(text), ctypes.byref(sz))
@@ -220,12 +239,12 @@ def gdi_mask_factory(font="Malgun Gothic"):
     return mask
 
 
-def run(path, parent=None, lang="ko", font="Malgun Gothic", rect_fn=None, alive_fn=None):
-    """윈도우에서 상태 창 띄우기 (tk 창을 겹친 창으로 바꿔서 그림만 UpdateLayeredWindow 로 넣음)"""
+def run(path, parent=None, lang="ko", font="Malgun Gothic", rect_fn=None, alive_fn=None, bold=True):
+    """윈도우에서 현재 행동 창 띄우기 (tk 창을 겹친 창으로 바꿔서 그림만 UpdateLayeredWindow 로 넣음)"""
     import tkinter as tk
     u, g, W = _win()
     labels = _labels(lang)
-    rnd = Renderer(gdi_mask_factory(font))
+    rnd = Renderer(gdi_mask_factory(font, bold))
     root = tk.Tk()
     root.overrideredirect(True)
     root.attributes("-topmost", True)
@@ -258,14 +277,22 @@ def run(path, parent=None, lang="ko", font="Malgun Gothic", rect_fn=None, alive_
             return
         rect = rect_fn() if rect_fn else None
         if rect and rect[2] > 200:
-            x, y = rect[0] + rect[2] - w - int(20 * st["scale"]), rect[1] + (rect[3] - h) // 2
+            x, y = rect[0] + (rect[2] - w) // 2, rect[1] + int(TOP * st["scale"])
         else:
-            x, y = root.winfo_screenwidth() - w - 20, (root.winfo_screenheight() - h) // 2
+            x, y = (root.winfo_screenwidth() - w) // 2, TOP
         bl = _Blend(0, 0, int(255 * max(0.0, min(1.0, st["alpha"]))), 1)
         u.UpdateLayeredWindow(hwnd, screen, ctypes.byref(W.POINT(x, y)), ctypes.byref(W.SIZE(w, h)), mem,
                               ctypes.byref(W.POINT(0, 0)), 0, ctypes.byref(bl), 2)
         if st["n"] % 40 == 0:                               # 다른 창이 맨 위로 올라와도 다시 위로
             u.SetWindowPos(hwnd, ctypes.c_void_p(-1), 0, 0, 0, 0, 0x1 | 0x2 | 0x10)
+
+    def fit():
+        """게임 창 크기 → 글자 배율 (가로 1920 · 세로 1080 중 작은 쪽 기준 · 0.05 단위로 맞춰서 자주 다시 안 그림)"""
+        rect = rect_fn() if rect_fn else None
+        if not rect or rect[2] < 50 or rect[3] < 50:
+            return st["scale"]
+        k = min(rect[2] / 1920, rect[3] / 1080)
+        return max(SCALE_MIN, min(SCALE_MAX, round(k * 20) / 20))
 
     def tick():
         st["n"] += 1
@@ -280,11 +307,15 @@ def run(path, parent=None, lang="ko", font="Malgun Gothic", rect_fn=None, alive_
                     raise ValueError
                 rows = [[r[0], labels.get(r[1], r[1]), _value(r[2], lang)] + list(r[3:4])
                         for r in (d.get("rows") or []) if isinstance(r, list) and len(r) >= 3]
-                rect = rect_fn() if rect_fn else None
-                scale = max(0.6, min(1.5, rect[3] / 1080)) if rect and rect[3] > 200 else 1.0
+                scale = fit()
                 if rows != st["rows"] or scale != st["scale"]:
                     st["rows"], st["scale"] = rows, scale
                     upload(rnd.render(rows, scale))
+            elif st["rows"] is not None and st["n"] % 2 == 0:
+                scale = fit()                        # 글자가 그대로여도 창 크기가 바뀌면 다시 그림
+                if scale != st["scale"]:
+                    st["scale"] = scale
+                    upload(rnd.render(st["rows"], scale))
         except (OSError, ValueError):
             pass
         dt, st["t"] = time.time() - st["t"], time.time()
@@ -323,7 +354,9 @@ VALUES = {
     "메모리 매치": ("Memory match", "メモリーマッチ"), "바이옴 매크로": ("Biome macro", "バイオームマクロ"),
     "이동": ("Moving", "移動"), "없음": ("None", "なし"), "대기": ("Idle", "待機"), "작동 중": ("Running", "動作中"),
     "이동 중": ("Moving", "移動中"), "켜진 기능 없음": ("No features on", "オンの機能なし"),
-    "다른 서버 접속 중이라 대기": ("Waiting (in another server)", "他のサーバーに接続中のため待機"),
+    "[ 안전 모드 ] 가 활성화되어있습니다. 1분 타이머를 스킵하려면 [ K ] 키를 눌러주세요.":
+        ("[ Safe mode ] is on. Press [ K ] to skip the 1 minute timer.",
+         "[ セーフモード ] が有効です。1分タイマーをスキップするには [ K ] キーを押してください。"),
     "준비됨": ("Ready", "準備完了"), "꺼짐": ("Off", "オフ"), "확인 중": ("Checking", "確認中"),
 }
 

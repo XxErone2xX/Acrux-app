@@ -91,6 +91,7 @@ class Bridge:
         core.Bus.on_log = self._on_log
         core.Bus.on_status = self._on_status
         # 바이옴 매크로: 로그는 항상 읽고(현재 바이옴 표시), 웹후크는 바이옴 매크로 토글이 켜져 있을 때만 (시작 버튼과 무관)
+        # 안전 모드 (바이옴 설정): 서버 ID 가 1분 이상 그대로일 때만 바이옴 웹후크 · K 로 타이머 건너뜀
         self.biome = biome.BiomeWatcher(lambda: self.data.get("biome", {}),
                                         lambda: bool(self.data.get("biome", {}).get("enabled")),
                                         on_change=self._on_biome_change)
@@ -144,8 +145,7 @@ class Bridge:
         # 모드 일이 도는 동안은 매크로(자동 낚시 등)가 쉬고, 내 서버로 돌아오면 입장 후 대기 뒤 다시 켜짐
         self.resume_at = 0.0                # 이 시각 전엔 매크로를 다시 켜지 않음 (복귀 직후 게임이 다 뜰 때까지)
         self.ret = rejoin.Returner(self._ret_cfg, self._on_log, self.play,
-                                   kill=core.kill_roblox, launch=core.open_link,
-                                   before_launch=self.biome.own_next_session)
+                                   kill=core.kill_roblox, launch=core.open_link)
         self.ret_fails, self.ret_watch = 0, None   # 복귀 Play 실패 횟수 · 복귀 실패 뒤 직접 들어갔는지 보는 로그 감시
         self.ret_cause = None               # "crash": 로블록스가 꺼져서 하는 복구 (끝나면 하던 대로 · 모드 일은 다시 안 함)
         self.crash_warned = None            # 자동 복구를 못 하는 이유를 한 번만 알림
@@ -435,7 +435,7 @@ class Bridge:
 
     # ---------------- 매크로 탭 · 자동 낚시 ----------------
     def _macro_loop(self):
-        """1초마다: 매크로 버튼 + 자동 낚시 켜기 + 로블록스 창 있음 + 내 서버(다른 서버 접속 아님)
+        """1초마다: 매크로 버튼 + 자동 낚시 켜기 + 로블록스 창 있음
         + 다른 일(모드 · 복귀 · Play 클릭 · 복귀 후 대기) 없음 → 자동 낚시 돌림, 아니면 멈춤 (돌아오면 다시 켜짐)"""
         warned, paused = None, False
         while True:
@@ -457,7 +457,7 @@ class Bridge:
                     self._after_return("게임 입장 확인")
                 busy = self.ret.running() or self.play.running() or time.time() < self.resume_at \
                     or self.ret_watch is not None or self._mod_busy("macro")
-                away = busy or self.biome.away() or self.mod_hold
+                away = busy or self.mod_hold
                 if want and away and not paused:
                     paused = True
                     if self.mod_hold:
@@ -761,7 +761,7 @@ class Bridge:
                 action = next(((s.get("msg") or d) for s, d in busy
                                if s.get("running") and (d != "상인 구매 중" or s.get("job") == "buy")), None)
                 if not action:
-                    action = "다른 서버 접속 중이라 대기" if self.biome.state().get("away") else "작동 중"
+                    action = "작동 중"
             feats = [n for k, n in self.DC_FEATS if (self.data.get(k) or {}).get("enabled")]
             if (self.data.get("biome") or {}).get("enabled"):
                 feats.insert(0, "바이옴 알림")
@@ -836,9 +836,9 @@ class Bridge:
         self.hooks.emit("macro", bool(on))
 
     def _hotkey_loop(self):
-        """F3: 매크로 켜기 · 끄기 (어느 창에 있든) · 매크로 작동 중엔 화면 위에 '건드리지 마세요' 띠
-        (이동 · 자동 보정 띠가 떠 있을 땐 그 띠만)"""
-        was, banner, tick, status = False, None, 0, None
+        """F3: 매크로 켜기 · 끄기 (어느 창에 있든) · K: 안전 모드 타이머 건너뛰기 (로블록스가 앞에 있을 때)
+        화면 위 가운데 현재 행동 (매크로 작동 중 · 안전 모드로 바이옴 알림을 붙잡는 중) — 이동 · 자동 보정 띠가 떠 있을 땐 그 띠만"""
+        was, was_k, tick, status = False, False, 0, None
         while True:
             time.sleep(0.05)
             try:
@@ -846,23 +846,17 @@ class Bridge:
                 if down and not was:
                     self._set_macro(not self.data.get("macro_on"))
                 was = down
+                kd = macro.key_down_now("k")
+                if kd and not was_k and self.biome.holding() \
+                        and macro.is_foreground(macro.roblox_window_cached(1.0)) and self.biome.skip_safe():
+                    tick = -1                                # 바로 다시 그림
+                was_k = kd
                 tick += 1
                 if tick % 4:
                     continue
                 other = (getattr(self, "_mv_banner", None) is not None and self._mv_banner.poll() is None) \
                     or getattr(self, "_autocal_running", False) or getattr(self, "_sellcal_running", False)
-                want = bool(self.data.get("macro_on")) and (self.fisher.running() or self.mpop.running() or self.blood.running()
-                                                          or self.items.running()
-                                                          or self.merchant.running() or self.crafter.running()
-                                                          or self.matcher.running()) and not other
-                alive = banner is not None and banner.poll() is None
-                if want and not alive:
-                    banner = self._banner_proc("macro")
-                elif not want and alive:
-                    banner.kill()
-                    banner = None
-                # 현재 상태 창 (매크로가 켜져 있는 동안 로블록스 화면 오른쪽 가운데)
-                show = bool(self.data.get("macro_on"))
+                show = (bool(self.data.get("macro_on")) or self._safe_wait()) and not other
                 s_alive = status is not None and status.poll() is None
                 if show:
                     if s_alive and getattr(status, "_off_at", 0):
@@ -885,6 +879,10 @@ class Bridge:
             except Exception as e:
                 write_crash(f"hotkey loop: {e}")
                 time.sleep(1)
+
+    def _safe_wait(self):
+        """안전 모드로 바이옴 알림을 붙잡는 중 (바이옴 매크로 켜짐 · 아직 안 보낸 바이옴 있음)"""
+        return bool((self.data.get("biome") or {}).get("enabled")) and bool(self.biome.held) and self.biome.holding()
 
     # ---------------- AFK 방지 (로블록스 20분 튕김) ----------------
     AFK_EVERY = 300                         # 하던 동작이 끝나고 입력이 없으면 5분마다 점프
@@ -945,15 +943,12 @@ class Bridge:
         self._save()
         self._on_log("F7 — 매크로 꺼짐", "y")
 
-    def _on_biome_change(self, prev, found, away):
-        """매크로 탭 · 레어 바이옴 자동 팝핑: 지금 켜져 있는 로블록스(내 서버)에서 레어 바이옴이 시작되면 포션 사용
-        모드가 들어간 다른 사람 서버이거나, 모드 일 · 복귀 · Play 클릭이 도는 중이면 안 함"""
-        self.hooks.emit("biome", prev, found, away)
+    def _on_biome_change(self, prev, found, held):
+        """매크로 탭 · 레어 바이옴 자동 팝핑: 지금 켜져 있는 로블록스에서 레어 바이옴이 시작되면 포션 사용
+        모드 일 · 복귀 · Play 클릭이 도는 중이면 안 함 (held: 안전 모드로 웹후크를 붙잡는 중 — 모드에 그대로 넘김)"""
+        self.hooks.emit("biome", prev, found, held)
         mp = self.data.get("mpop", {})
         if not self.data.get("macro_on") or not mp.get("enabled") or found not in popping.POP_BIOMES:
-            return
-        if away:
-            self._on_log(f"{found} 감지 — 다른 서버 접속이라 팝핑 안 함", "d")
             return
         if self.ret.running() or self.play.running() or self._mod_busy("mpop"):
             self._on_log(f"{found} 감지 — 다른 기능이 도는 중이라 내 서버 팝핑 안 함", "y")
@@ -1064,7 +1059,6 @@ class Bridge:
         if not link:
             return {"error": "복귀 설정에 내 브섭 링크가 없음"}
         try:
-            self.biome.own_next_session()
             self.ret_watch = None
             core.open_link(link)
         except Exception as e:
@@ -1149,49 +1143,29 @@ class Bridge:
             return None
 
     STATUS_FILE = Path(tempfile.gettempdir()) / f"acrux_status_{os.getpid()}.json"
-    # 스크립트 매크로 상태 UI 와 같은 이름 · 묶음
     STATUS_ORDER = (("mpop", "레어 바이옴 자동 팝핑"), ("mblood", "블러드 레인 자동 생성"), ("mitem", "아이템 사용"),
                     ("mmerch", "상인 자동 구매"), ("mcraft", "포션 자동 제작"), ("mmatch", "메모리 매치"), ("mfish", "자동 낚시"))
-    STATUS_GROUPS = (("g_always", ("mfish",)), ("g_single", ("mmatch", "mcraft", "mitem", "mmerch")), ("g_urgent", ("mpop", "mblood")))
+    SAFE_NOTE = "[ 안전 모드 ] 가 활성화되어있습니다. 1분 타이머를 스킵하려면 [ K ] 키를 눌러주세요."
 
     def _status_rows(self):
-        """현재 상태 창의 줄들 (스크립트 매크로 상태 UI 순서 그대로):
-        현재 작동중인 기능 · 현재 행동 · 대기열인 기능 → 아이템 사용 쿨타임 → 인식중인 바이옴 → 켜져 있는 기능 (묶음별) · 작동 시간"""
-        names = dict(self.STATUS_ORDER)
-        snaps = {"mpop": self.mpop.snapshot(), "mblood": self.blood.snapshot(), "mitem": self.items.snapshot(),
-                 "mmerch": self.merchant.snapshot(), "mcraft": self.crafter.snapshot(), "mmatch": self.matcher.snapshot(),
-                 "mfish": self.fisher.snapshot()}
-        on = [k for k, _ in self.STATUS_ORDER if (self.data.get(k) or {}).get("enabled")]
-        run = next((k for k, _ in self.STATUS_ORDER if snaps[k].get("running") and (k != "mmerch" or snaps[k].get("job") == "buy")), None)
-        mv = self.mover.snapshot()
-        bio = self.biome.state()
-        if run:
-            feat, act = names[run], snaps[run].get("msg") or "작동 중"
-        elif mv.get("running"):
-            feat, act = "이동", mv.get("msg") or "이동 중"
-        elif bio.get("away"):
-            feat, act = "없음", "다른 서버 접속 중이라 대기"
-        elif not on:
-            feat, act = "없음", "켜진 기능 없음"
-        else:
-            feat, act = "없음", "대기"
-        queue = [names[k] for k in on if k != run]
-        rows = [["line", "feat", feat], ["act", "act", str(act)[:80]], ["line", "queue", ", ".join(queue) or "없음"],
-                ["div", "", ""], ["head", "cool", ""]]
-        items = snaps["mitem"].get("items") if "mitem" in on else None
-        for k, key in (("strange", "strange"), ("randomizer", "random")):
-            it = (items or {}).get(k) or {}
-            left = int(float(it.get("left") or 0))
-            rows.append(["sub", key, "꺼짐" if not items or not it.get("on") else "준비됨" if left <= 0 else f"{left // 60}분 {left % 60:02d}초"])
-        cur = bio.get("current")
-        rows += [["div", "", ""], ["line6", "biome", biome.show_name(cur) if cur else "없음"], ["div", "", ""], ["shead", "on", ""]]
-        web = ["바이옴 매크로"] if (self.data.get("biome") or {}).get("enabled") else []
-        rows.append(["small", "g_web", ", ".join(web)] if web else ["small", "g_web", "없음", "#9AA0AC"])
-        for key, ks in self.STATUS_GROUPS:
-            got = [names[k] for k in ks if k in on]
-            rows.append(["small", key, ", ".join(got)] if got else ["small", key, "없음", "#9AA0AC"])
-        up = int(time.time() - self.macro_since) if self.macro_since else 0
-        rows.append(["small", "time", f"{up // 3600:02d}:{up // 60 % 60:02d}:{up % 60:02d}" if up else "-"])
+        """화면 위 가운데 줄들: 현재 행동 (+ 안전 모드로 바이옴 알림을 붙잡는 중이면 그 안내)"""
+        rows = []
+        if self.data.get("macro_on"):
+            snaps = {"mpop": self.mpop.snapshot(), "mblood": self.blood.snapshot(), "mitem": self.items.snapshot(),
+                     "mmerch": self.merchant.snapshot(), "mcraft": self.crafter.snapshot(), "mmatch": self.matcher.snapshot(),
+                     "mfish": self.fisher.snapshot()}
+            on = [k for k, _ in self.STATUS_ORDER if (self.data.get(k) or {}).get("enabled")]
+            run = next((k for k, _ in self.STATUS_ORDER if snaps[k].get("running") and (k != "mmerch" or snaps[k].get("job") == "buy")), None)
+            mv = self.mover.snapshot()
+            if run:
+                act = snaps[run].get("msg") or "작동 중"
+            elif mv.get("running"):
+                act = mv.get("msg") or "이동 중"
+            else:
+                act = "대기" if on else "켜진 기능 없음"
+            rows.append(["act", "act", str(act)[:80]])
+        if self._safe_wait():
+            rows.append(["note", "", self.SAFE_NOTE])
         return rows
 
     def _write_status(self):

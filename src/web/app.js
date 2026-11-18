@@ -662,9 +662,7 @@ function syncMainTiles() {
   setText($('mtBiome'), bOn ? `작동 중 · ${cur ? bioName(cur) : '바이옴 확인 중'}`
     : (bio().player ? '꺼짐' : '꺼짐 · 플레이어 이름 필요'));
   const mOn = !!config.macro_on, n = macroFeatures();
-  const away = !!(lastBio && lastBio.away);        // 모드가 다른 사람 서버에 들어가 있음
   setTile('macro', mOn, mOn ? '중지 · F3' : '시작 · F3');
-  if (tile('macro').classList.contains('wait') !== (mOn && away)) tile('macro').classList.toggle('wait', mOn && away);
   const mText = !mOn ? (n ? `꺼짐 · 기능 ${n}개 켜짐` : '꺼짐')
     : lastMpop && lastMpop.running ? (lastMpop.msg || '포션 사용 중')
     : lastMblood && lastMblood.running ? (lastMblood.msg || '블러드 레인 만드는 중')
@@ -673,11 +671,10 @@ function syncMainTiles() {
     : lastMcraft && lastMcraft.running ? (lastMcraft.msg || '포션 제작 중')
     : lastMmatch && lastMmatch.running ? (lastMmatch.msg || '메모리 매치 중')
     : lastMfish && lastMfish.running ? (lastMfish.msg || '낚시 중')
-    : away ? '다른 서버 접속 중이라 대기'
     : n ? `작동 중 · 기능 ${n}개` : '켜진 기능 없음';
   setText($('mtMacro'), mText);
   // 매크로 설정 화면 위쪽: 매크로 버튼 상태
-  setData($('macroDot'), 's', mOn ? (away ? 'waiting' : 'flux') : '');
+  setData($('macroDot'), 's', mOn ? 'flux' : '');
   setText($('macroState'), mOn ? `매크로 켜짐 · ${mText}` : (n ? `매크로 꺼짐 · 기능 ${n}개 켜짐` : '매크로 꺼짐'));
   const on = [bOn && '바이옴 매크로', mOn && '매크로', ...Mods.emit('active')].filter(Boolean);
   syncFeatItems();
@@ -2342,7 +2339,7 @@ function updateRet(st) {
 }
 
 // ---------------------------------------------------------------- 바이옴 매크로
-const bio = () => (config.biome ||= { enabled: false, player: '', ps_link: '', webhooks: ['', ''], everyone: {}, roles: {} });
+const bio = () => (config.biome ||= { enabled: false, player: '', ps_link: '', webhooks: ['', ''], everyone: {}, roles: {}, safe_mode: true, safe_v2: true });
 // 덜 희귀한 것 → 희귀한 것 (멘션 설정에는 거꾸로: 희귀한 것부터)
 const BIOME_LIST = ['WINDY', 'SNOWY', 'RAINY', 'SANDSTORM', 'HELL', 'STARFALL', 'HEAVEN', 'CORRUPTION', 'NULL',
                     'GLITCHED', 'DREAMSPACE', 'CYBERSPACE', 'LOSTFOREST', 'SINGULARITY', 'RADIANTFOREST',
@@ -2357,6 +2354,7 @@ function fillBiome() {
   $('bioPs').value = b.ps_link || '';
   $('bioHook1').value = (b.webhooks || [])[0] || '';
   $('bioHook2').value = (b.webhooks || [])[1] || '';
+  $('bioSafe').checked = !!b.safe_mode;
   syncBioToggles();
   renderMentions();
 }
@@ -2419,6 +2417,11 @@ for (const [id, n] of [['bioHook1', 0], ['bioHook2', 1]]) {
     w[n] = e.target.value.trim(); saveBio();
   });
 }
+$('bioSafe').addEventListener('change', e => {
+  bio().safe_mode = e.target.checked; saveBio();
+  toast('안전 모드 ' + (e.target.checked ? '켜짐' : '꺼짐'));
+});
+
 $('bioTest').addEventListener('click', async () => {
   const btn = $('bioTest');
   btn.disabled = true; btn.textContent = '전송 중…';
@@ -2440,6 +2443,11 @@ function updateBiome(st) {
     : st.owner === 'other' ? '닉네임 불일치 · 게임 속 실제 닉네임과 입력한 이름이 다름'
     : st.owner !== 'ok' ? '계정 확인 중 · 게임에 들어가면 닉네임 확인'
     : cur ? `인식 중 · 현재 바이옴 ${bioName(cur)}` : '로그 확인 중 · 게임에 들어가면 인식');
+  // 안전 모드 (서버 ID 가 1분 이상 그대로일 때만 알림)
+  setText($('bioServer'), !st.job ? '서버 확인 전'
+    : !st.safe ? `서버 ID ${st.job}`
+    : st.safe_left > 0 ? `서버 ID ${st.job} · 안전 모드 ${st.safe_left}초 남음${st.held ? ` · ${bioName(st.held)} 알림 대기` : ''}`
+    : `서버 ID ${st.job} · 안전 모드 통과`);
   const key = JSON.stringify(st.history);
   if (key !== lastBioHist) {
     lastBioHist = key;

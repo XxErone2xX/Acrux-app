@@ -45,9 +45,6 @@ public final class Fisher {
     final Screen scr;
     final Input in;
     final Out out;
-    /** 결과창을 못 닫았을 때 지금 화면을 사진으로 남김 (기종마다 다른 결과창 확인용 · 한 번 켤 때 3장까지) — 안드로이드 쪽에서 넣어 줌 */
-    public java.util.function.Consumer<String> shot;
-    int shots;
     public final Settings cfg;
     volatile boolean stop;
     boolean diamondOk = false;
@@ -158,8 +155,12 @@ public final class Fisher {
         int size = Math.max(3, (int) (W() * (x2 - x1) * 0.012));
         int[] p = px(x1 + rel[0] * (x2 - x1), y1 + rel[1] * (y2 - y1));
         Img im = grab(p[0] - size, p[1] - size, size * 2 + 1, size * 2 + 1);
+        // ◇ 는 흰색 — 화면이 어두우면 (기기 밝기 필터 · 어두운 바이옴 등) 180 정도로 보임 → 가장 밝은 값 기준으로 낮춤 (150 아래로는 안 내림)
+        int peak = 0;
+        for (int k = 0; k < im.w * im.h; k++) peak = Math.max(peak, im.min(k));
+        int thr = Math.max(150, Math.min(200, peak - 25));
         int c = 0;
-        for (int k = 0; k < im.w * im.h; k++) if (im.min(k) > 200) c++;
+        for (int k = 0; k < im.w * im.h; k++) if (im.min(k) > thr) c++;
         return c;
     }
 
@@ -479,14 +480,6 @@ public final class Fisher {
         }
         if (!closed) {
             out.log("결과창을 닫은 뒤 " + (int) FINISH_MAX + "초 동안 Fish 버튼이 보이지 않음 — 다시 확인", 'y');
-            if (shot != null && shots < 3) {
-                shots++;
-                try {
-                    shot.accept("result_close");
-                    out.log("결과창을 못 닫은 화면을 사진첩 Pictures/Acrux 에 남김 — 보내 주면 원인을 볼 수 있음", 'y');
-                } catch (RuntimeException ignored) {
-                }
-            }
         }
         String kind = seenFail ? "fail" : seenSuccess ? "success" : seenJunk ? "junk" : "success";
         if (kind.equals("fail")) fail++;
