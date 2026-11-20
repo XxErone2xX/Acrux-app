@@ -266,8 +266,16 @@ final class Hub {
         if (ts != null && ts.coversGame() && (m.equals("cal") || m.equals("run") || test))
             log("Acrux 창이 낚시 창 쪽을 가리고 있음 — 위쪽 구석으로 옮겨 주세요 (화면 캡처에 같이 찍혀서 인식이 틀릴 수 있음)", 'y');
         stopFlag = false;
-        f.onResult = kind -> stat(kind, 1);
+        f.onResult = kind -> {
+            stat(kind, 1);
+            zeroSells = 0;                                     // 한 판이라도 끝났으면 Fish 는 먹히는 것 (빈 판매 기록을 지움)
+        };
         f.onLearn = Hub::saveLearned;
+        if (m.equals("run") || test) {
+            snaps = 0;
+            snapAt = 0;
+            f.onSnap = tag -> snap(cap, tag);
+        }
         if (test) {
             f.probe = BoxOverlay.PROBE;
             main.post(BoxOverlay::show);                       // 보정된 칸을 바로 그림 (시작 전 1초 동안도 보임)
@@ -490,6 +498,11 @@ final class Hub {
             log("인벤토리 가득 — 판매 못 함: " + m, 'y');
             return false;
         }
+        if (zeroSells >= 1) {
+            // 지난번 판매 때 팔 물고기가 없었고 그 뒤로 한 판도 못 끝냈는데 또 '가득' → 인벤토리 문제가 아님 (Fish 버튼 자리가 틀렸을 가능성) · 또 판매하러 가지 않음
+            log("Fish 를 눌러도 반응이 없는데 지난번 판매 때 팔 물고기가 없었음 — Fish 버튼 자리가 틀린 것 같아서 멈춤 (낚시 보정 → 칸을 띄우며 낚시 테스트로 확인 · 안 맞으면 자동 보정 다시)", 'y');
+            return false;
+        }
         // 이동이 한 번 빗나가면 (판매 장소에 못 감 → 대화창 · 상점을 못 찾음) 바로 멈추지 않고 처음(리셋)부터 다시 감
         for (int attempt = 1; ; attempt++) {
             try {
@@ -522,6 +535,81 @@ final class Hub {
     }
 
     static final int SELL_TRIES = 3;
+
+    /** 문제가 생긴 순간 화면 (자동 낚시 · 낚시 테스트) — 한 번 시작할 때 SNAP_MAX 장까지 · 15초에 한 장 · 기기에는 최근 SNAP_KEEP 장만 남김 */
+    static final int SNAP_MAX = 10, SNAP_KEEP = 30;
+    static final long SNAP_GAP_MS = 15000;
+    static int snaps;
+    static long snapAt;
+
+    static void snap(CaptureService cap, String tag) {
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (cap == null || app == null || snaps >= SNAP_MAX || (snapAt != 0 && now - snapAt < SNAP_GAP_MS)) return;
+        snapAt = now;
+        com.acrux.mobile.core.Img im = cap.grabStep(0, 0, cap.width(), cap.height(), 2);   // 절반 크기 (파일 · 메모리 줄임)
+        if (im == null || im.w <= 0 || im.h <= 0) return;
+        snaps++;
+        int[] px = new int[im.w * im.h];
+        for (int k = 0; k < px.length; k++) px[k] = 0xFF000000 | (im.r[k] << 16) | (im.g[k] << 8) | im.b[k];
+        android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(px, im.w, im.h, android.graphics.Bitmap.Config.ARGB_8888);
+        String name = "acrux_" + new SimpleDateFormat("MMdd_HHmmss", Locale.US).format(new Date()) + "_" + tag + ".jpg";
+        try {
+            log("문제 화면 저장: " + saveJpeg(bm, name), 'd');
+        } catch (Exception e) {
+            log("문제 화면 저장 못 함: " + e.getMessage(), 'd');
+        } finally {
+            bm.recycle();
+        }
+    }
+
+    /** JPEG 저장 → 저장한 자리 (안드로이드 10+: 다운로드/Acrux · 그 전: 앱 폴더 snaps) */
+    static String saveJpeg(android.graphics.Bitmap bm, String name) throws java.io.IOException {
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            android.content.ContentResolver cr = app.getContentResolver();
+            android.content.ContentValues v = new android.content.ContentValues();
+            v.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name);
+            v.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/jpeg");
+            v.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS + "/Acrux");
+            android.net.Uri u = cr.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+            if (u == null) throw new java.io.IOException("저장 자리를 못 만듦");
+            try (java.io.OutputStream o = cr.openOutputStream(u)) {
+                if (o == null) throw new java.io.IOException("파일을 못 엶");
+                bm.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, o);
+            }
+            trimSnaps(cr);
+            return "Download/Acrux/" + name;
+        }
+        java.io.File d = new java.io.File(app.getExternalFilesDir(null), "snaps");
+        if (!d.isDirectory() && !d.mkdirs()) throw new java.io.IOException("폴더를 못 만듦");
+        java.io.File f = new java.io.File(d, name);
+        try (java.io.OutputStream o = new java.io.FileOutputStream(f)) {
+            bm.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, o);
+        }
+        java.io.File[] all = d.listFiles((dir, n) -> n.startsWith("acrux_") && n.endsWith(".jpg"));
+        if (all != null && all.length > SNAP_KEEP) {
+            java.util.Arrays.sort(all, (a, b) -> Long.compare(a.lastModified(), b.lastModified()));
+            for (int i = 0; i < all.length - SNAP_KEEP; i++) all[i].delete();
+        }
+        return f.getAbsolutePath();
+    }
+
+    /** 내가 저장한 문제 화면 중 오래된 것 지움 (최근 SNAP_KEEP 장만 남김 · 안드로이드 10+) */
+    @android.annotation.TargetApi(29)
+    static void trimSnaps(android.content.ContentResolver cr) {
+        android.net.Uri base = android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI;
+        String sel = android.provider.MediaStore.MediaColumns.RELATIVE_PATH + " LIKE ? AND " + android.provider.MediaStore.MediaColumns.DISPLAY_NAME + " LIKE ?";
+        String[] args = {android.os.Environment.DIRECTORY_DOWNLOADS + "/Acrux%", "acrux_%"};
+        try (android.database.Cursor c = cr.query(base, new String[]{android.provider.MediaStore.MediaColumns._ID}, sel, args,
+                android.provider.MediaStore.MediaColumns.DATE_ADDED + " DESC")) {
+            if (c == null) return;
+            int i = 0;
+            while (c.moveToNext()) {
+                if (++i <= SNAP_KEEP) continue;
+                cr.delete(android.content.ContentUris.withAppendedId(base, c.getLong(0)), null, null);
+            }
+        } catch (RuntimeException ignored) {                   // 지우기는 못 해도 저장은 됨
+        }
+    }
 
     /** 길 기록 [취소] — 걸어온 길을 버리고 멈춤 (기록해 둔 예전 길은 그대로) · [도착] 을 이미 눌렀으면 무시 */
     static void cancelRecord() {
