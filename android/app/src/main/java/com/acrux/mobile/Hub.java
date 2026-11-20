@@ -197,9 +197,17 @@ final class Hub {
 
     /** 자동 낚시가 누르는 입력: 화면 터치 */
     static Fisher.Input fishInput() {
-        return (x, y, ms) -> {
-            TapService t = TapService.instance;
-            if (t != null) t.tap(x, y, Math.max(ms, 40));
+        return new Fisher.Input() {
+            @Override
+            public void tap(int x, int y, int ms) {
+                TapService t = TapService.instance;
+                if (t != null) t.tap(x, y, Math.max(ms, 40));
+            }
+
+            @Override
+            public long cancelled() {
+                return TapService.cancelled.get();
+            }
         };
     }
 
@@ -241,6 +249,7 @@ final class Hub {
             log("Acrux 창이 낚시 창 쪽을 가리고 있음 — 위쪽 구석으로 옮겨 주세요 (화면 캡처에 같이 찍혀서 인식이 틀릴 수 있음)", 'y');
         stopFlag = false;
         f.onResult = kind -> stat(kind, 1);
+        f.onLearn = Hub::saveLearned;
         fisher = f;
         mode = m;
         worker = new Thread(() -> {
@@ -552,6 +561,12 @@ final class Hub {
         cfg.targetPct = num(p, "targetPct", cfg.targetPct);
         cfg.adaptive = p.getBoolean("adaptive", cfg.adaptive);
         cfg.tapAbove = p.getBoolean("tapAbove", true);
+        cfg.reelFall = num(p, "reelFall", 0);
+        cfg.reelJump = num(p, "reelJump", 0);
+        cfg.reelDelay = num(p, "reelDelay", 0);
+        cfg.reelSpot = p.getInt("reelSpot", 0);
+        cfg.closeLearn = arr(p.getString("closeLearn", ""));
+        if (cfg.closeLearn != null && cfg.closeLearn.length % 3 != 0) cfg.closeLearn = null;
         autoUpdate = p.getBoolean("autoUpdate", true);
         sellMax = p.getInt("sellMax", 100);
         sellDelay = num(p, "sellDelay", 0);
@@ -595,6 +610,8 @@ final class Hub {
                 .putFloat("biteMax", (float) cfg.biteMax).putInt("clickMs", cfg.clickMs)
                 .putFloat("leadMs", (float) cfg.leadMs).putFloat("targetPct", (float) cfg.targetPct)
                 .putBoolean("adaptive", cfg.adaptive).putBoolean("tapAbove", cfg.tapAbove)
+                .putFloat("reelFall", (float) cfg.reelFall).putFloat("reelJump", (float) cfg.reelJump).putFloat("reelDelay", (float) cfg.reelDelay)
+                .putInt("reelSpot", cfg.reelSpot).putString("closeLearn", cfg.closeLearn == null ? "" : arr(cfg.closeLearn))
                 .putBoolean("autoUpdate", autoUpdate)
                 .putInt("sellMax", sellMax).putFloat("sellDelay", (float) sellDelay)
                 .putFloat("m_reset_wait", (float) move.resetWait)
@@ -611,7 +628,27 @@ final class Hub {
         cfg.panelRegion = cfg.reelRegion = cfg.resultRegion = null;
         cfg.fishBtn = cfg.barRegion = cfg.closePos = cfg.titlePos = null;
         cfg.reelDerived = true;
+        cfg.closeLearn = null;
+        cfg.reelSpot = 0;
         save();
         changed();
+    }
+
+    /** 자동 낚시가 잰 값만 저장 (릴링 지연 · 속도 · 누르는 자리 · 결과창 X 자리) — 낚시 중에 판마다 부름 */
+    static void saveLearned() {
+        prefs().edit()
+                .putFloat("reelFall", (float) cfg.reelFall).putFloat("reelJump", (float) cfg.reelJump).putFloat("reelDelay", (float) cfg.reelDelay)
+                .putInt("reelSpot", cfg.reelSpot).putString("closeLearn", cfg.closeLearn == null ? "" : arr(cfg.closeLearn))
+                .apply();
+        changed();
+    }
+
+    /** 앱 → 낚시 → 릴링 측정값 [초기화] — 다음 판부터 처음 값으로 다시 잼 */
+    static void resetReel() {
+        cfg.reelFall = cfg.reelJump = cfg.reelDelay = 0;
+        cfg.reelSpot = 0;
+        cfg.closeLearn = null;
+        saveLearned();
+        log("릴링 측정값 · 기억한 결과창 X 자리를 지움", 'd');
     }
 }

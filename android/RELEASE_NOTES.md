@@ -1,3 +1,49 @@
+## Acrux Mobile V1.6.0 업데이트
+- 낚시: 릴링 조작을 새로 만듦 [ 기기에 따라 실패율이 95% 넘던 문제 · 보정을 다시 할 필요 없음 ]
+  - 원인: 누른 게 화면에 보이기까지 오래 걸리는 기기 [ 터치 전달 + 화면 캡처 0.2초 이상 ] 에서, 누른 게 아직 안 보이는 동안 또 눌러서 구간을 크게 넘어갔다가 떨어지기를 반복함 [ 보정으로는 안 고쳐졌음 ]
+  - 이 기기의 지연을 화면을 보며 재서 '지금 누르면 반영될 때의 위치' 로 판단함 [ 판마다 다시 재고 저장 ]
+  - 미리 누르기 · 목표 위치 · 터치 지연에 맞춰 기다리기 설정은 없앰 [ 자동으로 맞춤 ] · 낚시 → 세부 설정 → 릴링 측정값에 잰 값이 보임 [ 초기화 가능 ]
+  - 미니게임 시작 전 'Ready!' 동안은 안 누름 [ 이때 누른 건 안 먹혀서 처음 예측이 틀어지고, 누르는 자리가 안 되는 것으로 잘못 봤음 ]
+  - 누른 게 미니게임에 한 번도 반영되지 않으면 누르는 자리를 바꿔 봄 [ 잘 된 자리는 기억 ]
+  - 로그: 릴링마다 터치 수 · 지연 · 구간 안 비율을 한 줄로 남김 [ 제보할 때 같이 보내면 원인 확인이 쉬움 ]
+- 낚시: 같은 동작을 끝없이 반복하는 경우를 막음
+  - 바처럼 보이는 다른 색 [ 결과창 물고기 사진 등 ] 을 미니게임으로 봐도 4초 안에 알아채고 넘어감 [ 전에는 '릴링 → 결과창 닫기' 만 계속 반복할 수 있었음 ]
+  - 릴링이 6번 이어서 실패하면 측정값을 지우고 다시 잼 · 30번 이어서 실패하면 멈춤
+  - 결과창이 없었거나 결과를 못 본 판은 통계에 안 넣음 [ 전에는 성공으로 셌음 ]
+  - 입질이 없어 Exit 를 눌렀는데 안 먹히면 5초 뒤에 다시 누름 [ 전에는 1초마다 누름 ]
+- 낚시: 쓰레기 결과창의 X 를 못 누르던 문제 수정
+  - 원인: 1.5.4 에서 넣은 '크기가 다른 결과창은 창 크기로 X 자리를 계산해서 누름' 이 실제로는 한 번도 실행되지 않았음
+  - 찾은 X → 보정한 X → 전에 닫혔던 자리 → 창 크기로 계산한 자리 순서로 누르고, 안 닫히면 다음 자리로 넘어감
+  - 보정한 자리가 아닌 곳에서 닫혔으면 그 자리를 기억해서 다음부터 바로 누름
+- 낚시: 미니게임 바를 더 정확하게 읽음 [ 바가 비쳐 보여서 배경 · 시간에 따라 색이 바뀜 ]
+  - 밝은 곳 [ 눈 · 낮 ] 에서 바의 빈 칸이 회색으로 비칠 때 그 회색을 물고기 구간으로 보던 문제 수정
+  - 바 위로 눈 · 하늘 같은 밝은 배경이 비칠 때 그걸 내 위치 [ ◇ ] 로 보던 문제 수정 · ◇ 가 배경에 묻혀 안 보이면 막대 끝과 구간 색으로 내 위치를 읽음
+  - 밤에 막대 밑에 깔린 구간 [ 막대와 색이 비슷함 ] 을 막대로 보던 문제 수정
+- 성능: 릴링 중 같은 화면을 반복 분석하지 않고 캡처 이미지를 매번 새로 만들지 않음 [ 메모리 사용 감소 ] · 결과창 X 찾기도 줄인 화면을 한 번만 봄
+
+## Acrux Mobile V1.6.0 Update
+- Fishing: rebuilt the reeling control [ fixes the 95%+ failure rate on some devices · no need to recalibrate ]
+  - Cause: on devices where a tap takes long to show on screen [ touch delivery + screen capture over 0.2 s ], it tapped again while the earlier tap wasn't visible yet, overshooting the zone and falling back repeatedly [ recalibrating didn't fix it ]
+  - It now measures this device's delay from the screen and decides by 'where you will be when a tap lands' [ re-measured every reel and saved ]
+  - Removed the Press early · Target position · Wait for the touch delay settings [ adjusted automatically ] · the measured values show in Fishing → Detailed settings → Reeling measurements [ can be reset ]
+  - No taps during the 'Ready!' phase before the minigame starts [ those taps don't count, which threw off the first predictions and made the tap spot look broken ]
+  - If taps never reach the minigame, it tries another tap spot [ the spot that works is remembered ]
+  - Log: one line per reel with the tap count, delay and time in zone [ sending it with a report makes the cause easy to find ]
+- Fishing: prevented cases where the same action repeats forever
+  - If something that looks like the bar [ e.g. a fish picture in the result window ] is mistaken for the minigame, it notices within 4 s and moves on [ before, it could keep repeating 'reel → close result' ]
+  - After 6 failed reels in a row the measurements are cleared and re-measured · after 30 in a row it stops
+  - Rounds with no result window or an unseen result are not counted in the stats [ they used to count as success ]
+  - If the Exit tap after no bite doesn't register, it retries after 5 s [ it used to tap every second ]
+- Fishing: fixed the junk result window X not being tapped
+  - Cause: 'for a result window of a different size, tap the X spot computed from the window size' added in 1.5.4 never actually ran
+  - Taps the found X → calibrated X → spots that closed it before → the spot computed from the window size, moving on to the next if the window doesn't close
+  - If a spot other than the calibrated one closed it, that spot is remembered and tapped right away next time
+- Fishing: the minigame bar is read more accurately [ the bar is see-through, so its colours change with the background and time of day ]
+  - Fixed the empty part of the bar showing through as grey in bright places [ snow · daytime ] being read as the fish zone
+  - Fixed bright background above the bar [ snow · sky ] being read as your position [ ◇ ] · if the ◇ blends into the background, your position is read from the bar end and the zone colours
+  - Fixed the part of the zone under the bar at night [ close to the bar colour ] being read as the bar
+- Performance: while reeling, the same screen is no longer analyzed repeatedly and capture images aren't recreated every time [ less memory use ] · finding the result window X also looks at a reduced screen once
+
 ## Acrux Mobile V1.5.8 업데이트
 - 바이옴 매크로 → 안전 모드 추가 [ 기본: 켜짐 · PC 와 같은 방식 ]
   - 서버 ID 가 1분 이상 그대로일 때만 바이옴 알림을 보냄 [ 실수로 다른 사람 서버에 잠깐 들어갔다 나오면 핑이 안 감 ]

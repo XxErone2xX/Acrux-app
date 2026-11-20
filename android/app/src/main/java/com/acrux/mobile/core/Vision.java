@@ -143,6 +143,15 @@ public final class Vision {
         return r < 100 && g >= 55 && b >= 95 && (b - r) >= 60 && (b - g) >= -15 && (b - g) <= 85;
     }
 
+    /**
+     * 바의 빈 칸 — 바가 비쳐 보여서 어두운 곳에선 검정, 밝은 곳 (눈 · 낮) 에선 흐린 회색 (PC 실측 0x3E4750 · 가장 밝은 값 80)
+     * (전에는 그 회색을 물고기 구간으로 봐서 바 끝까지를 구간으로 잡았음 · 왼쪽 끝이 회색이면 바가 없다고 봤음)
+     */
+    static boolean empty(double[] p) {
+        double a = mx(p);
+        return a < 75 || (a < 110 && a - mn(p) <= 26);
+    }
+
     static boolean leftOk(double[][] band) {
         int w = band.length, n = Math.max(3, (int) (w * 0.04)), m = Math.min(n, w);
         double[] head = new double[3], t = new double[Math.max(1, m)];
@@ -150,9 +159,9 @@ public final class Vision {
             for (int x = 0; x < m; x++) t[x] = band[x][c];
             head[c] = median(t, m);
         }
-        if (mx(head) < 45 || isFill(head)) return true;
+        if (mx(head) < 45 || empty(head) || isFill(head)) return true;
         int dark = 0;
-        for (double[] p : band) if (mx(p) < 45) dark++;
+        for (double[] p : band) if (mx(p) < 45 || empty(p)) dark++;
         return w > 0 && (double) dark / w >= 0.08;
     }
 
@@ -348,6 +357,20 @@ public final class Vision {
         return null;
     }
 
+    /** 결과창 모양 (흰 꺾쇠 · 세로로 긴 창 · 화면 높이의 25% 이상 · 화면 가로 가운데) 인 창들 [x1, y1, x2, y2] (px · findResultClose 와 같은 조건) */
+    public static List<int[]> resultWindows(Img im, double maxW) {
+        List<int[]> out = new ArrayList<>();
+        int W = im.w, H = im.h;
+        for (int[] f : findFrames(im, maxW)) {
+            int w = f[2] - f[0], h = f[3] - f[1];
+            if (h <= 0) continue;
+            double r = (double) w / h;
+            if (r < 0.35 || r > 1.6 || h < H * 0.25 || Math.abs((f[0] + f[2]) / 2.0 - W / 2.0) > W * 0.15) continue;
+            out.add(f);
+        }
+        return out;
+    }
+
     public static Map<String, double[]> autocal(Img im, double maxW) {
         Map<String, double[]> found = new LinkedHashMap<>();
         int W = im.w, H = im.h;
@@ -515,7 +538,8 @@ public final class Vision {
                 double[] p = bd[x];
                 double dist = Math.max(Math.abs(p[0] - fillRef[0]), Math.max(Math.abs(p[1] - fillRef[1]), Math.abs(p[2] - fillRef[2])));
                 boolean lit = mx(p) > 75;
-                fill[x] = lit && dist <= 22;
+                // 막대 밑에 깔린 구간은 막대와 색이 아주 비슷함 (PC 실측 밤: 막대 (71,173,255) · 그 밑 구간 (75,156,255)) → 15 넘게 다르면 구간
+                fill[x] = lit && dist <= 15;
                 white[x] = mn(p) > 185;
             }
             for (int x = 0; x < w; x++) {
@@ -523,7 +547,7 @@ public final class Vision {
                 for (int k = 1; k <= 2 && !s; k++) s = (x - k >= 0 && white[x - k]) || (x + k < w && white[x + k]);
                 skip[x] = s;
             }
-            for (int x = 0; x < w; x++) zone[x] = mx(bd[x]) > 75 && !fill[x] && !skip[x];
+            for (int x = 0; x < w; x++) zone[x] = !empty(bd[x]) && !fill[x] && !skip[x];
         } else {
             for (int x = 0; x < w; x++) {
                 fill[x] = col[x] && isFill(bd[x]);
@@ -565,7 +589,19 @@ public final class Vision {
             int peak = 0;
             for (int y = ty0; y < ty1; y++) for (int x = 0; x < w; x++) peak = Math.max(peak, im.min(y * w + x));
             int thr = Math.max(140, Math.min(185, peak - 25));
-            for (int y = ty0; y < ty1; y++) for (int x = 0; x < w; x++) if (im.min(y * w + x) > thr) cnt[x]++;
+            // 한 줄에서 흰 칸이 바 폭의 10% 넘게 이어지면 ◇ 가 아니라 바 위로 비치는 배경 (눈 · 하늘) → 안 셈
+            int wide = Math.max(10, (int) (w * 0.10));
+            for (int y = ty0; y < ty1; y++) {
+                int run0 = -1;
+                for (int x = 0; x <= w; x++) {
+                    boolean wt = x < w && im.min(y * w + x) > thr;
+                    if (wt && run0 < 0) run0 = x;
+                    if (!wt && run0 >= 0) {
+                        if (x - run0 <= wide) for (int i = run0; i < x; i++) cnt[i]++;
+                        run0 = -1;
+                    }
+                }
+            }
             double[] orig = cnt.clone();
             for (int x = 0; x < w; x++) {
                 double side = Math.max(x - 2 >= 0 ? orig[x - 2] : 0, x + 2 < w ? orig[x + 2] : 0);
@@ -614,10 +650,64 @@ public final class Vision {
         }
         if (out.marker == null) {
             out.marker = fillEnd < 0 ? Double.valueOf(0.0) : fillPos;
+            // ◇ 가 안 보이고 (바 위로 눈 · 하늘이 비침) 막대 끝이 구간에 붙어 있음 → 구간 안에서 막대에 덮인 쪽 (색이 다름) 과 나머지의 경계가 내 위치
+            if (z != null && fillPos == null && (fillEnd < 0 ? z[0] <= 3 : z[0] - 3 <= fillEnd)) {
+                Double sp = splitMarker(bd, z, skip);
+                if (sp != null) out.marker = sp;
+            }
         } else if (fillPos != null && Math.abs(out.marker - fillPos) > Math.max(12, w * 0.04)) {
             out.marker = fillPos;
         }
         return out;
+    }
+
+    /** 구간 [z0, z1] 을 색이 확실히 다른 두 덩어리로 나눌 수 있으면 그 경계 (px) · 아니면 null
+     *  (막대가 구간 위를 덮으면 덮인 쪽은 연한 색: PC 실측 낮 (0,255,255) / 보라 · 밤 (75,156,255) / 노랑 · 영상 (33,102,211) / (25,58,128)) */
+    static Double splitMarker(double[][] bd, int[] z, boolean[] skip) {
+        int a = z[0], n = z[1] - z[0] + 1;
+        if (n < 8) return null;
+        double[][] pre = new double[n + 1][3];
+        int[] pc = new int[n + 1];
+        for (int i = 0; i < n; i++) {
+            boolean use = !skip[a + i];
+            for (int c = 0; c < 3; c++) pre[i + 1][c] = pre[i][c] + (use ? bd[a + i][c] : 0);
+            pc[i + 1] = pc[i] + (use ? 1 : 0);
+        }
+        int best = -1;
+        double bestScore = 0;
+        double[] m1 = new double[3], m2 = new double[3];
+        for (int s = 3; s <= n - 3; s++) {
+            int n1 = pc[s], n2 = pc[n] - pc[s];
+            if (n1 < 3 || n2 < 3) continue;
+            double d2 = 0;
+            for (int c = 0; c < 3; c++) {
+                double d = pre[s][c] / n1 - (pre[n][c] - pre[s][c]) / n2;
+                d2 += d * d;
+            }
+            double score = (double) n1 * n2 / (n1 + n2) * d2;
+            if (score > bestScore) {
+                bestScore = score;
+                best = s;
+            }
+        }
+        if (best < 0) return null;
+        int n1 = pc[best], n2 = pc[n] - pc[best];
+        double diff = 0;
+        for (int c = 0; c < 3; c++) {
+            m1[c] = pre[best][c] / n1;
+            m2[c] = (pre[n][c] - pre[best][c]) / n2;
+            diff = Math.max(diff, Math.abs(m1[c] - m2[c]));
+        }
+        if (diff < 25) return null;
+        // 두 덩어리가 각각 고른 색이어야 함 (서서히 바뀌는 색 · 얼룩은 경계가 아님)
+        double dev = 0;
+        for (int i = 0; i < n; i++) {
+            if (skip[a + i]) continue;
+            double[] m = i < best ? m1 : m2, p = bd[a + i];
+            dev += Math.max(Math.abs(p[0] - m[0]), Math.max(Math.abs(p[1] - m[1]), Math.abs(p[2] - m[2])));
+        }
+        if (dev / (n1 + n2) > diff * 0.3) return null;
+        return (double) (a + best);
     }
 
     // ---------------------------------------------------------------- 결과창 X 찾기
@@ -654,6 +744,21 @@ public final class Vision {
 
     /** relaxed: 결과창 안 오른쪽 위만 볼 때 — 쓰레기 결과창처럼 바탕이 밝아도 됨 */
     public static double[] findCloseX(Img im, int H, double[] want, boolean relaxed) {
+        double[] best = null;
+        double bestD = 0;
+        for (double[] c : findCloseXAll(im, H, relaxed)) {
+            double dd = want != null ? (c[0] - want[0]) * (c[0] - want[0]) + (c[1] - want[1]) * (c[1] - want[1]) : c[1];
+            if (best == null || dd < bestD) {
+                best = c;
+                bestD = dd;
+            }
+        }
+        return best;
+    }
+
+    /** 흰 × 버튼 후보 전부 {가운데 x, y} (찾은 순서 = 위 → 아래) — 맨 위 하나만 보면 그게 다른 무늬일 때 진짜 X 를 놓침 */
+    public static List<double[]> findCloseXAll(Img im, int H, boolean relaxed) {
+        List<double[]> out = new ArrayList<>();
         int W = im.w, Hh = im.h, N = W * Hh;
         boolean[] white = new boolean[N], dark = new boolean[N];
         for (int k = 0; k < N; k++) {
@@ -698,8 +803,6 @@ public final class Vision {
             int bw = st[2] - st[0] + 1, bh = st[3] - st[1] + 1;
             big[i] = Math.max(bw, bh) > 0.05 * H || st[4] > Math.pow(0.04 * H, 2);
         }
-        double[] best = null;
-        double bestD = 0;
         for (int i = 1; i < stats.size(); i++) {
             if (big[i]) continue;
             int[] st = stats.get(i);
@@ -722,14 +825,9 @@ public final class Vision {
             double left = meanOf(dark, W, Hh, Math.max(0, x1 - 5 * m), y1, Math.max(0, x1 - m), y2 + 1);
             double below = meanOf(dark, W, Hh, x1, y2 + m, x2 + 1, y2 + 5 * m);
             if (!relaxed && !((!Double.isNaN(left) && left > 0.6) || (!Double.isNaN(below) && below > 0.6))) continue;
-            double cx = (x1 + x2) / 2.0, cy = (y1 + y2) / 2.0;
-            double dd = want != null ? (cx - want[0]) * (cx - want[0]) + (cy - want[1]) * (cy - want[1]) : cy;
-            if (best == null || dd < bestD) {
-                best = new double[]{cx, cy};
-                bestD = dd;
-            }
+            out.add(new double[]{(x1 + x2) / 2.0, (y1 + y2) / 2.0});
         }
-        return best;
+        return out;
     }
 
     /** X 모양 확인: 두 획이 가운데에서 만나고 · 네 변의 가운데는 비어 있고 · 네 모서리에 획 끝이 있음

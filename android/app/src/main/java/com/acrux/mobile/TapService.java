@@ -224,6 +224,15 @@ public class TapService extends AccessibilityService {
     }
 
     // ---------------------------------------------------------------- 터치
+    /** 취소된 터치 수 (앞 터치가 끝나기 전에 새 터치를 보내면 안드로이드가 앞 터치를 취소함 · 보내지도 못한 것 포함) — 릴링 기록용 */
+    static final java.util.concurrent.atomic.AtomicLong cancelled = new java.util.concurrent.atomic.AtomicLong();
+    static final GestureResultCallback COUNT = new GestureResultCallback() {
+        @Override
+        public void onCancelled(GestureDescription d) {
+            cancelled.incrementAndGet();
+        }
+    };
+
     /** (x, y) 를 ms 동안 누름 (화면 좌표 · 지금 화면 방향 기준) — 기다리지 않음 */
     void tap(int x, int y, int ms) {
         x = Math.max(0, x);                                     // 화면 밖이면 화면 끝을 누름 (음수 좌표는 안드로이드가 거절)
@@ -231,7 +240,8 @@ public class TapService extends AccessibilityService {
         letThrough(x, y);
         Path p = new Path();
         p.moveTo(x, y);
-        dispatchGesture(new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(p, 0, Math.max(1, ms))).build(), null, null);
+        if (!dispatchGesture(new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(p, 0, Math.max(1, ms))).build(), COUNT, null))
+            cancelled.incrementAndGet();
     }
 
     /** 한 손가락으로 (x0, y0) → (x1, y1) 끌기 (화면 돌리기) */

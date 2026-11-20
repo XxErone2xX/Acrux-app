@@ -41,7 +41,7 @@ import java.util.List;
 public class MainActivity extends Activity {
     static final int REQ_CAPTURE = 7;
 
-    TextView accState, capState, calState, logView, runState, posView;
+    TextView accState, capState, calState, logView, runState, posView, reelInfo;
     TextView accBtn, capBtn, updState, updBtn, updNotes, updBanner, uiBtn, uiBtn2, onDot, onText;
     final Runnable refresh = this::refresh;
     final TextView[][] statCells = new TextView[4][2];
@@ -497,13 +497,23 @@ public class MainActivity extends Activity {
         LinearLayout set = section(pg, "세부 설정");
         set.addView(num("입질 최대 대기 (초)", "넘으면 Exit 후 다시 던짐 · 기본 60", Hub.cfg.biteMax, v -> Hub.cfg.biteMax = clamp(v, 5, 600)), Ui.fill(this, 10));
         set.addView(num("누르는 시간 (ms)", "릴링 때 한 번 누르는 시간 · 기본 30", Hub.cfg.clickMs, v -> Hub.cfg.clickMs = (int) clamp(v, 5, 200)), Ui.fill(this, 8));
-        set.addView(num("미리 누르기 (ms)", "터치가 늦게 먹히면 이만큼 미리 누름 · 기본 0 · 릴링이 자꾸 실패하면 40 ~ 80", Hub.cfg.leadMs,
-                v -> Hub.cfg.leadMs = clamp(v, 0, 300)), Ui.fill(this, 8));
-        set.addView(num("목표 위치 (%)", "구간 왼쪽 끝에서 구간 폭의 몇 % · 기본 0", Hub.cfg.targetPct, v -> Hub.cfg.targetPct = clamp(v, 0, 60)), Ui.fill(this, 8));
-        set.addView(sw("터치 지연에 맞춰 기다리기", Hub.cfg.adaptive, on -> Hub.cfg.adaptive = on), Ui.fill(this, 10));
-        set.addView(Ui.text(this, "누른 뒤 반응이 보일 때까지 다시 누르지 않는 시간을 이 폰의 터치 속도에 맞춤", 12, Ui.MUTED, false));
         set.addView(sw("릴링 때 미니게임 창 위쪽을 누름", Hub.cfg.tapAbove, on -> Hub.cfg.tapAbove = on), Ui.fill(this, 10));
         set.addView(Ui.text(this, "모바일은 미니게임 창 바로 아래가 Roll 버튼이라 위쪽 빈 화면 (캐릭터 쪽) 을 누름 · 끄면 창 아래를 누름", 12, Ui.MUTED, false));
+        // 1.6.0: 미리 누르기 · 목표 위치 · 터치 지연에 맞춰 기다리기는 없앰 — 터치 지연 · 미니게임 속도를 낚시할 때마다 자동으로 잼
+        reelInfo = Ui.text(this, "", 12, Ui.ACCENT, false);
+        set.addView(row("릴링 측정값", "터치가 화면에 보이기까지 걸리는 시간 · 미니게임 속도를 낚시할 때마다 자동으로 재서 맞춤", reelInfo,
+                Ui.button(this, "초기화", Ui.MUTED, v -> Hub.resetReel())), Ui.fill(this, 10));
+    }
+
+    /** 릴링 측정값 한 줄 (아직 없으면 그렇다고) */
+    static String reelText(com.acrux.mobile.core.Settings c) {
+        if (c.reelDelay <= 0) return Ui.tr("아직 없음 — 첫 릴링 때 잼");
+        String d = String.format(java.util.Locale.ROOT, "%.2f", c.reelDelay);
+        String s = I18n.f("터치 지연 {0}초", d);
+        if (c.reelSpot > 0) s += " · " + I18n.f("누르는 자리 {0}번", c.reelSpot + 1);
+        int n = c.closeLearn == null ? 0 : c.closeLearn.length / 3;
+        if (n > 0) s += " · " + I18n.f("기억한 결과창 X {0}곳", n);
+        return s;
     }
 
     /** 통계 한 줄: 이름 | 이번 실행 | 전체 */
@@ -1159,6 +1169,10 @@ public class MainActivity extends Activity {
         com.acrux.mobile.core.Settings c = Hub.cfg;
         Ui.set(calState, "대기 창: " + pos(c.panelRegion) + "  ·  미니게임 창: " + (c.reelRegion == null ? "없음" : c.reelDerived ? "대기 창으로 계산" : "있음")
                 + "  ·  결과창: " + pos(c.resultRegion) + (c.ready() ? "" : "\n→ Acrux 창 → 낚시 → 낚시 자동 보정을 해야 함"));
+        if (reelInfo != null) {
+            String ri = reelText(c);
+            if (!ri.contentEquals(reelInfo.getText())) reelInfo.setText(ri);
+        }
         long[] r = Hub.statRun.clone();
         String stats = "\n" + I18n.f("성공 {0} · 쓰레기 {1} · 실패 {2}", r[0], r[1], r[2]) + "  (" + Ui.tr("이번 실행") + ")";
         for (int k = 0; k < 2; k++) {

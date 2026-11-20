@@ -1,5 +1,6 @@
 package com.acrux.mobile.core;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -17,6 +18,34 @@ public final class Fisher {
         int height();
         /** 화면의 (x, y, w, h) 부분 (화면 밖은 잘림) · 화면이 아직 없으면 null */
         Img grab(int x, int y, int w, int h);
+
+        /**
+         * dst 크기만큼 (x, y) 부분을 dst 에 복사 (새 이미지를 안 만듦 · 화면 밖은 검은색) → 그 화면 번호
+         * · known 과 같은 화면이면 복사하지 않고 known · 화면이 없으면 -1 (기본: 늘 새로 잡아서 새 화면으로 봄)
+         */
+        default long grabInto(Img dst, int x, int y, long known) {
+            Img im = grab(x, y, dst.w, dst.h);
+            if (im == null) return -1;
+            dst.clear();
+            im.cropInto(dst, Math.min(0, x), Math.min(0, y));
+            return System.nanoTime() & Long.MAX_VALUE;
+        }
+
+        /** 줄인 화면 (step 칸마다 한 칸) · 화면이 없으면 null */
+        default Img grabStep(int x, int y, int w, int h, int step) {
+            Img im = grab(x, y, w, h);
+            if (im == null || step <= 1) return im;
+            Img o = new Img((im.w + step - 1) / step, (im.h + step - 1) / step);
+            for (int yy = 0; yy < o.h; yy++) {
+                for (int xx = 0; xx < o.w; xx++) {
+                    int s = yy * step * im.w + xx * step, d = yy * o.w + xx;
+                    o.r[d] = im.r[s];
+                    o.g[d] = im.g[s];
+                    o.b[d] = im.b[s];
+                }
+            }
+            return o;
+        }
     }
 
     public interface Input {
@@ -24,6 +53,11 @@ public final class Fisher {
 
         /** 릴링 전에 누를 자리로 마우스를 미리 옮겨 둠 (PC: move_to 뒤 mouse_click_here) */
         default void hover(int x, int y) {}
+
+        /** 지금까지 취소된 터치 수 (앞 터치가 끝나기 전에 새 터치를 보내면 안드로이드가 앞 터치를 취소함) — 릴링 기록용 */
+        default long cancelled() {
+            return 0;
+        }
     }
 
     public interface Out {
@@ -37,8 +71,13 @@ public final class Fisher {
         }
     }
 
-    public static final double REEL_FRAME = 0.008, REEL_MAX = 15.0, REEL_GONE = 0.6;
-    public static final double FINISH_GAP = 0.1, FINISH_MAX = 10.0, FIND_X_AFTER = 3.5;   // 처음 3.5초는 보정한 X 자리만 누름
+    /** 릴링: 새 화면이 왔는지 보는 간격 (새 화면만 분석 · 누를지는 그 사이에도 예측으로 정함) */
+    public static final double REEL_POLL = 0.004, REEL_MAX = 15.0, REEL_GONE = 0.6, BOGUS_AFTER = 4.0;
+    /**
+     * 결과창 닫기: FINISH_GAP 초마다 누름 · LOOK_FROM 초부터 화면에서 X 를 찾음 (LOOK_GAP 초마다 한 번)
+     * X 는 창이 뜨고 1.5 ~ 2초 뒤에 나타남 → X_SHOWN 초가 지난 뒤로 한 자리를 DWELL 초 동안 눌러도 안 닫히면 다음 자리
+     */
+    public static final double FINISH_GAP = 0.1, FINISH_MAX = 10.0, LOOK_FROM = 1.2, LOOK_GAP = 0.5, X_SHOWN = 2.2, DWELL = 0.8;
     /** 모바일은 UI 가 화면에서 차지하는 비율이 커서 창 폭 최대를 넓게 (PC 0.5) */
     public static final double MAX_FRAME_W = 0.92;
 
@@ -55,6 +94,10 @@ public final class Fisher {
     public Runnable onStart;
     /** 인벤토리 가득: 판매하고 돌아왔으면 true (낚시 이어감) · 못 하면 false (멈춤) */
     public java.util.function.BooleanSupplier onFull;
+    /** 릴링 측정값 · 결과창 X 자리를 새로 배웠을 때 (앱이 저장) */
+    public Runnable onLearn;
+    /** 지금 릴링 때 누르는 자리 (px · 기록 · 테스트용) */
+    int[] reelTap;
     public static final double RELOC_AFTER = 30;
     /** Fish 를 누른 뒤 던지기 (Exit 로 바뀜) 를 기다리는 시간 — 느린 폰 · 렉에선 1.5초 넘게 걸림 (짧으면 다시 누른 게 Exit 가 돼서 취소됨) */
     public static final double CAST_WAIT = 3.0;
@@ -172,6 +215,9 @@ public final class Fisher {
                 diamondOk = true;
                 return "reel";
             }
+            // 방금 바처럼 보였는데 미니게임이 아니었음 (결과창 물고기 사진 · 다른 창의 색) → 잠깐은 바만 보고 릴링으로 보지 않음
+            // (안 그러면 그 화면에서 '릴링 → 결과창 닫기' 만 끝없이 반복하고 Fish 버튼 · 복구 쪽으로 못 감)
+            if (now() < barQuietUntil) return null;
             if (Boolean.FALSE.equals(moved) && diamondOk) return null;
             sleep(0.04);
             if (barSeen()) return moved == null ? "reel" : "maybe";
@@ -205,6 +251,11 @@ public final class Fisher {
     }
 
     double refitAt = -1;
+    /** 가짜 릴링 (바처럼 보였지만 미니게임이 아님) 뒤 바만 보고는 릴링으로 안 보는 시각까지 */
+    double barQuietUntil = -1;
+    /** 가짜 릴링이 이어진 횟수 · 이어서 실패한 횟수 */
+    int bogusRun, failRun;
+    public static final int FAIL_RESET = 6, FAIL_STOP = 30;
 
     /**
      * 낚시 창을 화면에서 다시 찾아서, 보정 때 창 자리 → 지금 창 자리로 모든 위치 (Fish 버튼 · 릴링 바 · 결과창 X · 제목 · 창 영역) 를 옮김
@@ -239,6 +290,7 @@ public final class Fisher {
         cfg.reelRegion = map.apply(cfg.reelRegion);
         cfg.resultRegion = map.apply(cfg.resultRegion);
         cfg.panelRegion = now.clone();
+        cfg.closeLearn = null;                                 // 화면 배치가 바뀜 → 기억한 결과창 X 자리도 버림
         out.log("낚시 창 자리가 바뀜 → 위치를 다시 맞춤 (Fish 버튼 " + SellText.r4(fb[0]) + ", " + SellText.r4(fb[1]) + ")", 'c');
         return true;
     }
@@ -275,20 +327,44 @@ public final class Fisher {
                 maybe = 0;
             }
             if (!"wait".equals(st)) waitAt = null;
-            if (st != null) {
+            if (st != null && !"reel".equals(st)) {
                 unknownAt = null;
                 knownAt = t;
             }
 
             if ("reel".equals(st)) {
+                Img base = cfg.titlePos != null ? grabBox(cfg.titlePos, 0.12, 0.05) : null;
+                if (!reel()) {
+                    // 미니게임이 아니었음 (내 위치가 한 번도 안 움직임) → 진행으로 안 침 · 결과창 닫기도 안 함 · 잠깐 바 무시
+                    bogusRun++;
+                    barQuietUntil = now() + 2.0;
+                    if (bogusRun == 1 || bogusRun % 10 == 0)
+                        out.log("미니게임 바처럼 보였지만 미니게임이 아님 — 다시 확인 (" + bogusRun + "번째)", 'd');
+                    continue;
+                }
+                bogusRun = 0;
                 castAt = null;
                 tries = 0;
                 relocs = 0;
-                progressAt = t;
                 rescues = 0;
-                Img base = cfg.titlePos != null ? grabBox(cfg.titlePos, 0.12, 0.05) : null;
-                reel();
-                finish(base);
+                unknownAt = null;
+                progressAt = knownAt = now();
+                String kind = finish(base);
+                if ("fail".equals(kind)) {
+                    failRun++;
+                    if (failRun == FAIL_RESET) {
+                        // 릴링이 계속 실패 → 잰 값이 틀어졌을 수 있음 → 처음 값으로 다시 잼 · 누르는 자리도 기본으로
+                        cfg.reelDelay = cfg.reelFall = cfg.reelJump = 0;
+                        cfg.reelSpot = 0;
+                        if (onLearn != null) onLearn.run();
+                        out.log("릴링이 " + FAIL_RESET + "번 이어서 실패 — 릴링 측정값을 지우고 다시 잼", 'y');
+                    } else if (failRun >= FAIL_STOP) {
+                        out.log("릴링이 " + FAIL_STOP + "번 이어서 실패 — 자동 낚시 멈춤 (로그의 '릴링:' 줄 · 미니게임 보정 확인)", 'r');
+                        throw new Stopped();
+                    }
+                } else if (kind != null) {
+                    failRun = 0;
+                }
                 continue;
             }
             if ("wait".equals(st)) {
@@ -298,6 +374,8 @@ public final class Fisher {
                 if (t - waitAt > cfg.biteMax) {
                     out.log("입질이 " + (int) cfg.biteMax + "초 동안 없음 — Exit 후 다시 던짐", 'y');
                     tapRatio(cfg.fishBtn);
+                    // Exit 가 안 먹혔으면 5초 뒤에 다시 (전에는 1초마다 누르고 로그를 남겼음)
+                    waitAt = now() - cfg.biteMax + 5;
                     sleep(1.0);
                     continue;
                 }
@@ -373,32 +451,71 @@ public final class Fisher {
         }
     }
 
-    /** 결과창 X 를 화면에서 찾아서 누름
+    /** 결과창 X 를 화면에서 찾아서 누름 (구조 · 알 수 없는 화면에서 — 결과창을 닫는 중은 finish 가 따로 봄)
      *  1. 결과창 자체를 찾아서 그 창 오른쪽 위의 X (쓰레기 결과창처럼 크기 · 바탕이 다른 창도)
      *     X 모양이 안 보이면 보정한 결과창과 같은 자리일 때만 계산한 자리를 누름
      *  2. 결과창을 못 찾으면 어두운 바탕 위 X — 보정한 X 자리가 있으면 그 근처 (화면 높이의 10% 안) 만 봄
      *  · 한 번 본 것으로 누르지 않음: 0.12초 뒤에 다시 찍어서 같은 자리에 또 보일 때만 (지나가는 물고기 · 효과를 X 로 보지 않게) */
     boolean clickFoundX() {
-        int[] a = findX();
+        int[] a = findX(false);
         if (a == null) return false;
         sleep(0.12);
-        int[] b = findX();
-        int tol = Math.max(4, (int) (H() * 0.02));
-        if (b == null || b[2] != a[2] || Math.abs(a[0] - b[0]) > tol || Math.abs(a[1] - b[1]) > tol) return false;
-        out.log(a[2] == 1 ? "결과창 X 를 결과창 모양으로 찾아서 누름"
-                : a[2] == 3 ? "보정한 X 자리에 결과창이 없음 — 결과창 테두리 옆 X 를 찾아서 누름"
-                : "결과창이 다른 자리에 뜨거나 깨짐 — X 를 찾아서 누름", 'd');
+        int[] b = findX(false);
+        if (b == null || b[2] != a[2] || !nearPx(a, b)) return false;
+        out.log(xHow(a[2]), 'd');
         in.tap(b[0], b[1], 40);
         return true;
     }
 
-    /** 화면에서 결과창 X 찾기 → {x, y, 1 = 결과창 · 2 = 어두운 바탕 위 X} | null */
-    int[] findX() {
+    static String xHow(int how) {
+        return how == 1 ? "결과창 X 를 결과창 모양으로 찾아서 누름"
+                : how == 3 ? "보정한 X 자리에 결과창이 없음 — 결과창 테두리 옆 X 를 찾아서 누름"
+                : how == 4 ? "결과창 X 모양이 안 보임 — 결과창 크기로 계산한 X 자리를 누름"
+                : "결과창이 다른 자리에 뜨거나 깨짐 — X 를 찾아서 누름";
+    }
+
+    boolean nearPx(int[] a, int[] b) {
+        int tol = Math.max(4, (int) (H() * 0.02));
+        return Math.abs(a[0] - b[0]) <= tol && Math.abs(a[1] - b[1]) <= tol;
+    }
+
+    /** 화면 비율 두 자리가 같은 자리인지 (화면 높이의 2% 안) */
+    boolean nearRatio(double[] a, double[] b) {
+        int tol = Math.max(4, (int) (H() * 0.02));
+        return Math.abs(a[0] - b[0]) * W() <= tol && Math.abs(a[1] - b[1]) * H() <= tol;
+    }
+
+    /**
+     * 화면에서 결과창 X 찾기 → {x, y, how} | null
+     *  how 1: 결과창 (흰 꺾쇠) 오른쪽 위의 X 모양 · 2: 보정한 X 근처의 X 모양 · 3: 화면 오른쪽 위 X 모양 + 그 오른쪽에 결과창 테두리
+     *      4: X 모양은 안 보이고 결과창 모양만 보임 → 창 크기로 계산한 자리 (closing 이거나 보정한 결과창과 같은 자리일 때만)
+     *  closing: 릴링 직후 결과창을 닫는 중 → 바탕이 밝은 X 도 봄 (3) · 보정한 창과 크기가 달라도 계산한 자리 (4)
+     *    (1.5.4 ~ 1.5.8 은 4 를 켜려다 '보정한 창과 같은 자리일 때만' 조건을 그대로 둬서 한 번도 안 눌렀음 → 크기가 다른 쓰레기 결과창을 못 닫음)
+     *  · 전체 화면은 반으로 줄여서 한 번만 잡음 (창 테두리 · 결과창 테두리 줄 찾기) · X 모양은 원래 크기로 필요한 곳만
+     *    (예전엔 원래 크기 전체 화면을 한 번 찾을 때 2 ~ 4번 잡아서 폰에서 느렸음)
+     */
+    int[] findX(boolean closing) {
         int W = W(), H = H();
-        // 결과창을 닫는 중 (릴링 직후 · 구조) 에만 부름 → 가운데 결과창 모양이면 X 가 안 보여도 계산한 자리를 누름
-        // (1.5.3 에서는 보정한 결과창과 같은 자리일 때만 눌러서, 크기가 다른 쓰레기 결과창을 못 닫았음)
-        double[] r = Vision.findResultClose(full(), H, MAX_FRAME_W, null);
-        if (r != null) return new int[]{(int) r[0], (int) r[1], 1};
+        Img small = scr.grabStep(0, 0, W, H, 2);
+        if (small == null || small.w < 8 || small.h < 8) return null;
+        double kx = (double) W / small.w, ky = (double) H / small.h;
+        int[] derived = null;
+        List<int[]> wins = Vision.resultWindows(small, MAX_FRAME_W);
+        // 큰 창부터 (결과창 안의 물고기 사진 테두리도 같은 꺾쇠라서 작은 창으로 잡힘 → 계산한 자리는 가장 큰 창으로)
+        wins.sort((p1, q1) -> Integer.compare((q1[2] - q1[0]) * (q1[3] - q1[1]), (p1[2] - p1[0]) * (p1[3] - p1[1])));
+        for (int[] s : wins) {
+            int x1 = (int) (s[0] * kx), y1 = (int) (s[1] * ky), x2 = (int) ((s[2] + 1) * kx) - 1, y2 = (int) ((s[3] + 1) * ky) - 1;
+            int w = x2 - x1, h = y2 - y1;
+            int sx = x1 + (int) (w * 0.6), sy = Math.max(0, y1 - (int) (h * 0.03));
+            int ex = Math.min(W, x2 + (int) (w * 0.05)), ey = Math.min(H, y1 + (int) (h * 0.25));
+            if (ex - sx > 4 && ey - sy > 4) {
+                double[] x = Vision.findCloseX(grab(sx, sy, ex - sx, ey - sy), H, null, true);
+                if (x != null) return new int[]{sx + (int) x[0], sy + (int) x[1], 1};
+            }
+            if (derived == null && (closing || sameResult(x1, y1, x2, y2)))
+                derived = new int[]{x1 + (int) (w * Vision.RESULT_CLOSE[0]), y1 + (int) (h * Vision.RESULT_CLOSE[1]), 4};
+            // X 도 없고 결과창으로 볼 수도 없음 → 다른 창 (상점 · 메뉴 등) 일 수 있어서 안 누름 · 다음 창 확인
+        }
         int[] p = cfg.closePos != null ? px(cfg.closePos[0], cfg.closePos[1]) : null;
         int left, right, top, bottom;
         if (p != null) {
@@ -417,20 +534,32 @@ public final class Fisher {
         right = Math.min(W, right);
         top = Math.max(0, top);
         bottom = Math.min(H, bottom);
-        if (right - left < 8 || bottom - top < 8) return null;
-        Img im = grab(left, top, right - left, bottom - top);
-        double[] f = Vision.findCloseX(im, H, p != null ? new double[]{p[0] - left, p[1] - top} : null);
-        if (f != null) return new int[]{left + (int) f[0], top + (int) f[1], 2};
-        // 3. 보정한 X 근처에 없으면 (결과창이 다른 크기 · 자리로 뜸 · 반투명 창이 눈 위에 떠서 창 모양을 못 찾음)
+        if (right - left >= 8 && bottom - top >= 8) {
+            Img im = grab(left, top, right - left, bottom - top);
+            double[] f = Vision.findCloseX(im, H, p != null ? new double[]{p[0] - left, p[1] - top} : null);
+            if (f != null) return new int[]{left + (int) f[0], top + (int) f[1], 2};
+        }
+        // 3. 보정한 X 근처에 없으면 (결과창이 다른 크기 · 자리로 뜸 · 반투명 창이 눈 위에 떠서 창 모양을 못 찾음 · 창 왼쪽 위가 로블록스 버튼에 가림)
         //    화면 오른쪽 위에서 X 를 찾되, X 오른쪽에 결과창 테두리가 아래로 길게 이어질 때만 (순위표 아이콘 등 제외)
-        Img all = full();
-        if (all.w != W || all.h != H) return null;
+        //    · 결과창을 닫는 중이면 바탕이 밝은 X (쓰레기 결과창) 도 봄 · 맨 위 하나만 보지 않고 후보마다 테두리를 확인
         int l2 = (int) (W * 0.45), t2 = (int) (H * 0.02), r2 = (int) (W * 0.92), b2 = (int) (H * 0.45);
-        double[] g = Vision.findCloseX(all.crop(l2, t2, r2, b2), H, null);
-        if (g == null) return null;
-        int gx = l2 + (int) g[0], gy = t2 + (int) g[1];
-        if (!Vision.popupEdgeRight(all, gx, gy, H)) return null;
-        return new int[]{gx, gy, 3};
+        Img tr = grab(l2, t2, r2 - l2, b2 - t2);
+        if (tr.w == r2 - l2 && tr.h == b2 - t2) {
+            for (double[] g : Vision.findCloseXAll(tr, H, closing)) {
+                int gx = l2 + (int) g[0], gy = t2 + (int) g[1];
+                if (Vision.popupEdgeRight(small, (int) (gx / kx), (int) (gy / ky), small.h)) return new int[]{gx, gy, 3};
+            }
+        }
+        return derived;
+    }
+
+    /** 찾은 창이 보정한 결과창과 같은 자리 · 크기인지 (화면 비율 3% 안) */
+    boolean sameResult(int x1, int y1, int x2, int y2) {
+        double[] k = cfg.resultRegion;
+        if (k == null) return false;
+        double W = W(), H = H();
+        return Math.abs(x1 / W - Math.min(k[0], k[2])) < 0.03 && Math.abs(y1 / H - Math.min(k[1], k[3])) < 0.03
+                && Math.abs(x2 / W - Math.max(k[0], k[2])) < 0.03 && Math.abs(y2 / H - Math.max(k[1], k[3])) < 0.03;
     }
 
     /** 결과창 X 누르기 (화면에서 찾은 X 먼저 · 없으면 보정한 자리) */
@@ -446,18 +575,36 @@ public final class Fisher {
         }
     }
 
-    void finish(Img base) {
+    /**
+     * 결과창 닫기 — Fish / Exit 버튼이 다시 보일 때까지
+     *  · 누를 자리: 화면에서 찾은 X 모양 (두 번 연속 같은 자리에 보일 때만) → 보정한 X → 전에 눌러서 닫혔던 자리 (쓰레기 결과창처럼 크기가 다른 창)
+     *    → X 모양은 없고 결과창 모양만 보이면 창 크기로 계산한 자리
+     *  · X 가 나타날 시간 (X_SHOWN) 이 지났는데 한 자리를 DWELL 초 동안 눌러도 안 닫히면 다음 자리 · 다 해 봤으면 처음부터
+     *  · 보정한 자리가 아닌 곳을 눌러서 닫혔으면 그 자리를 기억 (다음 결과창부터는 X 를 못 찾아도 바로 누름)
+     */
+    /** → "success" · "junk" · "fail" (셌을 때) · null (결과창을 못 닫았고 결과도 못 봄 → 안 셈) */
+    String finish(Img base) {
         out.state("결과창 닫는 중");
         double[] title = base != null ? cfg.titlePos : null;
-        double start = now(), end = start + FINISH_MAX, findAt = start + FIND_X_AFTER;
+        double start = now(), end = start + FINISH_MAX, lookAt = start + LOOK_FROM;
         boolean seenFail = false, seenSuccess = false, seenJunk = false, closed = false;
+        double[] found = null, guess = null, pend = null, target = null, lastTap = null;
+        double targetAt = start, lastTapAt = -1;
+        List<double[]> failed = new ArrayList<>();
+        boolean first = true;
         while (now() < end) {
             check();
             String bs = Vision.buttonState(grabBox(cfg.fishBtn));
             if ("fish".equals(bs) || "exit".equals(bs)) {
+                if (first) {
+                    // 결과창이 한 번도 안 가렸음 → 결과가 없었던 것 (미니게임으로 잘못 봤거나 이미 닫힘) → 안 셈
+                    out.log("결과창이 안 보임 — 통계에 안 넣음", 'd');
+                    return null;
+                }
                 closed = true;
                 break;
             }
+            first = false;
             if (title != null && !seenFail) {
                 Img im = grabBox(title, 0.12, 0.05);
                 if (im.w == base.w && im.h == base.h && meanAbsDiff(im, base) > 18) {
@@ -467,19 +614,55 @@ public final class Fisher {
                     else if ("junk".equals(k)) seenJunk = true;
                 }
             }
-            if (now() >= findAt) {
-                findAt = now() + 0.5;
-                if (clickFoundX()) {
-                    sleep(0.3);
-                    continue;
+            double t = now();
+            if (t >= lookAt) {
+                int[] hit = findX(true);
+                double[] h = hit == null ? null : new double[]{(double) hit[0] / W(), (double) hit[1] / H(), hit[2]};
+                if (h != null && pend != null && pend[2] == h[2] && nearRatio(h, pend)) {
+                    if (h[2] == 4) {
+                        guess = h;
+                    } else if (found == null || !nearRatio(found, h)) {
+                        found = h;
+                        out.log(xHow((int) h[2]), 'd');
+                    }
+                    pend = null;
+                    lookAt = now() + LOOK_GAP;
+                } else {
+                    pend = h;
+                    lookAt = now() + (h != null ? 0.15 : LOOK_GAP);   // 처음 보인 자리는 바로 한 번 더 봐서 확인
                 }
+                t = now();
             }
-            if (cfg.closePos != null) tapRatio(cfg.closePos);
-            else clickFoundX();
+            double[] want = pickClose(found, guess, failed);
+            if (want != null && (target == null || !nearRatio(want, target))) {
+                target = want;
+                targetAt = t;
+                if (want == guess) out.log(xHow(4), 'd');
+            }
+            if (target != null && t - start >= X_SHOWN && t - Math.max(targetAt, start + X_SHOWN) >= DWELL) {
+                failed.add(target);
+                out.log("누른 자리에서 결과창이 안 닫힘 — 다른 자리를 눌러 봄", 'd');
+                target = null;
+                continue;
+            }
+            if (target != null) {
+                tapRatio(target);
+                lastTap = target;
+                lastTapAt = now();
+            }
             sleep(FINISH_GAP);
         }
         if (!closed) {
             out.log("결과창을 닫은 뒤 " + (int) FINISH_MAX + "초 동안 Fish 버튼이 보이지 않음 — 다시 확인", 'y');
+        } else if (lastTap != null && (cfg.closePos == null || !nearRatio(lastTap, cfg.closePos)) && now() - lastTapAt < 1.5 && lastTapAt - targetAt >= 0.25) {
+            // 닫히기 직전에 (0.25초 넘게 이어서) 누른 자리 = 닫은 자리 (보정한 자리가 아닐 때만 기억 · 막 다른 자리로 바꾼 직후면 어느 쪽인지 몰라서 안 함)
+            cfg.learnClose(lastTap[0], lastTap[1]);
+            out.log("결과창이 닫힌 자리를 기억함 (" + SellText.r4(lastTap[0]) + ", " + SellText.r4(lastTap[1]) + ")", 'd');
+            if (onLearn != null) onLearn.run();
+        }
+        if (!closed && !seenFail && !seenSuccess && !seenJunk) {
+            out.log("결과 확인 안 됨 — 통계에 안 넣음", 'd');
+            return null;
         }
         String kind = seenFail ? "fail" : seenSuccess ? "success" : seenJunk ? "junk" : "success";
         if (kind.equals("fail")) fail++;
@@ -488,6 +671,24 @@ public final class Fisher {
         if (onResult != null) onResult.accept(kind.equals("fail") || kind.equals("junk") ? kind : "success");
         String name = kind.equals("success") ? "성공" : kind.equals("junk") ? "쓰레기" : "실패";
         out.log("낚시 결과: " + name + " · 성공 " + success + " / 쓰레기 " + junk + " / 실패 " + fail, kind.equals("success") ? 'g' : 'd');
+        return kind;
+    }
+
+    /** 다음에 누를 결과창 X 자리 (화면 비율) — 찾은 X 모양 → 보정한 X → 기억한 자리 → 창 크기로 계산한 자리 · 다 안 됐으면 처음부터 */
+    double[] pickClose(double[] found, double[] guess, List<double[]> failed) {
+        List<double[]> c = new ArrayList<>();
+        if (found != null) c.add(found);
+        if (cfg.closePos != null) c.add(cfg.closePos);
+        c.addAll(cfg.learnedClose());
+        if (guess != null) c.add(guess);
+        for (double[] p : c) {
+            boolean bad = false;
+            for (double[] f : failed) bad |= nearRatio(p, f);
+            if (!bad) return p;
+        }
+        if (c.isEmpty()) return null;
+        failed.clear();
+        return c.get(0);
     }
 
     static double meanAbsDiff(Img a, Img b) {
@@ -498,7 +699,8 @@ public final class Fisher {
     }
 
     // ---------------------------------------------------------------- 릴링
-    void reel() {
+    /** 릴링 → 진짜 미니게임이었는지 (내 위치가 움직이는 걸 봤는지) */
+    boolean reel() {
         out.state("릴링 중");
         double[] region = cfg.barRegion;
         int[] a = px(Math.min(region[0], region[2]), Math.min(region[1], region[3]));
@@ -508,104 +710,184 @@ public final class Fisher {
         int bx = a[0] - side, by = Math.max(0, a[1] - extra), bw = Math.max(8, b[0] - a[0]) + side * 2;
         int topIn = a[1] - by, bhh = topIn + bh + (int) (bh * 0.8);
         int[] xs0 = {side, side + Math.max(8, b[0] - a[0])};
-        // 누르는 자리: 아무 데나 눌러도 릴링됨 — PC 는 바 아래쪽 (미니게임 창 밑 빈 화면)
-        // 모바일은 UI 가 커서 그 자리가 Roll 버튼 위 → 미니게임 창 위쪽 빈 화면 (캐릭터 쪽)을 누름
-        int tapX = bx + bw / 2, tapY = Math.min(H() - 2, by + bhh + bh * 3);
-        if (cfg.tapAbove) {
-            double[] rr = cfg.reelRegion;
-            int top = rr != null ? (int) (Math.min(rr[1], rr[3]) * H()) : a[1] - (int) (bh * 1.5);
-            tapY = Math.max((int) (H() * 0.15), top - Math.max(bh, (int) (H() * 0.05)) * 3 / 2);
-        }
-        in.hover(tapX, tapY);
-        reelLoop(bx, by, bw, bhh, topIn, bh, xs0, tapX, tapY);
+        int[][] spots = tapSpots(bx, by, bw, bhh, a[1], bh);
+        int spot = Math.floorMod(cfg.reelSpot, spots.length);
+        in.hover(spots[spot][0], spots[spot][1]);
+        return reelLoop(bx, by, bw, bhh, topIn, bh, xs0, spots, spot);
     }
 
-    void reelLoop(int bx, int by, int bw, int bhh, int top0, int bh0, int[] xs0, int tapX, int tapY) {
+    /**
+     * 릴링 때 누를 자리들 (px) — 아무 데나 눌러도 릴링됨
+     *  0: 기본 — PC 는 바 아래쪽 (미니게임 창 밑 빈 화면) · 모바일은 UI 가 커서 그 자리가 Roll 버튼 위 → 미니게임 창 위쪽 빈 화면 (캐릭터 쪽)
+     *  1, 2: 기본 자리에서 터치가 안 먹힐 때 (다른 앱의 떠 있는 창 · 버튼이 그 자리를 가림) — 화면 왼쪽 가운데 · 오른쪽 위의 빈 화면
+     *        (왼쪽 버튼 줄 · 조이스틱 · Roll · 순위표 · 오른쪽 알림은 피함)
+     */
+    int[][] tapSpots(int bx, int by, int bw, int bhh, int barTop, int bh) {
+        int W = W(), H = H();
+        int tapX = bx + bw / 2, tapY = Math.min(H - 2, by + bhh + bh * 3);
+        if (cfg.tapAbove) {
+            double[] rr = cfg.reelRegion;
+            int top = rr != null ? (int) (Math.min(rr[1], rr[3]) * H) : barTop - (int) (bh * 1.5);
+            tapY = Math.max((int) (H * 0.15), top - Math.max(bh, (int) (H * 0.05)) * 3 / 2);
+        }
+        return new int[][]{{tapX, tapY}, {(int) (W * 0.22), (int) (H * 0.42)}, {(int) (W * 0.70), (int) (H * 0.30)}};
+    }
+
+    /**
+     * 릴링 — 새 화면이 올 때만 분석 (같은 화면을 다시 분석하지 않음 · 캡처 이미지를 매번 새로 만들지 않음)
+     *  · 누를지는 REEL_POLL 초마다 ReelPilot 이 예측으로 정함 (화면과 화면 사이에도)
+     *  · 내 위치는 보이는데 누른 게 화면에 한 번도 반영이 안 보이면 (6번 넘게 · 1초 넘게) 누르는 자리를 바꿈 · 잘 된 자리는 기억
+     */
+    boolean reelLoop(int bx, int by, int bw, int bhh, int top0, int bh0, int[] xs0, int[][] spots, int spot) {
         Double goneSince = null, diaOff = null, lostAt = null;
-        ReelControl ctl = new ReelControl(cfg);
-        double start = now(), end = start + REEL_MAX, diaAt = 0, snapAt = 0;
+        ReelPilot pilot = new ReelPilot(cfg.reelFall, cfg.reelJump, cfg.reelDelay);
+        double start = now(), end = start + REEL_MAX, diaAt = 0, snapAt = 0, spotAt = start;
         Boolean dia = null;
-        boolean diaSeen = false, fixed = false;
+        boolean diaSeen = false, fixed = false, present = false, ended = false;
         int[] snap = null, fillRef = null;
-        int topIn = top0, bh = bh0;
+        int topIn = top0, bh = bh0, spotSent = 0, spotSeen = 0, switches = 0;
         int[] xs = xs0;
-        while (now() < end) {
-            double t0 = now();
-            check();
-            Img im = grab(bx, by, bw, bhh);
-            if (im.w == 0) {
-                sleep(0.01);
-                continue;
-            }
-            if (!fixed) {
-                int[] f = Vision.findBarRows(im, top0, bh0);
-                if (f != null && f[3] - f[2] >= (xs0[1] - xs0[0]) * 0.7 && bh0 * 0.6 <= f[1] && f[1] <= bh0 * 1.5) {
-                    boolean same = snap != null;
-                    if (same) for (int i = 0; i < 4; i++) same &= Math.abs(f[i] - snap[i]) <= 1;
-                    if (!same) {
-                        snap = f;
-                        snapAt = t0;
-                    } else if (t0 - snapAt >= 0.15) {
-                        fixed = true;
-                        topIn = f[0];
-                        bh = f[1];
-                        xs = new int[]{f[2] + 1, f[3]};
-                    }
-                } else {
-                    snap = null;
-                }
-            }
-            Img bar = im.crop(xs[0], 0, xs[1], im.h);
-            if (fixed && fillRef == null) fillRef = Vision.learnFill(bar, topIn, bh);
-            Vision.Bar a = Vision.analyzeBar(bar, topIn, bh, fillRef);
-            if (fixed && !a.present) {
-                if (lostAt == null) lostAt = t0;
-                if (t0 - lostAt > 0.3) {
-                    fixed = false;
-                    snap = null;
-                    lostAt = null;
-                    topIn = top0;
-                    bh = bh0;
-                    xs = xs0;
-                }
-            } else {
-                lostAt = null;
-            }
-            double t = now();
-            if (t - diaAt >= 0.1) {
-                diaAt = t;
-                dia = diamondMoved();
-                if (Boolean.TRUE.equals(dia)) {
-                    diaSeen = true;
-                    diaOff = null;
-                    diamondOk = true;
-                } else if (Boolean.FALSE.equals(dia) && (diaSeen || diamondOk)) {
-                    if (diaOff == null) diaOff = t;
-                }
-            }
-            if (diaOff != null && t - diaOff > 0.5) return;
-            if (!a.present) {
-                if (Boolean.TRUE.equals(dia)) {
-                    goneSince = null;
+        Img im = new Img(bw, bhh), bar = null;
+        long frame = Long.MIN_VALUE, cancel0 = in.cancelled();
+        reelTap = spots[spot];
+        try {
+            while (now() < end) {
+                check();
+                long fr = scr.grabInto(im, bx, by, frame);
+                if (fr < 0) {
                     sleep(0.01);
                     continue;
                 }
-                if (goneSince == null) goneSince = t;
-                if (t - goneSince > REEL_GONE) return;
-                sleep(0.01);
-                continue;
+                double t = now();
+                if (fr != frame) {
+                    frame = fr;
+                    if (!fixed) {
+                        int[] f = Vision.findBarRows(im, top0, bh0);
+                        if (f != null && f[3] - f[2] >= (xs0[1] - xs0[0]) * 0.7 && bh0 * 0.6 <= f[1] && f[1] <= bh0 * 1.5) {
+                            boolean same = snap != null;
+                            if (same) for (int i = 0; i < 4; i++) same &= Math.abs(f[i] - snap[i]) <= 1;
+                            if (!same) {
+                                snap = f;
+                                snapAt = t;
+                            } else if (t - snapAt >= 0.15) {
+                                fixed = true;
+                                topIn = f[0];
+                                bh = f[1];
+                                xs = new int[]{f[2] + 1, f[3]};
+                            }
+                        } else {
+                            snap = null;
+                        }
+                    }
+                    int cw = Math.max(1, Math.min(im.w, xs[1]) - xs[0]);
+                    if (bar == null || bar.w != cw) bar = new Img(cw, im.h);
+                    im.cropInto(bar, xs[0], 0);
+                    if (fixed && fillRef == null) fillRef = Vision.learnFill(bar, topIn, bh);
+                    Vision.Bar a = Vision.analyzeBar(bar, topIn, bh, fillRef);
+                    present = a.present;
+                    if (fixed && !a.present) {
+                        if (lostAt == null) lostAt = t;
+                        if (t - lostAt > 0.3) {
+                            fixed = false;
+                            snap = null;
+                            lostAt = null;
+                            topIn = top0;
+                            bh = bh0;
+                            xs = xs0;
+                        }
+                    } else {
+                        lostAt = null;
+                    }
+                    if (a.present) pilot.see(t, a.marker == null ? null : a.marker / Math.max(1, a.w), fractions(a.zones, a.w));
+                }
+                if (t - diaAt >= 0.1) {
+                    diaAt = t;
+                    dia = diamondMoved();
+                    if (Boolean.TRUE.equals(dia)) {
+                        diaSeen = true;
+                        diaOff = null;
+                        diamondOk = true;
+                    } else if (Boolean.FALSE.equals(dia) && (diaSeen || diamondOk)) {
+                        if (diaOff == null) diaOff = t;
+                    }
+                }
+                if (diaOff != null && t - diaOff > 0.5) {
+                    ended = true;
+                    break;
+                }
+                // 4초가 지나도 내 위치가 한 번도 안 움직임 → 미니게임이 아님 (바처럼 보이는 다른 색) → 바로 끝냄
+                // (그대로 두면 깜빡이는 색 때문에 '바가 사라짐' 도 안 돼서 15초를 다 기다리고 화면 복구까지 했음)
+                if (!pilot.moved && t - start > BOGUS_AFTER) {
+                    ended = true;
+                    break;
+                }
+                if (!present) {
+                    if (Boolean.TRUE.equals(dia)) {
+                        goneSince = null;
+                        sleep(0.01);
+                        continue;
+                    }
+                    if (goneSince == null) goneSince = t;
+                    if (t - goneSince > REEL_GONE) {
+                        ended = true;
+                        break;
+                    }
+                    sleep(0.01);
+                    continue;
+                }
+                goneSince = null;
+                if (pilot.decide(now())) {
+                    int[] s = spots[spot];
+                    in.tap(s[0], s[1], cfg.clickMs);
+                    pilot.tapped(now());
+                    spotSent++;
+                }
+                if (switches < spots.length - 1 && pilot.live && pilot.liveFrames >= 20 && spotSent >= 6 && pilot.seenJumps == spotSeen
+                        && t - Math.max(spotAt, pilot.liveAt) >= 1.0) {
+                    spot = (spot + 1) % spots.length;
+                    switches++;
+                    spotSent = 0;
+                    spotSeen = pilot.seenJumps;
+                    spotAt = t;
+                    reelTap = spots[spot];
+                    out.log("누른 게 미니게임에 반영되지 않음 — 릴링 때 누르는 자리를 바꿈 (" + (spot + 1) + "/" + spots.length + ")", 'y');
+                }
+                sleep(REEL_POLL);
             }
-            goneSince = null;
-            boolean click = ctl.step(t, a.marker, a.zone, a.w, a.zones);
-            if (click) {
-                in.tap(tapX, tapY, cfg.clickMs);
-                ctl.clicked(now());
-            }
-            double rest = REEL_FRAME - (now() - t0);
-            if (rest > 0.001) sleep(rest);
+        } finally {
+            reelDone(pilot, start, spot, spotSeen, cancel0);
         }
-        out.log("미니게임이 " + (int) REEL_MAX + "초 넘게 끝나지 않음 — 멈춘 것으로 보고 닫기", 'y');
-        rescue();
+        boolean real = pilot.moved && pilot.liveFrames >= 10;
+        if (!ended) {
+            out.log("미니게임이 " + (int) REEL_MAX + "초 넘게 끝나지 않음 — 멈춘 것으로 보고 닫기", 'y');
+            rescue();
+        }
+        return real;
+    }
+
+    static List<double[]> fractions(List<int[]> zones, int w) {
+        List<double[]> out = new ArrayList<>(zones.size());
+        double k = 1.0 / Math.max(1, w);
+        for (int[] z : zones) out.add(new double[]{z[0] * k, z[1] * k});
+        return out;
+    }
+
+    /** 릴링이 끝나면: 기록 한 줄 (제보 받을 때 원인 보기) · 잘 잰 값은 저장 (다음 판의 처음 값) */
+    void reelDone(ReelPilot p, double start, int spot, int spotSeen, long cancel0) {
+        if (p.markerFrames < 10 || !p.moved) return;           // 미니게임을 거의 못 봄 · 미니게임이 아니었음 → 기록 · 학습 안 함
+        double dur = Math.max(0.001, now() - start);
+        long cancelled = Math.max(0, in.cancelled() - cancel0);
+        long zone = Math.round(p.seenTime > 0 ? p.inZone * 100 / p.seenTime : 0);
+        String d = String.format(java.util.Locale.ROOT, "%.2f", p.delay);
+        out.log("릴링: 터치 " + p.sent + "번 · 화면에 보임 " + p.seenJumps + " · 안 먹음 " + p.lost + " · 지연 " + d + "초 · 구간 안 " + zone
+                + "% · 화면 " + Math.round(p.frames / dur) + "fps" + (cancelled > 0 ? " · 취소된 터치 " + cancelled : ""), 'd');
+        if (p.fits >= 5 && p.seenJumps >= 5) {
+            cfg.reelDelay = Math.round(p.delay * 1000) / 1000.0;
+            cfg.reelFall = Vision.round4(p.fall);
+            cfg.reelJump = Vision.round4(p.jump);
+            if (p.seenJumps > spotSeen) cfg.reelSpot = spot;          // 이 자리에서 누른 게 반영됨 → 다음 판도 여기
+            if (onLearn != null) onLearn.run();
+        }
     }
 
     // ---------------------------------------------------------------- 자동 보정 (PC 버전 _autocal_run)

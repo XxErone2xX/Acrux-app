@@ -40,6 +40,27 @@ public final class Img {
         return Math.min(r[k], Math.min(g[k], b[k]));
     }
 
+    /** 전부 검은색으로 */
+    public void clear() {
+        java.util.Arrays.fill(r, 0);
+        java.util.Arrays.fill(g, 0);
+        java.util.Arrays.fill(b, 0);
+    }
+
+    /** (x0, y0) 부터 dst 크기만큼을 dst 에 복사 (새 이미지를 안 만듦 · 범위 밖은 검은색) */
+    public void cropInto(Img dst, int x0, int y0) {
+        int cx0 = Math.max(0, x0), cy0 = Math.max(0, y0), cx1 = Math.min(w, x0 + dst.w), cy1 = Math.min(h, y0 + dst.h);
+        if (cx0 != x0 || cy0 != y0 || cx1 - cx0 != dst.w || cy1 - cy0 != dst.h) dst.clear();
+        int n = cx1 - cx0;
+        if (n <= 0) return;
+        for (int y = cy0; y < cy1; y++) {
+            int s = y * w + cx0, d = (y - y0) * dst.w + (cx0 - x0);
+            System.arraycopy(r, s, dst.r, d, n);
+            System.arraycopy(g, s, dst.g, d, n);
+            System.arraycopy(b, s, dst.b, d, n);
+        }
+    }
+
     /** 세로 [y0, y1) · 가로 [x0, x1) 부분 (범위 밖은 잘라냄) */
     public Img crop(int x0, int y0, int x1, int y1) {
         x0 = Math.max(0, x0);

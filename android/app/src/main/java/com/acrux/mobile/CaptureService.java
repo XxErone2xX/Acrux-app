@@ -49,6 +49,9 @@ public class CaptureService extends Service implements Fisher.Screen {
     volatile long frameAt, blackAt, blackSince;
     volatile boolean black;
     long warnedAt;
+    /** 새 화면을 받은 횟수 (릴링이 같은 화면을 두 번 분석하지 않게) · 한 줄 복사용 버퍼 (매번 새로 안 만듦) */
+    long frames;
+    byte[] rowBuf = new byte[0];
     // 검은 화면은 6초 넘게 이어질 때만 (로블록스 로딩 · 리셋 때 잠깐 검은 화면은 괜찮음)
     static final long STALE_MS = 8000, BLACK_MS = 6000, WARN_GAP_MS = 30000;
 
@@ -153,10 +156,8 @@ public class CaptureService extends Service implements Fisher.Screen {
         return h;
     }
 
-    @Override
-    public synchronized Img grab(int x, int y, int gw, int gh) {
-        if (reader == null) return null;
-        fitSize();
+    /** 새 화면이 왔으면 바꿔 끼움 (+ 검은 화면 · 멈춤 확인) */
+    void acquire() {
         Image img;
         try {
             img = reader.acquireLatestImage();
@@ -167,6 +168,7 @@ public class CaptureService extends Service implements Fisher.Screen {
         if (img != null) {
             if (cur != null) cur.close();
             cur = img;
+            frames++;
             frameAt = now;
             if (now - blackAt >= 1000) {
                 blackAt = now;
@@ -176,11 +178,53 @@ public class CaptureService extends Service implements Fisher.Screen {
             }
         }
         watch(now);
+    }
+
+    @Override
+    public synchronized Img grab(int x, int y, int gw, int gh) {
+        if (reader == null) return null;
+        fitSize();
+        acquire();
         if (cur == null) return null;
         int iw = cur.getWidth(), ih = cur.getHeight();
         int x0 = Math.max(0, x), y0 = Math.max(0, y), x1 = Math.min(iw, x + gw), y1 = Math.min(ih, y + gh);
         Img out = new Img(Math.max(0, x1 - x0), Math.max(0, y1 - y0));
         if (out.w == 0 || out.h == 0) return out;
+        return copy(out, x0, y0, 0, 0, out.w, out.h, 1) ? out : null;
+    }
+
+    /** 릴링용: dst 크기만큼 (x, y) 부분을 dst 에 바로 복사 (새 이미지를 안 만듦) · 같은 화면이면 (known) 복사도 안 함 */
+    @Override
+    public synchronized long grabInto(Img dst, int x, int y, long known) {
+        if (reader == null) return -1;
+        fitSize();
+        acquire();
+        if (cur == null) return -1;
+        if (frames == known) return known;
+        int iw = cur.getWidth(), ih = cur.getHeight();
+        int x0 = Math.max(0, x), y0 = Math.max(0, y), x1 = Math.min(iw, x + dst.w), y1 = Math.min(ih, y + dst.h);
+        if (x0 != x || y0 != y || x1 - x0 != dst.w || y1 - y0 != dst.h) dst.clear();      // 화면 밖은 검은색
+        if (x1 > x0 && y1 > y0 && !copy(dst, x0, y0, x0 - x, y0 - y, x1 - x0, y1 - y0, 1)) return -1;
+        return frames;
+    }
+
+    /** 줄인 화면: step 칸마다 한 칸 (결과창 테두리 찾기 · 전체 화면을 그대로 복사하면 폰에선 한 번에 수십 MB) */
+    @Override
+    public synchronized Img grabStep(int x, int y, int gw, int gh, int step) {
+        if (reader == null) return null;
+        fitSize();
+        acquire();
+        if (cur == null) return null;
+        step = Math.max(1, step);
+        int iw = cur.getWidth(), ih = cur.getHeight();
+        int x0 = Math.max(0, x), y0 = Math.max(0, y), x1 = Math.min(iw, x + gw), y1 = Math.min(ih, y + gh);
+        Img out = new Img(Math.max(0, (x1 - x0 + step - 1) / step), Math.max(0, (y1 - y0 + step - 1) / step));
+        if (out.w == 0 || out.h == 0) return out;
+        return copy(out, x0, y0, 0, 0, out.w, out.h, step) ? out : null;
+    }
+
+    /** 지금 화면 (sx, sy) 부터 step 칸마다 w × h 칸 → dst 의 (dx, dy) 부터 · 실패하면 false (화면이 바뀌는 순간 닫힌 이미지) */
+    boolean copy(Img dst, int sx, int sy, int dx, int dy, int w, int h, int step) {
         Image.Plane p;
         ByteBuffer buf;
         try {
@@ -188,25 +232,35 @@ public class CaptureService extends Service implements Fisher.Screen {
             buf = p.getBuffer().duplicate();
         } catch (RuntimeException e) {               // 화면이 바뀌는 순간 닫힌 이미지
             cur = null;
-            return null;
+            return false;
         }
         int rs = p.getRowStride(), ps = Math.max(4, p.getPixelStride()), lim = buf.limit();
-        byte[] row = new byte[out.w * ps];
-        for (int yy = 0; yy < out.h; yy++) {
-            int at = (y0 + yy) * rs + x0 * ps;
-            if (at < 0 || at >= lim) break;              // 기종에 따라 버퍼가 화면보다 짧을 때
+        int need = ((w - 1) * step + 1) * ps;
+        if (rowBuf.length < need) rowBuf = new byte[need];
+        byte[] row = rowBuf;
+        for (int yy = 0; yy < h; yy++) {
+            int at = (sy + yy * step) * rs + sx * ps;
+            if (at < 0 || at >= lim) {                   // 기종에 따라 버퍼가 화면보다 짧을 때 → 나머지 줄은 검은색
+                for (int y2 = yy; y2 < h; y2++) {
+                    int k = (dy + y2) * dst.w + dx;
+                    java.util.Arrays.fill(dst.r, k, k + w, 0);
+                    java.util.Arrays.fill(dst.g, k, k + w, 0);
+                    java.util.Arrays.fill(dst.b, k, k + w, 0);
+                }
+                break;
+            }
             buf.position(at);
-            int n = Math.min(row.length, lim - at);
+            int n = Math.min(need, lim - at);
             buf.get(row, 0, n);
-            if (n < row.length) java.util.Arrays.fill(row, n, row.length, (byte) 0);
-            int k = yy * out.w;
-            for (int xx = 0, o = 0; xx < out.w; xx++, o += ps, k++) {
-                out.r[k] = row[o] & 255;
-                out.g[k] = row[o + 1] & 255;
-                out.b[k] = row[o + 2] & 255;
+            if (n < need) java.util.Arrays.fill(row, n, need, (byte) 0);
+            int k = (dy + yy) * dst.w + dx, adv = ps * step;
+            for (int xx = 0, o = 0; xx < w; xx++, o += adv, k++) {
+                dst.r[k] = row[o] & 255;
+                dst.g[k] = row[o + 1] & 255;
+                dst.b[k] = row[o + 2] & 255;
             }
         }
-        return out;
+        return true;
     }
 
     /** 거의 다 검은 화면인지 (드문드문 찍어 봄) */
