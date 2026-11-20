@@ -279,19 +279,80 @@ public final class Fisher {
             return;
         }
         out.log("자동 낚시 시작", 'g');
+        boolean go = onStart != null, trip = false;
+        int crashes = 0, okAt = rounds();
         try {
-            if (onStart != null) {
-                out.state("낚시 장소로 가는 중");
-                away(onStart);
+            while (true) {
+                try {
+                    if (go) {
+                        trip = true;
+                        out.state("낚시 장소로 가는 중");
+                        away(onStart);
+                        trip = false;
+                    }
+                    loop();
+                    return;
+                } catch (Stopped e) {
+                    throw e;
+                } catch (RuntimeException | OutOfMemoryError e) {
+                    // 잠깐 생긴 오류 (화면 · 글자 읽기 · 이동 · 판매 중 예외 · 메모리 부족 등) 로 멈추지 않음 → 쉬었다가 이어감 (이어서 날수록 길게 · 최대 2분)
+                    //  · 낚시 장소로 가다가 난 오류면 다시 감 · 낚시하다가 난 오류는 처음 한 번은 그 자리에서 이어 가고 또 나면 낚시 장소로 다시 감
+                    //  · 그 사이 한 판이라도 끝났으면 처음부터 셈
+                    if (rounds() > okAt) crashes = 0;
+                    okAt = rounds();
+                    crashes++;
+                    if (e instanceof OutOfMemoryError) System.gc();
+                    int wait = (int) Math.min(120, 5.0 * crashes);
+                    go = onStart != null && (trip || crashes >= 2);
+                    trip = false;
+                    out.log("자동 낚시 오류: " + e + " — " + wait + "초 쉬고 " + (go ? "낚시 장소로 다시 가서 " : "") + "이어감 (" + crashes + "번째)", 'y');
+                    out.state("잠깐 쉬는 중 — " + wait + "초 뒤 이어감");
+                    sleep(wait);
+                }
             }
-            loop();
         } catch (Stopped e) {
             out.log("자동 낚시 정지", 'd');
-        } catch (RuntimeException e) {
-            out.log("자동 낚시 오류: " + e, 'r');
         } finally {
             fitSettle();
             out.state("대기");
+        }
+    }
+
+    /** 끝난 판 수 (성공 · 쓰레기 · 실패 · 못 본 미니게임) — 진행됐는지 보는 데 씀 */
+    int rounds() {
+        return success + junk + fail;
+    }
+
+    /** 이어서 낚시가 안 풀려서 낚시 장소로 다시 간 횟수 (한 판이라도 끝나면 0) — 쉬는 시간을 늘리는 데 씀 */
+    int stuck;
+
+    /** 낚시 장소로 다시 가기 전에 쉬는 시간 (초): 처음엔 바로 · 15 · 30 · 60 · 120 · 240 · 최대 300 */
+    static double backoff(int n) {
+        return n <= 1 ? 0 : Math.min(300, 15 * Math.pow(2, n - 2));
+    }
+
+    /**
+     * 낚시가 안 풀릴 때 (화면 복구로도 안 됨 · 낚시 화면이 안 보임 · 판매를 못 함 · 연속 실패) — 멈추지 않고 낚시 장소로 다시 감 (리셋부터)
+     *  · 이어서 안 될수록 먼저 길게 쉼 (backoff) · 가다가 오류가 나도 멈추지 않음 (다음에 또 시도) · [정지] 할 때까지 계속
+     */
+    void relocate() {
+        stuck++;
+        double wait = backoff(stuck);
+        if (wait > 0) {
+            out.log("낚시 장소로 다시 감 — " + (int) wait + "초 쉰 뒤 (" + stuck + "번째 · 멈추지 않고 계속)", 'y');
+            out.state("잠깐 쉬는 중 — " + (int) wait + "초 뒤 낚시 장소로 다시 감");
+            sleep(wait);
+        } else {
+            out.log("낚시 장소로 다시 감", 'y');
+        }
+        if (onStart == null) return;                                   // 이동이 없음 (기능 테스트) → 쉬기만
+        out.state("낚시 장소로 다시 가는 중");
+        try {
+            away(onStart);
+        } catch (Stopped e) {
+            throw e;
+        } catch (RuntimeException e) {
+            out.log("낚시 장소로 다시 가다가 오류: " + e.getMessage() + " — 이어서 다시 시도", 'y');
         }
     }
 
@@ -354,7 +415,22 @@ public final class Fisher {
     double barQuietUntil = -1;
     /** 가짜 릴링이 이어진 횟수 · 이어서 실패한 횟수 */
     int bogusRun, failRun;
+    /** 이어서 실패: FAIL_RESET 번이면 릴링 측정값을 처음부터 · FAIL_STOP 번이면 낚시 장소로 다시 감 (자동 낚시는 멈추지 않음) */
     public static final int FAIL_RESET = 6, FAIL_STOP = 30;
+
+    /** 이어서 FAIL_STOP 번 실패 (릴링 실패 · 미니게임을 못 봄) — 릴링 측정값 · 누르는 자리를 처음부터 · 낚시 장소로 다시 감 (이동이 없으면 멈춤) */
+    void failStreak() {
+        if (onStart == null) {                                         // 이동이 없는 낚시 (기능 테스트) 만 여기서 끝남
+            out.log("연속 실패 " + failRun + "번 — 자동 낚시 멈춤 (로그의 '릴링:' 줄 · 미니게임 보정 확인)", 'r');
+            throw new Stopped();
+        }
+        out.log("연속 실패 " + failRun + "번 — 릴링 측정값을 처음부터 다시 재고 낚시 장소로 다시 가서 이어감 (계속 그러면 낚시 보정 → 칸을 띄우며 낚시 테스트로 확인)", 'y');
+        failRun = 0;
+        cfg.reelDelay = cfg.reelFall = cfg.reelJump = 0;
+        cfg.reelSpot = 0;
+        if (onLearn != null) onLearn.run();
+        relocate();
+    }
 
     /**
      * 낚시 창을 화면에서 다시 찾아서, 보정 때 창 자리 → 지금 창 자리로 모든 위치 (Fish 버튼 · 릴링 바 · 결과창 X · 제목 · 창 영역) 를 옮김
@@ -464,7 +540,7 @@ public final class Fisher {
 
     void loop() {
         Double castAt = null, waitAt = null, unknownAt = null;
-        int tries = 0, rescues = 0, maybe = 0, relocs = 0;
+        int tries = 0, rescues = 0, maybe = 0;
         double progressAt = now(), knownAt = now(), testAt = now();
         boolean seen = false, waited = false, hinted = false;          // 낚시 화면을 봤는지 (테스트) · 던진 뒤 Exit 를 봤는지 · 안내했는지 (테스트)
         while (true) {
@@ -488,12 +564,19 @@ public final class Fisher {
             if (t - progressAt > cfg.biteMax + 60) {
                 rescues++;
                 if (rescues > 3) {
-                    out.log("낚시 화면을 계속 찾지 못함 — 자동 낚시 멈춤 (낚시 자리 · 자동 보정 확인)", 'r');
-                    throw new Stopped();
+                    if (onStart == null) {                             // 이동이 없는 낚시 (기능 테스트) 만 여기서 끝남
+                        out.log("낚시 화면을 계속 찾지 못함 — 자동 낚시 멈춤 (낚시 자리 · 자동 보정 확인)", 'r');
+                        throw new Stopped();
+                    }
+                    // 화면 복구로도 안 됨 → 멈추지 않고 낚시 장소로 다시 감 (이어서 안 될수록 쉬는 시간을 늘림)
+                    out.log("한동안 낚시가 진행되지 않음 — 화면 복구로도 안 됨", 'y');
+                    relocate();
+                    rescues = 0;
+                } else {
+                    out.log("한동안 낚시가 진행되지 않음 — 화면 복구 (" + rescues + "/3)", 'y');
+                    rescue();
                 }
-                out.log("한동안 낚시가 진행되지 않음 — 화면 복구 (" + rescues + "/3)", 'y');
-                rescue();
-                progressAt = now();
+                progressAt = knownAt = now();
                 castAt = waitAt = unknownAt = null;
                 tries = 0;
                 waited = false;
@@ -530,7 +613,7 @@ public final class Fisher {
                 waited = false;
                 castAt = null;
                 tries = 0;
-                relocs = 0;
+                stuck = 0;                                             // 한 판을 했음 → 쉬는 시간도 처음부터
                 rescues = 0;
                 unknownAt = null;
                 progressAt = knownAt = now();
@@ -553,8 +636,10 @@ public final class Fisher {
                         if (onLearn != null) onLearn.run();
                         out.log("릴링이 " + FAIL_RESET + "번 이어서 실패 — 릴링 측정값을 지우고 다시 잼", 'y');
                     } else if (failRun >= FAIL_STOP) {
-                        out.log("릴링이 " + FAIL_STOP + "번 이어서 실패 — 자동 낚시 멈춤 (로그의 '릴링:' 줄 · 미니게임 보정 확인)", 'r');
-                        throw new Stopped();
+                        failStreak();
+                        castAt = waitAt = unknownAt = null;
+                        tries = 0;
+                        progressAt = knownAt = now();
                     }
                 } else if (kind != null) {
                     failRun = 0;
@@ -564,8 +649,10 @@ public final class Fisher {
             if ("wait".equals(st)) {
                 castAt = null;
                 tries = 0;
-                waited = true;
                 if (waitAt == null) waitAt = t;
+                // Exit 가 0.5초 넘게 보여야 '던졌음' 으로 봄 — 낚시 장소로 다시 간 직후 · 화면이 늦게 바뀔 때 지난 화면 (Exit) 이 잠깐 보이는 걸로
+                //  뒤의 대기 화면을 '미니게임을 못 봄' 으로 세지 않게
+                if (t - waitAt >= 0.5) waited = true;
                 if (t - waitAt > cfg.biteMax) {
                     if (once) {
                         tapRatio(cfg.fishBtn);
@@ -603,8 +690,11 @@ public final class Fisher {
                         rescues = 0;
                         revertFit("미니게임을 못 봄");
                         if (++failRun >= FAIL_STOP) {
-                            out.log("연속 실패 " + FAIL_STOP + "번 (미니게임을 못 본 판 포함) — 자동 낚시 멈춤 (낚시 보정 → 칸을 띄우며 낚시 테스트로 확인)", 'r');
-                            throw new Stopped();
+                            failStreak();
+                            castAt = waitAt = unknownAt = null;
+                            tries = 0;
+                            progressAt = knownAt = now();
+                            continue;
                         }
                     }
                     if (castAt != null) {
@@ -630,15 +720,17 @@ public final class Fisher {
                                 } finally {
                                     phase = 0;
                                 }
-                                if (back) {
-                                    castAt = waitAt = unknownAt = null;
-                                    tries = 0;
-                                    progressAt = knownAt = now();
-                                    continue;
+                                if (!back) {
+                                    // 판매를 못 함 (판매 실패 · 팔 물고기 없음) → 멈추지 않고 낚시 장소로 다시 가서 Fish 부터 다시 (이어서 안 될수록 쉬는 시간을 늘림)
+                                    out.log("판매를 못 함 — 낚시 장소로 다시 가서 Fish 부터 다시", 'y');
+                                    relocate();
                                 }
-                            } else {
-                                out.log("Fish 를 " + tries + "번 눌러도 반응 없음 — 낚시 인벤토리 가득 · 정지", 'y');
+                                castAt = waitAt = unknownAt = null;
+                                tries = 0;
+                                progressAt = knownAt = now();
+                                continue;
                             }
+                            out.log("Fish 를 " + tries + "번 눌러도 반응 없음 — 낚시 인벤토리 가득 · 정지", 'y');
                             out.state("인벤토리 가득 — 판매 필요");
                             throw new Stopped();
                         }
@@ -654,24 +746,14 @@ public final class Fisher {
                     hinted = true;
                     out.log("Exit 버튼이 사라졌는데 미니게임으로 안 보임 — 주황 칸 (미니게임 바) · ◇ 칸이 실제 미니게임과 맞는지 확인", 'y');
                 }
-                // 30초 동안 낚시 화면이 한 번도 안 보임 → 낚시 장소에 못 간 것 → 다시 이동 (3번까지 · 그래도 안 되면 멈춤)
+                // 30초 동안 낚시 화면이 한 번도 안 보임 → 낚시 장소에 못 간 것 → 다시 이동 (멈추지 않음 · 이어서 안 될수록 쉬는 시간을 늘림)
                 if (onStart != null && t - knownAt > RELOC_AFTER) {
-                    if (relocs >= 3) {
-                        out.log("낚시 장소로 다시 가도 낚시 화면이 안 보임 — 자동 낚시 멈춤 (경로 · 위치 확인)", 'r');
-                        throw new Stopped();
-                    }
-                    relocs++;
-                    out.log((int) RELOC_AFTER + "초 동안 낚시 화면이 안 보임 — 낚시 장소로 다시 이동 (" + relocs + "/3)", 'y');
-                    out.state("낚시 장소로 다시 가는 중");
-                    try {
-                        away(onStart);
-                    } catch (Stopped e) {
-                        throw e;
-                    } catch (RuntimeException e) {                // 다시 가다가 오류 → 이번 시도로 세고 다음에 또 시도 (바로 멈추지 않음)
-                        out.log("낚시 장소로 다시 가다가 오류: " + e.getMessage(), 'y');
-                    }
+                    out.log("낚시 화면이 " + (int) RELOC_AFTER + "초 동안 안 보임", 'y');
+                    relocate();
                     knownAt = progressAt = now();
                     unknownAt = null;
+                    castAt = waitAt = null;
+                    tries = 0;
                     waited = false;
                     continue;
                 }

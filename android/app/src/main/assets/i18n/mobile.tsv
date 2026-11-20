@@ -843,7 +843,6 @@ Fish 를 {0}번 눌러도 반응 없음 — 인벤토리가 꽉 찼거나 누르
 Exit 버튼이 사라졌는데 미니게임으로 안 보임 — 주황 칸 (미니게임 바) · ◇ 칸이 실제 미니게임과 맞는지 확인	The Exit button is gone but it does not look like the minigame — check that the orange box (minigame bar) and the ◇ boxes match the real minigame	Exit ボタンが消えたがミニゲームに見えない — オレンジの枠 (ミニゲームのバー) · ◇ の枠が実際のミニゲームに合っているか確認
 칸을 화면에 못 그림: {0}	Could not draw the boxes on screen: {0}	枠を画面に描けない: {0}
 입질 뒤 미니게임을 못 보고 지나감 — 실패로 셈 · 성공 {0} / 쓰레기 {1} / 실패 {2}	Missed the minigame after the bite — counted as a fail · success {0} / junk {1} / fail {2}	当たりの後ミニゲームを見逃した — 失敗として数える · 成功 {0} / ゴミ {1} / 失敗 {2}
-연속 실패 {0}번 (미니게임을 못 본 판 포함) — 자동 낚시 멈춤 (낚시 보정 → 칸을 띄우며 낚시 테스트로 확인)	{0} fails in a row (including missed minigames) — auto fishing stopped (check with Fishing calibration → Fishing test with boxes shown)	連続失敗 {0} 回 (見逃したミニゲームを含む) — 自動釣りを停止 (釣りの補正 → 枠を表示して釣りテスト で確認)
 옮긴 낚시 창 자리에서 {0} — 보정한 자리로 되돌림	{0} after moving the fishing window position — went back to the calibrated position	移した釣りウィンドウの位置で {0} — 補正した位置に戻した
 미니게임을 못 봄	missed the minigame	ミニゲームを見逃した
 가짜 미니게임	fake minigame	偽のミニゲーム
@@ -851,7 +850,20 @@ Fish 가 반응 없음	Fish does not respond	Fish が反応しない
 결과창을 못 닫음	could not close the result window	結果ウィンドウを閉じられない
 옮긴 낚시 창 자리가 확인되지 않아서 보정한 자리로 되돌려 둠	The moved fishing window position was not confirmed — put back the calibrated position	移した釣りウィンドウの位置が確認できなかったので、補正した位置に戻した
 미니게임 바처럼 보였지만 미니게임이 아님 — 다시 확인 ({0}번째) · 바 화면 {1}장 · 내 위치 읽음 {2}장 · 구간 읽음 {3}장	Looked like the minigame bar but it was not the minigame — checking again (#{0}) · bar frames {1} · position read {2} · zone read {3}	ミニゲームのバーに見えたがミニゲームではない — もう一度確認 ({0} 回目) · バーの画面 {1} 枚 · 自分の位置を読めた {2} 枚 · 区間を読めた {3} 枚
-Fish 를 눌러도 반응이 없는데 지난번 판매 때 팔 물고기가 없었음 — Fish 버튼 자리가 틀린 것 같아서 멈춤 (낚시 보정 → 칸을 띄우며 낚시 테스트로 확인 · 안 맞으면 자동 보정 다시)	Fish does not respond, but there was nothing to sell last time — the Fish button position looks wrong, so stopped (check with Fishing calibration → Fishing test with boxes shown · if it is off, auto-calibrate again)	Fish を押しても反応がないが、前回の販売で売る魚がなかった — Fish ボタンの位置が違うようなので停止 (釣りの補正 → 枠を表示して釣りテスト で確認 · 合っていなければ自動補正をやり直す)
+자동 낚시 오류: {0} — {1}초 쉬고 낚시 장소로 다시 가서 이어감 ({2}번째)	Auto fishing error: {0} — resting {1} s, then going back to the fishing spot and continuing (#{2})	自動釣りのエラー: {0} — {1} 秒休んで釣り場に戻って続行 ({2} 回目)
+자동 낚시 오류: {0} — {1}초 쉬고 이어감 ({2}번째)	Auto fishing error: {0} — resting {1} s, then continuing (#{2})	自動釣りのエラー: {0} — {1} 秒休んで続行 ({2} 回目)
+잠깐 쉬는 중 — {0}초 뒤 이어감	Resting — continuing in {0} s	少し休憩中 — {0} 秒後に続行
+잠깐 쉬는 중 — {0}초 뒤 낚시 장소로 다시 감	Resting — going back to the fishing spot in {0} s	少し休憩中 — {0} 秒後に釣り場へ戻る
+낚시 장소로 다시 감	Going back to the fishing spot	釣り場へ戻る
+낚시 장소로 다시 감 — {0}초 쉰 뒤 ({1}번째 · 멈추지 않고 계속)	Going back to the fishing spot after resting {0} s (#{1} · keeps going without stopping)	{0} 秒休んでから釣り場へ戻る ({1} 回目 · 止まらずに続行)
+낚시 장소로 다시 가다가 오류: {0} — 이어서 다시 시도	Error while going back to the fishing spot: {0} — will try again	釣り場へ戻る途中でエラー: {0} — 続けてもう一度試す
+한동안 낚시가 진행되지 않음 — 화면 복구로도 안 됨	Fishing has not progressed for a while — recovering the screen did not help	しばらく釣りが進まない — 画面の復旧でも直らない
+낚시 화면이 {0}초 동안 안 보임	Fishing screen not visible for {0} s	釣り画面が {0} 秒間見えない
+판매를 못 함 — 낚시 장소로 다시 가서 Fish 부터 다시	Could not sell — going back to the fishing spot and starting again from Fish	販売できない — 釣り場に戻って Fish からやり直す
+연속 실패 {0}번 — 릴링 측정값을 처음부터 다시 재고 낚시 장소로 다시 가서 이어감 (계속 그러면 낚시 보정 → 칸을 띄우며 낚시 테스트로 확인)	{0} fails in a row — measuring reeling again from scratch, going back to the fishing spot and continuing (if it keeps happening, check with Fishing calibration → Fishing test with boxes shown)	連続失敗 {0} 回 — リールの測定値を最初から測り直し、釣り場に戻って続行 (続くなら 釣りの補正 → 枠を表示して釣りテスト で確認)
+연속 실패 {0}번 — 자동 낚시 멈춤 (로그의 '릴링:' 줄 · 미니게임 보정 확인)	{0} fails in a row — auto fishing stopped (check the 'Reeling:' log lines and the minigame calibration)	連続失敗 {0} 回 — 自動釣り停止 (ログの「リール:」行・ミニゲームの補正を確認)
+Fish 를 눌러도 반응이 없는데 지난번 판매 때 팔 물고기가 없었음 — 판매하러 가지 않고 낚시 장소부터 다시 잡음 ({0}/2 · 계속 그러면 낚시 보정 → 칸을 띄우며 낚시 테스트로 확인)	Fish does not respond, but there was nothing to sell last time — not going to sell, taking the fishing spot again first ({0}/2 · if it keeps happening, check with Fishing calibration → Fishing test with boxes shown)	Fish を押しても反応がないが、前回の販売で売る魚がなかった — 販売には行かず、先に釣り場を取り直す ({0}/2 · 続くなら 釣りの補正 → 枠を表示して釣りテスト で確認)
+판매 실패 {0}번: {1} — 낚시 장소로 돌아가서 이어감 (계속 그러면 판매 장소 길 · 위치 확인)	Selling failed {0} times: {1} — going back to the fishing spot and continuing (if it keeps happening, check the sell route and positions)	販売失敗 {0} 回: {1} — 釣り場に戻って続行 (続くなら販売場所のルート · 位置を確認)
 디버깅 모드	Debug mode	デバッグモード
 디버깅	Debug	デバッグ
 켜짐 · 모든 기능에서 칸을 그림	On · draws boxes in every feature	オン · すべての機能で枠を表示

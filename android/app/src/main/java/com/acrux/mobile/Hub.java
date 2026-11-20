@@ -57,7 +57,8 @@ final class Hub {
     static Thread worker;
     static Context app;
     static boolean loaded;
-    static int zeroSells;
+    /** 판매하러 갔는데 팔 물고기가 없었던 횟수 (한 판이라도 끝나면 0) · 그래서 판매하러 가지 않고 넘긴 횟수 */
+    static int zeroSells, sellSkips;
 
     static void init(Context c) {
         if (app == null) app = c.getApplicationContext();
@@ -345,7 +346,7 @@ final class Hub {
             String miss = sl.missing();
             if (miss != null) return "자동 낚시는 이동 · 판매 설정을 모두 마쳐야 시작됨 — " + miss;
             f.onStart = sl::goFish;
-            zeroSells = 0;
+            zeroSells = sellSkips = 0;
             f.onFull = () -> sellOnce(sl);
         }
         TapService ts = TapService.instance;
@@ -354,7 +355,7 @@ final class Hub {
         stopFlag = false;
         f.onResult = kind -> {
             stat(kind, 1);
-            zeroSells = 0;                                     // 한 판이라도 끝났으면 Fish 는 먹히는 것 (빈 판매 기록을 지움)
+            zeroSells = sellSkips = 0;                         // 한 판이라도 끝났으면 Fish 는 먹히는 것 (빈 판매 기록을 지움)
         };
         f.onLearn = Hub::saveLearned;
         if (show) {
@@ -607,11 +608,14 @@ final class Hub {
             log("인벤토리 가득 — 판매 못 함: " + m, 'y');
             return false;
         }
-        if (zeroSells >= 1) {
-            // 지난번 판매 때 팔 물고기가 없었고 그 뒤로 한 판도 못 끝냈는데 또 '가득' → 인벤토리 문제가 아님 (Fish 버튼 자리가 틀렸을 가능성) · 또 판매하러 가지 않음
-            log("Fish 를 눌러도 반응이 없는데 지난번 판매 때 팔 물고기가 없었음 — Fish 버튼 자리가 틀린 것 같아서 멈춤 (낚시 보정 → 칸을 띄우며 낚시 테스트로 확인 · 안 맞으면 자동 보정 다시)", 'y');
+        if (zeroSells >= 1 && sellSkips < 2) {
+            // 지난번 판매 때 팔 물고기가 없었고 그 뒤로 한 판도 못 끝냈는데 또 '가득' → 인벤토리 문제가 아닐 수 있음 (Fish 버튼 자리 · 화면 문제)
+            //  → 두 번까지는 판매하러 가지 않고 낚시 장소부터 다시 잡음 (낚시가 다시 감 · 멈추지 않음) · 그래도 안 되면 다시 판매하러 감 (지난번에 물고기를 잘못 읽었을 수도)
+            sellSkips++;
+            log("Fish 를 눌러도 반응이 없는데 지난번 판매 때 팔 물고기가 없었음 — 판매하러 가지 않고 낚시 장소부터 다시 잡음 (" + sellSkips + "/2 · 계속 그러면 낚시 보정 → 칸을 띄우며 낚시 테스트로 확인)", 'y');
             return false;
         }
+        sellSkips = 0;
         // 이동이 한 번 빗나가면 (판매 장소에 못 감 → 대화창 · 상점을 못 찾음) 바로 멈추지 않고 처음(리셋)부터 다시 감
         for (int attempt = 1; ; attempt++) {
             try {
@@ -623,17 +627,14 @@ final class Hub {
                     return true;
                 }
                 zeroSells++;
-                if (zeroSells >= 2) {
-                    log("판매하러 갔는데 두 번 연속 팔 물고기가 없음 — 낚시 자리 문제로 보고 멈춤", 'y');
-                    return false;
-                }
                 log("판매하러 갔는데 팔 물고기가 없음 — 낚시 자리를 다시 잡고 이어감", 'y');
                 return true;
             } catch (Fisher.Stopped e) {
                 throw e;
             } catch (RuntimeException e) {
                 if (attempt >= SELL_TRIES) {
-                    log("판매 실패 " + SELL_TRIES + "번 — 멈춤: " + e.getMessage() + " (판매 장소 길 · 위치 확인)", 'r');
+                    // 멈추지 않음 — 낚시가 낚시 장소로 다시 가서 이어감 (다음에 가득 차면 또 판매하러 감)
+                    log("판매 실패 " + SELL_TRIES + "번: " + e.getMessage() + " — 낚시 장소로 돌아가서 이어감 (계속 그러면 판매 장소 길 · 위치 확인)", 'y');
                     return false;
                 }
                 log("판매 실패 (" + attempt + "/" + SELL_TRIES + "): " + e.getMessage() + " — 처음부터 다시 이동", 'y');

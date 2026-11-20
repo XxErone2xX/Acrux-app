@@ -4,7 +4,10 @@
   - 옮긴 자리에서 문제가 생기면 [ 미니게임을 못 봄 · 가짜 미니게임 · 결과창을 못 닫음 · Fish 반응 없음 ] 보정한 자리로 바로 되돌림
   - 옮긴 자리가 확인 안 된 채로 멈추면 보정한 자리로 되돌려서 저장 [ 전에는 잘못 옮긴 자리가 저장돼서 다시 켜도 안 됐고 자동 보정을 다시 해야 했음 ]
 - 낚시: 입질 뒤 미니게임을 못 보고 지나간 판을 실패로 셈 · 로그에도 남김 [ 전에는 통계에서 빠져서 실패 0 으로 보였음 ]
-- 낚시: Fish 를 눌러도 반응이 없는데 지난번 판매 때 팔 물고기가 없었으면 또 판매하러 가지 않고 멈춤 [ 인벤토리가 아니라 Fish 버튼 자리 문제 ]
+- 자동 낚시: 잠깐 생긴 오류 한 번으로 멈추던 문제 수정 — 이제 스스로 멈추지 않고 쉬었다가 이어감 [ 정지 버튼 · 화면 캡처가 꺼질 때 · 접근성 권한이 꺼질 때만 멈춤 ]
+  - 낚시 중 오류 [ 화면 · 글자 읽기 · 이동 · 판매 중 예외 · 메모리 부족 ]: 쉬었다가 그 자리에서 이어감 · 또 나면 낚시 장소로 다시 감 [ 5초부터 · 이어서 날수록 길게 · 최대 2분 ]
+  - 화면 복구로도 안 됨 · 낚시 화면이 안 보임 · 판매 실패 · 연속 실패 30번: 멈추지 않고 낚시 장소로 다시 감 [ 이어서 안 될수록 먼저 쉬는 시간을 늘림 · 바로 → 15초 → 30초 … 최대 5분 · 한 판이라도 끝나면 처음부터 ]
+  - 판매하러 갔는데 팔 물고기가 없었으면 다음 두 번은 판매하러 가지 않고 낚시 장소부터 다시 잡음 [ 인벤토리가 아니라 Fish 버튼 자리 · 화면 문제일 수 있어서 · 그 뒤엔 다시 판매하러 감 ]
 - 낚시: 가짜 미니게임으로 보고 넘길 때 바를 어떻게 읽었는지 로그에 남김 [ 바 화면 몇 장 중 내 위치 · 구간을 몇 장 읽었는지 ]
 - 디버깅 모드 추가 [ 앱 맨 위 UI 버튼 밑 · 설정 · 떠 있는 Acrux 창 첫 화면의 켜기 · 끄기 · 켜져 있으면 글자 노랑 ]
   - 켜면 모든 기능을 돌릴 때 매크로가 보는 칸 · 읽은 것 · 누른 자리를 로블록스 화면에 그림 [ 자동 낚시 · 낚시 보정 · 판매 · 판매 보정 · 이동 · 길 기록 · 조이스틱 · 점프 · 바이옴 매크로 · 실행 중에 켜고 꺼도 바로 바뀜 ]
@@ -22,7 +25,10 @@
   - If something goes wrong at the moved position [ missed minigame · fake minigame · result window not closed · Fish not responding ], it goes back to the calibrated position right away
   - If it stops before the moved position is confirmed, the calibrated position is put back and saved [ before, the wrong position was saved, so it kept failing after restarting until auto-calibrating again ]
 - Fishing: rounds where the minigame was missed after the bite now count as fails and are logged [ before, they were left out of the stats, so it showed 0 fails ]
-- Fishing: if Fish does not respond but there was nothing to sell last time, it stops instead of going to sell again [ the problem is the Fish button position, not the inventory ]
+- Auto fishing: fixed stopping on a single temporary error — it no longer stops by itself, it rests and continues [ it only stops with the Stop button, when screen capture ends or when the accessibility permission is turned off ]
+  - Errors while fishing [ screen · text recognition · movement · selling exceptions · out of memory ]: rests and continues where it was · if it happens again, goes back to the fishing spot [ from 5 s · longer each time · up to 2 min ]
+  - Screen recovery did not help · fishing screen not visible · selling failed · 30 fails in a row: goes back to the fishing spot instead of stopping [ rests longer first each time it keeps failing · right away → 15 s → 30 s … up to 5 min · resets after any finished round ]
+  - If there was nothing to sell last time, the next two times it takes the fishing spot again instead of going to sell [ the problem may be the Fish button position or the screen, not the inventory · after that it goes to sell again ]
 - Fishing: when a bar is passed over as a fake minigame, the log shows how the bar was read [ how many of the bar frames had your position and the zone read ]
 - Added debug mode [ switch under the UI button at the top of the app · in settings · on the first screen of the floating Acrux window · yellow text while on ]
   - When on, every feature draws what the macro looks at, what it reads and where it taps on the Roblox screen [ auto fishing · fishing calibration · selling · sell calibration · movement · route recording · joystick · jump · biome macro · takes effect right away, even while running ]
