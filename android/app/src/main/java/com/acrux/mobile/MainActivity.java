@@ -1181,7 +1181,7 @@ public class MainActivity extends Activity {
             String[] cells = {String.valueOf(v[0]), String.valueOf(v[1]), String.valueOf(v[2]), pct(v[0] + v[1], v[0] + v[1] + v[2])  /* 쓰레기도 잡은 것 → (성공 + 쓰레기) / 전체 */};
             for (int i = 0; i < cells.length; i++) statCells[i][k].setText(cells[i]);
         }
-        String mode = !Hub.running() ? "" : "cal".equals(Hub.mode) ? "자동 보정 중" : "sellcal".equals(Hub.mode) ? "판매 보정 중"
+        String mode = !Hub.running() ? "" : "cal".equals(Hub.mode) ? "자동 보정 중" : "fishtest".equals(Hub.mode) ? "낚시 테스트 중" : "sellcal".equals(Hub.mode) ? "판매 보정 중"
                 : "sell".equals(Hub.mode) ? "판매 중" : "run".equals(Hub.mode) ? "자동 낚시 중"
                 : Hub.mode.startsWith("rec_") ? "길 기록 중" : Hub.mode.startsWith("stick") ? "조이스틱" : "이동 테스트 중";
         runState.setText((mode.isEmpty() ? "" : Ui.tr(mode) + " · ") + Ui.tr(Hub.state) + stats);

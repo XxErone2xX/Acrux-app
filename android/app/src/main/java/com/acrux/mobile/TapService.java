@@ -973,6 +973,8 @@ public class TapService extends AccessibilityService {
         m.addView(section("낚시 보정"), mw());
         info(m, () -> Hub.cfg.ready() ? "보정 완료" : "보정 필요 — 낚시 자리에서 Fish 버튼이 보일 때", () -> Hub.cfg.ready());
         act(m, "act:cal", "낚시 자동 보정", "Fish 를 한 번 던져 창 위치를 맞춤", true, v -> toggle("cal"));
+        m.addView(section("테스트"), mw());
+        act(m, "act:fishtest", "칸 보면서 낚시 한 번 해 보기", "보정된 칸을 화면에 그리고 한 판만 낚시", false, v -> toggle("fishtest"));
     }
 
     void pageRoute(LinearLayout m) {

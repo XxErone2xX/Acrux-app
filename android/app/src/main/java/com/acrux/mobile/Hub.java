@@ -211,7 +211,24 @@ final class Hub {
         };
     }
 
-    /** m: run 자동 낚시 · cal 낚시 자동 보정 · sellcal 판매 자동 보정 · sell 판매 한 번 · base / fish / sellgo 이동 테스트
+    /** 낚시 테스트가 누르는 입력: 화면 터치 + 누른 자리를 화면에 잠깐 표시 */
+    static Fisher.Input testInput() {
+        Fisher.Input in = fishInput();
+        return new Fisher.Input() {
+            @Override
+            public void tap(int x, int y, int ms) {
+                BoxOverlay.tapped(x, y);
+                in.tap(x, y, ms);
+            }
+
+            @Override
+            public long cancelled() {
+                return in.cancelled();
+            }
+        };
+    }
+
+    /** m: run 자동 낚시 · cal 낚시 자동 보정 · fishtest 칸 보면서 낚시 한 번 · sellcal 판매 자동 보정 · sell 판매 한 번 · base / fish / sellgo 이동 테스트
      *  · rec_fish / rec_sell 길 기록 · stickfind / sticktest 조이스틱 → 못 하면 이유 */
     static synchronized String start(String m) {
         if (running()) return "이미 실행 중";
@@ -221,10 +238,11 @@ final class Hub {
         if (TapService.instance == null) return "접근성 권한(Acrux Mobile)을 먼저 켜야 함";
         CaptureService cap = CaptureService.active;
         if (cap == null) return "앱에서 [화면 캡처 시작]을 먼저 눌러야 함";
-        if (m.equals("run") && !cfg.ready()) return "먼저 낚시 → 낚시 자동 보정을 해야 함 (낚시 자리에서 Fish 버튼이 보일 때)";
+        if ((m.equals("run") || m.equals("fishtest")) && !cfg.ready()) return "먼저 낚시 → 낚시 자동 보정을 해야 함 (낚시 자리에서 Fish 버튼이 보일 때)";
         if (m.equals("sticktest") && stick == null) return "먼저 조이스틱 찾기 (로블록스 설정 → 이동 방식: 조이스틱 · 조이스틱 찾기)";
         TouchIn touch = new TouchIn(cap.width(), cap.height());
-        Fisher f = new Fisher(cap, fishInput(), OUT, cfg);
+        boolean test = m.equals("fishtest");
+        Fisher f = new Fisher(cap, test ? testInput() : fishInput(), OUT, cfg);
         Mover mv = new Mover(cap, touch, new MlOcr(), pos, move, OUT, CHECK);
         Seller sl = seller(cap, mv);
         // 필요한 위치 · 길이 없으면 시작 전에 바로 알려 줌
@@ -245,11 +263,15 @@ final class Hub {
             f.onFull = () -> sellOnce(sl);
         }
         TapService ts = TapService.instance;
-        if (ts != null && ts.coversGame() && (m.equals("cal") || m.equals("run")))
+        if (ts != null && ts.coversGame() && (m.equals("cal") || m.equals("run") || test))
             log("Acrux 창이 낚시 창 쪽을 가리고 있음 — 위쪽 구석으로 옮겨 주세요 (화면 캡처에 같이 찍혀서 인식이 틀릴 수 있음)", 'y');
         stopFlag = false;
         f.onResult = kind -> stat(kind, 1);
         f.onLearn = Hub::saveLearned;
+        if (test) {
+            f.probe = BoxOverlay.PROBE;
+            main.post(BoxOverlay::show);                       // 보정된 칸을 바로 그림 (시작 전 1초 동안도 보임)
+        }
         fisher = f;
         mode = m;
         worker = new Thread(() -> {
@@ -285,6 +307,10 @@ final class Hub {
                 log("오류: " + e, 'r');
                 Crash.save(e, "worker");
             } finally {
+                if (test) {
+                    String end = f.testEnd != null ? f.testEnd : lastError != null ? lastError : "멈춤";
+                    main.post(() -> BoxOverlay.end(end));
+                }
                 mv.releaseKeys();
                 Joy.set(null);
                 measuring = false;
@@ -386,6 +412,8 @@ final class Hub {
         } else if (m.equals("cal")) {
             String r = f.calibrate();
             log("자동 보정: " + r, cfg.ready() ? 'g' : 'y');
+        } else if (m.equals("fishtest")) {
+            f.test();
         } else if (m.equals("sellcal")) {
             List<String> notes = sl.autocal();
             log("판매 자동 보정 완료" + (notes.isEmpty() ? "" : " · " + String.join(" · ", notes)), 'g');

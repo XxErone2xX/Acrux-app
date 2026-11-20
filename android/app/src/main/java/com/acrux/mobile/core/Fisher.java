@@ -96,6 +96,22 @@ public final class Fisher {
     public java.util.function.BooleanSupplier onFull;
     /** 릴링 측정값 · 결과창 X 자리를 새로 배웠을 때 (앱이 저장) */
     public Runnable onLearn;
+
+    /** 낚시 테스트에서 화면에 그려 볼 것 (앱이 넣음 · 없으면 안 씀) */
+    public interface Probe {
+        /** 릴링 화면 하나를 읽음: 바 (화면 px x, y, 폭, 높이) · 내 위치 · 구간 (바 안 px · 없으면 null) */
+        void reel(int x, int y, int w, int h, Double marker, int[] zone);
+
+        /** 릴링 끝 */
+        void reelEnd();
+    }
+
+    public Probe probe;
+    /** 지금 단계 (낚시 테스트 화면 표시용): 0 모름 · 1 대기 · 입질 기다림 · 2 릴링 · 3 결과창 닫기 */
+    public volatile int phase;
+    /** 낚시 테스트 (한 판만) 중인지 · 끝났을 때 결과 한 줄 */
+    boolean once;
+    public volatile String testEnd;
     /** 지금 릴링 때 누르는 자리 (px · 기록 · 테스트용) */
     int[] reelTap;
     public static final double RELOC_AFTER = 30;
@@ -250,6 +266,33 @@ public final class Fisher {
         }
     }
 
+    /**
+     * 낚시 테스트: 지금 자리에서 한 판만 (Fish → 입질 → 릴링 → 결과창 닫기) — 앱은 그동안 보정된 칸을 화면에 그려 줌
+     *  · 칸이 실제 창과 안 맞으면 어느 칸이 문제인지 기록에 남기고 끝냄 (Fish 버튼 칸 · 미니게임 바 칸 · 한 판을 못 끝냄)
+     *  · 이동 · 판매 · 연속 실패 처리는 안 함
+     */
+    public void test() {
+        testEnd = null;
+        if (!cfg.ready()) {
+            out.log("낚시 테스트 안 함 — 먼저 [자동 보정]이 필요함", 'y');
+            return;
+        }
+        out.log("낚시 테스트 시작 — 보정된 칸을 화면에 그리고 한 판만 낚시", 'g');
+        once = true;
+        try {
+            loop();
+        } finally {
+            once = false;
+            out.state("대기");
+        }
+    }
+
+    /** 낚시 테스트 끝 → 결과 한 줄 */
+    void testDone(String msg, char color) {
+        testEnd = msg;
+        out.log("낚시 테스트 끝 — " + msg, color);
+    }
+
     double refitAt = -1;
     /** 가짜 릴링 (바처럼 보였지만 미니게임이 아님) 뒤 바만 보고는 릴링으로 안 보는 시각까지 */
     double barQuietUntil = -1;
@@ -298,11 +341,25 @@ public final class Fisher {
     void loop() {
         Double castAt = null, waitAt = null, unknownAt = null;
         int tries = 0, rescues = 0, maybe = 0, relocs = 0;
-        double progressAt = now(), knownAt = now();
+        double progressAt = now(), knownAt = now(), testAt = now();
+        boolean seen = false, waited = false, hinted = false;          // 낚시 테스트: 낚시 화면을 봤는지 · 던졌는지 · 안내했는지
         while (true) {
             check();
             String st = readState();
             double t = now();
+            if ("idle".equals(st) || "wait".equals(st)) phase = 1;
+            else if (st == null) phase = 0;
+            if (once) {
+                if (st != null) seen = true;
+                if (!seen && t - testAt > 15) {
+                    testDone("Fish 버튼 칸에서 15초 동안 Fish / Exit 버튼이 안 보임 — 초록 칸이 Fish 버튼과 맞는지 확인 (낚시 자리에서 다시 · 안 맞으면 자동 보정 다시)", 'y');
+                    return;
+                }
+                if (t - testAt > cfg.biteMax + 60) {
+                    testDone("한 판을 끝내지 못함 — 칸이 실제 창과 맞는지 확인", 'y');
+                    return;
+                }
+            }
             if (t - progressAt > cfg.biteMax + 60) {
                 rescues++;
                 if (rescues > 3) {
@@ -350,6 +407,10 @@ public final class Fisher {
                 unknownAt = null;
                 progressAt = knownAt = now();
                 String kind = finish(base);
+                if (once) {
+                    testDone(kind == null ? "결과를 못 봄" : kind.equals("success") ? "성공" : kind.equals("junk") ? "쓰레기" : "실패", kind == null ? 'y' : 'g');
+                    return;
+                }
                 if ("fail".equals(kind)) {
                     failRun++;
                     if (failRun == FAIL_RESET) {
@@ -370,8 +431,16 @@ public final class Fisher {
             if ("wait".equals(st)) {
                 castAt = null;
                 tries = 0;
+                waited = true;
                 if (waitAt == null) waitAt = t;
                 if (t - waitAt > cfg.biteMax) {
+                    if (once) {
+                        tapRatio(cfg.fishBtn);
+                        // 낚시 창이 대기 (Fish) 로 돌아오는 걸 보고 끝냄 (최대 2초)
+                        for (int i = 0; i < 20 && !"idle".equals(readState()); i++) sleep(0.1);
+                        testDone("입질이 " + (int) cfg.biteMax + "초 동안 없음 (Exit 누름)", 'y');
+                        return;
+                    }
                     out.log("입질이 " + (int) cfg.biteMax + "초 동안 없음 — Exit 후 다시 던짐", 'y');
                     tapRatio(cfg.fishBtn);
                     // Exit 가 안 먹혔으면 5초 뒤에 다시 (전에는 1초마다 누르고 로그를 남겼음)
@@ -381,6 +450,11 @@ public final class Fisher {
                 }
                 out.state("입질 기다리는 중");
             } else if ("idle".equals(st)) {
+                if (once && waited) {
+                    // 던진 뒤 (Exit 가 보였음) 릴링 없이 다시 Fish → 미니게임을 못 보고 지나감
+                    testDone("입질 뒤 미니게임을 못 봄 — 주황 칸 (미니게임 바) 이 실제 바와 맞는지 확인", 'y');
+                    return;
+                }
                 if (castAt == null || t - castAt > CAST_WAIT) {
                     // 화면 판독 뒤 Exit · 미니게임으로 바뀌었으면 재입력 · 가득 참 판정을 미룸
                     if (!"idle".equals(readState())) continue;
@@ -388,6 +462,10 @@ public final class Fisher {
                         tries++;
                         if (tries >= cfg.castRetry) {
                             full++;
+                            if (once) {
+                                testDone("Fish 를 " + tries + "번 눌러도 반응 없음 — 인벤토리가 꽉 찼거나 누르는 자리 (초록 칸의 +) 가 Fish 버튼에서 벗어남", 'y');
+                                return;
+                            }
                             if (onFull != null) {
                                 out.log("Fish 를 " + tries + "번 눌러도 반응 없음 — 낚시 인벤토리 가득", 'y');
                                 out.state("인벤토리 가득 — 판매하러 감");
@@ -411,6 +489,10 @@ public final class Fisher {
             } else {
                 if (unknownAt == null) unknownAt = t;
                 out.state("낚시 화면 확인 중");
+                if (once && waited && !hinted && t - unknownAt > 2.0) {
+                    hinted = true;
+                    out.log("Exit 버튼이 사라졌는데 미니게임으로 안 보임 — 주황 칸 (미니게임 바) · ◇ 칸이 실제 미니게임과 맞는지 확인", 'y');
+                }
                 // 30초 동안 낚시 화면이 한 번도 안 보임 → 낚시 장소에 못 간 것 → 다시 이동 (3번까지 · 그래도 안 되면 멈춤)
                 if (onStart != null && t - knownAt > RELOC_AFTER) {
                     if (relocs >= 3) {
@@ -584,6 +666,7 @@ public final class Fisher {
      */
     /** → "success" · "junk" · "fail" (셌을 때) · null (결과창을 못 닫았고 결과도 못 봄 → 안 셈) */
     String finish(Img base) {
+        phase = 3;
         out.state("결과창 닫는 중");
         double[] title = base != null ? cfg.titlePos : null;
         double start = now(), end = start + FINISH_MAX, lookAt = start + LOOK_FROM;
@@ -701,6 +784,7 @@ public final class Fisher {
     // ---------------------------------------------------------------- 릴링
     /** 릴링 → 진짜 미니게임이었는지 (내 위치가 움직이는 걸 봤는지) */
     boolean reel() {
+        phase = 2;
         out.state("릴링 중");
         double[] region = cfg.barRegion;
         int[] a = px(Math.min(region[0], region[2]), Math.min(region[1], region[3]));
@@ -785,6 +869,12 @@ public final class Fisher {
                     if (fixed && fillRef == null) fillRef = Vision.learnFill(bar, topIn, bh);
                     Vision.Bar a = Vision.analyzeBar(bar, topIn, bh, fillRef);
                     present = a.present;
+                    if (probe != null) {
+                        try {
+                            probe.reel(bx + xs[0], by + topIn, bar.w, bh, a.present ? a.marker : null, a.present ? a.zone : null);
+                        } catch (RuntimeException ignored) {
+                        }
+                    }
                     if (fixed && !a.present) {
                         if (lostAt == null) lostAt = t;
                         if (t - lostAt > 0.3) {
@@ -856,6 +946,12 @@ public final class Fisher {
             }
         } finally {
             reelDone(pilot, start, spot, spotSeen, cancel0);
+            if (probe != null) {
+                try {
+                    probe.reelEnd();
+                } catch (RuntimeException ignored) {
+                }
+            }
         }
         boolean real = pilot.moved && pilot.liveFrames >= 10;
         if (!ended) {

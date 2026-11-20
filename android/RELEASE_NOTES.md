@@ -19,6 +19,11 @@
   - 밝은 곳 [ 눈 · 낮 ] 에서 바의 빈 칸이 회색으로 비칠 때 그 회색을 물고기 구간으로 보던 문제 수정
   - 바 위로 눈 · 하늘 같은 밝은 배경이 비칠 때 그걸 내 위치 [ ◇ ] 로 보던 문제 수정 · ◇ 가 배경에 묻혀 안 보이면 막대 끝과 구간 색으로 내 위치를 읽음
   - 밤에 막대 밑에 깔린 구간 [ 막대와 색이 비슷함 ] 을 막대로 보던 문제 수정
+- 낚시: Acrux 창 → [낚시] → [낚시 보정] → '칸 보면서 낚시 한 번 해 보기' 추가 [ 자동 보정이 맞게 됐는지 눈으로 확인 ]
+  - 자동 보정된 칸을 로블록스 화면에 그린 채로 한 판만 낚시함 [ 대기 창 · Fish 버튼 · 미니게임 창 · 바 · 결과창 · 결과 제목 · X — 그 단계에 보는 칸만 ]
+  - 릴링 중엔 읽은 내 위치 [ 흰 세모 ] · 구간 [ 초록 줄 ] 을 바 아래에, 누른 자리는 흰 네모로 보여 줌
+  - 칸이 실제 창과 안 맞으면 어느 칸인지 로그에 남기고 끝냄 [ Fish 버튼 칸 · 미니게임 바 칸 등 ]
+  - 그린 칸은 화면 캡처에서 지우고 봐서 인식에는 영향 없음
 - 성능: 릴링 중 같은 화면을 반복 분석하지 않고 캡처 이미지를 매번 새로 만들지 않음 [ 메모리 사용 감소 ] · 결과창 X 찾기도 줄인 화면을 한 번만 봄
 
 ## Acrux Mobile V1.6.0 Update
@@ -42,6 +47,11 @@
   - Fixed the empty part of the bar showing through as grey in bright places [ snow · daytime ] being read as the fish zone
   - Fixed bright background above the bar [ snow · sky ] being read as your position [ ◇ ] · if the ◇ blends into the background, your position is read from the bar end and the zone colours
   - Fixed the part of the zone under the bar at night [ close to the bar colour ] being read as the bar
+- Fishing: added Acrux window → [Fishing] → [Fishing calibration] → 'Try fishing once with the boxes shown' [ check by eye that auto-calibration came out right ]
+  - Fishes one round while drawing the auto-calibrated boxes on the Roblox screen [ idle window · Fish button · minigame window · bar · result window · result title · X — only the boxes used at that step ]
+  - While reeling, your position [ white triangle ] and the zone [ green line ] it read are shown under the bar, and tap spots as white squares
+  - If a box doesn't match the real window, the log says which one and the test ends [ Fish button box · minigame bar box, etc. ]
+  - The drawn boxes are removed from the screen capture before reading, so recognition isn't affected
 - Performance: while reeling, the same screen is no longer analyzed repeatedly and capture images aren't recreated every time [ less memory use ] · finding the result window X also looks at a reduced screen once
 
 ## Acrux Mobile V1.5.8 업데이트

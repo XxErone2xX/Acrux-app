@@ -24,6 +24,7 @@ import android.view.Display;
 
 import com.acrux.mobile.core.Fisher;
 import com.acrux.mobile.core.Img;
+import com.acrux.mobile.core.Mask;
 
 import java.nio.ByteBuffer;
 
@@ -258,6 +259,20 @@ public class CaptureService extends Service implements Fisher.Screen {
                 dst.r[k] = row[o] & 255;
                 dst.g[k] = row[o + 1] & 255;
                 dst.b[k] = row[o + 2] & 255;
+            }
+        }
+        // 낚시 테스트로 화면에 그린 칸 · 글자도 같이 찍힘 → 그 자리는 바로 바깥 칸 색으로 (인식에 안 섞이게)
+        if (Mask.on()) {
+            try {
+                final ByteBuffer src = buf;
+                final int iw = cur.getWidth(), ih = cur.getHeight(), rs2 = rs, ps2 = ps, lim2 = lim;
+                Mask.fill(dst, sx, sy, dx, dy, w, h, step, (x, y) -> {
+                    if (x < 0 || y < 0 || x >= iw || y >= ih) return -1;
+                    int at = y * rs2 + x * ps2;
+                    if (at < 0 || at + 2 >= lim2) return -1;
+                    return ((src.get(at) & 255) << 16) | ((src.get(at + 1) & 255) << 8) | (src.get(at + 2) & 255);
+                });
+            } catch (RuntimeException ignored) {                // 화면이 바뀌는 순간 닫힌 이미지 · 그대로 씀
             }
         }
         return true;
