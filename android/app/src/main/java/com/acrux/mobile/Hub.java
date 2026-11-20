@@ -228,7 +228,7 @@ final class Hub {
         };
     }
 
-    /** m: run 자동 낚시 · cal 낚시 자동 보정 · fishtest 칸 보면서 낚시 한 번 · sellcal 판매 자동 보정 · sell 판매 한 번 · base / fish / sellgo 이동 테스트
+    /** m: run 자동 낚시 · cal 낚시 자동 보정 · fishtest 칸을 띄우며 낚시 테스트 · sellcal 판매 자동 보정 · sell 판매 한 번 · base / fish / sellgo 이동 테스트
      *  · rec_fish / rec_sell 길 기록 · stickfind / sticktest 조이스틱 → 못 하면 이유 */
     static synchronized String start(String m) {
         if (running()) return "이미 실행 중";

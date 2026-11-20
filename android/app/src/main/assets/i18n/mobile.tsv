@@ -822,7 +822,7 @@ VIP 는 걸음이 빨라서 짧게 · 기본 2.5	VIP walks faster, so shorter ·
 릴링이 {0}번 이어서 실패 — 자동 낚시 멈춤 (로그의 '릴링:' 줄 · 미니게임 보정 확인)	Reeling failed {0} times in a row — auto fishing stopped (check the 'Reeling:' log lines and the minigame calibration)	リールが {0} 回続けて失敗 — 自動釣り停止 (ログの「リール:」行・ミニゲームの補正を確認)
 결과 확인 안 됨 — 통계에 안 넣음	Result not confirmed — not counted in the stats	結果を確認できず — 統計に入れない
 결과창이 안 보임 — 통계에 안 넣음	No result window — not counted in the stats	結果ウィンドウが見えない — 統計に入れない
-칸 보면서 낚시 한 번 해 보기	Try fishing once with the boxes shown	枠を表示して一度釣ってみる
+칸을 띄우며 낚시 테스트	Fishing test with boxes shown	枠を表示して釣りテスト
 보정된 칸을 화면에 그리고 한 판만 낚시	Draws the calibrated boxes on screen and fishes one round	補正した枠を画面に表示して一回だけ釣る
 낚시 테스트 중	Fishing test	釣りテスト中
 낚시 테스트 · {0}	Fishing test · {0}	釣りテスト · {0}

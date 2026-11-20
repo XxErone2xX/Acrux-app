@@ -781,8 +781,8 @@ E = [
      "リールが {0} 回続けて失敗 — 自動釣り停止 (ログの「リール:」行・ミニゲームの補正を確認)"],
     ["결과 확인 안 됨 — 통계에 안 넣음", "Result not confirmed — not counted in the stats", "結果を確認できず — 統計に入れない"],
     ["결과창이 안 보임 — 통계에 안 넣음", "No result window — not counted in the stats", "結果ウィンドウが見えない — 統計に入れない"],
-    # V1.6.0: 칸 보면서 낚시 한 번 해 보기 (낚시 테스트)
-    ["칸 보면서 낚시 한 번 해 보기", "Try fishing once with the boxes shown", "枠を表示して一度釣ってみる"],
+    # V1.6.0: 칸을 띄우며 낚시 테스트 (낚시 테스트)
+    ["칸을 띄우며 낚시 테스트", "Fishing test with boxes shown", "枠を表示して釣りテスト"],
     ["보정된 칸을 화면에 그리고 한 판만 낚시", "Draws the calibrated boxes on screen and fishes one round", "補正した枠を画面に表示して一回だけ釣る"],
     ["낚시 테스트 중", "Fishing test", "釣りテスト中"], ["낚시 테스트 · {0}", "Fishing test · {0}", "釣りテスト · {0}"],
     ["낚시 테스트 끝 — {0}", "Fishing test done — {0}", "釣りテスト終了 — {0}"],
