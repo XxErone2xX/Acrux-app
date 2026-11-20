@@ -5,10 +5,16 @@
   - 옮긴 자리가 확인 안 된 채로 멈추면 보정한 자리로 되돌려서 저장 [ 전에는 잘못 옮긴 자리가 저장돼서 다시 켜도 안 됐고 자동 보정을 다시 해야 했음 ]
 - 낚시: 입질 뒤 미니게임을 못 보고 지나간 판을 실패로 셈 · 로그에도 남김 [ 전에는 통계에서 빠져서 실패 0 으로 보였음 ]
 - 낚시: Fish 를 눌러도 반응이 없는데 지난번 판매 때 팔 물고기가 없었으면 또 판매하러 가지 않고 멈춤 [ 인벤토리가 아니라 Fish 버튼 자리 문제 ]
-- 낚시: 문제가 생긴 순간 화면을 저장함 [ 미니게임을 못 봄 · 가짜 미니게임 · 낚시 창 옮김 · 결과창을 못 닫음 · Fish 반응 없음 ]
-  - 안드로이드 10 이상은 다운로드/Acrux 폴더 · 그 아래는 앱 폴더 [ 저장한 자리가 로그에 나옴 ]
-  - 한 번 시작할 때 10장까지 · 15초에 한 장 · 최근 30장만 남김
 - 낚시: 가짜 미니게임으로 보고 넘길 때 바를 어떻게 읽었는지 로그에 남김 [ 바 화면 몇 장 중 내 위치 · 구간을 몇 장 읽었는지 ]
+- 디버깅 모드 추가 [ 앱 맨 위 · 설정 · 떠 있는 Acrux 창 첫 화면의 버튼 · 켜져 있으면 노랑 ]
+  - 켜면 모든 기능을 돌릴 때 매크로가 보는 칸 · 읽은 것 · 누른 자리를 로블록스 화면에 그림 [ 자동 낚시 · 낚시 보정 · 판매 · 판매 보정 · 이동 · 길 기록 · 조이스틱 · 점프 · 바이옴 매크로 · 실행 중에 켜고 꺼도 바로 바뀜 ]
+  - 모든 기능: 위쪽 가운데에 지금 상태 · 누른 자리 [ 흰 꺾쇠 ] · 글자 읽기로 읽은 줄 [ 주황 꺾쇠 ] · 조이스틱 손가락 · 점프 · 끝나면 끝난 이유
+  - 낚시: 낚시 테스트처럼 보정된 칸을 그림 · 읽은 칸은 밝게, 못 읽은 칸은 흐리게 [ 칸이 실제 창과 어긋났는지 바로 보임 ]
+  - 낚시: 낚시 창 옆에 이번 실행 결과 [ 성공 · 쓰레기 · 실패 · 놓침 ] · 낚시 창에서 읽은 것 [ Fish 버튼 · 미니게임 바 · ◇ ] · 릴링 기록 · 바이옴
+  - 릴링: 내 위치 · 구간과 함께 예측 위치 [ 파란 세모 ] · 누름 기준 [ 노란 줄 · 예측이 이보다 왼쪽이면 누름 ] 을 그림
+  - 낚시 자동 보정: 이번에 찾은 칸만 그림 [ 전에 보정한 칸은 안 그림 ]
+  - 그린 것은 화면 캡처에서 지우고 읽음 [ 매크로가 자기가 그린 칸 · 글자를 화면으로 보지 않게 ]
+- 낚시 테스트: 디버깅 모드처럼 읽은 것 · 칸 밝기 · 릴링 기록도 보여 줌 · 누른 자리 표시를 네 귀퉁이 꺾쇠로 바꿈 [ 누른 버튼 · 글자를 안 가림 ]
 
 ## Acrux Mobile V1.6.1 Update
 - Fishing: fixed fishing failing from then on after the fishing window position was moved to a wrong place [ happened after a result window could not be closed, e.g. in the snowy biome ]
@@ -17,10 +23,16 @@
   - If it stops before the moved position is confirmed, the calibrated position is put back and saved [ before, the wrong position was saved, so it kept failing after restarting until auto-calibrating again ]
 - Fishing: rounds where the minigame was missed after the bite now count as fails and are logged [ before, they were left out of the stats, so it showed 0 fails ]
 - Fishing: if Fish does not respond but there was nothing to sell last time, it stops instead of going to sell again [ the problem is the Fish button position, not the inventory ]
-- Fishing: saves the screen at the moment something goes wrong [ missed minigame · fake minigame · fishing window moved · result window not closed · Fish not responding ]
-  - Android 10 and up: Download/Acrux folder · below that: the app folder [ the log shows where ]
-  - Up to 10 per start · one every 15 seconds · only the latest 30 are kept
 - Fishing: when a bar is passed over as a fake minigame, the log shows how the bar was read [ how many of the bar frames had your position and the zone read ]
+- Added debug mode [ button at the top of the app · in settings · on the first screen of the floating Acrux window · yellow while on ]
+  - When on, every feature draws what the macro looks at, what it reads and where it taps on the Roblox screen [ auto fishing · fishing calibration · selling · sell calibration · movement · route recording · joystick · jump · biome macro · takes effect right away, even while running ]
+  - Every feature: the current state at the top center · tap spots [ white corners ] · lines read by text recognition [ orange corners ] · the joystick finger · jumps · when it ends, why it ended
+  - Fishing: draws the calibrated boxes like the fishing test · boxes that are read are bright, boxes that are not are faint [ shows right away if a box is off the real window ]
+  - Fishing: next to the fishing window, this run's results [ success · junk · fail · missed ], what is read from the fishing window [ Fish button · minigame bar · ◇ ], reel stats and the biome
+  - Reeling: draws the predicted position [ blue triangle ] and the tap line [ yellow line · taps when the prediction is left of it ] along with your position and the zone
+  - Fishing calibration: only draws the boxes found this time [ old calibrated boxes are not drawn ]
+  - Everything drawn is erased from the screen capture before reading [ so the macro does not see its own boxes and text on screen ]
+- Fishing test: also shows what is read, box brightness and reel stats like debug mode · tap spots are now shown as four corner marks [ the tapped button and its text are not covered ]
 
 ## Acrux Mobile V1.6.0 업데이트
 - 낚시: 릴링 조작을 새로 만듦 [ 기기에 따라 실패율이 95% 넘던 문제 · 보정을 다시 할 필요 없음 ]

@@ -11,7 +11,7 @@ import java.util.List;
 public final class TestBoxes {
     public static final int C_PANEL = 0xFF29B6F6, C_FISH = 0xFF2EE66B, C_REEL = 0xFFFFD43B, C_BAR = 0xFFFF8A1F, C_RESULT = 0xFFE040FB,
             C_TITLE = 0xFFFF6FAE, C_CLOSE = 0xFFFF3B3B, C_LEARN = 0xFFFFA3A3, C_DIA = 0xFF9BE7FF, C_MARK = 0xFFFFFFFF, C_ZONE = 0xFF2EE66B,
-            C_TAP = 0xFFFFFFFF;
+            C_TAP = 0xFFFFFFFF, C_PRED = 0xFF4DB8FF, C_AIM = 0xFFFFE14D, C_STICK = 0xFF3BA55D, C_OCR = 0xFFFFB84D;
     /** 글자 자리: 칸 위 왼쪽 · 아래 왼쪽 · 오른쪽 · 왼쪽 · 위 오른쪽 · 없음 */
     public static final int L_TOP = 0, L_BOTTOM = 1, L_RIGHT = 2, L_LEFT = 3, L_TOP_RIGHT = 4, L_NONE = -1;
 
@@ -43,7 +43,8 @@ public final class TestBoxes {
 
     /**
      * 지금 단계에 매크로가 보는 칸만 (Fisher.phase) — 0 모름 (다 그림 · 칸이 안 맞을 때 어디가 틀렸는지 보이게) · 1 대기 · 입질 기다림 (대기 창 · Fish 버튼 · ◇)
-     *  · 2 릴링 (미니게임 창 · 바 · ◇ 두 칸) · 3 결과창 (결과창 · 제목 · X · 기억한 X)
+     *  · 2 릴링 (미니게임 창 · 바 · ◇ 두 칸) · 3 결과창 (결과창 · 제목 · X · 기억한 X) · 4 이동 · 판매 (안 그림 — 낚시 창을 안 봄)
+     *  · 5 자동 보정에서 낚시 창을 아직 못 찾음 (안 그림 — 전에 보정한 칸이 실제 창 테두리 위에 그려지면 창을 못 찾을 수 있어서)
      */
     public static List<Box> of(Settings cfg, int W, int H, int phase) {
         List<Box> all = of(cfg, W, H), out = new ArrayList<>();
@@ -58,6 +59,10 @@ public final class TestBoxes {
                     break;
                 case 3:
                     show = b.kind.equals("result") || b.kind.equals("title") || b.kind.equals("close") || b.kind.equals("learned");
+                    break;
+                case 4:
+                case 5:
+                    show = false;
                     break;
                 default:
                     show = true;
@@ -192,22 +197,123 @@ public final class TestBoxes {
 
     /** 릴링 중 읽은 내 위치 · 구간 → 바 아래 (릴링 때 잡는 칸 밖) 에 그릴 직사각형 {내 위치 세모 자리, 구간 줄} · bar: 바 (화면 px x, y, 폭, 높이) */
     public static int[][] reelMarks(int[] bar, Double marker, int[] zone, int t) {
-        int bx = bar[0], by = bar[1], bw = bar[2], bh = Math.max(4, bar[3]);
-        int y0 = by + bh + (int) (bh * 0.8) + 3;
-        int[] z = null, m = null;
-        if (zone != null && zone[1] >= zone[0]) z = new int[]{bx + zone[0], y0, bx + zone[1] + 1, y0 + Math.max(3, t * 2)};
-        if (marker != null) {
-            int mx = bx + (int) Math.round(Math.max(0, Math.min(bw, marker)));
-            int s = Math.max(5, bh / 3);
-            m = new int[]{mx - s, y0 + Math.max(3, t * 2) + 1, mx + s + 1, y0 + Math.max(3, t * 2) + 1 + s + 1};
-        }
-        return new int[][]{m, z};
+        int[][] r = reelMarks(bar, marker, zone, Double.NaN, Double.NaN, t);
+        return new int[][]{r[0], r[1]};
     }
 
-    /** 누른 자리 표시: 가운데는 비운 네모 테두리 (가운데의 버튼 · X 를 가리지 않게) → 직사각형 4개 */
+    /**
+     * reelMarks + 릴링 조작 (디버깅): {내 위치 세모 자리, 구간 줄, 예측 세모 자리, 누름 기준 줄}
+     *  · pred: 지금 누르면 반영될 때의 내 위치 예측 · aim: 이보다 왼쪽이면 누름 (바 폭 비율 · NaN 이면 없음) — 세모 줄에 같이 · 기준 줄은 구간 줄부터 세모 줄 끝까지
+     */
+    public static int[][] reelMarks(int[] bar, Double marker, int[] zone, double pred, double aim, int t) {
+        int bx = bar[0], by = bar[1], bw = bar[2], bh = Math.max(4, bar[3]);
+        int y0 = by + bh + (int) (bh * 0.8) + 3, zh = Math.max(3, t * 2), s = Math.max(5, bh / 3), ty = y0 + zh + 1;
+        int[] z = null, m = null, p = null, a = null;
+        if (zone != null && zone[1] >= zone[0]) z = new int[]{bx + zone[0], y0, bx + zone[1] + 1, y0 + zh};
+        if (marker != null) {
+            int mx = bx + (int) Math.round(Math.max(0, Math.min(bw, marker)));
+            m = new int[]{mx - s, ty, mx + s + 1, ty + s + 1};
+        }
+        if (!Double.isNaN(pred)) {
+            int px = bx + (int) Math.round(Math.max(0, Math.min(1, pred)) * bw);
+            p = new int[]{px - s, ty, px + s + 1, ty + s + 1};
+        }
+        if (!Double.isNaN(aim)) {
+            int w = Math.max(2, t), ax = bx + (int) Math.round(Math.max(0, Math.min(1, aim)) * bw) - w / 2;
+            a = new int[]{ax, y0, ax + w, ty + s + 1};
+        }
+        return new int[][]{m, z, p, a};
+    }
+
+    /** 글자 폭 (px) */
+    public interface Measure {
+        int width(String s);
+    }
+
+    /**
+     * 옆 칸 (디버깅 글자) 을 놓을 가로 범위 {x0, x1} — 낚시 칸들 (모든 단계 · 글자 포함) 이 차지하는 가로 범위의 바깥에서 넓은 쪽 (같으면 오른쪽)
+     *  · 낚시 창 · 미니게임 창 · 결과창은 화면 가운데라 양옆은 매크로가 안 봄 (위쪽 가운데는 결과창 제목 · X 와 가까워서 한 줄만)
+     *  · margin: 칸과 띄울 거리 · 칸이 하나도 없으면 오른쪽 절반
+     */
+    public static int[] sideRange(Settings cfg, int W, int H, int t, int g, int pad, int th, int margin, Measure ms) {
+        int minX = W, maxX = 0;
+        for (Box b : of(cfg, W, H)) {
+            minX = Math.min(minX, b.x0 - t - g);
+            maxX = Math.max(maxX, b.x1 + t + g);
+            if (b.labelAt == L_NONE || b.label.isEmpty()) continue;
+            int[] lr = labelRect(b, ms.width(b.label), th, pad, t, g, W, H);
+            minX = Math.min(minX, lr[0]);
+            maxX = Math.max(maxX, lr[2]);
+        }
+        if (minX >= maxX) return new int[]{W / 2, W - pad};
+        int lx0 = pad, lx1 = minX - margin, rx0 = maxX + margin, rx1 = W - pad;
+        return rx1 - rx0 >= lx1 - lx0 ? new int[]{rx0, rx1} : new int[]{lx0, lx1};
+    }
+
+    /** 세모 자리 (reelMarks) → 위쪽 (바 쪽) 을 가리키는 계단 모양 직사각형들 (안티에일리어싱 없이 · 지울 자리가 정확하게) */
+    public static List<int[]> triangle(int[] m, int t) {
+        List<int[]> out = new ArrayList<>();
+        int steps = Math.max(2, (m[3] - m[1]) / Math.max(1, t));
+        for (int i = 0; i < steps; i++) {
+            int y0 = m[1] + (m[3] - m[1]) * i / steps, y1 = m[1] + (m[3] - m[1]) * (i + 1) / steps;
+            int cx = (m[0] + m[2]) / 2, half = Math.max(1, (m[2] - m[0]) / 2 * (i + 1) / steps);
+            out.add(new int[]{cx - half, y0, cx + half + 1, y1});
+        }
+        return out;
+    }
+
+    /** 조이스틱 (디버깅 · 이동 중): 판 둘레 네모 테두리 (cx, cy, r: 화면 px) → 직사각형 4개 */
+    public static List<int[]> stickRing(double cx, double cy, double r, int t) {
+        Box b = new Box("stick", "", C_STICK, (int) Math.round(cx - r), (int) Math.round(cy - r), (int) Math.round(cx + r) + 1, (int) Math.round(cy + r) + 1,
+                L_NONE, 0, false);
+        return strips(b, t, 0);
+    }
+
+    /** 조이스틱 손가락 자리 (꽉 찬 네모 · 한 변 2k+1) */
+    public static int[] finger(double x, double y, int k) {
+        int fx = (int) Math.round(x), fy = (int) Math.round(y);
+        return new int[]{fx - k, fy - k, fx + k + 1, fy + k + 1};
+    }
+
+    /**
+     * 누른 자리 표시: 둘레 네 귀퉁이 꺾쇠 (가운데 · 같은 줄은 비움 — 누른 버튼 · 그 글자를 가리지 않게 · 글자 읽기 · 버튼 색 확인에 안 섞이게)
+     *  → 직사각형 8개 · 반지름 r = 화면 높이의 2.8% · 꺾쇠 길이는 r 의 1/3 (위 · 아래 꺾쇠는 가운데에서 r × 2/3 넘게 떨어짐)
+     */
     public static List<int[]> tapMark(int x, int y, int H, int t) {
         int r = Math.max(8, (int) (H * 0.028));
-        Box b = new Box("tap", "", C_TAP, x - r, y - r, x + r + 1, y + r + 1, L_NONE, 0, false);
-        return strips(b, t, 0);
+        return corners(x - r, y - r, x + r + 1, y + r + 1, Math.max(3, r / 3), t);
+    }
+
+    /**
+     * 글자 읽기 (OCR) 로 읽은 줄 표시: 글자 칸 양옆에 g 만큼 떨어진 세로 막대 '[ 글자 ]' (글자 위에는 안 그림)
+     *  · 위 · 아래로는 안 그림 — 줄 사이가 좁은 글 (대화 · 상점 목록) 에서 이웃 줄 글자를 덮지 않게
+     *  · x0 … y1: 읽은 글자 칸 (화면 px) · 막대 끝에 칸 안쪽으로 짧은 턱 (줄 높이 안에서만)
+     */
+    public static List<int[]> ocrMark(int x0, int y0, int x1, int y1, int g, int t) {
+        List<int[]> s = new ArrayList<>();
+        int h = Math.max(1, y1 - y0), tick = Math.max(t, Math.min(8, h / 4));
+        s.add(new int[]{x0 - g - t, y0, x0 - g, y1});
+        s.add(new int[]{x1 + g, y0, x1 + g + t, y1});
+        s.add(new int[]{x0 - g, y0, x0 - g + tick, y0 + t});
+        s.add(new int[]{x0 - g, y1 - t, x0 - g + tick, y1});
+        s.add(new int[]{x1 + g - tick, y0, x1 + g, y0 + t});
+        s.add(new int[]{x1 + g - tick, y1 - t, x1 + g, y1});
+        return s;
+    }
+
+    /** 직사각형 [x0, x1) × [y0, y1) 바깥 귀퉁이 네 곳의 꺾쇠 (두께 t · 길이 arm) → 직사각형 8개 */
+    public static List<int[]> corners(int x0, int y0, int x1, int y1, int arm, int t) {
+        List<int[]> s = new ArrayList<>();
+        int L = arm + t;
+        // 왼쪽 위 · 오른쪽 위 · 왼쪽 아래 · 오른쪽 아래 (가로 꺾쇠 · 세로 꺾쇠)
+        s.add(new int[]{x0 - t, y0 - t, x0 - t + L, y0});
+        s.add(new int[]{x0 - t, y0, x0, y0 - t + L});
+        s.add(new int[]{x1 + t - L, y0 - t, x1 + t, y0});
+        s.add(new int[]{x1, y0, x1 + t, y0 - t + L});
+        s.add(new int[]{x0 - t, y1, x0 - t + L, y1 + t});
+        s.add(new int[]{x0 - t, y1 + t - L, x0, y1});
+        s.add(new int[]{x1 + t - L, y1, x1 + t, y1 + t});
+        s.add(new int[]{x1, y1 + t - L, x1 + t, y1});
+        return s;
     }
 }

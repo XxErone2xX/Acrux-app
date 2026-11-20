@@ -35,7 +35,20 @@ final class Joy {
     static volatile long userDownAt;
     static Thread loop;
     static Handler cb;
-    static final Pilot pilot = new Pilot(new H());
+    static final H hand = new H();
+    static final Pilot pilot = new Pilot(hand);
+
+    /** 조이스틱 손가락이 가 있는 자리 (px · 디버깅 화면 표시용) — 안 누르고 있으면 null */
+    static double[] finger() {
+        H h = hand;
+        return pilot.holding && h.stick != null ? new double[]{h.px, h.py} : null;
+    }
+
+    /** 점프 손가락 자리 (px · 디버깅 화면 표시용) — 안 누르고 있으면 null */
+    static double[] jumpFinger() {
+        H h = hand;
+        return h.jumpF != null ? new double[]{h.qx, h.qy} : null;
+    }
 
     /** 조이스틱 위치 (px) */
     static void at(double x, double y, double radius) {

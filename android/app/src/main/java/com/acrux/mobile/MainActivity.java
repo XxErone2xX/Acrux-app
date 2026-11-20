@@ -42,7 +42,7 @@ public class MainActivity extends Activity {
     static final int REQ_CAPTURE = 7;
 
     TextView accState, capState, calState, logView, runState, posView, reelInfo;
-    TextView accBtn, capBtn, updState, updBtn, updNotes, updBanner, uiBtn, uiBtn2, onDot, onText;
+    TextView accBtn, capBtn, updState, updBtn, updNotes, updBanner, uiBtn, uiBtn2, dbgBtn, dbgBtn2, onDot, onText;
     final Runnable refresh = this::refresh;
     final TextView[][] statCells = new TextView[4][2];
     TextView statRunHead, statAllHead;
@@ -194,8 +194,16 @@ public class MainActivity extends Activity {
         ol.topMargin = Ui.dp(this, 4);
         names.addView(online, ol);
         top.addView(names, Ui.weight());
+        // 오른쪽 버튼 두 개 (같은 폭): UI 끄기 · 켜기 + 디버깅 켜기 · 끄기 (켜져 있으면 노랑)
+        LinearLayout btns = new LinearLayout(this);
+        btns.setOrientation(LinearLayout.VERTICAL);
         uiBtn = Ui.button(this, "UI 끄기", Ui.MUTED, v -> Hub.setUi(!Hub.uiOn()));
-        top.addView(uiBtn, Ui.wrap());
+        btns.addView(uiBtn, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        dbgBtn = Ui.button(this, "디버깅 켜기", Ui.MUTED, v -> Hub.setDebug(!Hub.debug));
+        LinearLayout.LayoutParams dbl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        dbl.topMargin = Ui.dp(this, 6);
+        btns.addView(dbgBtn, dbl);
+        top.addView(btns, Ui.wrap());
         head.addView(top);
         root.addView(head);
 
@@ -957,6 +965,16 @@ public class MainActivity extends Activity {
         });
         win.addView(alpha, Ui.fill(this, 4));
 
+        LinearLayout dbg = section(pg, "디버깅 모드");
+        dbg.addView(Ui.text(this, "켜면 모든 기능 (자동 낚시 · 낚시 보정 · 낚시 테스트 · 판매 · 판매 보정 · 이동 · 길 기록 · 조이스틱 · 점프 · 바이옴 매크로) 을 돌릴 때 매크로가 보는 칸 · 읽은 것 · 누른 자리를 로블록스 화면에 그림",
+                12, Ui.MUTED, false));
+        dbgBtn2 = Ui.button(this, "디버깅 켜기", Ui.MUTED, v -> Hub.setDebug(!Hub.debug));
+        LinearLayout.LayoutParams db2 = Ui.wrap();
+        db2.topMargin = Ui.dp(this, 10);
+        dbg.addView(dbgBtn2, db2);
+        dbg.addView(Ui.text(this, "실행 중에 켜고 꺼도 바로 바뀜 · 앱 맨 위 버튼 · 떠 있는 Acrux 창 첫 화면과 같음 · 그린 칸은 화면 캡처에서 지우고 읽음",
+                12, Ui.MUTED, false), Ui.fill(this, 4));
+
         LinearLayout info = section(pg, "정보");
         info.addView(Ui.text(this, "사용자 수 집계: 켜져 있다는 신호만 보냄 (무작위 번호 · 개인 정보 없음)", 12, Ui.MUTED, false), Ui.fill(this, 8));
         info.addView(Ui.text(this, "Acrux Mobile V" + version(), 13, Ui.FG, false), Ui.fill(this, 6));
@@ -1146,6 +1164,12 @@ public class MainActivity extends Activity {
             Ui.set(b, ui ? "UI 끄기" : "UI 켜기");
             Ui.paintButton(this, b, ui ? Ui.MUTED : Ui.ACCENT);
         }
+        boolean dbgOn = Hub.debug;
+        for (TextView b : new TextView[]{dbgBtn, dbgBtn2}) {
+            if (b == null) continue;
+            Ui.set(b, dbgOn ? "디버깅 끄기" : "디버깅 켜기");
+            Ui.paintButton(this, b, dbgOn ? Ui.YELLOW : Ui.MUTED);
+        }
         String us = Updater.status;
         Ui.set(updState, us);
         updState.setTextColor(Updater.newVer != null ? Ui.YELLOW : us.startsWith("최신") || us.startsWith("업데이트 완료") ? Ui.GREEN : Ui.MUTED);
@@ -1184,7 +1208,7 @@ public class MainActivity extends Activity {
         String mode = !Hub.running() ? "" : "cal".equals(Hub.mode) ? "자동 보정 중" : "fishtest".equals(Hub.mode) ? "낚시 테스트 중" : "sellcal".equals(Hub.mode) ? "판매 보정 중"
                 : "sell".equals(Hub.mode) ? "판매 중" : "run".equals(Hub.mode) ? "자동 낚시 중"
                 : Hub.mode.startsWith("rec_") ? "길 기록 중" : Hub.mode.startsWith("stick") ? "조이스틱" : "이동 테스트 중";
-        runState.setText((mode.isEmpty() ? "" : Ui.tr(mode) + " · ") + Ui.tr(Hub.state) + stats);
+        runState.setText((mode.isEmpty() ? "" : Ui.tr(mode) + (Hub.debug ? " (" + Ui.tr("디버깅") + ")" : "") + " · ") + Ui.tr(Hub.state) + stats);
 
         StringBuilder ps = new StringBuilder();
         double[] stk = Hub.stick;

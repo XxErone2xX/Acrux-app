@@ -149,6 +149,7 @@ public class TapService extends AccessibilityService {
         Hub.init(this);
         instance = this;
         Hub.listeners.add(refresh);
+        Hub.listeners.add(BoxOverlay.SYNC);                   // 디버깅 모드 · 낚시 테스트 칸 창을 상태에 맞춤
         Guide.views.add(guideView);
         Biome.resume(this);
         android.content.IntentFilter f = new android.content.IntentFilter(Intent.ACTION_SCREEN_OFF);
@@ -184,6 +185,8 @@ public class TapService extends AccessibilityService {
     }
 
     void cleanup() {
+        Hub.listeners.remove(BoxOverlay.SYNC);
+        if (instance == this) BoxOverlay.hide();
         if (instance == this) instance = null;
         Hub.listeners.remove(refresh);
         Guide.views.remove(guideView);
@@ -748,7 +751,7 @@ public class TapService extends AccessibilityService {
     //  · 위 줄 (Acrux · 상태 · 실행 시간) 은 어느 페이지에서나 그대로
     //  · 기능 = PAGES 에 한 줄 + 설정 페이지 하나 (새 기능도 같은 방식으로 추가) · 안내의 분류 이름 = 페이지 id
     static final int C_BG = 0xF516191C, C_P2 = 0xFF1C2024, C_LINE = 0xFF262B30, C_FG = 0xFFE6E8EA, C_MUT = 0xFF8A939B,
-            C_DIM = 0xFF5B636B, C_ACC = 0xFF4C8DFF, C_RED = 0xFFFF5A4E, C_WARN = 0xFFFFB020;
+            C_DIM = 0xFF5B636B, C_ACC = 0xFF4C8DFF, C_RED = 0xFFFF5A4E, C_WARN = 0xFFFFB020, C_DBG = 0xFFFFD43B;
 
     /** 페이지: id · 위 페이지 · 이름 */
     static final String[][] PAGES = {
@@ -842,7 +845,11 @@ public class TapService extends AccessibilityService {
 
     String page = "home";
     LinearLayout pageBox;
-    TextView dot, clock, bioState, safeNote;
+    TextView dot, clock, bioState, safeNote, dbgName, dbgState;
+    LinearLayout dbgRow;
+    Toggle dbgSw;
+    /** 디버깅 줄 배경을 마지막으로 칠한 상태 (바뀔 때만 다시 칠함) */
+    Boolean dbgOn;
     Toggle bioSw;
     /** 지금 페이지에서 상태가 바뀌면 다시 쓸 것들 */
     final List<Runnable> live = new ArrayList<>();
@@ -921,6 +928,25 @@ public class TapService extends AccessibilityService {
         LinearLayout.LayoutParams brp = mw();
         brp.topMargin = Ui.dp(this, 2);
         box.addView(br, brp);
+        // 디버깅 모드 (버튼 모양 · 켜면 노랑): 모든 기능에서 매크로가 보는 칸 · 읽은 것 · 누른 자리를 로블록스 화면에 그림 · 실행 중에 켜고 꺼도 바로
+        dbgRow = reg("debug", hrow());
+        dbgRow.setPadding(Ui.dp(this, 10), Ui.dp(this, 7), Ui.dp(this, 10), Ui.dp(this, 7));
+        dbgRow.setOnClickListener(v -> Hub.setDebug(!Hub.debug));
+        dbgName = Ui.text(this, "디버깅 모드", 11, C_FG, true);
+        dbgRow.addView(dbgName, Ui.wrap());
+        dbgState = Ui.text(this, "꺼짐", 10, C_DIM, false);
+        dbgState.setSingleLine(true);
+        dbgState.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams dsp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        dsp.leftMargin = Ui.dp(this, 8);
+        dsp.rightMargin = Ui.dp(this, 8);
+        dbgRow.addView(dbgState, dsp);
+        dbgSw = new Toggle(this);
+        dbgRow.addView(dbgSw, new LinearLayout.LayoutParams(Ui.dp(this, 28), Ui.dp(this, 14)));
+        dbgOn = null;
+        LinearLayout.LayoutParams drp = mw();
+        drp.topMargin = Ui.dp(this, 4);
+        box.addView(dbgRow, drp);
         // 안전 모드로 바이옴 알림을 기다리는 중: 안내 (누르면 1분 타이머 건너뜀 · PC 의 K 키)
         safeNote = reg("safe", Ui.text(this, "", 10, C_WARN, false));
         safeNote.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 6));
@@ -1503,6 +1529,20 @@ public class TapService extends AccessibilityService {
             Ui.set(bioState, bio ? (Biome.waiting() ? "안전 모드 " + Biome.safeLeft() + "초" : Biome.status) : "꺼짐");
             bioState.setTextColor(!bio ? C_DIM : Biome.waiting() ? C_WARN : Biome.watching ? C_ACC : C_WARN);
             bioSw.set(bio);
+        }
+        if (dbgRow != null) {
+            boolean on = Hub.debug;
+            Ui.set(dbgState, on ? "켜짐 · 모든 기능에서 칸을 그림" : "꺼짐");
+            dbgState.setTextColor(on ? C_DBG : C_DIM);
+            dbgName.setTextColor(on ? C_DBG : C_FG);
+            dbgSw.set(on);
+            if (dbgOn == null || dbgOn != on) {
+                dbgOn = on;
+                android.graphics.drawable.StateListDrawable d = new android.graphics.drawable.StateListDrawable();
+                d.addState(new int[]{android.R.attr.state_pressed}, new Ui.Deco(this, on ? 0x40FFD43B : 0x14FFFFFF, on ? C_DBG : C_MUT, 0, true, 0, 0));
+                d.addState(new int[0], new Ui.Deco(this, on ? 0x26FFD43B : 0, on ? C_DBG : C_LINE, 0, true, 0, 0));
+                dbgRow.setBackground(d);
+            }
         }
         if (safeNote != null) {
             boolean w = Biome.waiting();

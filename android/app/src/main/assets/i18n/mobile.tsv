@@ -851,9 +851,39 @@ Fish 가 반응 없음	Fish does not respond	Fish が反応しない
 결과창을 못 닫음	could not close the result window	結果ウィンドウを閉じられない
 옮긴 낚시 창 자리가 확인되지 않아서 보정한 자리로 되돌려 둠	The moved fishing window position was not confirmed — put back the calibrated position	移した釣りウィンドウの位置が確認できなかったので、補正した位置に戻した
 미니게임 바처럼 보였지만 미니게임이 아님 — 다시 확인 ({0}번째) · 바 화면 {1}장 · 내 위치 읽음 {2}장 · 구간 읽음 {3}장	Looked like the minigame bar but it was not the minigame — checking again (#{0}) · bar frames {1} · position read {2} · zone read {3}	ミニゲームのバーに見えたがミニゲームではない — もう一度確認 ({0} 回目) · バーの画面 {1} 枚 · 自分の位置を読めた {2} 枚 · 区間を読めた {3} 枚
-문제 화면 저장: {0}	Saved the problem screen: {0}	問題の画面を保存: {0}
-문제 화면 저장 못 함: {0}	Could not save the problem screen: {0}	問題の画面を保存できない: {0}
-저장 자리를 못 만듦	could not create the file	保存先を作れない
-파일을 못 엶	could not open the file	ファイルを開けない
-폴더를 못 만듦	could not create the folder	フォルダを作れない
 Fish 를 눌러도 반응이 없는데 지난번 판매 때 팔 물고기가 없었음 — Fish 버튼 자리가 틀린 것 같아서 멈춤 (낚시 보정 → 칸을 띄우며 낚시 테스트로 확인 · 안 맞으면 자동 보정 다시)	Fish does not respond, but there was nothing to sell last time — the Fish button position looks wrong, so stopped (check with Fishing calibration → Fishing test with boxes shown · if it is off, auto-calibrate again)	Fish を押しても反応がないが、前回の販売で売る魚がなかった — Fish ボタンの位置が違うようなので停止 (釣りの補正 → 枠を表示して釣りテスト で確認 · 合っていなければ自動補正をやり直す)
+디버깅 모드	Debug mode	デバッグモード
+디버깅	debug	デバッグ
+디버깅 켜기	Debug on	デバッグ オン
+디버깅 끄기	Debug off	デバッグ オフ
+켜짐 · 모든 기능에서 칸을 그림	On · draws boxes in every feature	オン · すべての機能で枠を表示
+디버깅 모드 켬 — 모든 기능에서 매크로가 보는 칸 · 읽은 것 · 누른 자리를 화면에 그림	Debug mode on — draws what the macro looks at, what it reads and where it taps, in every feature	デバッグモード オン — すべての機能でマクロが見る枠 · 読んだもの · 押した位置を画面に表示
+디버깅 모드 끔	Debug mode off	デバッグモード オフ
+켜면 모든 기능 (자동 낚시 · 낚시 보정 · 낚시 테스트 · 판매 · 판매 보정 · 이동 · 길 기록 · 조이스틱 · 점프 · 바이옴 매크로) 을 돌릴 때 매크로가 보는 칸 · 읽은 것 · 누른 자리를 로블록스 화면에 그림	When on, every feature (auto fishing · fishing calibration · fishing test · selling · sell calibration · movement · route recording · joystick · jump · biome macro) draws what the macro looks at, what it reads and where it taps on the Roblox screen	オンにすると、すべての機能 (自動釣り · 釣りの補正 · 釣りテスト · 販売 · 販売の補正 · 移動 · ルート記録 · ジョイスティック · ジャンプ · バイオームマクロ) の実行中に、マクロが見る枠 · 読んだもの · 押した位置を Roblox の画面に表示
+실행 중에 켜고 꺼도 바로 바뀜 · 앱 맨 위 버튼 · 떠 있는 Acrux 창 첫 화면과 같음 · 그린 칸은 화면 캡처에서 지우고 읽음	Takes effect right away, even while running · same as the button at the top of the app and the first screen of the floating Acrux window · the drawn boxes are erased from the screen capture before reading	実行中にオン · オフしてもすぐ反映 · アプリ上部のボタン · 浮いている Acrux ウィンドウの最初の画面と同じ · 描いた枠は画面キャプチャから消してから読む
+디버깅 · {0}	Debug · {0}	デバッグ · {0}
+디버깅 끝 — {0}	Debug done — {0}	デバッグ終了 — {0}
+디버깅 · 바이옴 매크로 · {0}	Debug · biome macro · {0}	デバッグ · バイオームマクロ · {0}
+끝	Done	終了
+조이스틱 찾음	Joystick found	ジョイスティックを検出
+조이스틱 테스트 끝	Joystick test done	ジョイスティックテスト終了
+점프 테스트 끝	Jump test done	ジャンプテスト終了
+낚시 장소까지 길 따라 이동 끝	Finished walking the route to the fishing spot	釣り場までルートに沿って移動完了
+물고기 판매 장소까지 길 따라 이동 끝	Finished walking the route to the fish selling spot	魚の販売場所までルートに沿って移動完了
+낚시 장소 길 저장됨	Fishing spot route saved	釣り場のルートを保存
+물고기 판매 장소 길 저장됨	Fish selling spot route saved	魚の販売場所のルートを保存
+성공 {0} · 쓰레기 {1} · 실패 {2} (놓침 {3})	Success {0} · junk {1} · fail {2} (missed {3})	成功 {0} · ゴミ {1} · 失敗 {2} (見逃し {3})
+Fish 버튼: {0}	Fish button: {0}	Fish ボタン: {0}
+미니게임 바: {0}	Minigame bar: {0}	ミニゲームのバー: {0}
+대기 자리	idle spot	待機の位置
+미니게임 자리	minigame spot	ミニゲームの位置
+두 자리 다	both spots	両方の位置
+구간 안 {0}% · 터치 {1}번	In zone {0}% · taps {1}	区間内 {0}% · タッチ {1} 回
+지연 {0}초 · 화면 {1}fps	Delay {0} s · screen {1} fps	遅延 {0} 秒 · 画面 {1}fps
+지난 릴링: 구간 안 {0}% · 터치 {1}번	Last reel: in zone {0}% · taps {1}	前回のリール: 区間内 {0}% · タッチ {1} 回
+지난 릴링: 미니게임 아님 (내 위치가 안 움직임)	Last reel: not the minigame (your position did not move)	前回のリール: ミニゲームではない (自分の位置が動かない)
+바 화면 {0}장 · 내 위치 읽음 {1}장 · 구간 읽음 {2}장	Bar frames {0} · position read {1} · zone read {2}	バーの画面 {0} 枚 · 自分の位置を読めた {1} 枚 · 区間を読めた {2} 枚
+내 위치	your position	自分の位置
+예측	predicted	予測
+누름 기준	tap line	押す基準
+구간	zone	区間

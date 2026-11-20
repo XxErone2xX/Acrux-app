@@ -35,6 +35,11 @@ final class Hub {
     /** 기준 장소 → 낚시 장소 · 판매 장소: 플레이어가 조이스틱으로 직접 걸어간 길 */
     static volatile Route fishRoute = new Route(), sellRoute = new Route();
     static boolean autoUpdate = true;
+    /** 디버깅 모드: 모든 기능 (자동 낚시 · 보정 · 판매 · 이동 · 길 기록 · 조이스틱 · 바이옴 매크로) 을 돌릴 때 매크로가 보는 칸 · 읽은 것 · 누른 자리를 화면에 그림 (BoxOverlay) */
+    static volatile boolean debug;
+    /** 이번 실행이 끝난 결과 한 줄 (디버깅 화면 표시용 · endWarn: 잘 안 됨) · 이번 실행의 마지막 빨간 기록 (멈춘 이유) */
+    static volatile String endNote, lastRed;
+    static volatile boolean endWarn;
     /** 로블록스 클래식 조이스틱 {가운데 x / 화면 너비, 가운데 y / 화면 높이, 반지름 / 화면 높이} (못 찾았으면 null) · W A S D 를 조이스틱 터치로 */
     static volatile double[] stick;
     static int sellMax = 100;
@@ -141,6 +146,7 @@ final class Hub {
     }
 
     static void log(String msg, char color) {
+        if (color == 'r' && running()) lastRed = msg;
         String t = new SimpleDateFormat("HH:mm:ss", Locale.ROOT).format(new Date());
         synchronized (logs) {
             logs.add(t + "  " + msg);
@@ -211,7 +217,7 @@ final class Hub {
         };
     }
 
-    /** 낚시 테스트가 누르는 입력: 화면 터치 + 누른 자리를 화면에 잠깐 표시 */
+    /** 낚시가 누르는 입력: 화면 터치 + 누른 자리를 화면에 잠깐 표시 (낚시 테스트 · 디버깅 모드로 칸을 띄웠을 때만 보임) */
     static Fisher.Input testInput() {
         Fisher.Input in = fishInput();
         return new Fisher.Input() {
@@ -228,6 +234,85 @@ final class Hub {
         };
     }
 
+    /** 이동 · 판매 터치 + 누른 자리를 화면에 잠깐 표시 (디버깅 모드로 칸을 띄웠을 때만 보임) */
+    static Touch markTouch(TouchIn t) {
+        return new Touch() {
+            @Override
+            public void tap(int x, int y, int ms) {
+                BoxOverlay.tapped(x, y);
+                t.tap(x, y, ms);
+            }
+
+            @Override
+            public void swipe(int x0, int y0, int x1, int y1, int ms) {
+                BoxOverlay.tapped(x0, y0);
+                BoxOverlay.tapped(x1, y1);
+                t.swipe(x0, y0, x1, y1, ms);
+            }
+
+            @Override
+            public void pinch(int cx, int cy, int d0, int d1, int ms) {
+                BoxOverlay.tapped(cx, cy);
+                t.pinch(cx, cy, d0, d1, ms);
+            }
+
+            @Override
+            public void stick(double[] v) {
+                t.stick(v);
+            }
+
+            @Override
+            public void jumpDown(int x, int y) {
+                t.jumpDown(x, y);
+            }
+
+            @Override
+            public void jumpUp() {
+                t.jumpUp();
+            }
+
+            @Override
+            public boolean stickHeld() {
+                return t.stickHeld();
+            }
+
+            @Override
+            public void play(List<Route.Ev> evs, int[] jump, Runnable check) {
+                t.play(evs, jump, check);
+            }
+
+            @Override
+            public void traceStart() {
+                t.traceStart();
+            }
+
+            @Override
+            public List<Route.Ev> traceEnd() {
+                return t.traceEnd();
+            }
+
+            @Override
+            public double[] stickAt() {
+                return t.stickAt();
+            }
+        };
+    }
+
+    /** 디버깅 모드 켜기 · 끄기 — 실행 중이면 바로 칸을 띄우거나 지움 (메인 스레드) */
+    static void setDebug(boolean on) {
+        debug = on;
+        prefs().edit().putBoolean("debug", on).apply();
+        Fisher f = fisher;
+        if (f != null && running()) {
+            boolean test = "fishtest".equals(mode);          // 낚시 테스트는 디버깅 모드와 상관없이 늘 그림
+            f.debug = on || test;
+            f.probe = on || test ? BoxOverlay.PROBE : null;
+        }
+        BoxOverlay.sync();
+        log(on ? "디버깅 모드 켬 — 모든 기능에서 매크로가 보는 칸 · 읽은 것 · 누른 자리를 화면에 그림" : "디버깅 모드 끔", 'd');
+        changed();
+    }
+
     /** m: run 자동 낚시 · cal 낚시 자동 보정 · fishtest 칸을 띄우며 낚시 테스트 · sellcal 판매 자동 보정 · sell 판매 한 번 · base / fish / sellgo 이동 테스트
      *  · rec_fish / rec_sell 길 기록 · stickfind / sticktest 조이스틱 → 못 하면 이유 */
     static synchronized String start(String m) {
@@ -241,9 +326,10 @@ final class Hub {
         if ((m.equals("run") || m.equals("fishtest")) && !cfg.ready()) return "먼저 낚시 → 낚시 자동 보정을 해야 함 (낚시 자리에서 Fish 버튼이 보일 때)";
         if (m.equals("sticktest") && stick == null) return "먼저 조이스틱 찾기 (로블록스 설정 → 이동 방식: 조이스틱 · 조이스틱 찾기)";
         TouchIn touch = new TouchIn(cap.width(), cap.height());
-        boolean test = m.equals("fishtest");
-        Fisher f = new Fisher(cap, test ? testInput() : fishInput(), OUT, cfg);
-        Mover mv = new Mover(cap, touch, new MlOcr(), pos, move, OUT, CHECK);
+        boolean test = m.equals("fishtest"), show = test || debug;
+        // 누른 자리는 늘 넘김 (디버깅 모드를 실행 중에 켜도 보이게 · 칸을 안 띄웠으면 안 그림)
+        Fisher f = new Fisher(cap, testInput(), OUT, cfg);
+        Mover mv = new Mover(cap, markTouch(touch), new MlOcr(), pos, move, OUT, CHECK);
         Seller sl = seller(cap, mv);
         // 필요한 위치 · 길이 없으면 시작 전에 바로 알려 줌
         if (m.equals("sell")) {
@@ -271,19 +357,17 @@ final class Hub {
             zeroSells = 0;                                     // 한 판이라도 끝났으면 Fish 는 먹히는 것 (빈 판매 기록을 지움)
         };
         f.onLearn = Hub::saveLearned;
-        if (m.equals("run") || test) {
-            snaps = 0;
-            snapAt = 0;
-            f.onSnap = tag -> snap(cap, tag);
-        }
-        if (test) {
+        if (show) {
+            f.debug = true;
             f.probe = BoxOverlay.PROBE;
-            main.post(BoxOverlay::show);                       // 보정된 칸을 바로 그림 (시작 전 1초 동안도 보임)
         }
+        endNote = lastRed = null;
+        endWarn = false;
         fisher = f;
         mode = m;
         worker = new Thread(() -> {
             Process.setThreadPriority(Process.THREAD_PRIORITY_DISPLAY);
+            boolean done = false;
             try {
                 // 시작하고 1초 기다림 — [시작]을 누른 손가락이 떨어지고 게임 화면으로 돌아온 뒤에 키 · 클릭을 보냄
                 state = "1초 뒤 시작";
@@ -293,14 +377,20 @@ final class Hub {
                     CHECK.run();
                     Touch.nap(20);
                 }
-                if (m.equals("stickfind")) stickFind(cap);
-                else if (m.equals("sticktest")) stickTest(touch);
-                else if (m.equals("jumptest")) {
+                if (m.equals("stickfind")) {
+                    stickFind(cap);
+                    endNote = "조이스틱 찾음";
+                } else if (m.equals("sticktest")) {
+                    stickTest(touch);
+                    endNote = "조이스틱 테스트 끝";
+                } else if (m.equals("jumptest")) {
                     int fb = Joy.pilot.jumpFallbacks;
                     mv.jumpTest();
                     log("점프 테스트 끝 — 제자리 1번 · 걸으면서 1번 · 꾹 누르는 1.5초 동안 계속 뛰었으면 성공" + (Joy.pilot.jumpFallbacks > fb ? " (점프를 따로 다시 누른 적 있음)" : ""), 'g');
+                    endNote = "점프 테스트 끝";
                 }
                 else work(m, f, mv, sl);
+                done = true;
             } catch (Fisher.Stopped e) {
                 log("멈춤", 'd');
             } catch (RuntimeException e) {
@@ -315,10 +405,20 @@ final class Hub {
                 log("오류: " + e, 'r');
                 Crash.save(e, "worker");
             } finally {
-                if (test) {
-                    String end = f.testEnd != null ? f.testEnd : lastError != null ? lastError : "멈춤";
-                    main.post(() -> BoxOverlay.end(end));
-                }
+                // 칸을 띄웠으면 끝난 이유를 잠깐 보여 주고 지움 (안 띄웠으면 아무것도 안 함)
+                //  낚시 테스트 결과 · 오류 · [정지] · 결과 한 줄 · 스스로 멈춘 이유 (빨간 기록 · 자동 낚시) · 끝
+                //  색: 잘 끝남 초록 · [정지] 흰색 · 문제 · 오류 노랑
+                String tr = test ? f.testEnd : null;
+                boolean round = tr != null && (tr.equals("성공") || tr.equals("쓰레기") || tr.equals("실패"));
+                String end = tr != null ? tr : lastError != null ? lastError : stopFlag ? "멈춤"
+                        : endNote != null ? endNote : lastRed != null ? lastRed : done ? "끝" : "멈춤";
+                int col = tr != null ? (round ? com.acrux.mobile.core.TestBoxes.C_FISH : com.acrux.mobile.core.TestBoxes.C_REEL)
+                        : lastError != null ? com.acrux.mobile.core.TestBoxes.C_REEL : stopFlag || end.equals("멈춤") ? BoxOverlay.C_TEXT
+                        : endNote != null ? (endWarn ? com.acrux.mobile.core.TestBoxes.C_REEL : com.acrux.mobile.core.TestBoxes.C_FISH)
+                        : lastRed != null ? com.acrux.mobile.core.TestBoxes.C_REEL
+                        : com.acrux.mobile.core.TestBoxes.C_FISH;
+                BoxOverlay.ending = true;
+                main.post(() -> BoxOverlay.end(end, col));
                 mv.releaseKeys();
                 Joy.set(null);
                 measuring = false;
@@ -331,6 +431,7 @@ final class Hub {
             }
         }, "acrux-worker");
         worker.start();
+        main.post(BoxOverlay::started);                        // 디버깅 모드 · 낚시 테스트: 보정된 칸 · 상태를 바로 그림 (시작 전 1초 동안도 보임)
         changed();
         return "";
     }
@@ -420,25 +521,33 @@ final class Hub {
         } else if (m.equals("cal")) {
             String r = f.calibrate();
             log("자동 보정: " + r, cfg.ready() ? 'g' : 'y');
+            endNote = "자동 보정: " + r;
+            endWarn = !r.endsWith("맞춤");                    // 다 맞추지 못함 (창을 못 찾음 · 입질 없음 · 결과창 못 잼 …)
         } else if (m.equals("fishtest")) {
             f.test();
         } else if (m.equals("sellcal")) {
             List<String> notes = sl.autocal();
             log("판매 자동 보정 완료" + (notes.isEmpty() ? "" : " · " + String.join(" · ", notes)), 'g');
+            endNote = "판매 자동 보정 완료";
         } else if (m.equals("sell")) {
             int sold = sl.run();
             stat("sells", 1);
             stat("sold", sold);
             log("판매 테스트: " + sold + "종류 판매", 'g');
+            endNote = "판매 테스트: " + sold + "종류 판매";
         } else if (m.equals("base")) {
             mv.goBase();
             log("기준 장소 도착", 'g');
+            endNote = "기준 장소 도착";
         } else if (m.equals("fish")) {
             mv.goPlace("낚시 장소", fishRoute);
+            endNote = "낚시 장소까지 길 따라 이동 끝";
         } else if (m.equals("sellgo")) {
             mv.goPlace("물고기 판매 장소", sellRoute);
+            endNote = "물고기 판매 장소까지 길 따라 이동 끝";
         } else if (m.startsWith("rec_")) {
             record(mv, m.endsWith("sell"));
+            endNote = (m.endsWith("sell") ? "물고기 판매 장소" : "낚시 장소") + " 길 저장됨";
         }
     }
 
@@ -536,81 +645,6 @@ final class Hub {
 
     static final int SELL_TRIES = 3;
 
-    /** 문제가 생긴 순간 화면 (자동 낚시 · 낚시 테스트) — 한 번 시작할 때 SNAP_MAX 장까지 · 15초에 한 장 · 기기에는 최근 SNAP_KEEP 장만 남김 */
-    static final int SNAP_MAX = 10, SNAP_KEEP = 30;
-    static final long SNAP_GAP_MS = 15000;
-    static int snaps;
-    static long snapAt;
-
-    static void snap(CaptureService cap, String tag) {
-        long now = android.os.SystemClock.elapsedRealtime();
-        if (cap == null || app == null || snaps >= SNAP_MAX || (snapAt != 0 && now - snapAt < SNAP_GAP_MS)) return;
-        snapAt = now;
-        com.acrux.mobile.core.Img im = cap.grabStep(0, 0, cap.width(), cap.height(), 2);   // 절반 크기 (파일 · 메모리 줄임)
-        if (im == null || im.w <= 0 || im.h <= 0) return;
-        snaps++;
-        int[] px = new int[im.w * im.h];
-        for (int k = 0; k < px.length; k++) px[k] = 0xFF000000 | (im.r[k] << 16) | (im.g[k] << 8) | im.b[k];
-        android.graphics.Bitmap bm = android.graphics.Bitmap.createBitmap(px, im.w, im.h, android.graphics.Bitmap.Config.ARGB_8888);
-        String name = "acrux_" + new SimpleDateFormat("MMdd_HHmmss", Locale.US).format(new Date()) + "_" + tag + ".jpg";
-        try {
-            log("문제 화면 저장: " + saveJpeg(bm, name), 'd');
-        } catch (Exception e) {
-            log("문제 화면 저장 못 함: " + e.getMessage(), 'd');
-        } finally {
-            bm.recycle();
-        }
-    }
-
-    /** JPEG 저장 → 저장한 자리 (안드로이드 10+: 다운로드/Acrux · 그 전: 앱 폴더 snaps) */
-    static String saveJpeg(android.graphics.Bitmap bm, String name) throws java.io.IOException {
-        if (android.os.Build.VERSION.SDK_INT >= 29) {
-            android.content.ContentResolver cr = app.getContentResolver();
-            android.content.ContentValues v = new android.content.ContentValues();
-            v.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name);
-            v.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/jpeg");
-            v.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS + "/Acrux");
-            android.net.Uri u = cr.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
-            if (u == null) throw new java.io.IOException("저장 자리를 못 만듦");
-            try (java.io.OutputStream o = cr.openOutputStream(u)) {
-                if (o == null) throw new java.io.IOException("파일을 못 엶");
-                bm.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, o);
-            }
-            trimSnaps(cr);
-            return "Download/Acrux/" + name;
-        }
-        java.io.File d = new java.io.File(app.getExternalFilesDir(null), "snaps");
-        if (!d.isDirectory() && !d.mkdirs()) throw new java.io.IOException("폴더를 못 만듦");
-        java.io.File f = new java.io.File(d, name);
-        try (java.io.OutputStream o = new java.io.FileOutputStream(f)) {
-            bm.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, o);
-        }
-        java.io.File[] all = d.listFiles((dir, n) -> n.startsWith("acrux_") && n.endsWith(".jpg"));
-        if (all != null && all.length > SNAP_KEEP) {
-            java.util.Arrays.sort(all, (a, b) -> Long.compare(a.lastModified(), b.lastModified()));
-            for (int i = 0; i < all.length - SNAP_KEEP; i++) all[i].delete();
-        }
-        return f.getAbsolutePath();
-    }
-
-    /** 내가 저장한 문제 화면 중 오래된 것 지움 (최근 SNAP_KEEP 장만 남김 · 안드로이드 10+) */
-    @android.annotation.TargetApi(29)
-    static void trimSnaps(android.content.ContentResolver cr) {
-        android.net.Uri base = android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI;
-        String sel = android.provider.MediaStore.MediaColumns.RELATIVE_PATH + " LIKE ? AND " + android.provider.MediaStore.MediaColumns.DISPLAY_NAME + " LIKE ?";
-        String[] args = {android.os.Environment.DIRECTORY_DOWNLOADS + "/Acrux%", "acrux_%"};
-        try (android.database.Cursor c = cr.query(base, new String[]{android.provider.MediaStore.MediaColumns._ID}, sel, args,
-                android.provider.MediaStore.MediaColumns.DATE_ADDED + " DESC")) {
-            if (c == null) return;
-            int i = 0;
-            while (c.moveToNext()) {
-                if (++i <= SNAP_KEEP) continue;
-                cr.delete(android.content.ContentUris.withAppendedId(base, c.getLong(0)), null, null);
-            }
-        } catch (RuntimeException ignored) {                   // 지우기는 못 해도 저장은 됨
-        }
-    }
-
     /** 길 기록 [취소] — 걸어온 길을 버리고 멈춤 (기록해 둔 예전 길은 그대로) · [도착] 을 이미 눌렀으면 무시 */
     static void cancelRecord() {
         if (!measuring || !mode.startsWith("rec_") || arrived) return;
@@ -684,6 +718,7 @@ final class Hub {
         cfg.closeLearn = arr(p.getString("closeLearn", ""));
         if (cfg.closeLearn != null && cfg.closeLearn.length % 3 != 0) cfg.closeLearn = null;
         autoUpdate = p.getBoolean("autoUpdate", true);
+        debug = p.getBoolean("debug", false);
         sellMax = p.getInt("sellMax", 100);
         sellDelay = num(p, "sellDelay", 0);
         move.resetWait = num(p, "m_reset_wait", move.resetWait);

@@ -57,6 +57,7 @@ final class MlOcr implements Mover.Ocr {
         } finally {
             bmp.recycle();
         }
+        BoxOverlay.ocr(out);                                  // 디버깅 화면: 읽은 줄 자리 (칸을 띄웠을 때만 보임)
         return out;
     }
 }

@@ -322,10 +322,15 @@ public final class ReelPilot {
         return n;
     }
 
+    /** 마지막으로 판단할 때 본 것 (디버깅 화면 표시용 · 바 폭 비율 · 판단 못 했으면 NaN): 지금 누르면 반영될 때의 내 위치 예측 · 이보다 왼쪽이면 누름 */
+    public double lastPred = Double.NaN, lastTarget = Double.NaN;
+
     /** 지금 누를지 */
     public boolean decide(double now) {
-        if (!live || Double.isNaN(lastObsM) || Double.isNaN(zc) || now - lastObsT > 0.35 || now - zt > 0.6) return false;
-        if (lastTap >= 0 && now - lastTap < MIN_GAP) return false;
+        if (!live || Double.isNaN(lastObsM) || Double.isNaN(zc) || now - lastObsT > 0.35 || now - zt > 0.6) {
+            lastPred = lastTarget = Double.NaN;
+            return false;
+        }
         double te = now + delay;                                   // 지금 누르면 반영될 때
         double m = lastObsM - fall * (te - lastObsT) + jump * pending(lastObsT);
         m = Math.max(0, m);
@@ -334,6 +339,9 @@ public final class ReelPilot {
         double target = c - jump / 2;
         // 구간이 튀는 양보다 넓으면 아래쪽 여유를 조금 더 (떨어지는 쪽이 늘 먼저 벗어나니까)
         if (width > jump) target += Math.min((width - jump) * 0.15, 0.02);
+        lastPred = m;
+        lastTarget = target;
+        if (lastTap >= 0 && now - lastTap < MIN_GAP) return false;
         return m < target;
     }
 
