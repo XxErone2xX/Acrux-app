@@ -848,8 +848,6 @@ public class TapService extends AccessibilityService {
     TextView dot, clock, bioState, safeNote, dbgName, dbgState;
     LinearLayout dbgRow;
     Toggle dbgSw;
-    /** 디버깅 줄 배경을 마지막으로 칠한 상태 (바뀔 때만 다시 칠함) */
-    Boolean dbgOn;
     Toggle bioSw;
     /** 지금 페이지에서 상태가 바뀌면 다시 쓸 것들 */
     final List<Runnable> live = new ArrayList<>();
@@ -928,11 +926,12 @@ public class TapService extends AccessibilityService {
         LinearLayout.LayoutParams brp = mw();
         brp.topMargin = Ui.dp(this, 2);
         box.addView(br, brp);
-        // 디버깅 모드 (버튼 모양 · 켜면 노랑): 모든 기능에서 매크로가 보는 칸 · 읽은 것 · 누른 자리를 로블록스 화면에 그림 · 실행 중에 켜고 꺼도 바로
+        // 디버깅 모드 (바이옴 매크로와 같은 켜기 · 끄기 줄 · 켜면 글자 노랑): 모든 기능에서 매크로가 보는 칸 · 읽은 것 · 누른 자리를 로블록스 화면에 그림 · 실행 중에 켜고 꺼도 바로
         dbgRow = reg("debug", hrow());
-        dbgRow.setPadding(Ui.dp(this, 10), Ui.dp(this, 7), Ui.dp(this, 10), Ui.dp(this, 7));
+        dbgRow.setPadding(0, Ui.dp(this, 7), 0, Ui.dp(this, 7));
+        dbgRow.setBackground(press());
         dbgRow.setOnClickListener(v -> Hub.setDebug(!Hub.debug));
-        dbgName = Ui.text(this, "디버깅 모드", 11, C_FG, true);
+        dbgName = Ui.text(this, "디버깅 모드", 11, C_FG, false);
         dbgRow.addView(dbgName, Ui.wrap());
         dbgState = Ui.text(this, "꺼짐", 10, C_DIM, false);
         dbgState.setSingleLine(true);
@@ -943,10 +942,7 @@ public class TapService extends AccessibilityService {
         dbgRow.addView(dbgState, dsp);
         dbgSw = new Toggle(this);
         dbgRow.addView(dbgSw, new LinearLayout.LayoutParams(Ui.dp(this, 28), Ui.dp(this, 14)));
-        dbgOn = null;
-        LinearLayout.LayoutParams drp = mw();
-        drp.topMargin = Ui.dp(this, 4);
-        box.addView(dbgRow, drp);
+        box.addView(dbgRow, mw());
         // 안전 모드로 바이옴 알림을 기다리는 중: 안내 (누르면 1분 타이머 건너뜀 · PC 의 K 키)
         safeNote = reg("safe", Ui.text(this, "", 10, C_WARN, false));
         safeNote.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 6));
@@ -1536,13 +1532,6 @@ public class TapService extends AccessibilityService {
             dbgState.setTextColor(on ? C_DBG : C_DIM);
             dbgName.setTextColor(on ? C_DBG : C_FG);
             dbgSw.set(on);
-            if (dbgOn == null || dbgOn != on) {
-                dbgOn = on;
-                android.graphics.drawable.StateListDrawable d = new android.graphics.drawable.StateListDrawable();
-                d.addState(new int[]{android.R.attr.state_pressed}, new Ui.Deco(this, on ? 0x40FFD43B : 0x14FFFFFF, on ? C_DBG : C_MUT, 0, true, 0, 0));
-                d.addState(new int[0], new Ui.Deco(this, on ? 0x26FFD43B : 0, on ? C_DBG : C_LINE, 0, true, 0, 0));
-                dbgRow.setBackground(d);
-            }
         }
         if (safeNote != null) {
             boolean w = Biome.waiting();

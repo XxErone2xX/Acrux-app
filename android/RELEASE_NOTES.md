@@ -6,7 +6,7 @@
 - 낚시: 입질 뒤 미니게임을 못 보고 지나간 판을 실패로 셈 · 로그에도 남김 [ 전에는 통계에서 빠져서 실패 0 으로 보였음 ]
 - 낚시: Fish 를 눌러도 반응이 없는데 지난번 판매 때 팔 물고기가 없었으면 또 판매하러 가지 않고 멈춤 [ 인벤토리가 아니라 Fish 버튼 자리 문제 ]
 - 낚시: 가짜 미니게임으로 보고 넘길 때 바를 어떻게 읽었는지 로그에 남김 [ 바 화면 몇 장 중 내 위치 · 구간을 몇 장 읽었는지 ]
-- 디버깅 모드 추가 [ 앱 맨 위 · 설정 · 떠 있는 Acrux 창 첫 화면의 버튼 · 켜져 있으면 노랑 ]
+- 디버깅 모드 추가 [ 앱 맨 위 UI 버튼 밑 · 설정 · 떠 있는 Acrux 창 첫 화면의 켜기 · 끄기 · 켜져 있으면 글자 노랑 ]
   - 켜면 모든 기능을 돌릴 때 매크로가 보는 칸 · 읽은 것 · 누른 자리를 로블록스 화면에 그림 [ 자동 낚시 · 낚시 보정 · 판매 · 판매 보정 · 이동 · 길 기록 · 조이스틱 · 점프 · 바이옴 매크로 · 실행 중에 켜고 꺼도 바로 바뀜 ]
   - 모든 기능: 위쪽 가운데에 지금 상태 · 누른 자리 [ 흰 꺾쇠 ] · 글자 읽기로 읽은 줄 [ 주황 꺾쇠 ] · 조이스틱 손가락 · 점프 · 끝나면 끝난 이유
   - 낚시: 낚시 테스트처럼 보정된 칸을 그림 · 읽은 칸은 밝게, 못 읽은 칸은 흐리게 [ 칸이 실제 창과 어긋났는지 바로 보임 ]
@@ -24,7 +24,7 @@
 - Fishing: rounds where the minigame was missed after the bite now count as fails and are logged [ before, they were left out of the stats, so it showed 0 fails ]
 - Fishing: if Fish does not respond but there was nothing to sell last time, it stops instead of going to sell again [ the problem is the Fish button position, not the inventory ]
 - Fishing: when a bar is passed over as a fake minigame, the log shows how the bar was read [ how many of the bar frames had your position and the zone read ]
-- Added debug mode [ button at the top of the app · in settings · on the first screen of the floating Acrux window · yellow while on ]
+- Added debug mode [ switch under the UI button at the top of the app · in settings · on the first screen of the floating Acrux window · yellow text while on ]
   - When on, every feature draws what the macro looks at, what it reads and where it taps on the Roblox screen [ auto fishing · fishing calibration · selling · sell calibration · movement · route recording · joystick · jump · biome macro · takes effect right away, even while running ]
   - Every feature: the current state at the top center · tap spots [ white corners ] · lines read by text recognition [ orange corners ] · the joystick finger · jumps · when it ends, why it ended
   - Fishing: draws the calibrated boxes like the fishing test · boxes that are read are bright, boxes that are not are faint [ shows right away if a box is off the real window ]

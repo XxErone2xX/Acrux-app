@@ -42,7 +42,9 @@ public class MainActivity extends Activity {
     static final int REQ_CAPTURE = 7;
 
     TextView accState, capState, calState, logView, runState, posView, reelInfo;
-    TextView accBtn, capBtn, updState, updBtn, updNotes, updBanner, uiBtn, uiBtn2, dbgBtn, dbgBtn2, onDot, onText;
+    TextView accBtn, capBtn, updState, updBtn, updNotes, updBanner, uiBtn, uiBtn2, onDot, onText;
+    /** 디버깅 모드 켜기 · 끄기 (앱 맨 위 작은 것 · 설정) */
+    Switch dbgSw, dbgSw2;
     final Runnable refresh = this::refresh;
     final TextView[][] statCells = new TextView[4][2];
     TextView statRunHead, statAllHead;
@@ -194,15 +196,22 @@ public class MainActivity extends Activity {
         ol.topMargin = Ui.dp(this, 4);
         names.addView(online, ol);
         top.addView(names, Ui.weight());
-        // 오른쪽 버튼 두 개 (같은 폭): UI 끄기 · 켜기 + 디버깅 켜기 · 끄기 (켜져 있으면 노랑)
+        // 오른쪽: UI 끄기 · 켜기 + 그 밑에 작은 디버깅 켜기 · 끄기 (다른 켜기 · 끄기와 같은 모양 · 켜져 있으면 글자 노랑)
         LinearLayout btns = new LinearLayout(this);
         btns.setOrientation(LinearLayout.VERTICAL);
         uiBtn = Ui.button(this, "UI 끄기", Ui.MUTED, v -> Hub.setUi(!Hub.uiOn()));
-        btns.addView(uiBtn, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        dbgBtn = Ui.button(this, "디버깅 켜기", Ui.MUTED, v -> Hub.setDebug(!Hub.debug));
-        LinearLayout.LayoutParams dbl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        dbl.topMargin = Ui.dp(this, 6);
-        btns.addView(dbgBtn, dbl);
+        LinearLayout.LayoutParams ubl = Ui.wrap();
+        ubl.gravity = Gravity.END;
+        btns.addView(uiBtn, ubl);
+        dbgSw = dbgSwitch("디버깅", 12);
+        dbgSw.setMinHeight(0);
+        dbgSw.setMinimumHeight(0);
+        dbgSw.setPadding(0, 0, 0, 0);
+        dbgSw.setSwitchPadding(Ui.dp(this, 4));
+        LinearLayout.LayoutParams dbl = Ui.wrap();
+        dbl.topMargin = Ui.dp(this, 4);
+        dbl.gravity = Gravity.END;
+        btns.addView(dbgSw, dbl);
         top.addView(btns, Ui.wrap());
         head.addView(top);
         root.addView(head);
@@ -968,11 +977,9 @@ public class MainActivity extends Activity {
         LinearLayout dbg = section(pg, "디버깅 모드");
         dbg.addView(Ui.text(this, "켜면 모든 기능 (자동 낚시 · 낚시 보정 · 낚시 테스트 · 판매 · 판매 보정 · 이동 · 길 기록 · 조이스틱 · 점프 · 바이옴 매크로) 을 돌릴 때 매크로가 보는 칸 · 읽은 것 · 누른 자리를 로블록스 화면에 그림",
                 12, Ui.MUTED, false));
-        dbgBtn2 = Ui.button(this, "디버깅 켜기", Ui.MUTED, v -> Hub.setDebug(!Hub.debug));
-        LinearLayout.LayoutParams db2 = Ui.wrap();
-        db2.topMargin = Ui.dp(this, 10);
-        dbg.addView(dbgBtn2, db2);
-        dbg.addView(Ui.text(this, "실행 중에 켜고 꺼도 바로 바뀜 · 앱 맨 위 버튼 · 떠 있는 Acrux 창 첫 화면과 같음 · 그린 칸은 화면 캡처에서 지우고 읽음",
+        dbgSw2 = dbgSwitch("디버깅 모드", 14);
+        dbg.addView(dbgSw2, Ui.fill(this, 8));
+        dbg.addView(Ui.text(this, "실행 중에 켜고 꺼도 바로 바뀜 · 앱 맨 위 · 떠 있는 Acrux 창 첫 화면의 켜기 · 끄기와 같음 · 그린 칸은 화면 캡처에서 지우고 읽음",
                 12, Ui.MUTED, false), Ui.fill(this, 4));
 
         LinearLayout info = section(pg, "정보");
@@ -988,6 +995,20 @@ public class MainActivity extends Activity {
 
     interface Flag {
         void set(boolean on);
+    }
+
+    /** 디버깅 모드 켜기 · 끄기 (다른 켜기 · 끄기와 같은 모양) — 바뀔 때만 Hub.setDebug (화면 갱신으로 맞출 때는 안 부름) · sp: 글자 크기 */
+    Switch dbgSwitch(String title, float sp) {
+        Switch s = new Switch(this);
+        s.setText(Ui.tr(title));
+        s.setTextColor(Ui.FG);
+        s.setTextSize(sp);
+        Ui.tint(s);
+        s.setChecked(Hub.debug);
+        s.setOnCheckedChangeListener((v, c) -> {
+            if (c != Hub.debug) Hub.setDebug(c);
+        });
+        return s;
     }
 
     View sw(String title, boolean on, Flag f) {
@@ -1165,11 +1186,11 @@ public class MainActivity extends Activity {
             Ui.paintButton(this, b, ui ? Ui.MUTED : Ui.ACCENT);
         }
         boolean dbgOn = Hub.debug;
-        for (TextView b : new TextView[]{dbgBtn, dbgBtn2}) {
+        for (Switch b : new Switch[]{dbgSw, dbgSw2}) {
             if (b == null) continue;
-            Ui.set(b, dbgOn ? "디버깅 끄기" : "디버깅 켜기");
-            Ui.paintButton(this, b, dbgOn ? Ui.YELLOW : Ui.MUTED);
+            if (b.isChecked() != dbgOn) b.setChecked(dbgOn);
         }
+        if (dbgSw != null) dbgSw.setTextColor(dbgOn ? Ui.YELLOW : Ui.MUTED);
         String us = Updater.status;
         Ui.set(updState, us);
         updState.setTextColor(Updater.newVer != null ? Ui.YELLOW : us.startsWith("최신") || us.startsWith("업데이트 완료") ? Ui.GREEN : Ui.MUTED);

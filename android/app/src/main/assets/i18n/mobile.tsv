@@ -853,14 +853,12 @@ Fish 가 반응 없음	Fish does not respond	Fish が反応しない
 미니게임 바처럼 보였지만 미니게임이 아님 — 다시 확인 ({0}번째) · 바 화면 {1}장 · 내 위치 읽음 {2}장 · 구간 읽음 {3}장	Looked like the minigame bar but it was not the minigame — checking again (#{0}) · bar frames {1} · position read {2} · zone read {3}	ミニゲームのバーに見えたがミニゲームではない — もう一度確認 ({0} 回目) · バーの画面 {1} 枚 · 自分の位置を読めた {2} 枚 · 区間を読めた {3} 枚
 Fish 를 눌러도 반응이 없는데 지난번 판매 때 팔 물고기가 없었음 — Fish 버튼 자리가 틀린 것 같아서 멈춤 (낚시 보정 → 칸을 띄우며 낚시 테스트로 확인 · 안 맞으면 자동 보정 다시)	Fish does not respond, but there was nothing to sell last time — the Fish button position looks wrong, so stopped (check with Fishing calibration → Fishing test with boxes shown · if it is off, auto-calibrate again)	Fish を押しても反応がないが、前回の販売で売る魚がなかった — Fish ボタンの位置が違うようなので停止 (釣りの補正 → 枠を表示して釣りテスト で確認 · 合っていなければ自動補正をやり直す)
 디버깅 모드	Debug mode	デバッグモード
-디버깅	debug	デバッグ
-디버깅 켜기	Debug on	デバッグ オン
-디버깅 끄기	Debug off	デバッグ オフ
+디버깅	Debug	デバッグ
 켜짐 · 모든 기능에서 칸을 그림	On · draws boxes in every feature	オン · すべての機能で枠を表示
 디버깅 모드 켬 — 모든 기능에서 매크로가 보는 칸 · 읽은 것 · 누른 자리를 화면에 그림	Debug mode on — draws what the macro looks at, what it reads and where it taps, in every feature	デバッグモード オン — すべての機能でマクロが見る枠 · 読んだもの · 押した位置を画面に表示
 디버깅 모드 끔	Debug mode off	デバッグモード オフ
 켜면 모든 기능 (자동 낚시 · 낚시 보정 · 낚시 테스트 · 판매 · 판매 보정 · 이동 · 길 기록 · 조이스틱 · 점프 · 바이옴 매크로) 을 돌릴 때 매크로가 보는 칸 · 읽은 것 · 누른 자리를 로블록스 화면에 그림	When on, every feature (auto fishing · fishing calibration · fishing test · selling · sell calibration · movement · route recording · joystick · jump · biome macro) draws what the macro looks at, what it reads and where it taps on the Roblox screen	オンにすると、すべての機能 (自動釣り · 釣りの補正 · 釣りテスト · 販売 · 販売の補正 · 移動 · ルート記録 · ジョイスティック · ジャンプ · バイオームマクロ) の実行中に、マクロが見る枠 · 読んだもの · 押した位置を Roblox の画面に表示
-실행 중에 켜고 꺼도 바로 바뀜 · 앱 맨 위 버튼 · 떠 있는 Acrux 창 첫 화면과 같음 · 그린 칸은 화면 캡처에서 지우고 읽음	Takes effect right away, even while running · same as the button at the top of the app and the first screen of the floating Acrux window · the drawn boxes are erased from the screen capture before reading	実行中にオン · オフしてもすぐ反映 · アプリ上部のボタン · 浮いている Acrux ウィンドウの最初の画面と同じ · 描いた枠は画面キャプチャから消してから読む
+실행 중에 켜고 꺼도 바로 바뀜 · 앱 맨 위 · 떠 있는 Acrux 창 첫 화면의 켜기 · 끄기와 같음 · 그린 칸은 화면 캡처에서 지우고 읽음	Takes effect right away, even while running · same as the switch at the top of the app and on the first screen of the floating Acrux window · the drawn boxes are erased from the screen capture before reading	実行中にオン · オフしてもすぐ反映 · アプリ上部 · 浮いている Acrux ウィンドウの最初の画面のスイッチと同じ · 描いた枠は画面キャプチャから消してから読む
 디버깅 · {0}	Debug · {0}	デバッグ · {0}
 디버깅 끝 — {0}	Debug done — {0}	デバッグ終了 — {0}
 디버깅 · 바이옴 매크로 · {0}	Debug · biome macro · {0}	デバッグ · バイオームマクロ · {0}
