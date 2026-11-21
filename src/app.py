@@ -34,6 +34,7 @@ import sell
 import merchant
 import crafter
 import memmatch
+import pscheck
 from version import VERSION
 
 
@@ -151,6 +152,9 @@ class Bridge:
         self.crash_warned = None            # 자동 복구를 못 하는 이유를 한 번만 알림
         # mod_hold: 모드가 원래 매크로를 멈춰 둠 (모드가 대신 할 일을 하는 동안) — 매크로를 다시 켜거나 모드가 풀면 다시 시작
         self.mod_hold = False
+        # 서버 체크 (디스코드 봇 /서버 체크): 도는 동안은 매크로가 비켜 줌 (메뉴를 열고 닫는 몇 초)
+        self.ps_busy = False
+        self.ps_lock = threading.Lock()
         self.locked_keys = {"stats", "mods", "discord"}  # 화면(set_config)에서 못 바꾸는 키 — 엔진 · 모드만 씀
         self.afk_at = time.time()           # AFK 방지 점프: 마지막으로 점프한 시각
         self.craft_busy = False             # Auto Crafted 알림 확인(OCR)이 도는 중
@@ -456,18 +460,20 @@ class Bridge:
                     self.ret_watch = None                    # 복귀 실패 뒤 직접 게임에 들어감 → 기다렸다가 매크로 다시 시작
                     self._after_return("게임 입장 확인")
                 busy = self.ret.running() or self.play.running() or time.time() < self.resume_at \
-                    or self.ret_watch is not None or self._mod_busy("macro")
+                    or self.ret_watch is not None or self._mod_busy("macro") or self.ps_busy
                 away = busy or self.mod_hold
                 if want and away and not paused:
-                    paused = True
-                    if self.mod_hold:
+                    paused = "ps" if self.ps_busy else True
+                    if self.ps_busy:
+                        self._on_log("서버 체크 중 — 매크로 잠시 멈춤 (끝나면 다시 시작)", "c")
+                    elif self.mod_hold:
                         self._on_log("모드가 매크로를 멈춰 둠 — 매크로를 다시 켜면 시작", "c")
                     else:
                         self._on_log("다른 일 중 (복귀 · 모드) — 매크로 잠시 멈춤 (끝나면 다시 시작)", "c")
                 elif paused and (not want or not away):
-                    paused = False
+                    was, paused = paused, False
                     if want:
-                        self._on_log("내 서버 — 매크로 다시 시작", "g")
+                        self._on_log("서버 체크 끝 — 매크로 다시 시작" if was == "ps" else "내 서버 — 매크로 다시 시작", "g")
                 ok = want and not away and bool(macro.roblox_window_cached(2.0))
                 now = time.time()
                 if self.merchant_pending and now - self.merchant_pending[1] > 180:
@@ -748,10 +754,14 @@ class Bridge:
             return 0, {}
 
     def _dc_state(self, need="status", lines=50):
-        """봇이 물어본 것만 (need = status · stats · logs)"""
+        """봇이 물어본 것만 (need = status · stats · logs · ps_check 서버 체크 · ps_return 내 서버로 복귀)"""
         mon = bool(self.data.get("macro_on"))
         out = {"v": VERSION, "running": mon}
-        if need == "status":
+        if need == "ps_check":
+            out["ps"] = self._ps_check()
+        elif need == "ps_return":
+            out["ps"] = self._ps_return()
+        elif need == "status":
             busy = [(self.mpop.snapshot(), "포션 사용 중"), (self.blood.snapshot(), "블러드 레인 만드는 중"),
                     (self.items.snapshot(), "아이템 사용 중"), (self.merchant.snapshot(), "상인 구매 중"),
                     (self.crafter.snapshot(), "포션 제작 중"), (self.matcher.snapshot(), "메모리 매치 중"),
@@ -778,6 +788,87 @@ class Bridge:
             out["logs"] = [[time.strftime("%H:%M:%S", time.localtime(t)), self.DC_URL_RE.sub("[링크]", str(m))[:200]]
                            for _, t, m, _ in logs]
         return out
+
+    # ---------------- 서버 체크 (디스코드 봇 /서버 체크) ----------------
+    PS_STOP_WAIT = 12.0                     # 하던 기능이 멈출 때까지 기다리는 최대 시간 (초)
+
+    def _ps_others(self):
+        """서버 체크 전에 멈춰야 하는 것 (아직 돌고 있으면)"""
+        return [n for n, r in (("자동 낚시", self.fisher.running()), ("상인", self.merchant.running()),
+                               ("포션 제작", self.crafter.running()), ("메모리 매치", self.matcher.running()),
+                               ("아이템 사용", self.items.running()), ("블러드 레인", self.blood.running()),
+                               ("이동", self.mover.running())) if r]
+
+    # 확인 못 한 이유 (봇에는 코드로 보내서 봇이 디스코드 언어로 · 앱 기록에는 한국어로)
+    PS_WHY = {"no_roblox": "로블록스가 꺼져 있음", "returning": "복귀 · 게임 입장 중", "mod": "모드가 다른 서버에서 작업 중",
+              "popping": "레어 바이옴 팝핑 · 블러드 레인 중", "cal": "자동 보정 중", "busy": "이미 서버 체크 중",
+              "stuck": "하던 기능이 안 멈춤", "menu": "메뉴 창을 못 찾음 — 매크로 설정 → 공통 위치 → 메뉴 버튼 위치를 지정해 주세요",
+              "error": "오류", "no_link": "복귀할 브섭 링크가 없음 (매크로 복귀 설정에서 입력)"}
+
+    def _ps_check(self):
+        """지금 서버가 내 브섭인지 → {"own": True | False | None (확인 못 함), "why": 이유 코드 (PS_WHY), "link": 복귀할 링크가 있음}"""
+        link = bool(self._ret_cfg().get("ps_link"))
+
+        def out(own, why=""):
+            if own is None:
+                self._on_log(f"서버 체크 — 확인 못 함 ({self.PS_WHY.get(why, why)})", "y")
+            return {"own": own, "why": why, "link": link}
+        if not macro.roblox_window():
+            return out(None, "no_roblox")
+        if self.ret.running() or self.play.running() or time.time() < self.resume_at or self.crash:
+            return out(None, "returning")
+        if self._mod_busy("macro"):
+            return out(None, "mod")
+        if self._emergency():
+            return out(None, "popping")
+        if self._cal_running():
+            return out(None, "cal")
+        if not self.ps_lock.acquire(blocking=False):
+            return out(None, "busy")
+        try:
+            self.ps_busy = True
+            self._on_log("서버 체크 — 메뉴를 열어 내 브섭인지 확인", "c")
+            end = time.time() + self.PS_STOP_WAIT
+            while self._ps_others() and time.time() < end:
+                time.sleep(0.2)
+            left = self._ps_others()
+            if left:
+                self._on_log(f"서버 체크 안 함 — 하던 기능이 안 멈춤 ({', '.join(left)})", "y")
+                return {"own": None, "why": "stuck", "link": link}
+            hwnd = macro.roblox_window()
+            if not hwnd:
+                return out(None, "no_roblox")
+            macro.focus(hwnd, wait=0.3)
+            time.sleep(0.4)                 # 낚시 등을 멈춘 직후 화면이 정리될 때까지
+            rect = lambda: macro.client_rect(macro.roblox_window_cached(1.0)) or (0, 0, 1920, 1080)
+
+            def click(pos):
+                macro.click(*macro.to_screen(pos[0], pos[1], rect()))
+
+            own = pscheck.check(lambda: macro.ocr_boxes(None), click, time.sleep, rect,
+                                (self.data.get("base") or {}).get("menu_pos"), self._on_log)
+            if own is None:
+                return out(None, "menu")
+            self._on_log("서버 체크 — 내 브섭" if own else "서버 체크 — 내 브섭이 아님", "g" if own else "y")
+            return out(own)
+        except Exception as e:
+            write_crash(f"ps check: {e}")
+            return out(None, "error")
+        finally:
+            self.ps_busy = False
+            self.ps_lock.release()
+
+    def _ps_return(self):
+        """디스코드 봇 [내 서버로 복귀] → 매크로 복귀 (로블록스 종료 → 내 브섭 링크 → Play) → {"ok", "why": 이유 코드}"""
+        if not self._ret_cfg().get("ps_link"):
+            return {"ok": False, "why": "no_link"}
+        if self.ret.running() or self.play.running():
+            return {"ok": False, "why": "returning"}
+        if self._mod_busy("macro"):
+            return {"ok": False, "why": "mod"}
+        self.ret_cause = None
+        self._on_log("디스코드 봇 — 내 서버로 복귀", "c")
+        return {"ok": bool(self.ret.start("서버 체크")), "why": ""}
 
     def _dc_loop(self):
         """연결돼 있으면 계속 "봇 요청 있어?" 를 기다림 (데이터 없음) → 요청이 오면 그것만 보냄"""
@@ -1110,7 +1201,8 @@ class Bridge:
         return {"ok": True}
 
     # 매크로 기준 위치 설정 — 버튼 위치 · 영역 (feat: base = 여러 기능이 같이 쓰는 기준 위치 / mfish = 자동 낚시만)
-    MPOS_POINTS = {"base": dict(popping.POS_KEYS, chat_pos="채팅 버튼", collection_pos="도감 버튼", collection_close="도감 Exit", dialog_pos="대화창"),
+    MPOS_POINTS = {"base": dict(popping.POS_KEYS, chat_pos="채팅 버튼", collection_pos="도감 버튼", collection_close="도감 Exit", dialog_pos="대화창",
+                                menu_pos="메뉴 버튼"),
                    "mfish": dict(fishing.POS_KEYS, **dict(sell.SELL_KEYS)),
                    "mmerch": dict(merchant.POS_KEYS), "mcraft": dict(crafter.POS_KEYS), "mmatch": dict(memmatch.POS_KEYS)}
     MPOS_REGIONS = {"base": ("ocr_region", "notice_region"), "mfish": ("panel_region", "reel_region", "result_region", "bar_region"),

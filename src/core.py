@@ -83,6 +83,7 @@ BASE_DEFAULT = {
     "collection_pos": None,       # 도감 버튼 (왼쪽 메뉴의 Collection)
     "collection_close": None,     # 도감 Exit 버튼
     "dialog_pos": None,           # NPC 대화창 (눌러서 대화 넘기기 · 물고기 판매 등 여러 기능이 같이 씀)
+    "menu_pos": None,             # 왼쪽 메뉴의 Menu 버튼 (줄 세 개 · 서버 체크) — 없으면 pscheck.MENU_POS
 }
 MOVE_FEATS = ("mfish", "mpop", "mcraft", "mmatch")    # 장소를 따로 둘 수 있는 기능 (매크로 기준 위치 설정의 각 기능 칸)
 # 기능마다 정해진 장소 (사용자가 만들거나 지우지 않음 · 지점 위치와 시간만 지정)
@@ -374,7 +375,7 @@ def normalize(raw):
         base["notice_region"] = old_mf["notice_region"]
     if not base.get("dialog_pos") and old_mf.get("dialog_pos"):    # 대화창은 자동 낚시에서 통합 위치로 옮김
         base["dialog_pos"] = old_mf["dialog_pos"]
-    for k in (*BASE_INV_KEYS, "chat_pos", "collection_pos", "collection_close", "dialog_pos"):
+    for k in (*BASE_INV_KEYS, "chat_pos", "collection_pos", "collection_close", "dialog_pos", "menu_pos"):
         base[k] = _ratio_list(base.get(k), 2)
     for k in ("ocr_region", "notice_region"):
         base[k] = _ratio_list(base.get(k), 4)
