@@ -896,11 +896,16 @@ class Bridge:
                 continue
             req = r.get("req")
             if isinstance(req, dict) and req.get("id"):
-                try:
-                    state = self._dc_state(str(req.get("need") or "status"), req.get("lines") or 50)
-                    self._dc_req("/macro/reply", {"id": str(req["id"])[:32], "state": state}, token)
-                except Exception:
-                    pass
+                def answer(req=req, token=token):
+                    try:
+                        state = self._dc_state(str(req.get("need") or "status"), req.get("lines") or 50)
+                        self._dc_req("/macro/reply", {"id": str(req["id"])[:32], "state": state}, token)
+                    except Exception:
+                        pass
+                if req.get("need") == "ps_check":   # 몇 초 ~ 20초 걸림 → 따로 (그동안 /상태 · /로그 도 바로 답함)
+                    threading.Thread(target=answer, daemon=True).start()
+                else:
+                    answer()
 
     def _set_macro(self, on, why="F3"):
         """매크로 버튼 켜기 · 끄기 (F3 · 화면 버튼과 같음)"""
@@ -983,7 +988,7 @@ class Bridge:
         busy = (self.play.running() or self.ret.running() or self._mod_busy("afk") or self.mpop.running()
                 or self.blood.running() or self.fisher.running() or self.items.running() or self.merchant.running() or self.crafter.running()
                 or self.matcher.running() or self.mover.running() or self._cal_running() or self.craft_busy
-                or time.time() < self.resume_at)
+                or self.ps_busy or time.time() < self.resume_at)
         return not busy
 
     AFK_GAP = 0.8                           # 컴퓨터를 쓰는 중이면 입력이 이만큼 멈춘 틈에 점프 (치던 글자가 로블록스로 안 들어가게)
@@ -1055,7 +1060,7 @@ class Bridge:
         self._urgent_start(found, "mpop")
 
     SCREEN_NAMES = {"items": "아이템 사용", "merchant": "상인 구매", "craft": "포션 제작", "match": "메모리 매치",
-                    "move": "이동", "cal": "자동 보정", "blood": "블러드 레인"}
+                    "move": "이동", "cal": "자동 보정", "blood": "블러드 레인", "ps": "서버 체크"}
 
     def _screen_users(self, kind="mpop"):
         """지금 화면(마우스 · 키보드)을 쓰는 기능 [(이름, 멈추는 함수)] — 자동 낚시 · 낚시 중 이동 · 판매는 긴급 기능이 직접 비켜 달라고 함
@@ -1067,6 +1072,8 @@ class Bridge:
             out.append(("blood", self.blood.stop))
         if self.mover.thread is not None and self.mover.thread.is_alive():
             out.append(("move", self.mover.stop))
+        if self.ps_busy:                        # 서버 체크 (메뉴를 열고 닫는 몇 초) — 멈출 수 없어서 끝날 때까지 기다림
+            out.append(("ps", lambda: None))
         for flag, ev in self.CALS:
             if getattr(self, flag, False) and getattr(self, ev, None) is not None:
                 out.append(("cal", getattr(self, ev).set))
@@ -1117,6 +1124,9 @@ class Bridge:
                     if name not in names:
                         names.append(name)
                         what = self.SCREEN_NAMES.get(name, name)
+                        if name == "ps":
+                            self._on_log(f"{found if kind == 'mpop' else biome.show_name(found)} 감지 — 서버 체크가 끝나면 시작", "y")
+                            continue
                         self._on_log(f"{found} 감지 — {what} 멈추고 팝핑 먼저" if kind == "mpop"
                                      else f"{biome.show_name(found)} 감지 — {what} 멈추고 블러드 레인 먼저", "y")
                     stop()
