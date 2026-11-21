@@ -466,7 +466,7 @@ final class Hub {
 
     static String psWhy(String why) {
         switch (why) {
-            case "no_roblox": return "로블록스가 맨 앞에 없음";
+            case "no_roblox": return "로블록스를 못 찾음 — 로블록스에 들어가 있는 상태로 다시";
             case "perm": return "접근성 권한 · 화면 캡처가 꺼져 있음";
             case "menu_pos": return "게임 메뉴 버튼 위치가 없음 — 이동 → 기준 장소에서 지정";
             case "menu": return "메뉴 창을 못 찾음 — 게임 메뉴 버튼 위치 확인";
@@ -481,7 +481,6 @@ final class Hub {
     /** 봇 요청 (디스코드 연결 스레드) → {own, why, link} */
     static org.json.JSONObject psCheck() {
         if (TapService.instance == null || CaptureService.active == null) return psRes(null, "perm");
-        if (!TapService.robloxFront()) return psRes(null, "no_roblox");
         if (pos.get(PS_MENU) == null) return psRes(null, "menu_pos");
         if (psBusy || psWant.get() != null) return psRes(null, "busy");
         if (running()) {
@@ -504,10 +503,31 @@ final class Hub {
             if (running()) return psRes(null, "other");
             psBusy = true;
         }
+        String back = null;
         try {
+            // 폰의 디스코드에서 명령을 보냈으면 로블록스가 뒤에 있음 → 로블록스를 앞으로 가져와서 확인하고, 끝나면 그 앱으로 돌려보냄
+            if (!TapService.robloxFront()) {
+                String rb = TapService.roblox, was = TapService.front;
+                if (rb == null) {
+                    // Acrux (접근성) 가 로블록스보다 나중에 켜졌으면 로블록스를 앞에서 본 적이 없음 → 기본 로블록스 앱으로
+                    log("서버 체크 — 맨 앞 앱: " + was + " · 로블록스를 아직 못 봄", 'd');
+                    rb = "com.roblox.client";
+                }
+                if (!TapService.bringFront(rb)) return psRes(null, "no_roblox");
+                back = was;
+                log("서버 체크 — 로블록스를 앞으로 가져옴 (맨 앞 앱: " + was + ")", 'c');
+                for (int i = 0; i < 20 && !TapService.robloxFront(); i++) Touch.nap(100);
+                // 이미 앞에 있었으면 화면이 안 바뀌어서 알림이 안 옴 → 앞으로 가져왔으니 로블록스로 봄
+                if (!TapService.robloxFront()) TapService.front = rb;
+                Touch.nap(1500);                               // 화면이 다 그려질 때까지
+            }
             return psRun();
         } finally {
             psBusy = false;
+            if (back != null && TapService.robloxFront()) {
+                Touch.nap(300);
+                TapService.bringFront(back);
+            }
             changed();
         }
     }

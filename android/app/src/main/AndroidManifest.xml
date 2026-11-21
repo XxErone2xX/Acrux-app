@@ -9,6 +9,14 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- 서버 체크: 디스코드 등 다른 앱에서 명령을 보냈으면 로블록스를 앞으로 가져왔다가 그 앱으로 돌려보냄 (앱 실행 화면 찾기) -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <application
         android:name=".AcruxApp"
         android:allowBackup="false"

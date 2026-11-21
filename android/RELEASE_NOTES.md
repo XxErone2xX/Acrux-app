@@ -1,3 +1,19 @@
+## Acrux Mobile V1.6.3 업데이트
+- 디버깅 모드를 왼쪽으로 밀어서 켜고 끄게 바꿈 [ 앱 맨 위 · 설정 · 떠 있는 Acrux 창 ]
+  - 끝까지 밀었다 놓으면 켜짐 ↔ 꺼짐 [ 톡 누르거나 덜 밀면 안 바뀜 · 실수로 안 바뀌게 ]
+  - 켜져 있으면 노란색
+- 서버 체크: 폰의 디스코드에서 명령을 보내면 "로블록스가 맨 앞에 없습니다" 로 안 되던 문제 수정
+  - 로블록스를 앞으로 가져와서 확인하고, 끝나면 명령을 보낸 앱 [ 디스코드 등 ] 으로 돌아감
+  - 로블록스가 앞에 있는데도 "맨 앞에 없음" 으로 나오던 문제 수정 [ 게임 도우미 · 떠 있는 아이콘 같은 작은 창이 뜨면 맨 앞 앱이 바뀐 걸로 봤음 ]
+
+## Acrux Mobile V1.6.3 Update
+- Debug mode now turns on and off by sliding to the left [ top of the app · settings · floating Acrux window ]
+  - Slide all the way and let go to switch on ↔ off [ a tap or a short slide doesn't change it · prevents accidental toggles ]
+  - Yellow while on
+- Server check: fixed "Roblox isn't in front" when the command was sent from Discord on the same phone
+  - Brings Roblox to the front to check, then goes back to the app you sent it from [ Discord etc. ]
+  - Fixed "not in front" even while Roblox was in front [ small windows such as game assistants · floating icons were taken as the front app ]
+
 ## Acrux Mobile V1.6.2 업데이트
 - 디스코드 봇 서버 체크 추가 [ /서버 체크 · PC 와 같음 · 매크로가 지금 내 브섭에 있는지 확인 ]
   - 게임 메뉴를 한 번 열어 Private Server Commands 버튼이 있으면 내 브섭

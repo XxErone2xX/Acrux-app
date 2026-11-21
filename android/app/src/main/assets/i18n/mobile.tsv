@@ -870,7 +870,7 @@ Fish 를 눌러도 반응이 없는데 지난번 판매 때 팔 물고기가 없
 디버깅 모드 켬 — 모든 기능에서 매크로가 보는 칸 · 읽은 것 · 누른 자리를 화면에 그림	Debug mode on — draws what the macro looks at, what it reads and where it taps, in every feature	デバッグモード オン — すべての機能でマクロが見る枠 · 読んだもの · 押した位置を画面に表示
 디버깅 모드 끔	Debug mode off	デバッグモード オフ
 켜면 모든 기능 (자동 낚시 · 낚시 보정 · 낚시 테스트 · 판매 · 판매 보정 · 이동 · 길 기록 · 조이스틱 · 점프 · 바이옴 매크로) 을 돌릴 때 매크로가 보는 칸 · 읽은 것 · 누른 자리를 로블록스 화면에 그림	When on, every feature (auto fishing · fishing calibration · fishing test · selling · sell calibration · movement · route recording · joystick · jump · biome macro) draws what the macro looks at, what it reads and where it taps on the Roblox screen	オンにすると、すべての機能 (自動釣り · 釣りの補正 · 釣りテスト · 販売 · 販売の補正 · 移動 · ルート記録 · ジョイスティック · ジャンプ · バイオームマクロ) の実行中に、マクロが見る枠 · 読んだもの · 押した位置を Roblox の画面に表示
-실행 중에 켜고 꺼도 바로 바뀜 · 앱 맨 위 · 떠 있는 Acrux 창 첫 화면의 켜기 · 끄기와 같음 · 그린 칸은 화면 캡처에서 지우고 읽음	Takes effect right away, even while running · same as the switch at the top of the app and on the first screen of the floating Acrux window · the drawn boxes are erased from the screen capture before reading	実行中にオン · オフしてもすぐ反映 · アプリ上部 · 浮いている Acrux ウィンドウの最初の画面のスイッチと同じ · 描いた枠は画面キャプチャから消してから読む
+왼쪽 끝까지 밀었다 놓으면 켜고 끔 · 실행 중에 켜고 꺼도 바로 바뀜 · 앱 맨 위 · 떠 있는 Acrux 창 첫 화면과 같음 · 그린 칸은 화면 캡처에서 지우고 읽음	Slide all the way to the left and let go to turn it on or off · takes effect right away, even while running · same as the top of the app and the first screen of the floating Acrux window · the drawn boxes are erased from the screen capture before reading	左端までスライドして離すとオン · オフ · 実行中に切り替えてもすぐ反映 · アプリ上部 · 浮いている Acrux ウィンドウの最初の画面と同じ · 描いた枠は画面キャプチャから消してから読む
 디버깅 · {0}	Debug · {0}	デバッグ · {0}
 디버깅 끝 — {0}	Debug done — {0}	デバッグ終了 — {0}
 디버깅 · 바이옴 매크로 · {0}	Debug · biome macro · {0}	デバッグ · バイオームマクロ · {0}
@@ -905,7 +905,10 @@ Menu 창을 여는 버튼 · 브섭 확인에 씀	Opens the Menu window · used 
 서버 체크 — 확인 못 함 ({0})	Server check — couldn't check ({0})	サーバーチェック — 確認できない ({0})
 서버 체크 — 자동 낚시가 대기 화면에 오면 확인	Server check — checking when auto fishing is back on the idle screen	サーバーチェック — 自動釣りが待機画面に来たら確認
 서버 체크 오류: {0}	Server check error: {0}	サーバーチェックのエラー: {0}
-로블록스가 맨 앞에 없음	Roblox isn't in front	Roblox が前面にない
+로블록스를 못 찾음 — 로블록스에 들어가 있는 상태로 다시	Roblox not found — try again while you're in the game in Roblox	Roblox が見つからない — Roblox でゲームに入った状態でもう一度
+서버 체크 — 로블록스를 앞으로 가져옴 (맨 앞 앱: {0})	Server check — bringing Roblox to the front (front app: {0})	サーバーチェック — Roblox を前面に表示 (前面のアプリ: {0})
+서버 체크 — 맨 앞 앱: {0} · 로블록스를 아직 못 봄	Server check — front app: {0} · Roblox not seen yet	サーバーチェック — 前面のアプリ: {0} · Roblox をまだ見ていない
+앱을 앞으로 못 가져옴: {0} — {1}	Couldn't bring the app to the front: {0} — {1}	アプリを前面に出せない: {0} — {1}
 접근성 권한 · 화면 캡처가 꺼져 있음	Accessibility permission · screen capture is off	ユーザー補助の権限 · 画面キャプチャがオフ
 게임 메뉴 버튼 위치가 없음 — 이동 → 기준 장소에서 지정	No game menu button position — set it in Movement → Base spot	ゲームメニューボタンの位置がない — 移動 → 基準地点で指定
 메뉴 창을 못 찾음 — 게임 메뉴 버튼 위치 확인	Menu window not found — check the game menu button position	Menu ウィンドウが見つからない — ゲームメニューボタンの位置を確認

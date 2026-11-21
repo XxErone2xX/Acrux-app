@@ -166,8 +166,12 @@ public class TapService extends AccessibilityService {
         Hub.changed();
     }
 
-    /** 맨 앞 앱 (창이 바뀔 때마다 · 우리 앱 · 알림창 · 키보드는 빼고) — 서버 체크가 로블록스가 아닌 앱을 누르지 않게 · 아직 모르면 null */
+    /** 맨 앞 앱 (화면 (액티비티) 이 바뀔 때마다 · 우리 앱 · 알림창 · 키보드 · 게임 위에 뜨는 작은 창은 빼고) — 서버 체크가 로블록스가 아닌 앱을 누르지 않게 · 아직 모르면 null */
     static volatile String front;
+    /** 화면 (액티비티) 인지 — 게임 도우미 · 떠 있는 아이콘 같은 작은 창이 로블록스 위에 떠도 맨 앞 앱이 바뀐 걸로 안 보게 (이름별로 한 번만 확인) */
+    static final java.util.Map<String, Boolean> ACTIVITY = new java.util.concurrent.ConcurrentHashMap<>();
+    /** 이번에 켜진 뒤 맨 앞에서 본 로블록스 앱 (로블록스가 뒤에 있을 때 앞으로 가져오는 데 씀 · 못 봤으면 null) */
+    static volatile String roblox;
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
@@ -175,13 +179,48 @@ public class TapService extends AccessibilityService {
         String p = event.getPackageName().toString();
         if (p.equals(getPackageName()) || p.equals("com.android.systemui") || p.contains("inputmethod") || p.contains("keyboard")
                 || p.contains("honeyboard")) return;
+        boolean rb = p.startsWith("com.roblox.");
+        if (!rb && !isActivity(p, event.getClassName())) return;
         front = p;
+        if (rb) roblox = p;
+    }
+
+    boolean isActivity(String pkg, CharSequence cls) {
+        if (cls == null) return false;
+        String key = pkg + "/" + cls;
+        Boolean b = ACTIVITY.get(key);
+        if (b == null) {
+            try {
+                getPackageManager().getActivityInfo(new android.content.ComponentName(pkg, cls.toString()), 0);
+                b = true;
+            } catch (android.content.pm.PackageManager.NameNotFoundException | RuntimeException e) {
+                b = false;
+            }
+            ACTIVITY.put(key, b);
+        }
+        return b;
     }
 
     /** 로블록스가 맨 앞 (모르면 true) */
     static boolean robloxFront() {
         String p = front;
         return p == null || p.startsWith("com.roblox.");
+    }
+
+    /** 그 앱을 앞으로 (이미 켜져 있으면 하던 화면 그대로) → 됐는지 */
+    static boolean bringFront(String pkg) {
+        TapService t = instance;
+        if (t == null || pkg == null) return false;
+        try {
+            Intent i = t.getPackageManager().getLaunchIntentForPackage(pkg);
+            if (i == null) return false;
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+            t.startActivity(i);
+            return true;
+        } catch (RuntimeException e) {
+            Hub.log("앱을 앞으로 못 가져옴: " + pkg + " — " + e.getMessage(), 'd');
+            return false;
+        }
     }
 
     @Override
@@ -860,9 +899,9 @@ public class TapService extends AccessibilityService {
 
     String page = "home";
     LinearLayout pageBox;
-    TextView dot, clock, bioState, safeNote, dbgName, dbgState;
-    LinearLayout dbgRow;
-    Toggle dbgSw;
+    TextView dot, clock, bioState, safeNote;
+    /** 디버깅 모드 — 왼쪽 끝까지 밀었다 놓으면 켜고 끔 (톡 눌러서는 안 바뀜) */
+    Slide dbgSw;
     Toggle bioSw;
     /** 지금 페이지에서 상태가 바뀌면 다시 쓸 것들 */
     final List<Runnable> live = new ArrayList<>();
@@ -941,23 +980,15 @@ public class TapService extends AccessibilityService {
         LinearLayout.LayoutParams brp = mw();
         brp.topMargin = Ui.dp(this, 2);
         box.addView(br, brp);
-        // 디버깅 모드 (바이옴 매크로와 같은 켜기 · 끄기 줄 · 켜면 글자 노랑): 모든 기능에서 매크로가 보는 칸 · 읽은 것 · 누른 자리를 로블록스 화면에 그림 · 실행 중에 켜고 꺼도 바로
-        dbgRow = reg("debug", hrow());
-        dbgRow.setPadding(0, Ui.dp(this, 7), 0, Ui.dp(this, 7));
-        dbgRow.setBackground(press());
-        dbgRow.setOnClickListener(v -> Hub.setDebug(!Hub.debug));
-        dbgName = Ui.text(this, "디버깅 모드", 11, C_FG, false);
-        dbgRow.addView(dbgName, Ui.wrap());
-        dbgState = Ui.text(this, "꺼짐", 10, C_DIM, false);
-        dbgState.setSingleLine(true);
-        dbgState.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        LinearLayout.LayoutParams dsp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        dsp.leftMargin = Ui.dp(this, 8);
-        dsp.rightMargin = Ui.dp(this, 8);
-        dbgRow.addView(dbgState, dsp);
-        dbgSw = new Toggle(this);
-        dbgRow.addView(dbgSw, new LinearLayout.LayoutParams(Ui.dp(this, 28), Ui.dp(this, 14)));
-        box.addView(dbgRow, mw());
+        // 디버깅 모드 (왼쪽 끝까지 밀어서 켜고 끔 · 켜면 노랑): 모든 기능에서 매크로가 보는 칸 · 읽은 것 · 누른 자리를 로블록스 화면에 그림 · 실행 중에 켜고 꺼도 바로
+        dbgSw = reg("debug", new Slide(this, "디버깅 모드", 10.5f, C_DBG, C_MUT, C_P2, C_FG, C_DIM, on -> {
+            if (on != Hub.debug) Hub.setDebug(on);
+        }));
+        dbgSw.set(Hub.debug);
+        LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Ui.dp(this, 26));
+        dlp.topMargin = Ui.dp(this, 6);
+        dlp.bottomMargin = Ui.dp(this, 6);
+        box.addView(dbgSw, dlp);
         // 안전 모드로 바이옴 알림을 기다리는 중: 안내 (누르면 1분 타이머 건너뜀 · PC 의 K 키)
         safeNote = reg("safe", Ui.text(this, "", 10, C_WARN, false));
         safeNote.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 6));
@@ -1543,12 +1574,8 @@ public class TapService extends AccessibilityService {
             bioState.setTextColor(!bio ? C_DIM : Biome.waiting() ? C_WARN : Biome.watching ? C_ACC : C_WARN);
             bioSw.set(bio);
         }
-        if (dbgRow != null) {
-            boolean on = Hub.debug;
-            Ui.set(dbgState, on ? "켜짐 · 모든 기능에서 칸을 그림" : "꺼짐");
-            dbgState.setTextColor(on ? C_DBG : C_DIM);
-            dbgName.setTextColor(on ? C_DBG : C_FG);
-            dbgSw.set(on);
+        if (dbgSw != null) {
+            dbgSw.set(Hub.debug);
         }
         if (safeNote != null) {
             boolean w = Biome.waiting();
