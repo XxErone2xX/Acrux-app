@@ -96,6 +96,8 @@ public final class Fisher {
     public java.util.function.BooleanSupplier onFull;
     /** 릴링 측정값 · 결과창 X 자리를 새로 배웠을 때 (앱이 저장) */
     public Runnable onLearn;
+    /** 던지기 전 대기 화면 (Fish 버튼이 보이고 낚싯대를 안 던졌음) 마다: 낚시 밖에서 할 일 (서버 체크 등) 을 했으면 true (그 시간은 멈춰 선 걸로 안 셈) */
+    public java.util.function.BooleanSupplier onIdle;
 
     /** 낚시 테스트 · 디버깅 모드에서 화면에 그려 볼 것 (앱이 넣음 · 없으면 안 씀) */
     public interface Probe {
@@ -671,6 +673,10 @@ public final class Fisher {
                 }
                 out.state("입질 기다리는 중");
             } else if ("idle".equals(st)) {
+                if (castAt == null && !waited && onIdle != null && onIdle.getAsBoolean()) {
+                    progressAt = knownAt = now();
+                    continue;
+                }
                 if (once && waited) {
                     // 던진 뒤 (Exit 가 보였음) 릴링 없이 다시 Fish → 미니게임을 못 보고 지나감
                     testDone("입질 뒤 미니게임을 못 봄 — 주황 칸 (미니게임 바) 이 실제 바와 맞는지 확인", 'y');

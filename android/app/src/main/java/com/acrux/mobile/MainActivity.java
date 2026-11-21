@@ -1236,6 +1236,7 @@ public class MainActivity extends Activity {
         ps.append(stk == null ? "· " : "✓ ").append(Ui.tr("조이스틱")).append(stk == null ? "" : "  " + TapService.fmt(stk[0]) + ", " + TapService.fmt(stk[1]) + "  r " + TapService.fmt(stk[2])).append('\n');
         for (String[] k : Mover.BASE_KEYS) line(ps, Ui.tr(k[1]), Hub.pos.get(k[0]));
         for (String[] k : Mover.JUMP_KEYS) line(ps, Ui.tr(k[1]), Hub.pos.get(k[0]));
+        line(ps, Ui.tr(Hub.PS_MENU_KEY[1]), Hub.pos.get(Hub.PS_MENU));
         for (String[] k : Seller.TALK) line(ps, Ui.tr(k[1]), Hub.pos.get(k[0]));
         for (String[] k : Seller.KEYS) line(ps, I18n.f("{0} (판매)", Ui.tr(k[1])), Hub.pos.get(k[0]));
         route(ps, Ui.tr("낚시 장소 길"), Hub.fishRoute);

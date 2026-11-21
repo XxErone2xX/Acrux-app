@@ -196,13 +196,17 @@ final class DiscordLink {
 
     static final String[][] STAT_MAP = {{"success", "fish_success"}, {"junk", "fish_junk"}, {"fail", "fish_fail"}, {"sells", "sell_runs"}, {"sold", "sold"}};
 
-    /** 봇이 물어본 것만 (need = status · stats · logs · 글자는 앱 언어로) */
+    /** 봇이 물어본 것만 (need = status · stats · logs · ps_check 서버 체크 · ps_return 내 서버로 복귀 · 글자는 앱 언어로) */
     static JSONObject state(String need, int lines) throws Exception {
         boolean run = Hub.running();
         JSONObject s = new JSONObject();
         s.put("v", "V" + Online.BuildConfigVersion.get());
         s.put("running", run);
-        if ("stats".equals(need)) {
+        if ("ps_check".equals(need)) {
+            s.put("ps", Hub.psCheck());
+        } else if ("ps_return".equals(need)) {
+            s.put("ps", Hub.psReturn());
+        } else if ("stats".equals(need)) {
             JSONObject ses = new JSONObject(), all = new JSONObject();
             for (int i = 0; i < Hub.STAT_KEYS.length; i++) {
                 for (String[] m : STAT_MAP) {
@@ -266,12 +270,17 @@ final class DiscordLink {
                 }
                 JSONObject req = ((JSONObject) r[1]).optJSONObject("req");
                 if (req != null && !req.optString("id").isEmpty()) {
-                    try {
-                        JSONObject state = state(req.optString("need", "status"), req.optInt("lines", 50));
-                        String id = req.optString("id");
-                        call("/macro/reply", new JSONObject().put("id", id.length() > 32 ? id.substring(0, 32) : id).put("state", state), tok);
-                    } catch (Exception ignored) {
-                    }
+                    Runnable answer = () -> {
+                        try {
+                            JSONObject state = state(req.optString("need", "status"), req.optInt("lines", 50));
+                            String id = req.optString("id");
+                            call("/macro/reply", new JSONObject().put("id", id.length() > 32 ? id.substring(0, 32) : id).put("state", state), tok);
+                        } catch (Exception ignored) {
+                        }
+                    };
+                    // 서버 체크는 몇 초 ~ 30초 걸림 → 따로 (그동안 /상태 · /로그 도 바로 답함)
+                    if (req.optString("need").startsWith("ps_")) new Thread(answer, "acrux-ps").start();
+                    else answer.run();
                 }
             } catch (InterruptedException e) {
                 return;

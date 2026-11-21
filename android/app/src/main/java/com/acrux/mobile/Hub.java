@@ -318,6 +318,8 @@ final class Hub {
      *  · rec_fish / rec_sell 길 기록 · stickfind / sticktest 조이스틱 → 못 하면 이유 */
     static synchronized String start(String m) {
         if (running()) return "이미 실행 중";
+        if (psBusy) return "서버 체크 중 — 잠시 후 다시";
+        psResume = false;
         lastError = null;
         // 새로 실행할 때는 리셋을 꼭 함 ('방금 리셋함' 은 한 실행 안에서만 — 그 사이 손으로 움직였을 수 있음)
         Mover.markMoved();
@@ -348,6 +350,7 @@ final class Hub {
             f.onStart = sl::goFish;
             zeroSells = sellSkips = 0;
             f.onFull = () -> sellOnce(sl);
+            f.onIdle = Hub::psAtIdle;                         // 디스코드 봇 서버 체크: 던지기 전 대기 화면에서 (낚시를 끊지 않게)
         }
         TapService ts = TapService.instance;
         if (ts != null && ts.coversGame() && (m.equals("cal") || m.equals("run") || test))
@@ -435,6 +438,196 @@ final class Hub {
         main.post(BoxOverlay::started);                        // 디버깅 모드 · 낚시 테스트: 보정된 칸 · 상태를 바로 그림 (시작 전 1초 동안도 보임)
         changed();
         return "";
+    }
+
+    // ---- 서버 체크 (디스코드 봇 /서버 체크 · PC 와 같음)
+    //  자동 낚시 중이면 던지기 전 대기 화면에서 (Fisher.onIdle) · 아무것도 안 돌면 바로 · 다른 기능 (테스트 · 보정 · 기록) 중이면 안 함
+    //  이유 코드 (봇이 디스코드 언어로 보여 줌): no_roblox · perm · menu_pos · menu · other · busy · stuck · error · no_link
+    static final String PS_MENU = "game_menu";
+    static final String[] PS_MENU_KEY = {PS_MENU, "게임 메뉴 버튼 (왼쪽 줄 세 개)"};
+    static volatile boolean psBusy;
+    /** 복귀 뒤 자동 낚시를 다시 켤 예정 (그 사이 [시작] · [정지] 를 누르면 취소) */
+    static volatile boolean psResume;
+    static final java.util.concurrent.atomic.AtomicReference<java.util.concurrent.CompletableFuture<org.json.JSONObject>> psWant =
+            new java.util.concurrent.atomic.AtomicReference<>();
+    static final long PS_WAIT_MS = 25_000;                     // 자동 낚시가 대기 화면에 올 때까지 (봇은 35초까지 기다림)
+
+    static org.json.JSONObject psRes(Boolean own, String why) {
+        org.json.JSONObject o = new org.json.JSONObject();
+        try {
+            o.put("own", own == null ? org.json.JSONObject.NULL : own);
+            o.put("why", why);
+            o.put("link", !Biome.ps().isEmpty());
+        } catch (org.json.JSONException ignored) {
+        }
+        if (own == null) log("서버 체크 — 확인 못 함 (" + psWhy(why) + ")", 'y');
+        return o;
+    }
+
+    static String psWhy(String why) {
+        switch (why) {
+            case "no_roblox": return "로블록스가 맨 앞에 없음";
+            case "perm": return "접근성 권한 · 화면 캡처가 꺼져 있음";
+            case "menu_pos": return "게임 메뉴 버튼 위치가 없음 — 이동 → 기준 장소에서 지정";
+            case "menu": return "메뉴 창을 못 찾음 — 게임 메뉴 버튼 위치 확인";
+            case "other": return "다른 기능 (테스트 · 보정 · 기록) 중";
+            case "busy": return "이미 서버 체크 중";
+            case "stuck": return "자동 낚시가 대기 화면으로 안 옴";
+            case "no_link": return "브섭 링크가 없음 — 바이옴 매크로 설정에서 입력";
+            default: return "오류";
+        }
+    }
+
+    /** 봇 요청 (디스코드 연결 스레드) → {own, why, link} */
+    static org.json.JSONObject psCheck() {
+        if (TapService.instance == null || CaptureService.active == null) return psRes(null, "perm");
+        if (!TapService.robloxFront()) return psRes(null, "no_roblox");
+        if (pos.get(PS_MENU) == null) return psRes(null, "menu_pos");
+        if (psBusy || psWant.get() != null) return psRes(null, "busy");
+        if (running()) {
+            if (!"run".equals(mode)) return psRes(null, "other");
+            java.util.concurrent.CompletableFuture<org.json.JSONObject> want = new java.util.concurrent.CompletableFuture<>();
+            if (!psWant.compareAndSet(null, want)) return psRes(null, "busy");
+            log("서버 체크 — 자동 낚시가 대기 화면에 오면 확인", 'c');
+            try {
+                return want.get(PS_WAIT_MS, TimeUnit.MILLISECONDS);
+            } catch (Exception e) {
+                if (psWant.compareAndSet(want, null)) return psRes(null, running() ? "stuck" : "other");
+                try {
+                    return want.get(15, TimeUnit.SECONDS);   // 막 시작함 → 끝날 때까지
+                } catch (Exception e2) {
+                    return psRes(null, "error");
+                }
+            }
+        }
+        synchronized (Hub.class) {                             // 그 사이 [시작] 을 못 누르게 (start 가 psBusy 를 봄)
+            if (running()) return psRes(null, "other");
+            psBusy = true;
+        }
+        try {
+            return psRun();
+        } finally {
+            psBusy = false;
+            changed();
+        }
+    }
+
+    /** 자동 낚시가 던지기 전 대기 화면에서 부름 (워커 스레드) → 서버 체크 요청이 있었으면 하고 true */
+    static boolean psAtIdle() {
+        java.util.concurrent.CompletableFuture<org.json.JSONObject> want = psWant.getAndSet(null);
+        if (want == null) return false;
+        psBusy = true;
+        String was = state;
+        OUT.state("서버 체크 중");
+        try {
+            want.complete(TapService.robloxFront() ? psRun() : psRes(null, "no_roblox"));
+        } catch (RuntimeException e) {
+            want.complete(psRes(null, "error"));
+            if (e instanceof Fisher.Stopped) throw e;
+        } finally {
+            psBusy = false;
+            OUT.state(was);
+        }
+        return true;
+    }
+
+    /** 메뉴를 열어 확인하고 닫음 (화면을 쓰는 다른 일이 없을 때만 부름) */
+    static org.json.JSONObject psRun() {
+        CaptureService cap = CaptureService.active;
+        TapService ts = TapService.instance;
+        double[] menu = pos.get(PS_MENU);
+        if (cap == null || ts == null) return psRes(null, "perm");
+        if (menu == null) return psRes(null, "menu_pos");
+        log("서버 체크 — 메뉴를 열어 내 브섭인지 확인", 'c');
+        MlOcr ocr = new MlOcr();
+        try {
+            Boolean own = com.acrux.mobile.core.PsCheck.check(new com.acrux.mobile.core.PsCheck.Io() {
+                @Override
+                public List<com.acrux.mobile.core.SellText.Box> read() {
+                    return ocr.read(null);
+                }
+
+                @Override
+                public void tap(double[] p) {
+                    int x = (int) (p[0] * cap.width()), y = (int) (p[1] * cap.height());
+                    BoxOverlay.tapped(x, y);
+                    ts.tap(x, y, 80);
+                }
+
+                @Override
+                public void sleep(double sec) {
+                    Touch.nap((int) (sec * 1000));
+                }
+
+                @Override
+                public int[] size() {
+                    return new int[]{cap.width(), cap.height()};
+                }
+            }, menu, () -> log("서버 체크 — Menu 창이 안 닫힘 (직접 닫아 주세요)", 'y'));
+            if (own == null) return psRes(null, "menu");
+            log(own ? "서버 체크 — 내 브섭" : "서버 체크 — 내 브섭이 아님", own ? 'g' : 'y');
+            return psRes(own, "");
+        } catch (Fisher.Stopped e) {
+            throw e;
+        } catch (RuntimeException e) {
+            log("서버 체크 오류: " + e, 'y');
+            return psRes(null, "error");
+        }
+    }
+
+    /** 봇의 [내 서버로 복귀] → 자동 낚시를 멈추고 (ADB 가 연결돼 있으면 로블록스를 끄고) 브섭 링크를 엶 → 45초 뒤 자동 낚시 다시 시작 → {ok, why} */
+    static org.json.JSONObject psReturn() {
+        org.json.JSONObject o = new org.json.JSONObject();
+        String link = Biome.ps();
+        try {
+            if (link.isEmpty()) return o.put("ok", false).put("why", "no_link");
+            if (TapService.instance == null) return o.put("ok", false).put("why", "perm");
+            if (psBusy) return o.put("ok", false).put("why", "busy");
+            boolean wasRun = running() && "run".equals(mode);
+            if (running() && !wasRun) return o.put("ok", false).put("why", "other");
+            log("디스코드 봇 — 내 서버로 복귀", 'c');
+            if (wasRun) {
+                stop();
+                for (int i = 0; i < 100 && running(); i++) Touch.nap(100);
+            }
+            if (Adb.connected) {
+                try {
+                    Adb.shell(app, "am force-stop com.roblox.client", 5000, l -> { });
+                    Touch.nap(1500);
+                } catch (Exception e) {
+                    log("로블록스를 끄지 못함 (ADB) — 링크만 엶", 'd');
+                }
+            }
+            TapService ts = TapService.instance;
+            Context c = ts != null ? ts : app;
+            android.content.Intent view = new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(link))
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+            try {
+                c.startActivity(new android.content.Intent(view).setPackage("com.roblox.client"));
+            } catch (android.content.ActivityNotFoundException e) {
+                c.startActivity(view);
+            }
+            if (wasRun) {
+                log("내 서버로 복귀 — 45초 뒤 자동 낚시 다시 시작", 'c');
+                psResume = true;
+                main.postDelayed(() -> {
+                    if (!psResume || running()) return;
+                    psResume = false;
+                    String err = start("run");
+                    if (!err.isEmpty()) log("자동 낚시 다시 시작 못 함 — " + err, 'y');
+                }, 45_000);
+            }
+            return o.put("ok", true).put("why", "");
+        } catch (org.json.JSONException e) {
+            return o;
+        } catch (RuntimeException e) {
+            log("내 서버로 복귀 오류: " + e, 'y');
+            try {
+                return o.put("ok", false).put("why", "error");
+            } catch (org.json.JSONException ignored) {
+                return o;
+            }
+        }
     }
 
     static Seller seller(CaptureService cap, Mover mv) {
@@ -663,6 +856,7 @@ final class Hub {
             return;
         }
         stopFlag = true;
+        psResume = false;
         Fisher f = fisher;
         if (f != null) f.stop();
         Thread w = worker;

@@ -166,8 +166,23 @@ public class TapService extends AccessibilityService {
         Hub.changed();
     }
 
+    /** 맨 앞 앱 (창이 바뀔 때마다 · 우리 앱 · 알림창 · 키보드는 빼고) — 서버 체크가 로블록스가 아닌 앱을 누르지 않게 · 아직 모르면 null */
+    static volatile String front;
+
     @Override
-    public void onAccessibilityEvent(AccessibilityEvent event) {}
+    public void onAccessibilityEvent(AccessibilityEvent event) {
+        if (event == null || event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || event.getPackageName() == null) return;
+        String p = event.getPackageName().toString();
+        if (p.equals(getPackageName()) || p.equals("com.android.systemui") || p.contains("inputmethod") || p.contains("keyboard")
+                || p.contains("honeyboard")) return;
+        front = p;
+    }
+
+    /** 로블록스가 맨 앞 (모르면 true) */
+    static boolean robloxFront() {
+        String p = front;
+        return p == null || p.startsWith("com.roblox.");
+    }
 
     @Override
     public void onInterrupt() {}
@@ -1065,6 +1080,8 @@ public class TapService extends AccessibilityService {
         m.addView(hair(), hairLp());
         m.addView(section("공통 위치 (기준 장소 맞추기)"), mw());
         for (String[] k : Mover.BASE_KEYS) pos(m, k[0], k[1], null);
+        m.addView(section("서버 체크 (디스코드 봇)"), mw());
+        pos(m, Hub.PS_MENU_KEY[0], Hub.PS_MENU_KEY[1], "Menu 창을 여는 버튼 · 브섭 확인에 씀");
         m.addView(section("테스트"), mw());
         act(m, "act:base", "기준 장소로", null, false, v -> toggle("base"));
         act(m, "act:fish", "기준 장소 → 낚시 장소", null, false, v -> toggle("fish"));

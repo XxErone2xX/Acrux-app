@@ -186,6 +186,20 @@ Collection 창을 연 상태에서 닫기(X) 버튼	Close (X) button while the C
 지점을 누르고 시간 재기 · 도착하면 F6	Clicks the point and times it · press F6 on arrival	地点を押して時間を計る・到着したらF6
 기준 장소로 가는 중… 그다음 걸어갈 곳 클릭	Going to the base spot… then click where to walk	基準地点へ移動中… その後歩く場所をクリック
 로블록스 화면에서 걸어갈 곳 클릭	Click where to walk in Roblox	Roblox画面で歩く場所をクリック
+길 기록	Record route	道を記録
+다시 기록	Record again	もう一度記録
+길 기록 중	Recording route	道を記録中
+기록 안 됨	not recorded	未記録
+길	Route	道
+WASD · Space 로 걸어가고 도착하면 F6 또는 [도착] · 화면은 돌리지 마세요	Walk with WASD · Space and press F6 or [Arrived] on arrival · don't turn the camera	WASD · Space で歩き、到着したらF6か［到着］・カメラは回さないでください
+[길 기록] → 매크로가 기준 장소로 간 뒤, 직접 WASD · Space 로 걸어가서 도착하면 F6 · 그 입력을 그대로 다시 누름	[Record route] → the macro goes to the base spot, then you walk there with WASD · Space and press F6 on arrival · the macro replays those inputs	［道を記録］→ マクロが基準地点へ行った後、WASD · Space で歩いて到着したらF6・その入力をそのまま再生
+[길 기록] → 매크로가 반대쪽 기준 장소로 간 뒤, 직접 WASD · Space 로 걸어가서 도착하면 F6 · 그 입력을 그대로 다시 누름	[Record route] → the macro goes to the reverse starting point, then you walk there with WASD · Space and press F6 on arrival · the macro replays those inputs	［道を記録］→ マクロが反対側の基準地点へ行った後、WASD · Space で歩いて到着したらF6・その入力をそのまま再生
+기준 장소로 가는 중… 도착하면 WASD · Space 로 걸어가고 F6	Going to the base spot… then walk with WASD · Space and press F6	基準地点へ移動中… 着いたら WASD · Space で歩いてF6
+반대쪽 기준 장소로 가는 중… 도착하면 WASD · Space 로 걸어가고 F6	Going to the reverse starting point… then walk with WASD · Space and press F6	反対側の基準地点へ移動中… 着いたら WASD · Space で歩いてF6
+기록한 길이 끝난 뒤 더 기다릴 시간 (초)	extra wait after the recorded route ends (s)	記録した道が終わった後の追加待機（秒）
+반대쪽 기준 장소에서 포션 제작 장소까지 직접 걸어간 길 (WASD · Space)	Route walked from the reverse starting point to the potion crafting spot (WASD · Space)	反対側の基準地点からポーション製作場所まで歩いた道（WASD · Space）
+아무 키도 안 눌러서 길을 저장하지 않음	No keys were pressed, so the route was not saved	キーが押されなかったので道を保存しませんでした
+300초 안에 도착을 안 누름 — 길 기록 취소	Arrival not pressed within 300 s — route recording cancelled	300秒以内に到着が押されませんでした — 道の記録を取り消し
 기준 장소로 이동 · 리셋	Going to base spot · reset	基準地点へ移動・リセット
 기준 장소로 이동 · 카메라 정렬	Going to base spot · camera align	基準地点へ移動・カメラ整列
 기준 장소로 이동 · 줌	Going to base spot · zoom	基準地点へ移動・ズーム
@@ -716,7 +730,6 @@ RapidOCR 를 골랐어도 설치가 안 돼 있으면 윈도우 OCR 을 씀	Fall
 끄기	Off	オフ
 바이옴 확인 중	Checking biome	バイオーム確認中
 플레이어 이름 필요	Player name needed	プレイヤー名が必要
-다른 서버 접속 중이라 대기	Waiting (in another server)	別サーバーに参加中のため待機
 켜진 기능 없음	No features on	オンの機能なし
 포션 사용 중	Using potions	ポーション使用中
 모두 꺼짐	All off	すべてオフ
@@ -1118,7 +1131,13 @@ OCR 패키지가 설치되지 않음 (run.bat 으로 실행 필요)	OCR package 
 로블록스 비공개 서버 링크 형식이 아님	Not a Roblox private server link	Robloxのプライベートサーバーリンク形式ではありません
 딥링크 변환 실패 → 브라우저로 열기	Couldn't convert to a deep link → opening in browser	ディープリンクに変換できません → ブラウザで開く
 로블록스 클라이언트 전부 종료	Closed all Roblox clients	Robloxクライアントをすべて終了
-다른 서버 접속 — 이번 접속 동안 바이옴 웹후크 안 보냄	Joined another server — no biome webhooks this session	別サーバーに参加 — この接続中はバイオームWebhookを送りません
+서버 확인 전	Server not checked yet	サーバー未確認
+안전 모드	Safe mode	セーフモード
+서버 ID 가 1분 이상 그대로일 때만 바이옴 알림 전송 · 다른 사람 서버에 잠깐 들어갔을 때 알림이 안 가게 · 게임에서 K 로 타이머 건너뛰기	Sends biome notifications only after the server ID has stayed the same for 1 minute or more · so a short visit to someone else's server sends nothing · press K in game to skip the timer	サーバーIDが1分以上変わらないときだけバイオーム通知を送信 · 他の人のサーバーに少し入っただけでは通知しない · ゲーム中に K でタイマーをスキップ
+서버	Server	サーバー
+안전 모드 켜짐	Safe mode on	セーフモード オン
+안전 모드 꺼짐	Safe mode off	セーフモード オフ
+안전 모드 타이머 건너뜀 (K)	Safe mode timer skipped (K)	セーフモードのタイマーをスキップ (K)
 로블록스 접속 끊김 감지 (로그)	Roblox disconnect detected (log)	Robloxの切断を検出（ログ）
 Inventory 열기	Opening Inventory	Inventoryを開く
 로블록스 창 기다리는 중	Waiting for the Roblox window	Robloxウィンドウ待機中
@@ -1328,3 +1347,71 @@ Acrux 웹사이트	Acrux website	Acruxウェブサイト
 삭제함 · 다시 켜면 적용	Deleted · applies after restart	削除しました・再起動後に適用
 Acrux 를 다시 켜는 중…	Restarting Acrux…	Acruxを再起動中…
 켜기 · 끄기	On · off	オン・オフ
+모드 받기 · 설치한 모드 · 켜기 · 끄기 · 모드 파일 설치	Get mods · Installed mods · On / off · Install mod file	MOD を入手 · インストール済み MOD · オン / オフ · MOD ファイルをインストール
+모드 받기	Get mods	MOD を入手
+웹사이트 모드 바로 설치	Install mods from the website	Web サイトの MOD をすぐインストール
+새로 고침	Refresh	更新
+acruxmacro.com 커뮤니티 → 모드 게시판에 올라온 것 (운영자가 확인한 것만) · 모드는 Acrux 와 같은 권한으로 돌아서 믿을 수 있는 것만 설치	From the acruxmacro.com community → Mods board (only ones checked by staff) · mods run with the same permissions as Acrux, so install only ones you trust	acruxmacro.com コミュニティ → MOD 掲示板に投稿されたもの (運営が確認したものだけ) · MOD は Acrux と同じ権限で動くので、信頼できるものだけインストール
+모드 이름 · 글 검색	Search mod name · posts	MOD 名 · 投稿を検索
+검색	Search	検索
+불러오는 중…	Loading…	読み込み中…
+검색 결과 없음	No results	検索結果なし
+아직 올라온 모드 없음	No mods uploaded yet	まだ MOD がありません
+설치	Install	インストール
+다시 설치	Reinstall	再インストール
+업데이트	Update	アップデート
+설치됨	Installed	インストール済み
+새 버전 있음	New version	新しいバージョンあり
+글 보기	View post	投稿を見る
+받는 중…	Downloading…	ダウンロード中…
+설치 실패	Install failed	インストール失敗
+웹사이트에 연결할 수 없음	Could not reach the website	Web サイトに接続できません
+잘못된 모드	Invalid mod	無効な MOD
+잘못된 글	Invalid post	無効な投稿
+받은 파일이 웹사이트에 올라온 것과 다름 — 다시 시도해 주세요	The downloaded file does not match the one on the website — please try again	ダウンロードしたファイルが Web サイトのものと違います — もう一度お試しください
+파일이 너무 큼	File is too large	ファイルが大きすぎます
+디스코드 연결	Discord link	Discord 連携
+언어 · 디스코드 연결 · OCR 감지 방식 · 데이터 폴더	Language · Discord link · OCR method · Data folder	言語・Discord 連携・OCR検知方式・データフォルダ
+디스코드 봇으로 매크로 상태 · 통계 · 기록 보기	See your macro status, stats and log with the Discord bot	Discord ボットでマクロの状態・統計・ログを見る
+연결하기	Link	連携する
+설정 ›	Settings ›	設定 ›
+기다리는 중	Waiting	待機中
+매크로 봇으로 상태 보기	See your macro with the bot	ボットでマクロを確認
+디스코드 계정	Discord account	Discord アカウント
+연결하면 디스코드 봇 (/상태 · /통계 · /로그) 으로 이 매크로를 볼 수 있음	Once linked, the Discord bot (/status · /stats · /logs) can show this macro	連携すると Discord ボット (/状態 · /統計 · /ログ) でこのマクロを見られます
+디스코드 로그인	Discord login	Discord ログイン
+브라우저가 열리면 디스코드로 로그인한 뒤 [연결] 을 누르면 끝	When the browser opens, log in with Discord and press [Link]	ブラウザが開いたら Discord でログインして [連携] を押すだけ
+연결 끊기	Unlink	連携を解除
+끊으면 봇에서 이 매크로가 사라짐	The bot stops showing this macro	ボットにこのマクロが表示されなくなります
+연결 기다리는 중	Waiting for link	連携待ち
+봇 명령이 왔을 때만 보냄: /상태 = 작동 여부 · 지금 하는 일 · 켜진 기능 · 바이옴 · /통계 = 통계 · /로그 = 최근 기록 · 평소에는 데이터 없이 요청이 왔는지만 확인	Sent only when a bot command comes: /status = running · what it is doing · enabled features · biome · /stats = stats · /logs = recent log · otherwise it only checks for requests, with no data	ボットのコマンドが来たときだけ送ります: /状態 = 動作状態 · 今していること · オンの機能 · バイオーム · /統計 = 統計 · /ログ = 最近のログ · 普段はデータなしでリクエストの有無だけ確認
+화면 · 파일 · 웹후크 주소는 보내지 않음 · 연결된 앱은 acruxmacro.com/link 에서도 끊을 수 있음	Never sends your screen, files or webhook URLs · you can also unlink apps at acruxmacro.com/link	画面 · ファイル · Webhook の URL は送りません · acruxmacro.com/link でも連携を解除できます
+서버에 연결할 수 없음	Could not reach the server	サーバーに接続できません
+연결 시간이 지남 — 다시 눌러 주세요	The link timed out — press it again	連携の時間が切れました — もう一度押してください
+디스코드 연결 실패	Discord link failed	Discord 連携に失敗
+디스코드 연결 끊음	Unlinked Discord	Discord の連携を解除
+디스코드 연결이 끊김 — 다시 연결하려면 설정 → Acrux → 디스코드 연결	Discord link removed — to link again, go to Settings → Acrux → Discord link	Discord 連携が解除されました — もう一度連携するには 設定 → Acrux → Discord 連携
+서버 체크	Server check	サーバーチェック
+메뉴 버튼	Menu button	メニューボタン
+메뉴 버튼 위치	Menu button position	メニューボタンの位置
+왼쪽 메뉴 맨 아래 줄 세 개 버튼	The three-line button at the bottom of the left menu	左メニューの一番下にある三本線のボタン
+쓰는 기능: 서버 체크 (디스코드 봇) · 선택 — 비워 두면 기본 위치 (1920×1080 전체 화면 기준)	Used by: Server check (Discord bot) · Optional — leave empty to use the default position (based on 1920×1080 fullscreen)	使用する機能: サーバーチェック（Discord ボット）・任意 — 空欄なら既定の位置（1920×1080 全画面基準）
+로블록스 화면에서 메뉴 버튼 클릭	Click the Menu button in Roblox	Roblox画面でメニューボタンをクリック
+메뉴 버튼 위치 저장	Menu button position saved	メニューボタンの位置を保存
+서버 체크 — 메뉴를 열어 내 브섭인지 확인	Server check — opening the menu to see if this is your private server	サーバーチェック — メニューを開いて自分のプライベートサーバーか確認
+서버 체크 중 — 매크로 잠시 멈춤 (끝나면 다시 시작)	Server check — macro paused (restarts when done)	サーバーチェック中 — マクロを一時停止（終わると再開）
+서버 체크 끝 — 매크로 다시 시작	Server check done — macro restarted	サーバーチェック終了 — マクロ再開
+서버 체크 — 내 브섭	Server check — your private server	サーバーチェック — 自分のプライベートサーバー
+서버 체크 — 내 브섭이 아님	Server check — not your private server	サーバーチェック — 自分のプライベートサーバーではない
+서버 체크 — Menu 창이 안 닫힘 (직접 닫아 주세요)	Server check — the Menu window didn't close (please close it yourself)	サーバーチェック — Menu ウィンドウが閉じない（手動で閉じてください）
+디스코드 봇 — 내 서버로 복귀	Discord bot — returning to your server	Discord ボット — 自分のサーバーへ復帰
+복귀 · 게임 입장 중	Returning · joining the game	復帰・ゲーム参加中
+모드가 다른 서버에서 작업 중	A mod is working in another server	MODが別のサーバーで作業中
+레어 바이옴 팝핑 · 블러드 레인 중	Popping a rare biome · making Blood Rain	レアバイオームポッピング・ブラッドレイン中
+자동 보정 중	Auto calibration running	自動補正中
+로블록스가 꺼져 있음	Roblox is closed	Robloxが閉じている
+오류	Error	エラー
+이미 서버 체크 중	Server check already running	すでにサーバーチェック中
+하던 기능이 안 멈춤	Running features didn't stop	実行中の機能が止まらない
+메뉴 창을 못 찾음 — 매크로 설정 → 공통 위치 → 메뉴 버튼 위치를 지정해 주세요	Menu window not found — set the Menu button position in Macro settings → Shared positions	Menu ウィンドウが見つからない — マクロ設定 → 共通位置 → メニューボタンの位置を指定してください
+복귀할 브섭 링크가 없음 (매크로 복귀 설정에서 입력)	No private server link to return to (enter it in Macro return settings)	復帰するプライベートサーバーのリンクがない（マクロ復帰設定で入力）

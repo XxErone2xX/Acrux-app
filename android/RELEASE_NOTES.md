@@ -1,3 +1,19 @@
+## Acrux Mobile V1.6.2 업데이트
+- 디스코드 봇 서버 체크 추가 [ /서버 체크 · PC 와 같음 · 매크로가 지금 내 브섭에 있는지 확인 ]
+  - 게임 메뉴를 한 번 열어 Private Server Commands 버튼이 있으면 내 브섭
+  - 자동 낚시 중이면 던지기 전 대기 화면에서 확인 [ 낚시 중간을 끊지 않음 · 끝나면 그대로 이어감 ]
+  - 내 브섭이 아니면 봇 답에 [내 서버로 복귀] 버튼 [ 매크로 주인만 · 바이옴 매크로 설정의 브섭 링크로 들어감 · 45초 뒤 자동 낚시 다시 시작 ]
+  - 무선 디버깅 (ADB) 이 연결돼 있으면 로블록스를 끈 뒤 들어감 [ 없으면 링크만 엶 ]
+- 이동 → 기준 장소에 게임 메뉴 버튼 위치 추가 [ 왼쪽 줄 세 개 버튼 · 서버 체크에 필요 ]
+
+## Acrux Mobile V1.6.2 Update
+- Added server check to the Discord bot [ /ps check · same as PC · checks whether your macro is in your private server ]
+  - Opens the game menu once; if the Private Server Commands button is there, it's your private server
+  - During auto fishing it checks on the idle screen before casting [ doesn't cut a round short · fishing continues afterwards ]
+  - If it isn't, the bot reply has a [Return to my server] button [ owner only · joins with the private server link in the biome macro settings · auto fishing restarts after 45 s ]
+  - If wireless debugging (ADB) is connected, Roblox is closed first [ otherwise only the link is opened ]
+- Added a game menu button position under Movement → Base spot [ the three-line button on the left · needed for server check ]
+
 ## Acrux Mobile V1.6.1 업데이트
 - 낚시: 낚시 창 자리를 잘못 옮겨서 그 뒤로 낚시가 계속 안 되던 문제 수정 [ 눈 바이옴 등에서 결과창을 못 닫은 뒤 생김 ]
   - 낚시 창을 다시 찾았을 때 크기가 다르면 다른 창으로 보고 안 옮김 · 같은 자리로 두 번 보여야 옮김
