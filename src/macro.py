@@ -866,7 +866,7 @@ def reset_fresh():
 RESET_WHEN_STOPPED = [lambda: False]
 
 
-def respawn(stop=None):
+def respawn(stop=None, *, startup=False):
     """Esc → R → Enter (0.5초 간격) → 방금 리셋하고 안 움직였으면 건너뜀 → 리셋했으면 True
     stop: 멈춤 신호 — 멈췄으면(매크로 끔 · 다른 서버 접속 등) · F7 을 누르고 있으면 · 로블록스 창을 앞으로 못 가져오면 키를 안 보냄
     (다른 창에 Esc · R · Enter 가 들어가지 않게)"""
@@ -876,12 +876,14 @@ def respawn(stop=None):
         if key_down_now("f7"):
             return True
         if stop is not None and stop.is_set():
+            if startup:
+                return True
             try:
                 return not RESET_WHEN_STOPPED[0]()
             except Exception:
                 return True
         return False
-    if reset_fresh() or halted():
+    if (not startup and reset_fresh()) or halted():
         return False
     hwnd = roblox_window_cached(1.0)
     if not hwnd:

@@ -69,6 +69,7 @@ def write_crash(msg):
 class Bridge:
     def __init__(self):
         self.lock = threading.Lock()
+        self.start_reset = None
         self.data = core.load_config()
         # 바이옴 매크로 · 매크로(매크로 탭)는 프로그램을 켤 때마다 꺼진 상태로 시작
         if (self.data.get("biome") or {}).get("enabled") or self.data.get("macro_on"):
@@ -395,9 +396,12 @@ class Bridge:
         allowed = (set(core.DEFAULT_CONFIG) | self.mod_keys) - self.locked_keys
         with self.lock:
             for k, v in patch.items():
-                if k in allowed:
+                if k in allowed and k != "macro_on":
                     self.data[k] = v
-        self._save()
+        if "macro_on" in patch and "macro_on" in allowed and bool(patch["macro_on"]) != bool(self.data.get("macro_on")):
+            self._set_macro(bool(patch["macro_on"]), "매크로 버튼")
+        else:
+            self._save()
         return {"config": self.data}
 
     # ---------------- 게임 입장 (Play 버튼) · 복귀 ----------------
@@ -479,6 +483,11 @@ class Bridge:
                     if want:
                         self._on_log("서버 체크 끝 — 매크로 다시 시작" if was == "ps" else "내 서버 — 매크로 다시 시작", "g")
                 ok = want and not away and bool(macro.roblox_window_cached(2.0))
+                startup = self.start_reset
+                if startup is not None:
+                    if not away and macro.roblox_window_cached(1.0):
+                        self._run_start_reset(startup)
+                    continue
                 now = time.time()
                 if self.merchant_pending and now - self.merchant_pending[1] > 180:
                     self.merchant_pending = None             # 상인이 떠났을 시간
@@ -982,6 +991,22 @@ class Bridge:
                 else:
                     answer()
 
+    def _run_start_reset(self, startup):
+        # The scheduler already owns screen_gate. Biome-triggered jobs use urgent_lock.
+        with self.urgent_lock:
+            if startup.is_set() or self._emergency() or self._single_running() or self._ps_others():
+                return
+            if macro.key_down_now("f7"):
+                self._macro_user_stop()
+                return
+            if not macro.respawn(startup, startup=True):
+                return
+            if startup.wait(max(0.0, float(self.data.get("move", {}).get("reset_wait", 3.5)))):
+                return
+            with self.lock:
+                if self.start_reset is startup:
+                    self.start_reset = None
+
     def _set_macro(self, on, why="F3"):
         """매크로 버튼 켜기 · 끄기 (F3 · 화면 버튼과 같음)"""
         self.fish_block, self.fish_fails, self.zero_sells, self.fish_backoff = None, 0, 0, 0
@@ -990,7 +1015,10 @@ class Bridge:
             self.mod_hold = False           # 모드가 멈춰 둔 것도 풂
         with self.lock:
             if on and not self.data.get("macro_on"):
-                macro.mark_moved()  # 새 실행에서는 이전에 리셋한 기록을 사용하지 않음
+                self.start_reset = threading.Event()
+            elif not on and self.start_reset is not None:
+                self.start_reset.set()
+                self.start_reset = None
             self.data["macro_on"] = bool(on)
         self._save()
         if not on:
@@ -1118,6 +1146,9 @@ class Bridge:
     def _macro_user_stop(self):
         """F7: 매크로 버튼을 끔 (자동 낚시 · 매크로 탭 기능 전부 멈춤)"""
         with self.lock:
+            if self.start_reset is not None:
+                self.start_reset.set()
+                self.start_reset = None
             self.data["macro_on"] = False
         self._save()
         self._on_log("F7 — 매크로 꺼짐", "y")
