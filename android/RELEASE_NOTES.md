@@ -1,3 +1,9 @@
+## Acrux Mobile V1.6.11 업데이트
+1. 낚시·판매 장소 이동 버튼을 낚시 → 길의 각 장소에 배치했습니다. 이동 → 기준 장소에서는 기준 장소 이동을 테스트할 수 있습니다.
+
+## Acrux Mobile V1.6.11 Update
+1. Moved the fishing and selling travel buttons next to their respective routes under Fishing → Routes. The base travel test remains under Movement → Base spot.
+
 ## Acrux Mobile V1.6.10 업데이트
 1. 튜토리얼과 이동 준비 안내에 카메라 모드를 클래식으로 설정하는 단계를 추가했습니다.
 

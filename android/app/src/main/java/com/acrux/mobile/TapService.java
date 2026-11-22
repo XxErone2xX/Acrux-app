@@ -1071,6 +1071,8 @@ public class TapService extends AccessibilityService {
                 return r.isEmpty() ? "기록 없음" : "기록됨 · " + fmt(r.seconds()) + "초 · " + r.parts() + "조각 · 점프 " + r.jumps() + "번";
             }, () -> !(sell ? Hub.sellRoute : Hub.fishRoute).isEmpty());
             act(m, sell ? "act:rec_sell" : "act:rec_fish", "길 기록", "기준 장소로 간 뒤 WASD 패드로 걸어감 → [도착]", true, v -> toggle(sell ? "rec_sell" : "rec_fish"));
+            act(m, sell ? "act:sellgo" : "act:fish", sell ? "기준 장소 → 판매 장소" : "기준 장소 → 낚시 장소",
+                    null, false, v -> toggle(sell ? "sellgo" : "fish"));
         }
     }
 
@@ -1131,8 +1133,6 @@ public class TapService extends AccessibilityService {
         for (String[] k : Mover.BASE_KEYS) pos(m, k[0], k[1], null);
         m.addView(section("테스트"), mw());
         act(m, "act:base", "기준 장소로", null, false, v -> toggle("base"));
-        act(m, "act:fish", "기준 장소 → 낚시 장소", null, false, v -> toggle("fish"));
-        act(m, "act:sellgo", "기준 장소 → 판매 장소", null, false, v -> toggle("sellgo"));
     }
 
     // ---- 줄 만들기
