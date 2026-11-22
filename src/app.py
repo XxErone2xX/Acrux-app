@@ -914,6 +914,8 @@ class Bridge:
         if on:
             self.mod_hold = False           # 모드가 멈춰 둔 것도 풂
         with self.lock:
+            if on and not self.data.get("macro_on"):
+                macro.mark_moved()  # 새 실행에서는 이전에 리셋한 기록을 사용하지 않음
             self.data["macro_on"] = bool(on)
         self._save()
         if not on:

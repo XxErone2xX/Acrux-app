@@ -8,7 +8,7 @@ import java.util.Map;
  * 물고기 판매 — PC 버전 sell.py 의 Seller · autocal 을 그대로 옮김
  *   기준 장소 → 판매 장소 길 → 카메라 정렬 → 대화 버튼 (E) 탭 → 대화 넘기기 → [Sell Fish]
  *   → (첫 칸 → Sell All → 확인 Sell) 을 확인창이 안 뜰 때까지 반복 → X 로 상점 닫기 → 기준 장소 → 낚시 장소 지점들
- * 다 팔았는지: Sell All 을 눌렀는데 확인창(초록 Sell 버튼)이 안 뜸 → 물고기가 없음
+ * 첫 칸을 누른 뒤 Sell All 에 확인창이 세 번 연속 안 뜨면 판매를 마침
  * 모바일: 버튼은 전부 손가락 탭 (씹히면 짧게 · 길게 바꿔서 다시)
  */
 public final class Seller {
@@ -192,7 +192,17 @@ public final class Seller {
      */
     double[] sellAll(double before, double d) {
         double[] at = p("confirm_sell_pos");
+        double[] first = p("first_fish_pos");
+        ui(first, 0);
+        mv.sleep(0.5 + d);
         for (int t = 0; t < 3; t++) {
+            // 먼저 Sell All 만 재시도해 이미 고른 칸이 풀리지 않게 함. 마지막에 첫 칸 탭이 누락됐는지 확인.
+            if (t == 2) {
+                double[] located = locateFirst();
+                if (located != null) first = located;
+                ui(first, 1);
+                mv.sleep(0.5 + d);
+            }
             // 누르기 직전에 화면에서 [Sell All] 을 다시 찾음 (저장한 자리가 어긋나 있어도)
             double[] btn = findSellAll();
             if (btn != null) pos.put("sell_all_pos", btn);
@@ -200,6 +210,7 @@ public final class Seller {
             ui(btn, t);
             double[] got = waitConfirm(at, before, (t == 0 ? 1.5 : 2.0) + d);
             if (got != null) {
+                if (t == 2) pos.put("first_fish_pos", first);
                 if (t > 0) out.log("Sell All 이 " + (t + 1) + "번째에 눌림", 'd');
                 return got;
             }
@@ -225,114 +236,15 @@ public final class Seller {
         return new double[]{SellText.r4(x), SellText.r4(y)};
     }
 
-    /** 왼쪽 칸에 고른 물고기가 보이나 ('Weight' · 'Sells for' 0 이 아닌 값) — 안 골랐으면 'Empty.' · 'Sells for 0' */
-    static boolean selected(List<SellText.Box> boxes) {
-        if (SellText.findText(boxes, "weight") != null) return true;
-        SellText.Box sf = SellText.findText(boxes, "sellsfor");
-        if (sf == null || SellText.findText(boxes, true, "empty") != null) return false;
-        String digits = sf.text.replaceAll("[^0-9]", "");
-        return !digits.isEmpty() && !digits.matches("0+");
-    }
-
-    /** 상점에 물고기 이름이 보이면 첫 번째 물고기 칸 자리 (없으면 null = 다 판 것) · 글자를 못 읽어도 첫 칸에 물고기 그림이 보이면 그 자리 */
-    double[] fishLeft() {
+    /** 확인창이 안 뜨면 상점 모양 또는 오른쪽 목록의 이름으로 첫 칸 위치를 다시 찾음. */
+    double[] locateFirst() {
         List<SellText.Box> boxes = ocr.read(null);
-        SellText.Box title = SellText.findText(boxes, "fishingshop"), sa = SellText.findText(boxes, true, "sellall");
-        if (title == null || sa == null) return slotHasFish(p("first_fish_pos")) ? p("first_fish_pos") : null;
-        double[] byName = SellText.firstFish(boxes, title, sa, (double) scr.width() / Math.max(1, scr.height()));
-        if (byName == null) return null;
-        double[] byLayout = slotFromLayout(boxes);
-        return byLayout != null ? byLayout : byName;
-    }
-
-    /** 밝은 칸 비율 (글자 · 물고기 그림) — 상점 바탕은 어두움 */
-    static double bright(Img im, int x0, int y0, int x1, int y1) {
-        int n = 0, c = 0;
-        for (int y = Math.max(0, y0); y < Math.min(im.h, y1); y++) {
-            for (int x = Math.max(0, x0); x < Math.min(im.w, x1); x++) {
-                int k = y * im.w + x;
-                n++;
-                if (Math.max(im.r[k], Math.max(im.g[k], im.b[k])) > 140) c++;
-            }
-        }
-        return n == 0 ? 0 : (double) c / n;
-    }
-
-    /**
-     * 왼쪽 칸에 고른 물고기 그림이 보이나 (글자 읽기 없이 · [Sell] · [Sell All] 위 네모 칸) — 상점을 못 찾으면 null
-     * 안 골랐으면 그 칸이 비어 있음 (어두움) · 골랐으면 물고기 그림
-     */
-    Boolean previewFish() {
-        Img im = full();
-        if (im == null || im.w == 0) return null;
-        Buttons.Box[] d = Buttons.shop(im);
-        if (d == null) d = Buttons.shopBlue(im);
-        if (d == null) return null;
-        Buttons.Box g = d[0], b = d[1];
-        int w = g.w();
-        return bright(im, g.x1 + w / 10, (int) (g.cy() - 3.0 * w), b.x2 - w / 10, (int) (g.cy() - 1.3 * w)) > 0.008;
-    }
-
-    /** 이 칸에 물고기가 있나 (그림 · 이름이 밝게 보임 · 빈 칸은 어두움) */
-    boolean slotHasFish(double[] at) {
-        if (at == null) return false;
-        Img im = full();
-        if (im == null || im.w == 0) return false;
-        int r = Math.max(6, (int) (im.h * 0.055)), x = (int) (at[0] * im.w), y = (int) (at[1] * im.h);
-        return bright(im, x - r, y - r, x + r, y + r) > 0.02;
-    }
-
-    boolean picked(List<SellText.Box> boxes) {
-        return selected(boxes) || Boolean.TRUE.equals(previewFish());
-    }
-
-    /**
-     * 첫 번째 물고기 칸을 누르고 정말 골라졌는지 확인 → 골랐으면 true
-     * 골라졌는지: 왼쪽 칸 글자 ('Weight' · 'Sells for' 0 이 아닌 값) 또는 왼쪽 칸에 물고기 그림 (글자를 못 읽는 폰에서도)
-     * 같은 칸을 또 누르면 고른 게 풀릴 수 있음 → 누르기 전에 이미 골라져 있는지 보고 · 화면이 늦게 바뀔 수 있어서 한 번 더 기다려 본 뒤에만 다시 누름
-     * 저장한 자리 · 상점 모양으로 계산한 자리 · 이름으로 찾은 자리를 차례로
-     */
-    boolean selectFirst(double d) {
-        List<double[]> tried = new ArrayList<>();
-        double[] at = p("first_fish_pos");
-        for (int t = 0; t < 4 && at != null; t++) {
-            // 두 번째부터: 앞에서 누른 게 늦게 골라졌으면 또 누르지 않음 (풀릴 수 있음) · 처음엔 늘 누름 (막 판 물고기 그림이 남아 있을 수 있어서)
-            if (t > 0 && Boolean.TRUE.equals(previewFish())) return true;
-            ui(at, Math.min(2, t));
-            tried.add(at);
-            mv.sleep(0.45 + d);
-            List<SellText.Box> boxes = ocr.read(null);
-            boolean ok = picked(boxes);
-            if (!ok) {
-                mv.sleep(0.6 + d);                                  // 늦게 바뀌는 것일 수 있음 → 다시 누르기 전에 한 번 더 확인
-                boxes = ocr.read(null);
-                ok = picked(boxes);
-            }
-            if (ok) {
-                if (at != p("first_fish_pos")) {
-                    pos.put("first_fish_pos", at);
-                    out.log("첫 번째 물고기 칸 자리를 고쳐서 저장함 (" + at[0] + ", " + at[1] + ")", 'd');
-                }
-                return true;
-            }
-            // 다음 후보: 상점 모양으로 계산한 자리 → 이름으로 찾은 자리 → 저장한 자리 (길게)
-            double[] next = null;
-            SellText.Box title = SellText.findText(boxes, "fishingshop"), sa = SellText.findText(boxes, true, "sellall");
-            double[] lay = slotFromLayout(boxes);
-            double[] nm = title != null && sa != null ? SellText.firstFish(boxes, title, sa, (double) scr.width() / Math.max(1, scr.height())) : null;
-            for (double[] c : new double[][]{lay, nm, p("first_fish_pos")}) {
-                if (c == null) continue;
-                boolean seen = false;
-                for (double[] q : tried) if (Math.abs(q[0] - c[0]) < 0.015 && Math.abs(q[1] - c[1]) < 0.02) seen = true;
-                if (!seen) {
-                    next = c;
-                    break;
-                }
-            }
-            at = next != null ? next : p("first_fish_pos");
-            if (next == null && t >= 1) break;
-        }
-        return false;
+        double[] layout = slotFromLayout(boxes);
+        if (layout != null) return layout;
+        SellText.Box title = SellText.findText(boxes, "fishingshop");
+        SellText.Box all = SellText.findText(boxes, true, "sellall");
+        if (title == null || all == null) return null;
+        return SellText.firstFish(boxes, title, all, (double) scr.width() / Math.max(1, scr.height()));
     }
 
     /** 상점이 열린 상태에서: (첫 칸 → Sell All → 확인 Sell) 을 확인창이 안 뜰 때까지 → 판 종류 수 */
@@ -341,35 +253,9 @@ public final class Seller {
         boolean warned = false;
         for (int i = 0; i < sellMax; i++) {
             out.state("판매 · 파는 중 (" + sold + "종류)");
-            // 골라졌는지 확인하며 누름 (확인을 못 해도 그대로 Sell All 을 눌러 봄)
-            if (!selectFirst(d) && i == 0 && slotHasFish(p("first_fish_pos")))
-                out.log("첫 번째 물고기 칸을 눌러도 골라졌는지 확인이 안 됨 — 그대로 Sell All 을 눌러 봄", 'd');
             double before = green(p("confirm_sell_pos"));
             double[] sellAt = sellAll(before, d);
-            if (sellAt == null) {
-                // Sell All 을 3번 눌러도 확인창이 없음 → 정말 팔 물고기가 없는지 화면 글자로 확인 (물고기 이름이 보이면 아직 있음)
-                //  전에는 여기서 바로 '다 팔았음' 으로 보고 상점을 닫아서, 물고기가 남았는데 그냥 닫는 일이 있었음
-                double[] ff = fishLeft();
-                if (ff != null) {
-                    out.log("물고기가 아직 보임 — 첫 칸을 화면에서 다시 찾아서 다시 팔아 봄", 'd');
-                    // 왼쪽 칸에 물고기가 보이면 (골라져 있음) 먼저 그대로 Sell All → 안 되면 칸을 눌러서 다시
-                    if (Boolean.TRUE.equals(previewFish())) {
-                        before = green(p("confirm_sell_pos"));
-                        sellAt = sellAll(before, d);
-                    }
-                    if (sellAt == null) {
-                        ui(ff, 0);
-                        mv.sleep(0.5 + d);
-                        before = green(p("confirm_sell_pos"));
-                        sellAt = sellAll(before, d);
-                    }
-                    if (sellAt != null) pos.put("first_fish_pos", ff);
-                    else {
-                        out.log("물고기가 남아 있는데 확인창이 안 뜸 — 판매 자동 보정을 다시 해 주세요", 'y');
-                    }
-                }
-                if (sellAt == null) break;
-            }
+            if (sellAt == null) break;
             if (sellAt != p("confirm_sell_pos") && !warned) {
                 warned = true;
                 out.log("확인창 Sell 이 지정한 자리와 달라서 글자로 찾아 누름 — 판매 자동 보정을 다시 해주세요", 'y');
@@ -484,8 +370,8 @@ public final class Seller {
         else if (p("shop_close_pos") != null) notes.add("X 를 못 읽어서 상점 닫기는 저장된 자리 그대로");
         else notes.add("상점 닫기 X 를 못 찾음 — 상점 닫기 X 직접 지정");
         out.state("확인창 확인 중 (팔지는 않음)");
-        if (!selectFirst(0)) notes.add("첫 번째 물고기 칸을 눌러도 골라진 게 안 보임 — 물고기가 있는지 확인해 주세요");
-        mv.sleep(0.2);
+        ui(p("first_fish_pos"), 0);
+        mv.sleep(0.5);
         double[][] conf = null;
         for (int t = 0; t < 3 && conf == null; t++) {          // 처음 누르는 Sell All 이 씹힐 수 있음 → 탭 · 짧은 탭 · 길게
             ui(p("sell_all_pos"), t);
