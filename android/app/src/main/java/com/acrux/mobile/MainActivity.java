@@ -1251,6 +1251,7 @@ public class MainActivity extends Activity {
         for (String[] k : Mover.RESET_KEYS) line(bot, Ui.tr(k[1]), Hub.pos.get(k[0]));
         line(bot, Ui.tr(Hub.PS_MENU_KEY[1]), Hub.pos.get(Hub.PS_MENU));
         line(bot, "Private Server Commands", Hub.pos.get(Hub.PS_COMMANDS));
+        for (String[] k : Hub.PS_CLOSE_KEYS) line(bot, Ui.tr(k[1]), Hub.pos.get(k[0]));
         botPositions.setText(bot.toString().trim());
         for (String[] k : Seller.TALK) line(ps, Ui.tr(k[1]), Hub.pos.get(k[0]));
         for (String[] k : Seller.KEYS) line(ps, I18n.f("{0} (판매)", Ui.tr(k[1])), Hub.pos.get(k[0]));

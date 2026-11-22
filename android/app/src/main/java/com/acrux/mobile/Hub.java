@@ -456,6 +456,8 @@ final class Hub {
     //  이유 코드 (봇이 디스코드 언어로 보여 줌): no_roblox · perm · menu_pos · menu · other · busy · stuck · error · no_link
     static final String PS_MENU = "game_menu";
     static final String PS_COMMANDS = "private_server_commands";
+    static final String PS_MENU_CLOSE = "ps_menu_close", PS_PANEL_CLOSE = "ps_panel_close";
+    static final String[][] PS_CLOSE_KEYS = {{PS_MENU_CLOSE, "게임 메뉴 X"}, {PS_PANEL_CLOSE, "브섭 관리창 X"}};
     static final String[] PS_MENU_KEY = {PS_MENU, "게임 메뉴 버튼 (왼쪽 줄 세 개)"};
     static volatile boolean psBusy;
     /** 복귀 뒤 자동 낚시를 다시 켤 예정 (그 사이 [시작] · [정지] 를 누르면 취소) */
@@ -493,7 +495,8 @@ final class Hub {
     /** 봇 요청 (디스코드 연결 스레드) → {own, why, link} */
     static org.json.JSONObject psCheck() {
         if (TapService.instance == null || CaptureService.active == null) return psRes(null, "perm");
-        if (pos.get(PS_MENU) == null || pos.get(PS_COMMANDS) == null) return psRes(null, "menu_pos");
+        if (pos.get(PS_MENU) == null || pos.get(PS_COMMANDS) == null
+                || pos.get(PS_MENU_CLOSE) == null || pos.get(PS_PANEL_CLOSE) == null) return psRes(null, "menu_pos");
         for (String[] k : Mover.RESET_KEYS) {
             if (pos.get(k[0]) == null) {
                 log("서버 체크 — 봇 명령어 → 서버 체크에서 재설정 버튼 위치를 지정해 주세요", 'y');
@@ -599,7 +602,8 @@ final class Hub {
         double[] menu = pos.get(PS_MENU);
         if (cap == null || ts == null) return psRes(null, "perm");
         double[] commands = pos.get(PS_COMMANDS);
-        if (menu == null || commands == null) return psRes(null, "menu_pos");
+        double[] menuClose = pos.get(PS_MENU_CLOSE), panelClose = pos.get(PS_PANEL_CLOSE);
+        if (menu == null || commands == null || menuClose == null || panelClose == null) return psRes(null, "menu_pos");
         log("서버 체크 — 메뉴를 열어 내 브섭인지 확인", 'c');
         MlOcr ocr = new MlOcr();
         Runnable guard = () -> {
@@ -630,11 +634,7 @@ final class Hub {
                     Touch.nap((int) (sec * 1000));
                 }
 
-                @Override
-                public int[] size() {
-                    return new int[]{cap.width(), cap.height()};
-                }
-            }, menu, commands, () -> log("서버 체크 — Menu 창이 안 닫힘 (직접 닫아 주세요)", 'y'));
+            }, menu, commands, menuClose, panelClose, () -> log("서버 체크 — Menu 창이 안 닫힘 (직접 닫아 주세요)", 'y'));
             if (own == null) return psRes(null, "menu");
             log(own ? "서버 체크 — 내 브섭" : "서버 체크 — 내 브섭이 아님", own ? 'g' : 'y');
             return psRes(own, "");

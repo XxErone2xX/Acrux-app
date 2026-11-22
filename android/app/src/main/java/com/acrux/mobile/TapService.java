@@ -848,7 +848,7 @@ public class TapService extends AccessibilityService {
                 return Hub.stick != null ? "저장됨" : "없음";
             case "bot":
             case "pscheck":
-                return serverPositions() + " / " + (Mover.RESET_KEYS.length + 2) + " 저장됨";
+                return serverPositions() + " / " + (Mover.RESET_KEYS.length + 2 + Hub.PS_CLOSE_KEYS.length) + " 저장됨";
             case "base":
                 return count(Mover.BASE_KEYS) + " / " + Mover.BASE_KEYS.length + " 저장됨";
             default:
@@ -876,7 +876,7 @@ public class TapService extends AccessibilityService {
                 return Hub.stick != null;
             case "bot":
             case "pscheck":
-                return serverPositions() == Mover.RESET_KEYS.length + 2;
+                return serverPositions() == Mover.RESET_KEYS.length + 2 + Hub.PS_CLOSE_KEYS.length;
             case "base":
                 return Guide.baseReady();
             default:
@@ -885,7 +885,7 @@ public class TapService extends AccessibilityService {
     }
 
     static int serverPositions() {
-        return count(Mover.RESET_KEYS) + (Hub.pos.containsKey(Hub.PS_MENU) ? 1 : 0)
+        return count(Mover.RESET_KEYS) + count(Hub.PS_CLOSE_KEYS) + (Hub.pos.containsKey(Hub.PS_MENU) ? 1 : 0)
                 + (Hub.pos.containsKey(Hub.PS_COMMANDS) ? 1 : 0);
     }
 
@@ -1047,6 +1047,7 @@ public class TapService extends AccessibilityService {
                 m.addView(section("서버 체크"), mw());
                 pos(m, Hub.PS_MENU_KEY[0], Hub.PS_MENU_KEY[1], "Menu 창을 여는 버튼 · 브섭 확인에 씀");
                 pos(m, Hub.PS_COMMANDS, "Private Server Commands", "메뉴를 열고 버튼 중앙을 누르세요.");
+                for (String[] k : Hub.PS_CLOSE_KEYS) pos(m, k[0], k[1], null);
                 break;
             case "base":
                 pageBase(m);

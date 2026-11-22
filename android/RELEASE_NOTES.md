@@ -1,3 +1,9 @@
+## Acrux Mobile V1.7.2 업데이트
+1. 서버 체크에서 게임 메뉴 X와 브섭 관리창 X 위치를 각각 지정합니다. 처음 사용하기 전에 두 위치를 저장해 주세요.
+
+## Acrux Mobile V1.7.2 Update
+1. Server checks now use separate saved close-button positions for the game menu and private server panel. Set both before running a check.
+
 ## Acrux Mobile V1.7.1 업데이트
 1. Private Server Commands 보정 안내를 줄였습니다. 서버 체크는 직접 지정한 버튼 위치만 사용하며, 미지정 시 시작하지 않습니다.
 

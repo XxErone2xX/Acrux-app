@@ -890,6 +890,8 @@ E = [
     # ---------------------------------------------------------------- V1.6.2: 서버 체크 (디스코드 봇 /서버 체크)
     ["서버 체크 (디스코드 봇)", "Server check (Discord bot)", "サーバーチェック (Discord ボット)"],
     ["게임 메뉴 버튼 (왼쪽 줄 세 개)", "Game menu button (three lines on the left)", "ゲームメニューボタン (左の三本線)"],
+    ["게임 메뉴 X", "Game menu X", "ゲームメニューの X"],
+    ["브섭 관리창 X", "Private server panel X", "プライベートサーバー管理画面の X"],
     ["메뉴를 열고 버튼 중앙을 누르세요.", "Open the menu and tap the button center.", "メニューを開き、ボタンの中央をタップ。"],
     ["Menu 창을 여는 버튼 · 브섭 확인에 씀", "Opens the Menu window · used to check your private server", "Menu ウィンドウを開くボタン · プライベートサーバーの確認に使う"],
     ["서버 체크 중", "Server check", "サーバーチェック中"],
