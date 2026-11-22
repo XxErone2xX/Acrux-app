@@ -36,8 +36,10 @@ public final class Mover {
     }
 
     /** 공통 위치 (화면 비율 · ⚙ 에서 한 번 지정) */
+    public static final String[][] RESET_KEYS = {
+            {"menu_btn", "로블록스 메뉴 버튼 (왼쪽 위)"}, {"reset_btn", "캐릭터 재설정 버튼 (메뉴 안)"}, {"reset_confirm", "재설정 확인 버튼"}};
     public static final String[][] BASE_KEYS = {
-            {"menu_btn", "로블록스 메뉴 버튼 (왼쪽 위)"}, {"reset_btn", "캐릭터 재설정 버튼 (메뉴 안)"}, {"reset_confirm", "재설정 확인 버튼"},
+            RESET_KEYS[0], RESET_KEYS[1], RESET_KEYS[2],
             {"collection_pos", "아우라 도감 버튼"}, {"collection_close", "아우라 도감 Exit"}};
     /** 점프 버튼 (길 기록 · 재생에서 점프) — 없어도 됨 (그러면 점프는 기록 안 함) */
     public static final String[][] JUMP_KEYS = {{"jump_btn", "점프 버튼 (오른쪽 아래)"}};

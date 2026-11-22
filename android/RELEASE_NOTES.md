@@ -1,3 +1,11 @@
+## Acrux Mobile V1.6.8 업데이트
+1. 낚시 앞에 봇 명령어 탭을 추가했습니다. 서버 체크에서 재설정 위치와 게임 메뉴 버튼을 보정할 수 있습니다.
+2. 낚시 탭에서 판매 위치와 길을 지워도 이동과 서버 체크 보정은 유지됩니다.
+
+## Acrux Mobile V1.6.8 Update
+1. Added Bot commands before Fishing in the app and game panel. Open Server check to calibrate the reset controls and game menu button.
+2. Clearing selling positions and routes now preserves movement and server-check controls.
+
 ## Acrux Mobile V1.6.7 업데이트
 1. 브섭 체크 전에 이동 설정의 위치로 캐릭터를 한 번 재설정합니다.
 2. 서버 체크와 복귀 요청의 중복 실행을 막고, 자동 낚시 중에는 확인 후 낚시 장소로 돌아갑니다.

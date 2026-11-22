@@ -812,6 +812,8 @@ public class TapService extends AccessibilityService {
             {"move", "home", "이동"},                            // 이동 · 기준 장소 = 낚시 말고 다른 기능도 씀
             {"stick", "move", "조이스틱"},
             {"base", "move", "기준 장소"},
+            {"bot", "home", "봇 명령어"},
+            {"pscheck", "bot", "서버 체크"},
             {"fish", "home", "낚시"},                            // 낚시 보정 + 길 기록 + 판매 (한 기능)
             {"fishcal", "fish", "낚시 보정"},
             {"route", "fish", "길"},
@@ -843,6 +845,9 @@ public class TapService extends AccessibilityService {
                 return moveReady() + " / 2 준비됨";
             case "stick":
                 return Hub.stick != null ? "저장됨" : "없음";
+            case "bot":
+            case "pscheck":
+                return serverPositions() + " / " + (Mover.RESET_KEYS.length + 1) + " 저장됨";
             case "base":
                 return count(Mover.BASE_KEYS) + " / " + Mover.BASE_KEYS.length + " 저장됨";
             default:
@@ -868,11 +873,18 @@ public class TapService extends AccessibilityService {
                 return moveReady() == 2;
             case "stick":
                 return Hub.stick != null;
+            case "bot":
+            case "pscheck":
+                return serverPositions() == Mover.RESET_KEYS.length + 1;
             case "base":
                 return Guide.baseReady();
             default:
                 return true;
         }
+    }
+
+    static int serverPositions() {
+        return count(Mover.RESET_KEYS) + (Hub.pos.containsKey(Hub.PS_MENU) ? 1 : 0);
     }
 
     int moveReady() {
@@ -1027,6 +1039,12 @@ public class TapService extends AccessibilityService {
             case "stick":
                 pageStick(m);
                 break;
+            case "pscheck":
+                m.addView(section("재설정 위치 (이동과 공유)"), mw());
+                for (String[] k : Mover.RESET_KEYS) pos(m, k[0], k[1], null);
+                m.addView(section("서버 체크"), mw());
+                pos(m, Hub.PS_MENU_KEY[0], Hub.PS_MENU_KEY[1], "Menu 창을 여는 버튼 · 브섭 확인에 씀");
+                break;
             case "base":
                 pageBase(m);
                 break;
@@ -1111,8 +1129,6 @@ public class TapService extends AccessibilityService {
         m.addView(hair(), hairLp());
         m.addView(section("공통 위치 (기준 장소 맞추기)"), mw());
         for (String[] k : Mover.BASE_KEYS) pos(m, k[0], k[1], null);
-        m.addView(section("서버 체크 (디스코드 봇)"), mw());
-        pos(m, Hub.PS_MENU_KEY[0], Hub.PS_MENU_KEY[1], "Menu 창을 여는 버튼 · 브섭 확인에 씀");
         m.addView(section("테스트"), mw());
         act(m, "act:base", "기준 장소로", null, false, v -> toggle("base"));
         act(m, "act:fish", "기준 장소 → 낚시 장소", null, false, v -> toggle("fish"));

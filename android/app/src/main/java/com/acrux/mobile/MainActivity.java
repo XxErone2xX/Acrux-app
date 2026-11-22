@@ -229,6 +229,7 @@ public class MainActivity extends Activity {
 
         buildHome(page("home", "홈"));
         buildBase(page("move", "이동"));               // 기준 장소 = 낚시 말고 다른 기능도 같이 씀 → 낚시 앞에 따로
+        buildBotCommands(page("bot", "봇 명령어"));
         Page fishPg = page("fish", "낚시");              // 낚시 · 판매 · 길 한 칸
         buildFishing(fishPg);
         buildMove(fishPg);
@@ -487,6 +488,25 @@ public class MainActivity extends Activity {
     }
 
     // ---------------------------------------------------------------- 낚시
+    TextView botPositions;
+
+    void buildBotCommands(Page pg) {
+        LinearLayout server = section(pg, "서버 체크");
+        botPositions = Ui.text(this, "", 12, Ui.MUTED, false);
+        server.addView(botPositions, Ui.fill(this, 6));
+        server.addView(Ui.text(this, "게임에서 Acrux 손잡이를 열고 위치를 선택하세요. 재설정 위치는 이동과 공유합니다.", 12, Ui.MUTED, false), Ui.fill(this, 8));
+        server.addView(Ui.button(this, "게임에서 보정", Ui.ACCENT, v -> {
+            TapService service = TapService.instance;
+            if (service == null || !TapService.bringFront(TapService.roblox == null ? "com.roblox.client" : TapService.roblox)) {
+                android.widget.Toast.makeText(this, Ui.tr("접근성 권한과 Roblox 설치 상태를 확인하세요."), android.widget.Toast.LENGTH_LONG).show();
+                return;
+            }
+            Hub.setUi(true);
+            service.page = "pscheck";
+            service.showPage("pscheck");
+        }), Ui.wrap());
+    }
+
     void buildFishing(Page pg) {
         // 낚시 통계: 이번 실행 (앱을 켠 뒤) · 전체 (저장됨) — PC '이번 실행 · 올타임'
         LinearLayout st = section(pg, "낚시 통계");
@@ -583,13 +603,14 @@ public class MainActivity extends Activity {
         posView = Ui.text(this, "", 12, Ui.MUTED, false);
         posView.setTypeface(Typeface.MONOSPACE);
         saved.addView(posView, Ui.fill(this, 6));
-        TextView clearPos = Ui.button(this, "위치 · 길 모두 지우기", Ui.RED, v -> {
-            Hub.pos.clear();
+        TextView clearPos = Ui.button(this, "판매 위치와 낚시·판매 길 지우기", Ui.RED, v -> {
+            for (String[] k : Seller.TALK) Hub.pos.remove(k[0]);
+            for (String[] k : Seller.KEYS) Hub.pos.remove(k[0]);
             Hub.fishRoute = new com.acrux.mobile.core.Route();
             Hub.sellRoute = new com.acrux.mobile.core.Route();
             Hub.save();
             Hub.changed();
-            Hub.log("위치 · 길 모두 지움", 'd');
+            Hub.log("판매 위치와 낚시·판매 길 지움", 'd');
         });
         LinearLayout.LayoutParams cp = Ui.wrap();
         cp.topMargin = Ui.dp(this, 8);
@@ -1225,7 +1246,10 @@ public class MainActivity extends Activity {
         ps.append(stk == null ? "· " : "✓ ").append(Ui.tr("조이스틱")).append(stk == null ? "" : "  " + TapService.fmt(stk[0]) + ", " + TapService.fmt(stk[1]) + "  r " + TapService.fmt(stk[2])).append('\n');
         for (String[] k : Mover.BASE_KEYS) line(ps, Ui.tr(k[1]), Hub.pos.get(k[0]));
         for (String[] k : Mover.JUMP_KEYS) line(ps, Ui.tr(k[1]), Hub.pos.get(k[0]));
-        line(ps, Ui.tr(Hub.PS_MENU_KEY[1]), Hub.pos.get(Hub.PS_MENU));
+        StringBuilder bot = new StringBuilder();
+        for (String[] k : Mover.RESET_KEYS) line(bot, Ui.tr(k[1]), Hub.pos.get(k[0]));
+        line(bot, Ui.tr(Hub.PS_MENU_KEY[1]), Hub.pos.get(Hub.PS_MENU));
+        botPositions.setText(bot.toString().trim());
         for (String[] k : Seller.TALK) line(ps, Ui.tr(k[1]), Hub.pos.get(k[0]));
         for (String[] k : Seller.KEYS) line(ps, I18n.f("{0} (판매)", Ui.tr(k[1])), Hub.pos.get(k[0]));
         route(ps, Ui.tr("낚시 장소 길"), Hub.fishRoute);
