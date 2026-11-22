@@ -256,6 +256,7 @@ public final class Fisher {
     /** 지금 화면 → "reel" / "maybe" / "idle" / "wait" / null */
     String readState() {
         if (barSeen()) {
+            if (Vision.fishLabel(grabBox(cfg.fishBtn))) return "idle";
             Boolean moved = diamondMoved();
             if (Boolean.TRUE.equals(moved)) {
                 diamondOk = true;

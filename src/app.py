@@ -154,7 +154,9 @@ class Bridge:
         self.mod_hold = False
         # 서버 체크 (디스코드 봇 /서버 체크): 도는 동안은 매크로가 비켜 줌 (메뉴를 열고 닫는 몇 초)
         self.ps_busy = False
-        self.ps_lock = threading.Lock()
+        self.screen_gate = threading.Lock()
+        self.manual_screen = None
+        self.sell_test_thread = None
         self.locked_keys = {"stats", "mods", "discord"}  # 화면(set_config)에서 못 바꾸는 키 — 엔진 · 모드만 씀
         self.afk_at = time.time()           # AFK 방지 점프: 마지막으로 점프한 시각
         self.craft_busy = False             # Auto Crafted 알림 확인(OCR)이 도는 중
@@ -262,7 +264,7 @@ class Bridge:
                 now = time.time()
                 present = bool(macro.roblox_window_cached(0.5))
                 active = self._mod_active() or bool(self.data.get("macro_on"))
-                busy = (self.ret.running() or self.play.running() or self.mpop.running()
+                busy = (self.ps_busy or self.manual_screen or self.ret.running() or self.play.running() or self.mpop.running()
                         or now < core.EXPECT_CLOSE["until"] or self._mod_busy("crash"))
                 if present:
                     seen, gone_since = True, None
@@ -444,6 +446,8 @@ class Bridge:
         warned, paused = None, False
         while True:
             time.sleep(1.0)
+            if not self.screen_gate.acquire(blocking=False):
+                continue
             try:
                 mf = self.data.get("mfish", {})
                 mi = self.data.get("mitem", {})
@@ -553,6 +557,8 @@ class Bridge:
                     self.fisher.stop()
             except Exception as e:
                 write_crash(f"macro loop: {e}")
+            finally:
+                self.screen_gate.release()
 
     # 기능 분류
     #  · 긴급: 레어 바이옴 자동 팝핑 · 블러드 레인 자동 생성 — 하던 단일성 기능을 멈추고 먼저 (끝나면 다시)
@@ -572,7 +578,8 @@ class Bridge:
 
     def _single_running(self):
         """지금 자리를 쓰는 단일성 기능 (이동 테스트 · 자동 보정 등 직접 누른 것도 포함) → 이름 또는 None"""
-        for name, busy in (("merchant", self.merchant.buying()), ("craft", self.crafter.running()),
+        for name, busy in (("sell_test", bool(self.sell_test_thread and self.sell_test_thread.is_alive())),
+                           ("merchant", self.merchant.buying()), ("craft", self.crafter.running()),
                            ("match", self.matcher.running()), ("items", self.items.running()), ("move", self.mover.running()),
                            ("cal", self._cal_running())):
             if busy:
@@ -792,6 +799,40 @@ class Bridge:
     # ---------------- 서버 체크 (디스코드 봇 /서버 체크) ----------------
     PS_STOP_WAIT = 12.0                     # 하던 기능이 멈출 때까지 기다리는 최대 시간 (초)
 
+    # 게임 화면을 쓰는 수동 요청은 서버 체크의 재설정부터 메뉴 정리까지 대기한다.
+    SCREEN_REQUESTS = frozenset("""
+        ret_test play_test mpop_test mfish_autocal sell_autocal mmerch_autocal sell_test
+        move_base move_base_rev move_quest_pick move_place move_record mpop_ocr_test
+        mfish_check mblood_test mitem_test mcraft_test mcraft_autocal mmatch_autocal
+        mmatch_boardcal mmatch_test mmerch_buy_test pick_point pick_region play_pos ocr_test
+    """.split())
+
+    def screen_request(self, fn, payload):
+        name = fn.__name__
+        cancel = {"api_mfish_autocal": "_autocal_stop", "api_sell_autocal": "_sellcal_stop",
+                  "api_mmerch_autocal": "_merchcal_stop", "api_mcraft_autocal": "_craftcal_stop",
+                  "api_mmatch_autocal": "_matchcal_stop"}
+        if not self.screen_gate.acquire(blocking=False):
+            event = getattr(self, cancel.get(name, ""), None)
+            if self.manual_screen == name and event is not None:
+                event.set()
+                return {"error": "자동 보정 취소 중"}
+            return {"error": "게임 화면을 다른 기능이 사용 중"}
+        try:
+            self.manual_screen = name
+            if (self._single_running() or self._emergency() or self.ret.running() or self.play.running()
+                    or self._mod_busy("macro") or self.merchant.running()):
+                return {"error": "게임 화면을 다른 기능이 사용 중"}
+            if self.fisher.running():
+                self.fisher.stop()
+                self.fisher.thread.join(self.PS_STOP_WAIT)
+                if self.fisher.running():
+                    return {"error": "자동 낚시가 아직 멈추지 않음"}
+            return fn(payload)
+        finally:
+            self.manual_screen = None
+            self.screen_gate.release()
+
     def _ps_others(self):
         """서버 체크 전에 멈춰야 하는 것 (아직 돌고 있으면)"""
         return [n for n, r in (("자동 낚시", self.fisher.running()), ("상인", self.merchant.running()),
@@ -823,11 +864,16 @@ class Bridge:
             return out(None, "popping")
         if self._cal_running():
             return out(None, "cal")
-        if not self.ps_lock.acquire(blocking=False):
+        if not self.screen_gate.acquire(blocking=False):
             return out(None, "busy")
         try:
             self.ps_busy = True
+            if self._cal_running() or self._emergency() or self.ret.running() or self.play.running():
+                return out(None, "busy")
             self._on_log("서버 체크 — 메뉴를 열어 내 브섭인지 확인", "c")
+            if self._single_running() or self.merchant.running():
+                return out(None, "busy")
+            self.fisher.stop()
             end = time.time() + self.PS_STOP_WAIT
             while self._ps_others() and time.time() < end:
                 time.sleep(0.2)
@@ -839,8 +885,20 @@ class Bridge:
             if not hwnd:
                 return out(None, "no_roblox")
             macro.focus(hwnd, wait=0.3)
-            time.sleep(0.4)                 # 낚시 등을 멈춘 직후 화면이 정리될 때까지
-            rect = lambda: macro.client_rect(macro.roblox_window_cached(1.0)) or (0, 0, 1920, 1080)
+            def rect():
+                if macro.key_down_now("f7") or not macro.is_foreground(hwnd) or self.ret.running() or self.play.running():
+                    raise InterruptedError("서버 체크 입력 중단")
+                bounds = macro.client_rect(hwnd)
+                if not bounds:
+                    raise InterruptedError("로블록스 창을 못 찾음")
+                return bounds
+
+            rect()
+            macro.mark_moved()
+            if not macro.respawn():
+                return out(None, "error")
+            time.sleep(float(self.data.get("move", {}).get("reset_wait", 3.5)))
+            rect()
 
             def click(pos):
                 macro.click(*macro.to_screen(pos[0], pos[1], rect()))
@@ -851,21 +909,38 @@ class Bridge:
                 return out(None, "menu")
             self._on_log("서버 체크 — 내 브섭" if own else "서버 체크 — 내 브섭이 아님", "g" if own else "y")
             return out(own)
+        except InterruptedError:
+            return out(None, "error")
         except Exception as e:
             write_crash(f"ps check: {e}")
             return out(None, "error")
         finally:
             self.ps_busy = False
-            self.ps_lock.release()
+            self.screen_gate.release()
 
     def _ps_return(self):
         """디스코드 봇 [내 서버로 복귀] → 매크로 복귀 (로블록스 종료 → 내 브섭 링크 → Play) → {"ok", "why": 이유 코드}"""
+        if not self.screen_gate.acquire(blocking=False):
+            return {"ok": False, "why": "busy"}
+        try:
+            return self._start_ps_return()
+        finally:
+            self.screen_gate.release()
+
+    def _start_ps_return(self):
+        if self._single_running() or self._emergency() or self.merchant.running():
+            return {"ok": False, "why": "busy"}
         if not self._ret_cfg().get("ps_link"):
             return {"ok": False, "why": "no_link"}
         if self.ret.running() or self.play.running():
             return {"ok": False, "why": "returning"}
         if self._mod_busy("macro"):
             return {"ok": False, "why": "mod"}
+        if self.fisher.running():
+            self.fisher.stop()
+            self.fisher.thread.join(self.PS_STOP_WAIT)
+            if self.fisher.running():
+                return {"ok": False, "why": "busy"}
         self.ret_cause = None
         self._on_log("디스코드 봇 — 내 서버로 복귀", "c")
         return {"ok": bool(self.ret.start("서버 체크")), "why": ""}
@@ -990,6 +1065,7 @@ class Bridge:
         busy = (self.play.running() or self.ret.running() or self._mod_busy("afk") or self.mpop.running()
                 or self.blood.running() or self.fisher.running() or self.items.running() or self.merchant.running() or self.crafter.running()
                 or self.matcher.running() or self.mover.running() or self._cal_running() or self.craft_busy
+                or self.manual_screen or (self.sell_test_thread and self.sell_test_thread.is_alive())
                 or self.ps_busy or time.time() < self.resume_at)
         return not busy
 
@@ -1020,16 +1096,21 @@ class Bridge:
                 end = now + self.AFK_GAP_WAIT        # 키보드 · 마우스 입력이 잠깐 멈춘 틈을 기다림
                 while macro.idle_seconds() < self.AFK_GAP and time.time() < end:
                     time.sleep(0.05)
-                if not self._afk_idle():
+                if not self.screen_gate.acquire(blocking=False):
                     continue
-                back = macro.foreground()
-                macro.focus(hwnd, wait=0.15)
-                if self._afk_idle():                 # 앞으로 가져오는 사이에 다른 동작이 시작됐으면 안 누름
-                    macro.key_tap("space", 80)
-                    self._on_log("AFK 방지 — 점프 (5분마다 · 20분 튕김 방지)", "d")
-                    time.sleep(0.1)
-                    macro.focus_back(back)
-                self.afk_at = time.time()
+                try:
+                    if not self._afk_idle():
+                        continue
+                    back = macro.foreground()
+                    macro.focus(hwnd, wait=0.15)
+                    if self._afk_idle():                 # 앞으로 가져오는 사이에 다른 동작이 시작됐으면 안 누름
+                        macro.key_tap("space", 80)
+                        self._on_log("AFK 방지 — 점프 (5분마다 · 20분 튕김 방지)", "d")
+                        time.sleep(0.1)
+                        macro.focus_back(back)
+                    self.afk_at = time.time()
+                finally:
+                    self.screen_gate.release()
             except Exception as e:
                 write_crash(f"afk loop: {e}")
                 time.sleep(5)
@@ -1074,6 +1155,8 @@ class Bridge:
             out.append(("blood", self.blood.stop))
         if self.mover.thread is not None and self.mover.thread.is_alive():
             out.append(("move", self.mover.stop))
+        if self.manual_screen or (self.sell_test_thread and self.sell_test_thread.is_alive()):
+            out.append(("move", lambda: None))
         if self.ps_busy:                        # 서버 체크 (메뉴를 열고 닫는 몇 초) — 멈출 수 없어서 끝날 때까지 기다림
             out.append(("ps", lambda: None))
         for flag, ev in self.CALS:
@@ -1715,7 +1798,8 @@ class Bridge:
                 self._on_log(f"판매 실패: {e}", "n")
             finally:
                 self.fisher.release("cal")
-        threading.Thread(target=run, daemon=True).start()
+        self.sell_test_thread = threading.Thread(target=run, daemon=True)
+        self.sell_test_thread.start()
         return {"ok": True}
 
     def api_move_base(self, _):
@@ -2653,7 +2737,8 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(n) or b"{}") if n else {}
             if not isinstance(payload, dict):
                 return self._send(400, {"error": "bad request"})
-            self._send(200, fn(payload) or {})
+            result = BRIDGE.screen_request(fn, payload) if name in BRIDGE.SCREEN_REQUESTS else fn(payload)
+            self._send(200, result or {})
         except Exception as e:
             write_crash(traceback.format_exc())
             self._send(500, {"error": str(e)})

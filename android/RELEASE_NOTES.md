@@ -1,3 +1,19 @@
+## Acrux Mobile V1.6.7 업데이트
+1. 브섭 체크 전에 이동 설정의 위치로 캐릭터를 한 번 재설정합니다.
+2. 서버 체크와 복귀 요청의 중복 실행을 막고, 자동 낚시 중에는 확인 후 낚시 장소로 돌아갑니다.
+
+## Acrux Mobile V1.6.7 Update
+1. Server checks now reset the character once using the configured movement controls.
+2. Server checks and return requests take turns. Automatic fishing returns to its spot after a check.
+
+## Acrux Mobile V1.6.6 업데이트
+1. 브섭 체크 시 Private Server Commands를 열고 관리 화면에서 확인합니다.
+2. 눈과 아우라 효과가 겹칠 때 낚시 대기 화면의 Fish 글자 인식을 개선했습니다.
+
+## Acrux Mobile V1.6.6 Update
+1. Private server checks now open Private Server Commands and verify the management panel.
+2. Improved Fish button recognition against snow and aura effects.
+
 ## Acrux Mobile V1.6.5 업데이트
 1. 자동 판매 중 터치가 누락돼 물고기를 남기고 상점을 닫던 문제를 수정했습니다.
 

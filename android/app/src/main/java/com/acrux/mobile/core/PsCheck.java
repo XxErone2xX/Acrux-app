@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * 서버 체크 (디스코드 봇 /서버 체크) — 지금 들어가 있는 서버가 내 브섭인지 (PC 의 pscheck.py 와 같음)
  * 1. 왼쪽 바의 게임 메뉴 버튼 (줄 세 개) 을 한 번 눌러 Menu 창을 엶
- * 2. Menu 창 아래에 Private Server Commands 버튼이 있으면 내 브섭 (브섭 주인에게만 보이는 버튼)
+ * 2. Private Server Commands 를 열고 관리 패널에서 내 브섭인지 확인
  * 3. Menu 창을 닫음 (X · 안 닫히면 메뉴 버튼을 한 번 더)
  */
 public final class PsCheck {
@@ -31,7 +31,8 @@ public final class PsCheck {
 
     /** 결과: menu = Menu 창이 보임 · own = 내 브섭 · close = X 자리 (화면 비율) */
     public static final class Res {
-        public boolean menu, own;
+        public boolean menu, buttonRead;
+        public double[] commands, panelClose;
         public double[] close;
     }
 
@@ -84,14 +85,33 @@ public final class PsCheck {
         for (SellText.Box b : boxes) {
             // 버튼은 Menu 창 바로 아래 · 가운데 (월드의 글자 · 게시판에 걸리지 않게)
             if (isPsc(b.text) && b.y > bottom && Math.abs(b.x - cx) * W < 0.25 * H) {
-                r.own = true;
+                r.buttonRead = true;
+                r.commands = new double[]{b.x, b.y};
                 break;
             }
         }
         double ty = title != null ? title.y * H : y1 - (r1 - TITLE_Y) * k;
+        if (r.commands == null && k > 0 && y2 > y1) {
+            double commandsY = (ty + (735 - TITLE_Y) * k) / H;
+            if (commandsY > bottom && commandsY < 1) r.commands = new double[]{cx, commandsY};
+        }
+        r.panelClose = new double[]{cx + 450 * k / W, (ty - 70 * k) / H};
         double x = cx * W + CLOSE_DX * k, y = ty - k;
         r.close = new double[]{Math.min(1, Math.max(0, x / W)), Math.min(1, Math.max(0, y / H))};
         return r;
+    }
+
+    static boolean panel(List<SellText.Box> boxes) {
+        StringBuilder labels = new StringBuilder();
+        for (SellText.Box b : boxes) {
+            if (b.x > 0.22 && b.x < 0.78 && b.y > 0.20 && b.y < 0.80)
+                labels.append(SellText.norm(b.text));
+        }
+        String text = labels.toString();
+        int sections = 0;
+        for (String heading : new String[]{"server information", "server logs", "server control", "player control", "player list"})
+            if (text.contains(SellText.norm(heading))) sections++;
+        return sections >= 2 || (sections >= 1 && text.contains(SellText.norm("Private Server Management")));
     }
 
     static Res look(Io io) {
@@ -113,12 +133,34 @@ public final class PsCheck {
             if (res.menu) break;
         }
         if (res == null || !res.menu) return null;
-        boolean own = res.own;
-        if (!own) {                                         // 버튼이 늦게 그려졌을 수도 있으니 한 번 더 봄
-            io.sleep(0.5);
-            Res again = look(io);
-            own = again.own;
-            if (again.menu) res = again;
+        Boolean own = null;
+        boolean menuStillOpen = true;
+        if (res.commands != null) {
+            for (int attempt = 0; attempt < 2; attempt++) {
+                io.tap(res.commands);
+                for (int poll = 0; poll < 3; poll++) {
+                    io.sleep(0.45);
+                    List<SellText.Box> boxes = io.read();
+                    if (panel(boxes)) {
+                        io.tap(res.panelClose);
+                        io.sleep(0.6);
+                        boxes = io.read();
+                        if (panel(boxes)) {
+                            io.tap(res.panelClose);
+                            io.sleep(0.6);
+                            boxes = io.read();
+                            if (panel(boxes) && warnNotClosed != null) warnNotClosed.run();
+                        }
+                        if (!measure(boxes, io.size()[0], io.size()[1]).menu) return true;
+                        own = true;
+                        break;
+                    }
+                    menuStillOpen = measure(boxes, io.size()[0], io.size()[1]).menu;
+                }
+                if (own != null || !menuStillOpen) break;
+            }
+            if (!menuStillOpen) return null;
+            if (own == null && !res.buttonRead) own = false;
         }
         // 닫기: X → 그래도 열려 있으면 메뉴 버튼 한 번 더
         List<double[]> targets = new ArrayList<>();

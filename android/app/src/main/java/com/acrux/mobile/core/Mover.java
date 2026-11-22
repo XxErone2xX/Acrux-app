@@ -253,6 +253,14 @@ public final class Mover {
     }
 
     /** 재설정: 로블록스 메뉴 → 캐릭터 재설정 → 재설정 확인 (탭 · 0.8초 간격) */
+    public void resetForServerCheck() {
+        for (String key : new String[]{"menu_btn", "reset_btn", "reset_confirm"}) {
+            if (base.get(key) == null) throw new IllegalStateException("재설정 위치가 지정되지 않음: " + key);
+        }
+        markMoved();
+        reset();
+    }
+
     void reset() {
         releaseKeys();
         sleep(0.2);

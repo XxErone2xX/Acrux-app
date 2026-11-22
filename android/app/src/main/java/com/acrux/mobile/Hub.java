@@ -350,7 +350,7 @@ final class Hub {
             f.onStart = sl::goFish;
             zeroSells = sellSkips = 0;
             f.onFull = () -> sellOnce(sl);
-            f.onIdle = Hub::psAtIdle;                         // 디스코드 봇 서버 체크: 던지기 전 대기 화면에서 (낚시를 끊지 않게)
+            f.onIdle = () -> psAtIdle(sl);                         // 디스코드 봇 서버 체크: 던지기 전 대기 화면에서 (낚시를 끊지 않게)
         }
         TapService ts = TapService.instance;
         if (ts != null && ts.coversGame() && (m.equals("cal") || m.equals("run") || test))
@@ -426,7 +426,11 @@ final class Hub {
                 mv.releaseKeys();
                 Joy.set(null);
                 measuring = false;
-                mode = "";
+                synchronized (Hub.class) {
+                    mode = "";
+                    java.util.concurrent.CompletableFuture<org.json.JSONObject> pending = psWant.getAndSet(null);
+                    if (pending != null) pending.complete(psRes(null, "other"));
+                }
                 state = lastError != null ? "멈춤 — " + lastError : "대기";     // 멈춘 이유를 떠 있는 창에도
                 String why = lastError;
                 if (why != null) main.post(() -> android.widget.Toast.makeText(app, com.acrux.mobile.core.I18n.t("멈춤 — " + why), android.widget.Toast.LENGTH_LONG).show());
@@ -482,11 +486,25 @@ final class Hub {
     static org.json.JSONObject psCheck() {
         if (TapService.instance == null || CaptureService.active == null) return psRes(null, "perm");
         if (pos.get(PS_MENU) == null) return psRes(null, "menu_pos");
-        if (psBusy || psWant.get() != null) return psRes(null, "busy");
-        if (running()) {
-            if (!"run".equals(mode)) return psRes(null, "other");
-            java.util.concurrent.CompletableFuture<org.json.JSONObject> want = new java.util.concurrent.CompletableFuture<>();
-            if (!psWant.compareAndSet(null, want)) return psRes(null, "busy");
+        for (String key : new String[]{"menu_btn", "reset_btn", "reset_confirm"}) {
+            if (pos.get(key) == null) {
+                log("서버 체크 — 이동 설정에서 재설정 버튼 위치를 먼저 지정해 주세요", 'y');
+                return psRes(null, "error");
+            }
+        }
+        java.util.concurrent.CompletableFuture<org.json.JSONObject> want = null;
+        synchronized (Hub.class) {
+            if (psBusy || psWant.get() != null) return psRes(null, "busy");
+            if (running()) {
+                if (!"run".equals(mode)) return psRes(null, "other");
+                want = new java.util.concurrent.CompletableFuture<>();
+                psWant.set(want);
+            } else {
+                stopFlag = false;
+                psBusy = true;
+            }
+        }
+        if (want != null) {
             log("서버 체크 — 자동 낚시가 대기 화면에 오면 확인", 'c');
             try {
                 return want.get(PS_WAIT_MS, TimeUnit.MILLISECONDS);
@@ -498,10 +516,6 @@ final class Hub {
                     return psRes(null, "error");
                 }
             }
-        }
-        synchronized (Hub.class) {                             // 그 사이 [시작] 을 못 누르게 (start 가 psBusy 를 봄)
-            if (running()) return psRes(null, "other");
-            psBusy = true;
         }
         String back = null;
         try {
@@ -517,33 +531,52 @@ final class Hub {
                 back = was;
                 log("서버 체크 — 로블록스를 앞으로 가져옴 (맨 앞 앱: " + was + ")", 'c');
                 for (int i = 0; i < 20 && !TapService.robloxFront(); i++) Touch.nap(100);
-                // 이미 앞에 있었으면 화면이 안 바뀌어서 알림이 안 옴 → 앞으로 가져왔으니 로블록스로 봄
-                if (!TapService.robloxFront()) TapService.front = rb;
+                if (!TapService.robloxFront()) return psRes(null, "no_roblox");
                 Touch.nap(1500);                               // 화면이 다 그려질 때까지
             }
             return psRun();
+        } catch (Fisher.Stopped e) {
+            return psRes(null, "other");
         } finally {
-            psBusy = false;
-            if (back != null && TapService.robloxFront()) {
-                Touch.nap(300);
-                TapService.bringFront(back);
+            try {
+                if (back != null && TapService.robloxFront()) {
+                    Touch.nap(300);
+                    TapService.bringFront(back);
+                }
+            } finally {
+                psBusy = false;
+                changed();
             }
-            changed();
         }
     }
 
     /** 자동 낚시가 던지기 전 대기 화면에서 부름 (워커 스레드) → 서버 체크 요청이 있었으면 하고 true */
-    static boolean psAtIdle() {
-        java.util.concurrent.CompletableFuture<org.json.JSONObject> want = psWant.getAndSet(null);
-        if (want == null) return false;
-        psBusy = true;
+    static boolean psAtIdle(Seller seller) {
+        java.util.concurrent.CompletableFuture<org.json.JSONObject> want;
+        synchronized (Hub.class) {
+            want = psWant.getAndSet(null);
+            if (want == null) return false;
+            psBusy = true;
+        }
         String was = state;
         OUT.state("서버 체크 중");
         try {
-            want.complete(TapService.robloxFront() ? psRun() : psRes(null, "no_roblox"));
+            if (!TapService.robloxFront()) {
+                want.complete(psRes(null, "no_roblox"));
+            } else {
+                want.complete(psRun());
+                CHECK.run();
+                if (TapService.robloxFront()) {
+                    OUT.state("낚시 장소로 돌아가는 중");
+                    seller.goFish();
+                }
+                else throw new Fisher.Stopped();
+            }
         } catch (RuntimeException e) {
             want.complete(psRes(null, "error"));
             if (e instanceof Fisher.Stopped) throw e;
+            log("서버 체크 후 낚시 장소 복구 실패: " + e.getMessage(), 'r');
+            throw new Fisher.Stopped();
         } finally {
             psBusy = false;
             OUT.state(was);
@@ -560,15 +593,24 @@ final class Hub {
         if (menu == null) return psRes(null, "menu_pos");
         log("서버 체크 — 메뉴를 열어 내 브섭인지 확인", 'c');
         MlOcr ocr = new MlOcr();
+        Runnable guard = () -> {
+            CHECK.run();
+            if (!TapService.robloxFront()) throw new IllegalStateException("로블록스가 맨 앞에 없음");
+        };
         try {
+            guard.run();
+            Mover mover = new Mover(cap, markTouch(new TouchIn(cap.width(), cap.height())), ocr, pos, move, OUT, guard);
+            mover.resetForServerCheck();
             Boolean own = com.acrux.mobile.core.PsCheck.check(new com.acrux.mobile.core.PsCheck.Io() {
                 @Override
                 public List<com.acrux.mobile.core.SellText.Box> read() {
+                    guard.run();
                     return ocr.read(null);
                 }
 
                 @Override
                 public void tap(double[] p) {
+                    guard.run();
                     int x = (int) (p[0] * cap.width()), y = (int) (p[1] * cap.height());
                     BoxOverlay.tapped(x, y);
                     ts.tap(x, y, 80);
@@ -602,42 +644,51 @@ final class Hub {
         try {
             if (link.isEmpty()) return o.put("ok", false).put("why", "no_link");
             if (TapService.instance == null) return o.put("ok", false).put("why", "perm");
-            if (psBusy) return o.put("ok", false).put("why", "busy");
-            boolean wasRun = running() && "run".equals(mode);
-            if (running() && !wasRun) return o.put("ok", false).put("why", "other");
-            log("디스코드 봇 — 내 서버로 복귀", 'c');
-            if (wasRun) {
-                stop();
-                for (int i = 0; i < 100 && running(); i++) Touch.nap(100);
+            boolean wasRun;
+            synchronized (Hub.class) {
+                if (psBusy || psWant.get() != null) return o.put("ok", false).put("why", "busy");
+                wasRun = running() && "run".equals(mode);
+                if (running() && !wasRun) return o.put("ok", false).put("why", "other");
+                psBusy = true;
             }
-            if (Adb.connected) {
-                try {
-                    Adb.shell(app, "am force-stop com.roblox.client", 5000, l -> { });
-                    Touch.nap(1500);
-                } catch (Exception e) {
-                    log("로블록스를 끄지 못함 (ADB) — 링크만 엶", 'd');
-                }
-            }
-            TapService ts = TapService.instance;
-            Context c = ts != null ? ts : app;
-            android.content.Intent view = new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(link))
-                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
             try {
-                c.startActivity(new android.content.Intent(view).setPackage("com.roblox.client"));
-            } catch (android.content.ActivityNotFoundException e) {
-                c.startActivity(view);
+                log("디스코드 봇 — 내 서버로 복귀", 'c');
+                if (wasRun) {
+                    stop();
+                    for (int i = 0; i < 100 && running(); i++) Touch.nap(100);
+                    if (running()) return o.put("ok", false).put("why", "busy");
+                }
+                if (Adb.connected) {
+                    try {
+                        Adb.shell(app, "am force-stop com.roblox.client", 5000, l -> { });
+                        Touch.nap(1500);
+                    } catch (Exception e) {
+                        log("로블록스를 끄지 못함 (ADB) — 링크만 엶", 'd');
+                    }
+                }
+                TapService ts = TapService.instance;
+                Context c = ts != null ? ts : app;
+                android.content.Intent view = new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(link))
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+                try {
+                    c.startActivity(new android.content.Intent(view).setPackage("com.roblox.client"));
+                } catch (android.content.ActivityNotFoundException e) {
+                    c.startActivity(view);
+                }
+                if (wasRun) {
+                    log("내 서버로 복귀 — 45초 뒤 자동 낚시 다시 시작", 'c');
+                    psResume = true;
+                    main.postDelayed(() -> {
+                        if (!psResume || running()) return;
+                        psResume = false;
+                        String err = start("run");
+                        if (!err.isEmpty()) log("자동 낚시 다시 시작 못 함 — " + err, 'y');
+                    }, 45_000);
+                }
+                return o.put("ok", true).put("why", "");
+            } finally {
+                psBusy = false;
             }
-            if (wasRun) {
-                log("내 서버로 복귀 — 45초 뒤 자동 낚시 다시 시작", 'c');
-                psResume = true;
-                main.postDelayed(() -> {
-                    if (!psResume || running()) return;
-                    psResume = false;
-                    String err = start("run");
-                    if (!err.isEmpty()) log("자동 낚시 다시 시작 못 함 — " + err, 'y');
-                }, 45_000);
-            }
-            return o.put("ok", true).put("why", "");
         } catch (org.json.JSONException e) {
             return o;
         } catch (RuntimeException e) {

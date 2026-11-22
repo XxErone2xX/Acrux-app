@@ -79,6 +79,37 @@ public final class Vision {
 
     // ---------------------------------------------------------------- 버튼 · 결과창
     /** Fish/Exit 버튼 주변 → "fish"(파랑) / "exit"(빨강) / null */
+    // Fish lettering sampled on a 23 × 6 grid. Check both strokes and gaps so blue scenery alone cannot match.
+    private static final String[] FISH_GLYPH = {
+        ".#####.##.......##.....", ".##.............##.....", ".##....##.#####.######.",
+        ".#####.##.#####.###.##.", ".##....##.##.##.##..##.", ".##....##.#####.##..##."
+    };
+
+    static boolean fishLabel(Img im) {
+        if (im.w < 23 || im.h < 9) return false;
+        for (double scale = im.h / 45.0; scale <= im.h / 26.0; scale *= 1.10) {
+            int dx = (int) Math.ceil(33 * scale), dy = (int) Math.ceil(9 * scale);
+            int step = Math.max(1, (int) Math.round(scale));
+            for (int cy = Math.max(dy, im.h / 3); cy < Math.min(im.h - dy, 2 * im.h / 3 + 1); cy += step) {
+                for (int cx = Math.max(dx, im.w / 3); cx < Math.min(im.w - dx, 2 * im.w / 3 + 1); cx += step) {
+                    int matches = 0, strokes = 0;
+                    for (int y = 0; y < 6; y++) {
+                        int row = (cy + (int) Math.round((y - 2.5) * 3.4 * scale)) * im.w;
+                        for (int x = 0; x < 23; x++) {
+                            int i = row + cx + (int) Math.round((x - 11) * 3 * scale);
+                            boolean ink = im.b[i] > 108 && im.b[i] > im.r[i] + 25 && im.b[i] > im.g[i] + 15;
+                            boolean expected = FISH_GLYPH[y].charAt(x) == '#';
+                            if (ink == expected) matches++;
+                            if (ink && expected) strokes++;
+                        }
+                    }
+                    if (matches >= 113 && strokes >= 47) return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public static String buttonState(Img im) {
         int n = Math.max(1, im.w * im.h), dark = 0, blue = 0, red = 0;
         for (int k = 0; k < im.w * im.h; k++) {
@@ -87,8 +118,8 @@ public final class Vision {
             if (b > 140 && b > r + 45 && b > g + 20) blue++;
             if (r > 150 && r > g + 60 && r > b + 40) red++;
         }
-        if ((double) dark / n < 0.45) return null;
-        if (Math.max(blue, red) < n * 0.01) return null;
+        if ((double) dark / n < 0.45 || Math.max(blue, red) < n * 0.01)
+            return fishLabel(im) ? "fish" : null;
         return blue >= red ? "fish" : "exit";
     }
 
