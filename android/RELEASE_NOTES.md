@@ -1,3 +1,19 @@
+## Acrux Mobile V1.6.5 업데이트
+1. 자동 판매 중 터치가 누락돼 물고기를 남기고 상점을 닫던 문제를 수정했습니다.
+
+## Acrux Mobile V1.6.5 Update
+1. Fixed a missed tap during automatic selling causing the shop to close with fish still in the inventory.
+
+## Acrux Mobile V1.6.4 업데이트
+1. 물고기 판매 중 일부만 팔고 상점을 닫던 문제를 수정했습니다. [Sell All에 세 번 연속 반응이 없으면 판매 종료]
+2. 일부 기기에서 낚시 결과창의 X 버튼 인식을 개선했습니다.
+3. 자동 낚시 중 사용자가 보정한 위치가 바뀌던 문제를 수정했습니다.
+
+## Acrux Mobile V1.6.4 Update
+1. Fixed the fishing shop closing after selling only some fish. [Selling stops after three consecutive Sell All attempts without a confirmation.]
+2. Improved detection of the fishing result window’s close button on affected devices.
+3. Fixed fishing calibration positions shifting during automatic fishing.
+
 ## Acrux Mobile V1.6.3 업데이트
 - 디버깅 모드를 왼쪽으로 밀어서 켜고 끄게 바꿈 [ 앱 맨 위 · 설정 · 떠 있는 Acrux 창 ]
   - 끝까지 밀었다 놓으면 켜짐 ↔ 꺼짐 [ 톡 누르거나 덜 밀면 안 바뀜 · 실수로 안 바뀌게 ]

@@ -15,7 +15,7 @@ public final class SellRegression {
     /** 가짜 로블록스: 대화 선택지는 대화창을 누른 뒤 0.9초 지나야 보임 (서서히 떠오름) · 상점을 연 직후 첫 탭은 씹힘 */
     static final class Game implements Fisher.Screen, Mover.Ocr {
         double lastDialogTap = now();
-        int dialogTaps, fish, sold, firstTaps;
+        int dialogTaps, fish, sold, firstTaps, ignoredSellAll;
         boolean shop, selected, confirm, swallowFirst;
         final List<String> taps = new ArrayList<>();
 
@@ -81,11 +81,12 @@ public final class SellRegression {
                     taps.add("first(swallowed)");
                     return;
                 }
-                if (fish > 0) selected = true;
+                if (fish > 0) selected = !selected;
                 taps.add("first");
             } else if (Math.abs(x - 0.357) < 0.035 && Math.abs(y - 0.745) < 0.02) {
                 taps.add("sellall");
-                if (selected) confirm = true;
+                if (ignoredSellAll > 0) ignoredSellAll--;
+                else if (selected) confirm = true;
             } else {
                 taps.add(String.format("miss(%.3f,%.3f)", x, y));
             }
@@ -141,6 +142,18 @@ public final class SellRegression {
         sold = s3.sellLoop(0);
         check(sold == 2, "wrong first slot: sold " + sold + " taps " + g.taps);
         System.out.println("  wrong first slot: sold " + sold);
-        System.out.println("3 sell regression cases passed");
+        g = new Game();
+        g.shop = true;
+        g.fish = 1;
+        g.ignoredSellAll = 2;
+        pos.put("first_fish_pos", new double[]{0.435, 0.39});
+        sold = seller(g, pos).sellLoop(0);
+        check(sold == 1 && g.fish == 0, "sell all retries: " + g.taps);
+        int confirmed = g.taps.indexOf("confirm");
+        check(java.util.Collections.frequency(g.taps.subList(0, confirmed), "sellall") == 3,
+                "expected third attempt to succeed: " + g.taps);
+        check(java.util.Collections.frequency(g.taps.subList(confirmed + 1, g.taps.size()), "sellall") == 3,
+                "empty shop must stop after three attempts: " + g.taps);
+        System.out.println("4 sell regression cases passed");
     }
 }

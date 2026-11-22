@@ -196,11 +196,13 @@ public final class Seller {
         ui(first, 0);
         mv.sleep(0.5 + d);
         for (int t = 0; t < 3; t++) {
-            // 먼저 Sell All 만 재시도해 이미 고른 칸이 풀리지 않게 함. 마지막에 첫 칸 탭이 누락됐는지 확인.
-            if (t == 2) {
-                double[] located = locateFirst();
-                if (located != null) first = located;
-                ui(first, 1);
+            // 첫 탭이 누락됐으면 두 번째 시도에서 선택한다. 이미 선택돼 풀렸다면 세 번째 탭으로 다시 선택한다.
+            if (t > 0) {
+                if (t == 1) {
+                    double[] located = locateFirst();
+                    if (located != null) first = located;
+                }
+                ui(first, t);
                 mv.sleep(0.5 + d);
             }
             // 누르기 직전에 화면에서 [Sell All] 을 다시 찾음 (저장한 자리가 어긋나 있어도)
@@ -210,7 +212,7 @@ public final class Seller {
             ui(btn, t);
             double[] got = waitConfirm(at, before, (t == 0 ? 1.5 : 2.0) + d);
             if (got != null) {
-                if (t == 2) pos.put("first_fish_pos", first);
+                if (t > 0) pos.put("first_fish_pos", first);
                 if (t > 0) out.log("Sell All 이 " + (t + 1) + "번째에 눌림", 'd');
                 return got;
             }
