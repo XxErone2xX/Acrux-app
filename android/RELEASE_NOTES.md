@@ -1,3 +1,9 @@
+## Acrux Mobile V1.6.10 업데이트
+1. 튜토리얼과 이동 준비 안내에 카메라 모드를 클래식으로 설정하는 단계를 추가했습니다.
+
+## Acrux Mobile V1.6.10 Update
+1. The tutorial and movement setup guide now ask you to set Camera Mode to Classic.
+
 ## Acrux Mobile V1.6.9 업데이트
 1. 낚시 상점에서 Sell All 글자가 흐리거나 나뉘어 읽혀도 버튼 색과 위치로 판매 보정을 이어갑니다.
 2. 판매 확인창의 Sell·Cancel 인식을 보강하고, 보정 도중 오류로 중단되면 기존 위치를 유지합니다.

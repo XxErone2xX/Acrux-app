@@ -442,7 +442,7 @@ public class MainActivity extends Activity {
         capState = Ui.text(this, "", 13, Ui.MUTED, false);
         capBtn = Ui.button(this, "시작", Ui.ACCENT, v -> toggleCapture());
         ready.addView(row("② 화면 캡처", "매크로가 화면을 보고 상태를 판단함 · 녹화 · 저장은 하지 않음 · '전체 화면' 공유를 고르기", capState, capBtn), Ui.fill(this, 12));
-        TextView stickHelp = Ui.text(this, "③ 이동 · 판매: 로블록스 설정 → 이동 방식을 '조이스틱' (클래식) 으로",
+        TextView stickHelp = Ui.text(this, "③ 이동 · 판매: 로블록스 설정 → 이동 방식은 '조이스틱' (클래식), 카메라 모드는 '클래식'",
                 12, Ui.YELLOW, false);
         ready.addView(stickHelp, Ui.fill(this, 6));
 
