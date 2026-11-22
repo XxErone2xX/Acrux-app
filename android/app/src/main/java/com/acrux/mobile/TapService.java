@@ -1045,7 +1045,7 @@ public class TapService extends AccessibilityService {
                 m.addView(section("재설정 위치 (이동과 공유)"), mw());
                 for (String[] k : Mover.RESET_KEYS) pos(m, k[0], k[1], null);
                 m.addView(section("서버 체크"), mw());
-                pos(m, Hub.PS_MENU_KEY[0], Hub.PS_MENU_KEY[1], "Menu 창을 여는 버튼 · 브섭 확인에 씀");
+                pos(m, Hub.PS_MENU_KEY[0], Hub.PS_MENU_KEY[1], "Menu 창을 여는 버튼 · 내 서버 확인에 씀");
                 pos(m, Hub.PS_COMMANDS, "Private Server Commands", "메뉴를 열고 버튼 중앙을 누르세요.");
                 for (String[] k : Hub.PS_CLOSE_KEYS) pos(m, k[0], k[1], null);
                 break;

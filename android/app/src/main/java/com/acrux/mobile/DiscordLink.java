@@ -196,14 +196,17 @@ final class DiscordLink {
 
     static final String[][] STAT_MAP = {{"success", "fish_success"}, {"junk", "fish_junk"}, {"fail", "fish_fail"}, {"sells", "sell_runs"}, {"sold", "sold"}};
 
+    private static final java.util.concurrent.ExecutorService progressSender =
+            java.util.concurrent.Executors.newSingleThreadExecutor();
+
     /** 봇이 물어본 것만 (need = status · stats · logs · ps_check 서버 체크 · ps_return 내 서버로 복귀 · 글자는 앱 언어로) */
-    static JSONObject state(String need, int lines) throws Exception {
+    static JSONObject state(String need, int lines, java.util.function.Consumer<String> progress) throws Exception {
         boolean run = Hub.running();
         JSONObject s = new JSONObject();
         s.put("v", "V" + Online.BuildConfigVersion.get());
         s.put("running", run);
         if ("ps_check".equals(need)) {
-            s.put("ps", Hub.psCheck());
+            s.put("ps", Hub.psCheck(progress));
         } else if ("ps_return".equals(need)) {
             s.put("ps", Hub.psReturn());
         } else if ("stats".equals(need)) {
@@ -272,8 +275,15 @@ final class DiscordLink {
                 if (req != null && !req.optString("id").isEmpty()) {
                     Runnable answer = () -> {
                         try {
-                            JSONObject state = state(req.optString("need", "status"), req.optInt("lines", 50));
                             String id = req.optString("id");
+                            JSONObject state = state(req.optString("need", "status"), req.optInt("lines", 50),
+                                    phase -> progressSender.execute(() -> {
+                                        try {
+                                            call("/macro/progress", new JSONObject().put("id", id).put("phase", phase), tok, 3000);
+                                        } catch (Exception ignored) {
+                                            // Progress is best effort. The final reply is independent.
+                                        }
+                                    }));
                             call("/macro/reply", new JSONObject().put("id", id.length() > 32 ? id.substring(0, 32) : id).put("state", state), tok);
                         } catch (Exception ignored) {
                         }

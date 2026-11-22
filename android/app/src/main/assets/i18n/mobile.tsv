@@ -910,9 +910,9 @@ Fish 버튼: {0}	Fish button: {0}	Fish ボタン: {0}
 서버 체크 (디스코드 봇)	Server check (Discord bot)	サーバーチェック (Discord ボット)
 게임 메뉴 버튼 (왼쪽 줄 세 개)	Game menu button (three lines on the left)	ゲームメニューボタン (左の三本線)
 게임 메뉴 X	Game menu X	ゲームメニューの X
-브섭 관리창 X	Private server panel X	プライベートサーバー管理画面の X
+내 서버 관리창 X	Private server panel X	プライベートサーバー管理画面の X
 메뉴를 열고 버튼 중앙을 누르세요.	Open the menu and tap the button center.	メニューを開き、ボタンの中央をタップ。
-Menu 창을 여는 버튼 · 브섭 확인에 씀	Opens the Menu window · used to check your private server	Menu ウィンドウを開くボタン · プライベートサーバーの確認に使う
+Menu 창을 여는 버튼 · 내 서버 확인에 씀	Opens the Menu window · used to check your private server	Menu ウィンドウを開くボタン · プライベートサーバーの確認に使う
 서버 체크 중	Server check	サーバーチェック中
 서버 체크 중 — 잠시 후 다시	Server check running — try again in a moment	サーバーチェック中 — 少し後でもう一度
 서버 체크 — 확인 못 함 ({0})	Server check — couldn't check ({0})	サーバーチェック — 確認できない ({0})
@@ -927,7 +927,7 @@ Menu 창을 여는 버튼 · 브섭 확인에 씀	Opens the Menu window · used 
 메뉴 창을 못 찾음 — 게임 메뉴 버튼 위치 확인	Menu window not found — check the game menu button position	Menu ウィンドウが見つからない — ゲームメニューボタンの位置を確認
 다른 기능 (테스트 · 보정 · 기록) 중	Another feature is running (test · calibration · recording)	別の機能 (テスト · 補正 · 記録) 中
 자동 낚시가 대기 화면으로 안 옴	Auto fishing didn't come back to the idle screen	自動釣りが待機画面に戻らない
-브섭 링크가 없음 — 바이옴 매크로 설정에서 입력	No private server link — enter it in the biome macro settings	プライベートサーバーのリンクがない — バイオームマクロ設定で入力
+내 서버 링크가 없음 — 바이옴 매크로 설정에서 입력	No private server link — enter it in the biome macro settings	プライベートサーバーのリンクがない — バイオームマクロ設定で入力
 로블록스를 끄지 못함 (ADB) — 링크만 엶	Couldn't close Roblox (ADB) — opening the link only	Roblox を閉じられない (ADB) — リンクだけ開く
 내 서버로 복귀 — 45초 뒤 자동 낚시 다시 시작	Returning to your server — auto fishing restarts in 45 s	自分のサーバーへ復帰 — 45 秒後に自動釣りを再開
 자동 낚시 다시 시작 못 함 — {0}	Couldn't restart auto fishing — {0}	自動釣りを再開できない — {0}

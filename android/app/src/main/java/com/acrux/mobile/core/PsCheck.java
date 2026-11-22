@@ -3,9 +3,9 @@ package com.acrux.mobile.core;
 import java.util.List;
 
 /**
- * 서버 체크 (디스코드 봇 /서버 체크) — 지금 들어가 있는 서버가 내 브섭인지 (PC 의 pscheck.py 와 같음)
+ * 서버 체크 (디스코드 봇 /서버 체크) — 지금 들어가 있는 서버가 내 서버인지 (PC 의 pscheck.py 와 같음)
  * 1. 왼쪽 바의 게임 메뉴 버튼 (줄 세 개) 을 한 번 눌러 Menu 창을 엶
- * 2. Private Server Commands 를 열고 관리 패널에서 내 브섭인지 확인
+ * 2. Private Server Commands 를 열고 관리 패널에서 내 서버인지 확인
  * 3. Menu 창을 닫음 (지정한 X 위치 사용)
  */
 public final class PsCheck {
@@ -52,7 +52,7 @@ public final class PsCheck {
         return sections >= 2 || (sections >= 1 && text.contains(SellText.norm("Private Server Management")));
     }
 
-    /** 메뉴를 열어 내 브섭인지 확인하고 닫음 → TRUE · FALSE · null (메뉴 창을 못 찾음) */
+    /** 메뉴를 열어 내 서버인지 확인하고 닫음 → TRUE · FALSE · null (메뉴 창을 못 찾음) */
     public static Boolean check(Io io, double[] menuPos, double[] savedCommands, double[] menuClose, double[] panelClose, Runnable warnNotClosed) {
         if (menuPos == null || savedCommands == null || menuClose == null || panelClose == null) return null;
         boolean opened = false;

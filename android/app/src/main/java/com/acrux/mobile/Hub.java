@@ -457,14 +457,18 @@ final class Hub {
     static final String PS_MENU = "game_menu";
     static final String PS_COMMANDS = "private_server_commands";
     static final String PS_MENU_CLOSE = "ps_menu_close", PS_PANEL_CLOSE = "ps_panel_close";
-    static final String[][] PS_CLOSE_KEYS = {{PS_MENU_CLOSE, "게임 메뉴 X"}, {PS_PANEL_CLOSE, "브섭 관리창 X"}};
+    static final String[][] PS_CLOSE_KEYS = {{PS_MENU_CLOSE, "게임 메뉴 X"}, {PS_PANEL_CLOSE, "내 서버 관리창 X"}};
     static final String[] PS_MENU_KEY = {PS_MENU, "게임 메뉴 버튼 (왼쪽 줄 세 개)"};
     static volatile boolean psBusy;
     /** 복귀 뒤 자동 낚시를 다시 켤 예정 (그 사이 [시작] · [정지] 를 누르면 취소) */
     static volatile boolean psResume;
-    static final java.util.concurrent.atomic.AtomicReference<java.util.concurrent.CompletableFuture<org.json.JSONObject>> psWant =
+    static final class ServerCheck extends java.util.concurrent.CompletableFuture<org.json.JSONObject> {
+        final java.util.function.Consumer<String> progress;
+        ServerCheck(java.util.function.Consumer<String> progress) { this.progress = progress; }
+    }
+    static final java.util.concurrent.atomic.AtomicReference<ServerCheck> psWant =
             new java.util.concurrent.atomic.AtomicReference<>();
-    static final long PS_WAIT_MS = 25_000;                     // 자동 낚시가 대기 화면에 올 때까지 (봇은 35초까지 기다림)
+    static final long PS_WAIT_MS = 60_000;
 
     static org.json.JSONObject psRes(Boolean own, String why) {
         org.json.JSONObject o = new org.json.JSONObject();
@@ -486,14 +490,14 @@ final class Hub {
             case "menu": return "메뉴 창을 못 찾음 — 게임 메뉴 버튼 위치 확인";
             case "other": return "다른 기능 (테스트 · 보정 · 기록) 중";
             case "busy": return "이미 서버 체크 중";
-            case "stuck": return "자동 낚시가 대기 화면으로 안 옴";
-            case "no_link": return "브섭 링크가 없음 — 바이옴 매크로 설정에서 입력";
+            case "stuck": return "다른 기능이 1분 안에 끝나지 않음";
+            case "no_link": return "내 서버 링크가 없음 — 바이옴 매크로 설정에서 입력";
             default: return "오류";
         }
     }
 
     /** 봇 요청 (디스코드 연결 스레드) → {own, why, link} */
-    static org.json.JSONObject psCheck() {
+    static org.json.JSONObject psCheck(java.util.function.Consumer<String> progress) {
         if (TapService.instance == null || CaptureService.active == null) return psRes(null, "perm");
         if (pos.get(PS_MENU) == null || pos.get(PS_COMMANDS) == null
                 || pos.get(PS_MENU_CLOSE) == null || pos.get(PS_PANEL_CLOSE) == null) return psRes(null, "menu_pos");
@@ -503,16 +507,20 @@ final class Hub {
                 return psRes(null, "error");
             }
         }
-        java.util.concurrent.CompletableFuture<org.json.JSONObject> want = null;
+        ServerCheck want = null;
+        Thread other = null;
         synchronized (Hub.class) {
             if (psBusy || psWant.get() != null) return psRes(null, "busy");
-            if (running()) {
-                if (!"run".equals(mode)) return psRes(null, "other");
-                want = new java.util.concurrent.CompletableFuture<>();
+            if (running() && "run".equals(mode)) {
+                want = new ServerCheck(progress);
+                progress.accept("waiting");
                 psWant.set(want);
             } else {
-                stopFlag = false;
                 psBusy = true;
+                if (running()) {
+                    other = worker;
+                    progress.accept("waiting");
+                }
             }
         }
         if (want != null) {
@@ -522,7 +530,7 @@ final class Hub {
             } catch (Exception e) {
                 if (psWant.compareAndSet(want, null)) return psRes(null, running() ? "stuck" : "other");
                 try {
-                    return want.get(15, TimeUnit.SECONDS);   // 막 시작함 → 끝날 때까지
+                    return want.get(35, TimeUnit.SECONDS);   // 막 시작함 → 끝날 때까지
                 } catch (Exception e2) {
                     return psRes(null, "error");
                 }
@@ -530,6 +538,17 @@ final class Hub {
         }
         String back = null;
         try {
+            if (other != null) {
+                try {
+                    other.join(PS_WAIT_MS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return psRes(null, "other");
+                }
+                if (other.isAlive()) return psRes(null, "stuck");
+            }
+            stopFlag = false;
+            progress.accept("checking");
             // 폰의 디스코드에서 명령을 보냈으면 로블록스가 뒤에 있음 → 로블록스를 앞으로 가져와서 확인하고, 끝나면 그 앱으로 돌려보냄
             if (!TapService.robloxFront()) {
                 String rb = TapService.roblox, was = TapService.front;
@@ -563,7 +582,7 @@ final class Hub {
 
     /** 자동 낚시가 던지기 전 대기 화면에서 부름 (워커 스레드) → 서버 체크 요청이 있었으면 하고 true */
     static boolean psAtIdle(Seller seller) {
-        java.util.concurrent.CompletableFuture<org.json.JSONObject> want;
+        ServerCheck want;
         synchronized (Hub.class) {
             want = psWant.getAndSet(null);
             if (want == null) return false;
@@ -575,6 +594,7 @@ final class Hub {
             if (!TapService.robloxFront()) {
                 want.complete(psRes(null, "no_roblox"));
             } else {
+                want.progress.accept("checking");
                 want.complete(psRun());
                 CHECK.run();
                 if (TapService.robloxFront()) {
@@ -604,7 +624,7 @@ final class Hub {
         double[] commands = pos.get(PS_COMMANDS);
         double[] menuClose = pos.get(PS_MENU_CLOSE), panelClose = pos.get(PS_PANEL_CLOSE);
         if (menu == null || commands == null || menuClose == null || panelClose == null) return psRes(null, "menu_pos");
-        log("서버 체크 — 메뉴를 열어 내 브섭인지 확인", 'c');
+        log("서버 체크 — 메뉴를 열어 내 서버인지 확인", 'c');
         MlOcr ocr = new MlOcr();
         Runnable guard = () -> {
             CHECK.run();
@@ -636,7 +656,7 @@ final class Hub {
 
             }, menu, commands, menuClose, panelClose, () -> log("서버 체크 — Menu 창이 안 닫힘 (직접 닫아 주세요)", 'y'));
             if (own == null) return psRes(null, "menu");
-            log(own ? "서버 체크 — 내 브섭" : "서버 체크 — 내 브섭이 아님", own ? 'g' : 'y');
+            log(own ? "서버 체크 — 내 서버" : "서버 체크 — 내 서버가 아님", own ? 'g' : 'y');
             return psRes(own, "");
         } catch (Fisher.Stopped e) {
             throw e;
@@ -646,7 +666,7 @@ final class Hub {
         }
     }
 
-    /** 봇의 [내 서버로 복귀] → 자동 낚시를 멈추고 (ADB 가 연결돼 있으면 로블록스를 끄고) 브섭 링크를 엶 → 45초 뒤 자동 낚시 다시 시작 → {ok, why} */
+    /** 봇의 [내 서버로 복귀] → 자동 낚시를 멈추고 (ADB 가 연결돼 있으면 로블록스를 끄고) 내 서버 링크를 엶 → 45초 뒤 자동 낚시 다시 시작 → {ok, why} */
     static org.json.JSONObject psReturn() {
         org.json.JSONObject o = new org.json.JSONObject();
         String link = Biome.ps();

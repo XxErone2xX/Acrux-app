@@ -1,3 +1,11 @@
+## Acrux Mobile V1.8.0 업데이트
+1. 서버 체크가 자동 낚시의 다음 대기 화면이나 다른 기능의 종료를 최대 1분 기다립니다.
+2. 디스코드에서 다른 기능을 기다리는 단계와 내 서버 확인 단계를 표시합니다.
+
+## Acrux Mobile V1.8.0 Update
+1. Server checks wait up to one minute for auto-fishing to yield or another action to finish.
+2. Discord shows when the app is waiting and when it starts checking your server.
+
 ## Acrux Mobile V1.7.2 업데이트
 1. 서버 체크에서 게임 메뉴 X와 브섭 관리창 X 위치를 각각 지정합니다. 처음 사용하기 전에 두 위치를 저장해 주세요.
 
