@@ -3,7 +3,7 @@ package com.acrux.mobile;
 import android.graphics.Bitmap;
 import android.graphics.Rect;
 
-import com.acrux.mobile.core.Img;
+import com.google.android.gms.tasks.Task;
 import com.acrux.mobile.core.Mover;
 import com.acrux.mobile.core.SellText;
 import com.google.android.gms.tasks.Tasks;
@@ -35,13 +35,12 @@ final class MlOcr implements Mover.Ocr {
         double[] r = region != null ? region : new double[]{0, 0, 1, 1};
         int x0 = (int) (Math.min(r[0], r[2]) * W), y0 = (int) (Math.min(r[1], r[3]) * H);
         int x1 = (int) (Math.max(r[0], r[2]) * W), y1 = (int) (Math.max(r[1], r[3]) * H);
-        Img im = cap.grab(x0, y0, Math.max(1, x1 - x0), Math.max(1, y1 - y0));
-        if (im == null || im.w < 8 || im.h < 8) return out;
-        int[] px = new int[im.w * im.h];
-        for (int k = 0; k < px.length; k++) px[k] = 0xFF000000 | (im.r[k] << 16) | (im.g[k] << 8) | im.b[k];
-        Bitmap bmp = Bitmap.createBitmap(px, im.w, im.h, Bitmap.Config.ARGB_8888);
+        Bitmap bmp = cap.ocrBitmap(x0, y0, Math.max(1, x1 - x0), Math.max(1, y1 - y0));
+        if (bmp == null) return out;
+        Task<Text> task = null;
         try {
-            Text t = Tasks.await(recognizer().process(InputImage.fromBitmap(bmp, 0)), 6, TimeUnit.SECONDS);
+            task = recognizer().process(InputImage.fromBitmap(bmp, 0));
+            Text t = Tasks.await(task, 6, TimeUnit.SECONDS);
             for (Text.TextBlock block : t.getTextBlocks()) {
                 for (Text.Line line : block.getLines()) {
                     Rect b = line.getBoundingBox();
@@ -55,7 +54,8 @@ final class MlOcr implements Mover.Ocr {
         } catch (Exception e) {
             Hub.log("글자 읽기 실패: " + e.getMessage(), 'd');
         } finally {
-            bmp.recycle();
+            if (task == null || task.isComplete()) bmp.recycle();
+            else task.addOnCompleteListener(Runnable::run, ignored -> bmp.recycle());
         }
         BoxOverlay.ocr(out);                                  // 디버깅 화면: 읽은 줄 자리 (칸을 띄웠을 때만 보임)
         return out;

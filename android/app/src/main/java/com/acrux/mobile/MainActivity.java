@@ -329,6 +329,7 @@ public class MainActivity extends Activity {
         }
         TextView t = pages.get(i).tab;
         tabScroll.post(() -> tabScroll.smoothScrollTo(Math.max(0, t.getLeft() - Ui.dp(this, 40)), 0));
+        if ("log".equals(pages.get(i).key)) refreshLogs();
         if (save) Hub.prefs().edit().putString("tab", pages.get(i).key).apply();
     }
 
@@ -1249,6 +1250,7 @@ public class MainActivity extends Activity {
         StringBuilder bot = new StringBuilder();
         for (String[] k : Mover.RESET_KEYS) line(bot, Ui.tr(k[1]), Hub.pos.get(k[0]));
         line(bot, Ui.tr(Hub.PS_MENU_KEY[1]), Hub.pos.get(Hub.PS_MENU));
+        line(bot, "Private Server Commands", Hub.pos.get(Hub.PS_COMMANDS));
         botPositions.setText(bot.toString().trim());
         for (String[] k : Seller.TALK) line(ps, Ui.tr(k[1]), Hub.pos.get(k[0]));
         for (String[] k : Seller.KEYS) line(ps, I18n.f("{0} (판매)", Ui.tr(k[1])), Hub.pos.get(k[0]));
@@ -1256,8 +1258,20 @@ public class MainActivity extends Activity {
         route(ps, Ui.tr("판매 장소 길"), Hub.sellRoute);
         posView.setText(ps.toString().trim());
 
+        if (current >= 0 && "log".equals(pages.get(current).key)) refreshLogs();
+    }
+
+    long displayedLogRevision = -1;
+    String displayedLogLang;
+    void refreshLogs() {
+        long revision = Hub.logRevision;
+        String lang = I18n.lang();
+        if (revision == displayedLogRevision && lang.equals(displayedLogLang)) return;
+        displayedLogRevision = revision;
+        displayedLogLang = lang;
+        java.util.List<String> lines = Hub.recentLogsShown(300);
         StringBuilder s = new StringBuilder();
-        for (String l : Hub.recentLogsShown(300)) s.insert(0, l + "\n");
+        for (int i = lines.size() - 1; i >= 0; i--) s.append(lines.get(i)).append('\n');
         if (s.length() == 0) Ui.set(logView, "아직 기록 없음");
         else logView.setText(s.toString().trim());
     }

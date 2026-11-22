@@ -224,6 +224,34 @@ public class CaptureService extends Service implements Fisher.Screen {
         return copy(out, x0, y0, 0, 0, out.w, out.h, step) ? out : null;
     }
 
+    synchronized android.graphics.Bitmap ocrBitmap(int x, int y, int width, int height) {
+        if (reader == null) return null;
+        fitSize();
+        acquire();
+        if (cur == null) return null;
+        int left = Math.max(0, x), top = Math.max(0, y);
+        int cols = Math.min(cur.getWidth(), x + width) - left;
+        int rows = Math.min(cur.getHeight(), y + height) - top;
+        if (cols < 8 || rows < 8) return null;
+        android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(cols, rows, android.graphics.Bitmap.Config.ARGB_8888);
+        boolean complete = false;
+        try {
+            Img strip = new Img(cols, Math.min(32, rows));
+            int[] packed = new int[strip.w * strip.h];
+            for (int offset = 0; offset < rows; offset += strip.h) {
+                int count = Math.min(strip.h, rows - offset);
+                if (!copy(strip, left, top + offset, 0, 0, cols, count, 1)) return null;
+                for (int k = 0; k < cols * count; k++)
+                    packed[k] = 0xff000000 | (strip.r[k] << 16) | (strip.g[k] << 8) | strip.b[k];
+                bitmap.setPixels(packed, 0, cols, 0, offset, cols, count);
+            }
+            complete = true;
+            return bitmap;
+        } finally {
+            if (!complete) bitmap.recycle();
+        }
+    }
+
     /** 지금 화면 (sx, sy) 부터 step 칸마다 w × h 칸 → dst 의 (dx, dy) 부터 · 실패하면 false (화면이 바뀌는 순간 닫힌 이미지) */
     boolean copy(Img dst, int sx, int sy, int dx, int dy, int w, int h, int step) {
         Image.Plane p;
@@ -232,6 +260,7 @@ public class CaptureService extends Service implements Fisher.Screen {
             p = cur.getPlanes()[0];
             buf = p.getBuffer().duplicate();
         } catch (RuntimeException e) {               // 화면이 바뀌는 순간 닫힌 이미지
+            cur.close();
             cur = null;
             return false;
         }

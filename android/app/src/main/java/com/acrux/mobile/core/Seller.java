@@ -146,7 +146,6 @@ public final class Seller {
         Img im = full();
         if (im == null || im.w == 0) return null;
         Buttons.Box[] d = Buttons.dialog(im);
-        if (d == null) d = Buttons.dialogBlue(im);           // 잔디 위: 초록 테두리가 잔디와 붙음 → 파란 Sell Fish 부터
         if (d == null) d = Buttons.dialogRow(im);            // 테두리가 옆 칸과 이어지거나 흐릴 때: 가로 띠로 초록 → 파랑 → 빨강
         return d == null ? null : Buttons.center(d[1], im);
     }
@@ -156,7 +155,6 @@ public final class Seller {
         Img im = full();
         if (im == null || im.w == 0) return null;
         Buttons.Box[] d = Buttons.shop(im);
-        if (d == null) d = Buttons.shopBlue(im);             // 잔디 위: 파란 Sell All 부터
         if (d == null) return null;
         Buttons.Box b = d[1];
         return new SellText.Box("Sell All", b.cx() / im.w, b.cy() / im.h, (double) b.w() / im.w, (double) b.h() / im.h);
@@ -238,7 +236,6 @@ public final class Seller {
         Img im = full();
         if (im == null || im.w == 0) return null;
         Buttons.Box[] s = Buttons.shop(im);
-        if (s == null) s = Buttons.shopBlue(im);
         if (s == null) return null;
         double saw = s[1].w(), x = (s[1].cx() + saw * 1.12) / im.w, y = title.y + saw * 0.87 * 1.04 / im.h;
         if (x <= 0 || x >= 1 || y <= title.y || y >= s[1].cy() / im.h) return null;

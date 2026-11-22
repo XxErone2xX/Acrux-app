@@ -45,10 +45,9 @@ public final class Vision {
     }
 
     // ---------------------------------------------------------------- 공통
-    static double median(double[] v, int n) {
+    static double medianInPlace(double[] s, int n) {
         if (n <= 0) return Double.NaN;
-        double[] s = Arrays.copyOf(v, n);
-        Arrays.sort(s);
+        Arrays.sort(s, 0, n);
         return n % 2 == 1 ? s[n / 2] : (s[n / 2 - 1] + s[n / 2]) / 2.0;
     }
 
@@ -63,7 +62,7 @@ public final class Vision {
             for (int c = 0; c < 3; c++) {
                 int[] ch = c == 0 ? im.r : c == 1 ? im.g : im.b;
                 for (int y = 0; y < n; y++) t[y] = ch[(y0 + y) * im.w + x];
-                out[x][c] = median(t, n);
+                out[x][c] = medianInPlace(t, n);
             }
         }
         return out;
@@ -188,7 +187,7 @@ public final class Vision {
         double[] head = new double[3], t = new double[Math.max(1, m)];
         for (int c = 0; c < 3; c++) {
             for (int x = 0; x < m; x++) t[x] = band[x][c];
-            head[c] = median(t, m);
+            head[c] = medianInPlace(t, m);
         }
         if (mx(head) < 45 || empty(head) || isFill(head)) return true;
         int dark = 0;
@@ -460,7 +459,8 @@ public final class Vision {
         int gap = 0;
         for (int x = 0; x < g.length; x++) {
             if (g[x]) {
-                cur = cur == null ? new int[]{x, x} : new int[]{cur[0], x};
+                if (cur == null) cur = new int[]{x, x};
+                else cur[1] = x;
                 gap = 0;
             } else if (cur != null) {
                 gap++;
@@ -526,7 +526,7 @@ public final class Vision {
         for (int c = 0; c < 3; c++) {
             int j = 0;
             for (int i = 0; i < n; i++) if (ok[i]) t[j++] = bd[s0 + i][c];
-            ref[c] = median(t, okN);
+            ref[c] = medianInPlace(t, okN);
         }
         double sum = 0;
         for (int i = 0; i < n; i++) {

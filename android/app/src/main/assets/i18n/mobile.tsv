@@ -909,6 +909,7 @@ Fish 버튼: {0}	Fish button: {0}	Fish ボタン: {0}
 판매 위치와 낚시·판매 길 지움	Cleared selling positions and fishing and selling routes	販売位置と釣り・販売ルートを削除しました
 서버 체크 (디스코드 봇)	Server check (Discord bot)	サーバーチェック (Discord ボット)
 게임 메뉴 버튼 (왼쪽 줄 세 개)	Game menu button (three lines on the left)	ゲームメニューボタン (左の三本線)
+게임 메뉴를 연 뒤 버튼 중앙을 지정하세요. 지정 전에는 자동으로 찾습니다.	Open the game menu and select the center of the button. Until set, the position is detected automatically.	ゲームメニューを開き、ボタンの中央を指定してください。未設定の場合は自動で検出します。
 Menu 창을 여는 버튼 · 브섭 확인에 씀	Opens the Menu window · used to check your private server	Menu ウィンドウを開くボタン · プライベートサーバーの確認に使う
 서버 체크 중	Server check	サーバーチェック中
 서버 체크 중 — 잠시 후 다시	Server check running — try again in a moment	サーバーチェック中 — 少し後でもう一度

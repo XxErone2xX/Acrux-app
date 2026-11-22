@@ -120,7 +120,7 @@ public final class PsCheck {
     }
 
     /** 메뉴를 열어 내 브섭인지 확인하고 닫음 → TRUE · FALSE · null (메뉴 창을 못 찾음) */
-    public static Boolean check(Io io, double[] menuPos, Runnable warnNotClosed) {
+    public static Boolean check(Io io, double[] menuPos, double[] savedCommands, Runnable warnNotClosed) {
         Res res = null;
         for (int attempt = 0; attempt < 2; attempt++) {     // 처음부터 메뉴가 열려 있었으면 첫 탭에 닫힘 → 한 번 더
             io.tap(menuPos);
@@ -135,9 +135,10 @@ public final class PsCheck {
         if (res == null || !res.menu) return null;
         Boolean own = null;
         boolean menuStillOpen = true;
-        if (res.commands != null) {
+        double[] target = savedCommands != null ? savedCommands : res.commands;
+        if (target != null) {
             for (int attempt = 0; attempt < 2; attempt++) {
-                io.tap(res.commands);
+                io.tap(target);
                 for (int poll = 0; poll < 3; poll++) {
                     io.sleep(0.45);
                     List<SellText.Box> boxes = io.read();

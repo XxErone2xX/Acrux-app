@@ -1,3 +1,19 @@
+## Acrux Mobile V1.7.0 업데이트
+1. 낚시 릴링 분석의 임시 배열 생성을 줄이고 판매 버튼 감지의 중복 화면 분석을 제거했습니다.
+2. 글자 인식용 화면을 작은 줄 묶음으로 복사해 임시 메모리를 줄이고, 캡처와 글자 인식 종료 시 자원 정리를 개선했습니다.
+3. 닫힌 패널과 기록 탭의 불필요한 갱신을 줄였습니다.
+
+## Acrux Mobile V1.7.0 Update
+1. Reduced temporary allocations during reeling and eliminated duplicate pixel scans when detecting shop and dialogue buttons.
+2. OCR now copies the captured image in strips to reduce temporary memory. Improved capture and OCR resource cleanup.
+3. Reduced unnecessary updates to the closed drawer and log tab.
+
+## Acrux Mobile V1.6.12 업데이트
+1. 봇 명령어 → 서버 체크에서 Private Server Commands 버튼 위치를 직접 지정할 수 있습니다. 저장한 위치를 우선 사용하고, 미지정 시 자동으로 찾습니다.
+
+## Acrux Mobile V1.6.12 Update
+1. Set the Private Server Commands button position under Bot Commands → Server Check. Server checks use the saved position when available and automatic detection otherwise.
+
 ## Acrux Mobile V1.6.11 업데이트
 1. 낚시·판매 장소 이동 버튼을 낚시 → 길의 각 장소에 배치했습니다. 이동 → 기준 장소에서는 기준 장소 이동을 테스트할 수 있습니다.
 

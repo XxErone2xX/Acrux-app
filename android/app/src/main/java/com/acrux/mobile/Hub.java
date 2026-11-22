@@ -140,8 +140,11 @@ final class Hub {
     static final List<Runnable> langListeners = new CopyOnWriteArrayList<>();
 
     // ---- 화면 갱신
+    static final java.util.concurrent.atomic.AtomicBoolean refreshQueued = new java.util.concurrent.atomic.AtomicBoolean();
     static void changed() {
+        if (listeners.isEmpty() || !refreshQueued.compareAndSet(false, true)) return;
         main.post(() -> {
+            refreshQueued.set(false);
             for (Runnable r : listeners) r.run();
         });
     }
@@ -151,6 +154,7 @@ final class Hub {
         String t = new SimpleDateFormat("HH:mm:ss", Locale.ROOT).format(new Date());
         synchronized (logs) {
             logs.add(t + "  " + msg);
+            logRevision++;
             while (logs.size() > 300) logs.remove(0);
         }
         changed();
@@ -166,9 +170,12 @@ final class Hub {
         return out;
     }
 
+    static volatile long logRevision;
+
     static void clearLogs() {
         synchronized (logs) {
             logs.clear();
+            logRevision++;
         }
         changed();
     }
@@ -448,6 +455,7 @@ final class Hub {
     //  자동 낚시 중이면 던지기 전 대기 화면에서 (Fisher.onIdle) · 아무것도 안 돌면 바로 · 다른 기능 (테스트 · 보정 · 기록) 중이면 안 함
     //  이유 코드 (봇이 디스코드 언어로 보여 줌): no_roblox · perm · menu_pos · menu · other · busy · stuck · error · no_link
     static final String PS_MENU = "game_menu";
+    static final String PS_COMMANDS = "private_server_commands";
     static final String[] PS_MENU_KEY = {PS_MENU, "게임 메뉴 버튼 (왼쪽 줄 세 개)"};
     static volatile boolean psBusy;
     /** 복귀 뒤 자동 낚시를 다시 켤 예정 (그 사이 [시작] · [정지] 를 누르면 취소) */
@@ -625,7 +633,7 @@ final class Hub {
                 public int[] size() {
                     return new int[]{cap.width(), cap.height()};
                 }
-            }, menu, () -> log("서버 체크 — Menu 창이 안 닫힘 (직접 닫아 주세요)", 'y'));
+            }, menu, pos.get(PS_COMMANDS), () -> log("서버 체크 — Menu 창이 안 닫힘 (직접 닫아 주세요)", 'y'));
             if (own == null) return psRes(null, "menu");
             log(own ? "서버 체크 — 내 브섭" : "서버 체크 — 내 브섭이 아님", own ? 'g' : 'y');
             return psRes(own, "");

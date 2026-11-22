@@ -200,7 +200,9 @@ public final class Buttons {
 
     /** 대화 선택지 줄 → {Open Shop, Sell Fish, Leave} 또는 null — 초록 상자 → 오른쪽 파란 칸 → 그 오른쪽 빨간 칸 (아래쪽 60% 에서 찾음) */
     public static Box[] dialog(Img im) {
-        return dialog(im, buttons(boxes(im, 0, (int) (im.h * 0.4), im.w, im.h), im));
+        List<Box> candidates = buttons(boxes(im, 0, (int) (im.h * 0.4), im.w, im.h), im);
+        Box[] pair = dialog(im, candidates);
+        return pair != null ? pair : dialogBlue(im, candidates);
     }
 
     static Box[] dialog(Img im, List<Box> bs) {
@@ -370,8 +372,7 @@ public final class Buttons {
      *  · 잔디 위에서는 초록 [Open Shop] 테두리가 잔디와 한 덩어리가 돼서 초록 상자를 못 찾았음 (판매 템플릿 1 · 2 · 3 이 전부 그랬음)
      *  · 파란 상자 → 오른쪽에 빨간 [Leave] · 왼쪽에 밝은 초록 [Open Shop] (있으면) · 초록이 안 보이면 화면 가운데에 있어야 함 (선택지 줄은 늘 가운데)
      */
-    public static Box[] dialogBlue(Img im) {
-        List<Box> bs = buttons(boxes(im, 0, (int) (im.h * 0.4), im.w, im.h), im);
+    private static Box[] dialogBlue(Img im, List<Box> bs) {
         Box[] best = null;
         double bestScore = 1e18;
         for (Box b : bs) {
@@ -399,8 +400,7 @@ public final class Buttons {
      * 상점 [Sell All] 을 파란 상자부터 찾기 (shop 이 못 찾을 때) → {Sell, Sell All} 또는 null
      * 잔디 위에서는 상점 창이 반투명이라 초록 [Sell] 테두리가 비친 잔디와 한 덩어리가 됨 → 파란 상자 + 왼쪽 바로 옆 밝은 초록
      */
-    public static Box[] shopBlue(Img im) {
-        List<Box> bs = buttons(boxes(im, 0, (int) (im.h * 0.3), im.w, im.h), im);
+    private static Box[] shopBlue(Img im, List<Box> bs) {
         Box[] best = null;
         double bestScore = 1e18;
         for (Box b : bs) {
@@ -463,7 +463,7 @@ public final class Buttons {
                 best = new Box[]{g, b};
             }
         }
-        return best;
+        return best != null ? best : shopBlue(im, bs);
     }
 
     /** Confirmation dialog: centered pair of equally sized green and red controls. */

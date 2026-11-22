@@ -239,6 +239,7 @@ public class TapService extends AccessibilityService {
     }
 
     void cleanup() {
+        Hub.main.removeCallbacks(tick);
         Hub.listeners.remove(BoxOverlay.SYNC);
         if (instance == this) BoxOverlay.hide();
         if (instance == this) instance = null;
@@ -847,7 +848,7 @@ public class TapService extends AccessibilityService {
                 return Hub.stick != null ? "저장됨" : "없음";
             case "bot":
             case "pscheck":
-                return serverPositions() + " / " + (Mover.RESET_KEYS.length + 1) + " 저장됨";
+                return serverPositions() + " / " + (Mover.RESET_KEYS.length + 2) + " 저장됨";
             case "base":
                 return count(Mover.BASE_KEYS) + " / " + Mover.BASE_KEYS.length + " 저장됨";
             default:
@@ -875,7 +876,7 @@ public class TapService extends AccessibilityService {
                 return Hub.stick != null;
             case "bot":
             case "pscheck":
-                return serverPositions() == Mover.RESET_KEYS.length + 1;
+                return serverPositions() == Mover.RESET_KEYS.length + 2;
             case "base":
                 return Guide.baseReady();
             default:
@@ -884,7 +885,8 @@ public class TapService extends AccessibilityService {
     }
 
     static int serverPositions() {
-        return count(Mover.RESET_KEYS) + (Hub.pos.containsKey(Hub.PS_MENU) ? 1 : 0);
+        return count(Mover.RESET_KEYS) + (Hub.pos.containsKey(Hub.PS_MENU) ? 1 : 0)
+                + (Hub.pos.containsKey(Hub.PS_COMMANDS) ? 1 : 0);
     }
 
     int moveReady() {
@@ -1044,6 +1046,7 @@ public class TapService extends AccessibilityService {
                 for (String[] k : Mover.RESET_KEYS) pos(m, k[0], k[1], null);
                 m.addView(section("서버 체크"), mw());
                 pos(m, Hub.PS_MENU_KEY[0], Hub.PS_MENU_KEY[1], "Menu 창을 여는 버튼 · 브섭 확인에 씀");
+                pos(m, Hub.PS_COMMANDS, "Private Server Commands", "게임 메뉴를 연 뒤 버튼 중앙을 지정하세요. 지정 전에는 자동으로 찾습니다.");
                 break;
             case "base":
                 pageBase(m);
@@ -1559,6 +1562,10 @@ public class TapService extends AccessibilityService {
         boolean run = Hub.running();
         if (run && !wasRun) runT0 = SystemClock.elapsedRealtime();
         wasRun = run;
+        recBox.setVisibility(Hub.measuring ? View.VISIBLE : View.GONE);
+        handle.setBar(run ? C_ACC : C_MUT);
+        handleIn.setBar(run ? C_ACC : C_MUT);
+        if (!open) return;
         boolean cap = CaptureService.active != null;
         // 위 줄: 점 (파랑 = 도는 중 · 주황 = 화면 캡처 꺼짐 · 회색 = 대기) + 실행 시간
         dot.setTextColor(run ? C_ACC : !cap ? C_WARN : C_DIM);
@@ -1599,9 +1606,6 @@ public class TapService extends AccessibilityService {
             safeNote.setVisibility(w ? View.VISIBLE : View.GONE);
         }
         for (Runnable r : live) r.run();
-        recBox.setVisibility(Hub.measuring ? View.VISIBLE : View.GONE);
-        handle.setBar(run ? C_ACC : C_MUT);
-        handleIn.setBar(run ? C_ACC : C_MUT);
     }
 
     static String fmt(double v) {
