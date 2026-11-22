@@ -1,3 +1,9 @@
+## Acrux Mobile V1.7.1 업데이트
+1. Private Server Commands 보정 안내를 줄였습니다. 서버 체크는 직접 지정한 버튼 위치만 사용하며, 미지정 시 시작하지 않습니다.
+
+## Acrux Mobile V1.7.1 Update
+1. Shortened the Private Server Commands setup instructions. Server checks now require a manually saved button position.
+
 ## Acrux Mobile V1.7.0 업데이트
 1. 낚시 릴링 분석의 임시 배열 생성을 줄이고 판매 버튼 감지의 중복 화면 분석을 제거했습니다.
 2. 글자 인식용 화면을 작은 줄 묶음으로 복사해 임시 메모리를 줄이고, 캡처와 글자 인식 종료 시 자원 정리를 개선했습니다.

@@ -480,7 +480,7 @@ final class Hub {
         switch (why) {
             case "no_roblox": return "로블록스를 못 찾음 — 로블록스에 들어가 있는 상태로 다시";
             case "perm": return "접근성 권한 · 화면 캡처가 꺼져 있음";
-            case "menu_pos": return "게임 메뉴 버튼 위치가 없음 — 봇 명령어 → 서버 체크에서 지정";
+            case "menu_pos": return "서버 체크 버튼 위치를 지정하세요.";
             case "menu": return "메뉴 창을 못 찾음 — 게임 메뉴 버튼 위치 확인";
             case "other": return "다른 기능 (테스트 · 보정 · 기록) 중";
             case "busy": return "이미 서버 체크 중";
@@ -493,7 +493,7 @@ final class Hub {
     /** 봇 요청 (디스코드 연결 스레드) → {own, why, link} */
     static org.json.JSONObject psCheck() {
         if (TapService.instance == null || CaptureService.active == null) return psRes(null, "perm");
-        if (pos.get(PS_MENU) == null) return psRes(null, "menu_pos");
+        if (pos.get(PS_MENU) == null || pos.get(PS_COMMANDS) == null) return psRes(null, "menu_pos");
         for (String[] k : Mover.RESET_KEYS) {
             if (pos.get(k[0]) == null) {
                 log("서버 체크 — 봇 명령어 → 서버 체크에서 재설정 버튼 위치를 지정해 주세요", 'y');
@@ -598,7 +598,8 @@ final class Hub {
         TapService ts = TapService.instance;
         double[] menu = pos.get(PS_MENU);
         if (cap == null || ts == null) return psRes(null, "perm");
-        if (menu == null) return psRes(null, "menu_pos");
+        double[] commands = pos.get(PS_COMMANDS);
+        if (menu == null || commands == null) return psRes(null, "menu_pos");
         log("서버 체크 — 메뉴를 열어 내 브섭인지 확인", 'c');
         MlOcr ocr = new MlOcr();
         Runnable guard = () -> {
@@ -633,7 +634,7 @@ final class Hub {
                 public int[] size() {
                     return new int[]{cap.width(), cap.height()};
                 }
-            }, menu, pos.get(PS_COMMANDS), () -> log("서버 체크 — Menu 창이 안 닫힘 (직접 닫아 주세요)", 'y'));
+            }, menu, commands, () -> log("서버 체크 — Menu 창이 안 닫힘 (직접 닫아 주세요)", 'y'));
             if (own == null) return psRes(null, "menu");
             log(own ? "서버 체크 — 내 브섭" : "서버 체크 — 내 브섭이 아님", own ? 'g' : 'y');
             return psRes(own, "");

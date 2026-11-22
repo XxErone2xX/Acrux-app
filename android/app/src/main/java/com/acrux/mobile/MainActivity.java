@@ -495,7 +495,7 @@ public class MainActivity extends Activity {
         LinearLayout server = section(pg, "서버 체크");
         botPositions = Ui.text(this, "", 12, Ui.MUTED, false);
         server.addView(botPositions, Ui.fill(this, 6));
-        server.addView(Ui.text(this, "게임에서 Acrux 손잡이를 열고 위치를 선택하세요. 재설정 위치는 이동과 공유합니다.", 12, Ui.MUTED, false), Ui.fill(this, 8));
+        server.addView(Ui.text(this, "게임에서 버튼 위치를 지정하세요.", 12, Ui.MUTED, false), Ui.fill(this, 8));
         server.addView(Ui.button(this, "게임에서 보정", Ui.ACCENT, v -> {
             TapService service = TapService.instance;
             if (service == null || !TapService.bringFront(TapService.roblox == null ? "com.roblox.client" : TapService.roblox)) {

@@ -1046,7 +1046,7 @@ public class TapService extends AccessibilityService {
                 for (String[] k : Mover.RESET_KEYS) pos(m, k[0], k[1], null);
                 m.addView(section("서버 체크"), mw());
                 pos(m, Hub.PS_MENU_KEY[0], Hub.PS_MENU_KEY[1], "Menu 창을 여는 버튼 · 브섭 확인에 씀");
-                pos(m, Hub.PS_COMMANDS, "Private Server Commands", "게임 메뉴를 연 뒤 버튼 중앙을 지정하세요. 지정 전에는 자동으로 찾습니다.");
+                pos(m, Hub.PS_COMMANDS, "Private Server Commands", "메뉴를 열고 버튼 중앙을 누르세요.");
                 break;
             case "base":
                 pageBase(m);

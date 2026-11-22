@@ -31,8 +31,8 @@ public final class PsCheck {
 
     /** 결과: menu = Menu 창이 보임 · own = 내 브섭 · close = X 자리 (화면 비율) */
     public static final class Res {
-        public boolean menu, buttonRead;
-        public double[] commands, panelClose;
+        public boolean menu;
+        public double[] panelClose;
         public double[] close;
     }
 
@@ -40,12 +40,6 @@ public final class PsCheck {
         String n = SellText.norm(b.text);
         for (int i = 0; i < KEYS.length; i++) if (n.contains(KEYS[i])) return i;
         return -1;
-    }
-
-    /** Private Server Commands 버튼 글자 (게임 글꼴이라 'Privote Server Commonds' 처럼 읽혀도) */
-    public static boolean isPsc(String text) {
-        String n = SellText.norm(text);
-        return n.contains("prlv") && (n.contains("serv") || n.contains("comm"));
     }
 
     public static Res measure(List<SellText.Box> boxes, int W, int H) {
@@ -63,9 +57,7 @@ public final class PsCheck {
         if (kinds < 2) return r;
         r.menu = true;
         SellText.Box top = null, bot = null;
-        double bottom = 0;
         for (SellText.Box b : items) {
-            bottom = Math.max(bottom, b.y);
             if (top == null || KEY_Y[key(b)] < KEY_Y[key(top)]) top = b;
             if (bot == null || KEY_Y[key(b)] > KEY_Y[key(bot)]) bot = b;
         }
@@ -82,19 +74,7 @@ public final class PsCheck {
         }
         // Menu 창은 화면 가운데 (버튼 글자 덩어리는 왼쪽 아이콘이 같이 읽혀 가운데가 밀리기도 해서 제목 · 화면 가운데를 씀)
         double cx = title != null ? title.x : 0.5;
-        for (SellText.Box b : boxes) {
-            // 버튼은 Menu 창 바로 아래 · 가운데 (월드의 글자 · 게시판에 걸리지 않게)
-            if (isPsc(b.text) && b.y > bottom && Math.abs(b.x - cx) * W < 0.25 * H) {
-                r.buttonRead = true;
-                r.commands = new double[]{b.x, b.y};
-                break;
-            }
-        }
         double ty = title != null ? title.y * H : y1 - (r1 - TITLE_Y) * k;
-        if (r.commands == null && k > 0 && y2 > y1) {
-            double commandsY = (ty + (735 - TITLE_Y) * k) / H;
-            if (commandsY > bottom && commandsY < 1) r.commands = new double[]{cx, commandsY};
-        }
         r.panelClose = new double[]{cx + 450 * k / W, (ty - 70 * k) / H};
         double x = cx * W + CLOSE_DX * k, y = ty - k;
         r.close = new double[]{Math.min(1, Math.max(0, x / W)), Math.min(1, Math.max(0, y / H))};
@@ -121,6 +101,7 @@ public final class PsCheck {
 
     /** 메뉴를 열어 내 브섭인지 확인하고 닫음 → TRUE · FALSE · null (메뉴 창을 못 찾음) */
     public static Boolean check(Io io, double[] menuPos, double[] savedCommands, Runnable warnNotClosed) {
+        if (savedCommands == null) return null;
         Res res = null;
         for (int attempt = 0; attempt < 2; attempt++) {     // 처음부터 메뉴가 열려 있었으면 첫 탭에 닫힘 → 한 번 더
             io.tap(menuPos);
@@ -135,34 +116,31 @@ public final class PsCheck {
         if (res == null || !res.menu) return null;
         Boolean own = null;
         boolean menuStillOpen = true;
-        double[] target = savedCommands != null ? savedCommands : res.commands;
-        if (target != null) {
-            for (int attempt = 0; attempt < 2; attempt++) {
-                io.tap(target);
-                for (int poll = 0; poll < 3; poll++) {
-                    io.sleep(0.45);
-                    List<SellText.Box> boxes = io.read();
+        for (int attempt = 0; attempt < 2; attempt++) {
+            io.tap(savedCommands);
+            for (int poll = 0; poll < 3; poll++) {
+                io.sleep(0.45);
+                List<SellText.Box> boxes = io.read();
+                if (panel(boxes)) {
+                    io.tap(res.panelClose);
+                    io.sleep(0.6);
+                    boxes = io.read();
                     if (panel(boxes)) {
                         io.tap(res.panelClose);
                         io.sleep(0.6);
                         boxes = io.read();
-                        if (panel(boxes)) {
-                            io.tap(res.panelClose);
-                            io.sleep(0.6);
-                            boxes = io.read();
-                            if (panel(boxes) && warnNotClosed != null) warnNotClosed.run();
-                        }
-                        if (!measure(boxes, io.size()[0], io.size()[1]).menu) return true;
-                        own = true;
-                        break;
+                        if (panel(boxes) && warnNotClosed != null) warnNotClosed.run();
                     }
-                    menuStillOpen = measure(boxes, io.size()[0], io.size()[1]).menu;
+                    if (!measure(boxes, io.size()[0], io.size()[1]).menu) return true;
+                    own = true;
+                    break;
                 }
-                if (own != null || !menuStillOpen) break;
+                menuStillOpen = measure(boxes, io.size()[0], io.size()[1]).menu;
             }
-            if (!menuStillOpen) return null;
-            if (own == null && !res.buttonRead) own = false;
+            if (own != null || !menuStillOpen) break;
         }
+        if (!menuStillOpen) return null;
+        if (own == null) own = false;
         // 닫기: X → 그래도 열려 있으면 메뉴 버튼 한 번 더
         List<double[]> targets = new ArrayList<>();
         if (res.close != null) targets.add(res.close);
