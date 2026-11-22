@@ -792,8 +792,9 @@ final class Hub {
             f.test();
         } else if (m.equals("sellcal")) {
             List<String> notes = sl.autocal();
-            log("판매 자동 보정 완료" + (notes.isEmpty() ? "" : " · " + String.join(" · ", notes)), 'g');
-            endNote = "판매 자동 보정 완료";
+            endWarn = !notes.isEmpty();
+            endNote = "판매 자동 보정 완료" + (endWarn ? " · " + String.join(" · ", notes) : "");
+            log(endNote, endWarn ? 'y' : 'g');
         } else if (m.equals("sell")) {
             int sold = sl.run();
             stat("sells", 1);

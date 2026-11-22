@@ -1,3 +1,11 @@
+## Acrux Mobile V1.6.9 업데이트
+1. 낚시 상점에서 Sell All 글자가 흐리거나 나뉘어 읽혀도 버튼 색과 위치로 판매 보정을 이어갑니다.
+2. 판매 확인창의 Sell·Cancel 인식을 보강하고, 보정 도중 오류로 중단되면 기존 위치를 유지합니다.
+
+## Acrux Mobile V1.6.9 Update
+1. Fishing Shop calibration now uses button colors and positions when the Sell All label is faint or read as separate words.
+2. Improved Sell and Cancel detection in the confirmation dialog. Interrupted calibration preserves previously saved positions.
+
 ## Acrux Mobile V1.6.8 업데이트
 1. 낚시 앞에 봇 명령어 탭을 추가했습니다. 서버 체크에서 재설정 위치와 게임 메뉴 버튼을 보정할 수 있습니다.
 2. 낚시 탭에서 판매 위치와 길을 지워도 이동과 서버 체크 보정은 유지됩니다.

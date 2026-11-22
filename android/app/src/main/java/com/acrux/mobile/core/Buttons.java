@@ -466,6 +466,22 @@ public final class Buttons {
         return best;
     }
 
+    /** Confirmation dialog: centered pair of equally sized green and red controls. */
+    public static double[][] confirmPair(Img im) {
+        List<Box> candidates = buttons(boxes(im, im.w / 5, im.h / 2, im.w * 4 / 5, im.h * 7 / 10), im);
+        for (Box sell : candidates) {
+            if (sell.c != GREEN || sell.cx() >= im.w / 2 || sell.w() < im.w * 0.075) continue;
+            for (Box cancel : candidates) {
+                if (cancel.c != RED || cancel.cx() <= im.w / 2 || !sameRow(sell, cancel, im)) continue;
+                double gap = cancel.x1 - sell.x2;
+                if (gap < 0 || gap > sell.w() * 0.4 || Math.abs(cancel.w() - sell.w()) > sell.w() * 0.25) continue;
+                if (Math.abs((sell.cx() + cancel.cx()) / 2 - im.w / 2) > sell.w() * 0.22) continue;
+                return new double[][]{center(sell, im), center(cancel, im)};
+            }
+        }
+        return null;
+    }
+
     /** 상자 가운데 (화면 비율) */
     public static double[] center(Box b, Img im) {
         return new double[]{SellText.r4(b.cx() / im.w), SellText.r4(b.cy() / im.h)};

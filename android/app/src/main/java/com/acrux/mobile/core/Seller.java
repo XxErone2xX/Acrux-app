@@ -152,12 +152,19 @@ public final class Seller {
     }
 
     /** 화면에서 상점 [Sell All] 을 색으로 찾음 */
-    double[] findSellAll() {
+    SellText.Box sellAllBox() {
         Img im = full();
         if (im == null || im.w == 0) return null;
         Buttons.Box[] d = Buttons.shop(im);
         if (d == null) d = Buttons.shopBlue(im);             // 잔디 위: 파란 Sell All 부터
-        return d == null ? null : Buttons.center(d[1], im);
+        if (d == null) return null;
+        Buttons.Box b = d[1];
+        return new SellText.Box("Sell All", b.cx() / im.w, b.cy() / im.h, (double) b.w() / im.w, (double) b.h() / im.h);
+    }
+
+    double[] findSellAll() {
+        SellText.Box b = sellAllBox();
+        return b == null ? null : new double[]{b.x, b.y};
     }
 
     /** 상점이 열렸나: [Sell] · [Sell All] 색 → 없으면 글자 (Fishing Shop · Sell All) */
@@ -311,6 +318,17 @@ public final class Seller {
     // ---------------------------------------------------------------- 판매 자동 보정 (PC autocal)
     /** 플레이어가 Captain Flarg 앞에서 E 를 직접 누르면: 대화창 → [Sell Fish] → Fishing Shop → 확인창 위치를 글자로 찾음 */
     public List<String> autocal() {
+        Map<String, double[]> draft = new java.util.HashMap<>(pos);
+        Seller calibration = new Seller(scr, mv, ocr, draft, sellRoute, fishRoute, out);
+        List<String> notes = calibration.calibratePositions();
+        for (String[] key : KEYS) {
+            double[] point = draft.get(key[0]);
+            if (point != null) pos.put(key[0], point);
+        }
+        return notes;
+    }
+
+    private List<String> calibratePositions() {
         List<String> notes = new ArrayList<>();
         out.state("Captain Flarg 앞에서 대화 버튼을 눌러 대화를 여세요");
         long end = System.nanoTime() + 120_000_000_000L;
@@ -348,23 +366,20 @@ public final class Seller {
             mv.sleep(0.6);
             boxes = ocr.read(null);
             title = SellText.findText(boxes, "fishingshop");
-            sa = SellText.findText(boxes, true, "sellall");
-            if (title != null && sa != null) break;
+            if (title == null) continue;
+            sa = sellAllBox();
+            if (sa == null) sa = SellText.shopSellAll(boxes, title);
+            if (sa == null) {
+                List<SellText.Box> footer = ocr.read(new double[]{0.08, 0.57, 0.52, 0.90});
+                sa = SellText.shopSellAll(footer, title);
+            }
+            if (sa != null) break;
         }
-        if (title == null || sa == null) {
-            throw new RuntimeException("상점(Fishing Shop · Sell All)을 못 찾음");
-        }
-        mv.sleep(0.4);
-        boxes = ocr.read(null);
-        SellText.Box t2 = SellText.findText(boxes, "fishingshop"), s2 = SellText.findText(boxes, true, "sellall");
-        if (t2 != null) title = t2;
-        if (s2 != null) sa = s2;
-        // Buy · Sell 탭은 안 찾음 — 물고기 이름 · X 글자로 바로 찾고 · 못 찾으면 저장된 자리 (직접 지정) 그대로
+        if (title == null || sa == null) throw new RuntimeException("상점(Fishing Shop · Sell All)을 못 찾음");
         double aspect = (double) scr.width() / Math.max(1, scr.height());
         double[] first = slotFromLayout(boxes), close = SellText.closeX(boxes, title);
         if (first == null) first = SellText.firstFish(boxes, title, sa, aspect);
-        double[] saAt = findSellAll();                  // 색으로 찾은 자리가 있으면 그걸로 (글자 자리보다 버튼 한가운데)
-        pos.put("sell_all_pos", saAt != null ? saAt : new double[]{SellText.r4(sa.x), SellText.r4(sa.y)});
+        pos.put("sell_all_pos", SellText.r(sa.x, sa.y));
         if (first != null) pos.put("first_fish_pos", first);
         else if (p("first_fish_pos") != null) notes.add("물고기 이름을 못 읽어서 첫 번째 물고기 칸은 저장된 자리 그대로");
         else throw new RuntimeException("첫 번째 물고기 칸을 못 찾음 (물고기가 있을 때 다시 하거나 첫 번째 물고기 칸 직접 지정)");
@@ -379,7 +394,12 @@ public final class Seller {
             ui(p("sell_all_pos"), t);
             for (int i = 0; i < 3 && conf == null; i++) {
                 mv.sleep(0.6);
-                conf = SellText.findConfirm(ocr.read(null));
+                List<SellText.Box> modal = ocr.read(new double[]{0.18, 0.25, 0.82, 0.73});
+                conf = SellText.findConfirm(modal);
+                if (conf == null && SellText.findText(modal, "sellconfirm", "reallywanttosell") != null) {
+                    Img image = full();
+                    if (image != null) conf = Buttons.confirmPair(image);
+                }
             }
         }
         if (conf != null) {

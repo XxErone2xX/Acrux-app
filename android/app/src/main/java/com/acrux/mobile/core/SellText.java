@@ -206,6 +206,27 @@ public final class SellText {
         return r(f.x, f.y - Math.min(0.03, Math.max(0.012, f.h * 1.5)));
     }
 
+    static Box shopSellAll(List<Box> boxes, Box title) {
+        List<Box> footer = new ArrayList<>();
+        for (Box b : boxes) {
+            if (b.y > title.y + 0.20 && b.x < 0.53) footer.add(b);
+        }
+        Box joined = findText(footer, "sellall");
+        if (joined != null) return joined;
+        for (Box sell : footer) {
+            if (!norm(sell.text).equals("sell")) continue;
+            for (Box all : footer) {
+                if (!norm(all.text).equals(norm("all")) || all.x <= sell.x) continue;
+                double gap = all.x - all.w / 2 - sell.x - sell.w / 2;
+                if (Math.abs(sell.y - all.y) <= Math.max(sell.h, all.h) / 2
+                        && gap >= -sell.w / 3 && gap <= sell.w)
+                    return new Box("Sell All", (sell.x + all.x) / 2, (sell.y + all.y) / 2,
+                            all.x + all.w / 2 - sell.x + sell.w / 2, Math.max(sell.h, all.h));
+            }
+        }
+        return null;
+    }
+
     /** 상점 닫기 X — 제목 줄 오른쪽의 'X' 글자 · 못 읽으면 null */
     public static double[] closeX(List<Box> boxes, Box title) {
         Box best = null;
