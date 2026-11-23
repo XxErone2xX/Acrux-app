@@ -29,12 +29,14 @@ class Overlay(private val service: TapService) {
     private var picker: PositionPicker? = null
     private var recording: LinearLayout? = null
     private var inGame = false
+    private val debug = DebugOverlay(service)
+    fun debugVisible() = debug.visible
     private var status: TextView? = null
     private var biome: TextView? = null
     private var run: TextView? = null
     private var lang = ""
     private val dictionary = mutableMapOf<String, String>()
-    private val categories = listOf("낚시", "조이스틱", "기준 장소", "길", "판매")
+    private val categories = listOf("낚시", "조이스틱", "기준 장소", "길", "판매", "서버 체크")
     private val params = WindowManager.LayoutParams(
         WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
         WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
@@ -83,6 +85,7 @@ class Overlay(private val service: TapService) {
     }
 
     fun refresh() {
+        debug.update(if (inGame) Native.debugGeometry(prefs.getBoolean("debug", false)) else null)
         val phase = Native.overlayPhase()
         status?.setTextIfChanged(t(if (Native.captureReady()) Native.message().let { if (it == "대기 중") "대기" else it } else "화면 캡처 꺼짐 · 앱에서 시작"))
         biome?.apply {
@@ -141,6 +144,7 @@ class Overlay(private val service: TapService) {
     }
 
     fun remove() {
+        debug.update(null)
         picker?.remove()
         picker = null
         recording = null
@@ -240,11 +244,13 @@ class Overlay(private val service: TapService) {
                 showMenu(category)
             }, rowParams().apply { leftMargin = dp(4) })
             body.addView(row, rowParams(4))
+            item(if (sell) "기준 장소 → 판매 장소" else "기준 장소 → 낚시 장소") { task(if (sell) "shop" else "fish") }
         }
         when (category) {
             0 -> {
                 heading("낚시")
                 item("낚시 자동 보정") { closeMenu(); operation(1) }
+                item("낚시 테스트") { closeMenu(); operation(3) }
                 item("보정 · 테스트 · 길 기록 중에는 [정지] 로 멈춤")
             }
             1 -> {
@@ -269,9 +275,6 @@ class Overlay(private val service: TapService) {
             3 -> {
                 route(false)
                 route(true)
-                heading("테스트")
-                item("기준 장소 → 낚시 장소") { task("fish") }
-                item("기준 장소 → 판매 장소") { task("shop") }
             }
             4 -> {
                 heading("대화")
@@ -279,11 +282,20 @@ class Overlay(private val service: TapService) {
                 position("dialog_pos", "대화창")
                 position("sell_fish_pos", "Sell Fish 버튼")
                 heading("상점")
-                item("판매 자동 보정 (NPC 앞에서 시작 → 대화 버튼은 직접)") { feedback("현재는 아래 판매 위치를 직접 지정하세요.") }
+                item("판매 자동 보정 (NPC 앞에서 시작 → 대화 버튼은 직접)") { task("calibrateSale") }
                 item("  판매 위치 " + SELL.count { points.has(it.first) } + " / 6 저장됨")
                 SELL.drop(2).forEach { (key, label) -> position(key, label) }
                 heading("테스트")
                 item("판매 한 번 해 보기") { task("sell") }
+            }
+            5 -> {
+                heading("재설정 버튼")
+                BASE.take(3).forEach { (key, label) -> position(key, label) }
+                heading("서버 체크")
+                position("game_menu", "게임 메뉴 버튼 (왼쪽 줄 세 개)")
+                position("private_server_commands", "Private Server Commands")
+                position("ps_menu_close", "게임 메뉴 X")
+                position("ps_panel_close", "내 서버 관리창 X")
             }
         }
         val scroller = ScrollView(service).apply { addView(body) }

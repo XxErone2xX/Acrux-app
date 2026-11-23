@@ -1,3 +1,4 @@
+use crate::reel::{Learning, Pilot};
 use crate::vision::{Bar, Button, Catch, Frame, Point, Rect, WindowFinder};
 use serde::{Deserialize, Serialize};
 use std::{collections::VecDeque, time::Duration};
@@ -170,10 +171,10 @@ fn valid_rect(rect: Rect) -> bool {
 #[derive(Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Stats {
-    success: u32,
-    junk: u32,
-    fail: u32,
-    full: u32,
+    pub(crate) success: u32,
+    pub(crate) junk: u32,
+    pub(crate) fail: u32,
+    pub(crate) full: u32,
 }
 
 impl Stats {
@@ -247,6 +248,12 @@ pub struct Fishing {
     calibration_window: Option<Rect>,
     configured_positions: Option<(serde_json::Value, (usize, usize))>,
     result_baseline: Option<Catch>,
+    remembered_close: Option<Point>,
+    panel_x: Option<Point>,
+    panel_x_taps: u8,
+    exit_retry_at: Option<f64>,
+    testing: bool,
+    pub(crate) reel_log: Option<String>,
     bar_seen: u32,
     diamond_seen: bool,
     gone_at: Option<f64>,
@@ -254,6 +261,10 @@ pub struct Fishing {
     window: WindowFinder,
     bar: Bar,
     controller: ReelControl,
+    pilot: Pilot,
+    pub(crate) reel_learning: Learning,
+    consecutive_failures: u32,
+    ignore_bar_until: f64,
 }
 
 impl Default for Fishing {
@@ -278,6 +289,12 @@ impl Default for Fishing {
             calibration_window: None,
             configured_positions: None,
             result_baseline: None,
+            remembered_close: None,
+            panel_x: None,
+            panel_x_taps: 0,
+            exit_retry_at: None,
+            testing: false,
+            reel_log: None,
             bar_seen: 0,
             diamond_seen: false,
             gone_at: None,
@@ -285,6 +302,10 @@ impl Default for Fishing {
             window: WindowFinder::default(),
             bar: Bar::default(),
             controller: ReelControl::default(),
+            pilot: Pilot::default(),
+            reel_learning: Learning::default(),
+            consecutive_failures: 0,
+            ignore_bar_until: 0.,
         }
     }
 }
@@ -434,6 +455,7 @@ impl Fishing {
         self.calibration_step = CalibrationStep::Find;
         self.bar = Bar::default();
         self.controller = ReelControl::default();
+        self.pilot = Pilot::new(self.reel_learning);
         self.phase(Phase::Calibrating, now, "Roblox에서 낚시 창을 열어 주세요.");
         Ok(())
     }
@@ -455,6 +477,41 @@ impl Fishing {
         Ok(())
     }
 
+    pub(crate) fn start_test(&mut self, now: f64) -> Result<(), &'static str> {
+        self.start(now)?;
+        self.testing = true;
+        self.message = "낚시 테스트 중";
+        Ok(())
+    }
+
+    pub(crate) fn testing(&self) -> bool {
+        self.testing
+    }
+
+    #[cfg(target_os = "android")]
+    pub(crate) fn debug_geometry(&self) -> serde_json::Value {
+        let Some(calibration) = self.calibration else {
+            return serde_json::json!({"regions": [], "points": []});
+        };
+        let (regions, mut points) = match self.phase {
+            Phase::Reeling => (
+                vec![calibration.reel, calibration.bar()],
+                vec![self.reel_target(calibration)],
+            ),
+            Phase::Result => (
+                calibration.result.into_iter().collect(),
+                calibration.close_position.into_iter().collect(),
+            ),
+            _ => (vec![calibration.panel], vec![calibration.fish()]),
+        };
+        if self.phase == Phase::Reeling {
+            if let Some(marker) = self.pilot.marker() {
+                points.push(calibration.bar().at(marker, 0.5));
+            }
+        }
+        serde_json::json!({"regions":regions.into_iter().filter(|r| valid_rect(*r)).collect::<Vec<_>>(), "points":points})
+    }
+
     fn reset_cycle(&mut self) {
         self.last_scan = f64::NEG_INFINITY;
         self.last_cast = f64::NEG_INFINITY;
@@ -463,9 +520,13 @@ impl Fishing {
         self.bar_seen = 0;
         self.gone_at = None;
         self.result = None;
+        self.panel_x = None;
+        self.panel_x_taps = 0;
+        self.exit_retry_at = None;
     }
 
     pub fn stop(&mut self, message: &'static str) {
+        self.testing = false;
         self.phase(Phase::Idle, 0.0, message);
         self.hold_cancel = None;
         self.held_at = None;
@@ -545,12 +606,45 @@ impl Fishing {
     }
 
     fn finish_result(&mut self, now: f64) {
-        // Main treats an unread fast-closing result as success. Explicit fail
-        // wins, then success, then junk (a fading success can look gray).
-        match self.result.take().unwrap_or(Catch::Success) {
-            Catch::Fail => self.stats.fail += 1,
-            Catch::Junk => self.stats.junk += 1,
-            Catch::Success => self.stats.success += 1,
+        if cfg!(target_os = "android") && self.tuning.adaptive && self.pilot.moved {
+            self.reel_learning = self.pilot.learning;
+            self.calibration_changed = true;
+            self.reel_log = Some(self.pilot.summary());
+        }
+        let result = self.result.take();
+        if self.testing {
+            self.stop(match result {
+                Some(Catch::Success) => "낚시 테스트 끝 — 성공",
+                Some(Catch::Junk) => "낚시 테스트 끝 — 쓰레기",
+                Some(Catch::Fail) => "낚시 테스트 끝 — 실패",
+                None => "낚시 테스트 끝 — 결과를 확인하지 못했습니다.",
+            });
+            return;
+        }
+        match result {
+            Some(Catch::Fail) => {
+                self.stats.fail += 1;
+                self.consecutive_failures += 1;
+                if cfg!(target_os = "android") && self.consecutive_failures % 6 == 0 {
+                    self.reel_learning = Learning::default();
+                    self.calibration_changed = true;
+                }
+                if cfg!(target_os = "android") && self.consecutive_failures >= 30 {
+                    self.stop("릴링이 30회 연속 실패해 낚시를 중지했습니다.");
+                    return;
+                }
+            }
+            Some(Catch::Junk) => {
+                self.stats.junk += 1;
+                self.consecutive_failures = 0;
+            }
+            Some(Catch::Success) => {
+                self.stats.success += 1;
+                self.consecutive_failures = 0;
+            }
+            None if !cfg!(target_os = "android") => self.stats.success += 1,
+            None if self.tuning.adaptive && !self.pilot.moved => self.ignore_bar_until = now + 4.,
+            None => {}
         }
         self.reset_cycle();
         self.phase(Phase::Searching, now, "낚시 화면 확인 중");
@@ -587,6 +681,7 @@ impl Fishing {
     fn begin_calibration_reel(&mut self, now: f64) {
         self.bar.reset();
         self.controller = ReelControl::default();
+        self.pilot = Pilot::new(self.reel_learning);
         self.gone_at = None;
         self.calibration_step(
             CalibrationStep::Reel,
@@ -693,14 +788,10 @@ impl Fishing {
             CalibrationStep::Reel => {
                 if bar && now - self.phase_at < 15.0 {
                     self.gone_at = None;
-                    let (marker, zones, width) = self.bar.track(frame, calibration.bar());
-                    if self
-                        .controller
-                        .click(now, marker, zones, width, self.tuning)
-                    {
+                    if self.reel_click(now, frame, calibration.bar()) {
                         return Some(Self::tap(
                             frame,
-                            calibration.reel_tap(self.tuning.tap_above),
+                            self.reel_target(calibration),
                             self.tuning.click_ms,
                         ));
                     }
@@ -738,6 +829,41 @@ impl Fishing {
             }
         }
         None
+    }
+
+    fn reel_target(&self, calibration: Calibration) -> Point {
+        if cfg!(target_os = "android") && self.tuning.adaptive {
+            match self.pilot.tap_slot() {
+                1 => return Point(0.22, 0.42),
+                2 => return Point(0.70, 0.30),
+                _ => {}
+            }
+        }
+        calibration.reel_tap(self.tuning.tap_above)
+    }
+
+    fn reel_click(&mut self, at: f64, frame: &Frame<'_>, area: Rect) -> bool {
+        let (marker, zones, width) = self.bar.track(frame, area);
+        if cfg!(target_os = "android") && self.tuning.adaptive && width > 0. {
+            let Some(marker) = marker else { return false };
+            let Some((left, right)) = self.controller.track_zone(at, zones, marker, width) else {
+                return false;
+            };
+            return self.pilot.click(
+                at,
+                marker / width,
+                (left / width, right / width),
+                f64::from(self.tuning.click_gap_ms.max(self.tuning.click_ms + 20)) / 1000.,
+                self.tuning.lead_ms / 1000.,
+                self.tuning.deadband - (right - left) / width * self.tuning.target_percent / 100.,
+            );
+        }
+        self.controller.click(at, marker, zones, width, self.tuning)
+    }
+
+    pub(crate) fn reset_failures(&mut self) {
+        self.consecutive_failures = 0;
+        self.ignore_bar_until = 0.;
     }
 
     pub fn frame(&mut self, now: f64, frame: &Frame<'_>) -> Option<Tap> {
@@ -784,6 +910,28 @@ impl Fishing {
 
         if self.phase == Phase::Result {
             if fish.is_some() || now - self.phase_at >= 10.0 {
+                if cfg!(target_os = "android")
+                    && fish.is_some()
+                    && self.panel_x_taps < 2
+                    && valid_rect(calibration.panel)
+                {
+                    let window = calibration.panel;
+                    let expected = window.at(0.94, 0.06);
+                    let region = window.inset(0.78, -0.06, 1.03, 0.25);
+                    if let Some(close) = frame.find_close(region, expected) {
+                        if self
+                            .panel_x
+                            .is_some_and(|previous| previous.0 == close.0 && previous.1 == close.1)
+                            && now - self.last_scan >= 0.35
+                        {
+                            self.last_scan = now;
+                            self.panel_x_taps += 1;
+                            return Some(Self::tap(frame, close, 40));
+                        }
+                        self.panel_x = Some(close);
+                        return None;
+                    }
+                }
                 self.finish_result(now);
             } else if now - self.last_scan >= 0.1 {
                 self.last_scan = now;
@@ -801,10 +949,23 @@ impl Fishing {
                         (_, Catch::Junk) => Some(Catch::Junk),
                     };
                 }
-                if let Some(close) = calibration
-                    .close_position
-                    .or_else(|| window.map(|rect| frame.result_close(rect)))
-                {
+                let detected = window
+                    .and_then(|rect| frame.detect_result_close(rect))
+                    .or_else(|| {
+                        cfg!(target_os = "android")
+                            .then(|| {
+                                let point = calibration.close_position?;
+                                let width = frame.height as f64 / frame.width as f64 * 0.2;
+                                frame.find_close(Frame::centered(point, width, 0.2), point)
+                            })
+                            .flatten()
+                    });
+                self.remembered_close = detected.or(self.remembered_close);
+                let close = detected
+                    .or(calibration.close_position)
+                    .or(self.remembered_close)
+                    .or_else(|| window.map(|rect| rect.at(0.9222, 0.0579)));
+                if let Some(close) = close {
                     return Some(Self::tap(frame, close, 40));
                 }
             }
@@ -820,9 +981,13 @@ impl Fishing {
         } else {
             0
         };
-        if self.phase != Phase::Reeling && (self.bar_seen >= 3 || bar && diamond) {
+        if self.phase != Phase::Reeling
+            && now >= self.ignore_bar_until
+            && (self.bar_seen >= 3 || bar && diamond)
+        {
             self.bar.reset();
             self.controller = ReelControl::default();
+            self.pilot = Pilot::new(self.reel_learning);
             self.gone_at = None;
             self.casts = 0;
             self.result_baseline = calibration
@@ -835,14 +1000,10 @@ impl Fishing {
             if bar && (diamond || !self.diamond_seen) {
                 self.gone_at = None;
                 if now - self.phase_at < 15.0 {
-                    let (marker, zones, width) = self.bar.track(frame, area);
-                    if self
-                        .controller
-                        .click(now, marker, zones, width, self.tuning)
-                    {
+                    if self.reel_click(now, frame, area) {
                         return Some(Self::tap(
                             frame,
-                            calibration.reel_tap(self.tuning.tap_above),
+                            self.reel_target(calibration),
                             self.tuning.click_ms,
                         ));
                     }
@@ -875,6 +1036,25 @@ impl Fishing {
             }
         }
 
+        if cfg!(target_os = "android") || self.testing {
+            if self.testing
+                && self
+                    .exit_retry_at
+                    .is_some_and(|at| fish == Some(Button::Fish) || now >= at)
+            {
+                self.stop("낚시 테스트 끝 — 입질 없음");
+                return None;
+            }
+            match (fish, self.exit_retry_at) {
+                (Some(Button::Fish), Some(_)) => self.exit_retry_at = None,
+                (Some(Button::Exit), Some(at)) if now >= at => {
+                    self.exit_retry_at = Some(now + 5.);
+                    return Some(Self::tap(frame, calibration.fish(), 40));
+                }
+                (Some(Button::Exit), Some(_)) => return None,
+                _ => {}
+            }
+        }
         match fish {
             Some(Button::Fish) if now - self.last_cast >= CAST_WAIT => {
                 // Main reads the button again before retrying or declaring a
@@ -901,6 +1081,9 @@ impl Fishing {
                 self.phase(Phase::Waiting, now, "입질 기다리는 중");
                 self.last_progress = now;
                 if now - self.phase_at >= self.tuning.bite_seconds {
+                    if cfg!(target_os = "android") || self.testing {
+                        self.exit_retry_at = Some(now + 5.);
+                    }
                     self.phase(Phase::Searching, now, "입질이 없어 다시 던지는 중");
                     self.last_cast = now - CAST_WAIT + 1.0;
                     return Some(Self::tap(frame, calibration.fish(), 40));

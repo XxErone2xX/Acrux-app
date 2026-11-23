@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { cancelDiscord, discordState, linkDiscord, unlinkDiscord, type DiscordState } from "./discord";
 import { control, saveTuning, status, type Status, type Stats, type Tuning } from "./engine";
 import mobileDictionary from "../android/app/src/main/assets/i18n/mobile.tsv?raw";
 import desktopDictionary from "../android/app/src/main/assets/i18n/pc.tsv?raw";
@@ -7,7 +8,7 @@ import { biomeStatus, saveBiome, defaultBiome, type BiomeStatus } from "./biome"
 
 type Language = "ko" | "en" | "ja";
 type Page = "home" | "fish" | "biome" | "log" | "settings";
-type Overlay = { visible: boolean; hideOnApp: boolean; alpha: number; lang: Language };
+type Overlay = { visible: boolean; hideOnApp: boolean; alpha: number; debug: boolean; lang: Language };
 type Setup = "biome" | "accessibility" | "capture" | "stopCapture" | "appInfo" | "donate" | "overlay";
 type Reset = "calibration" | "session" | "total" | "log";
 type GuideId = "ready" | "fish" | "move" | "sell";
@@ -29,7 +30,7 @@ function restore<T>(key: string, fallback: T): T {
 const prefsKey = "acrux.mobile.overlay";
 const detected = navigator.language.toLowerCase().split("-")[0];
 let overlay = restore<Overlay>(prefsKey, {
-  visible: true, hideOnApp: true, alpha: 90,
+  visible: true, hideOnApp: true, alpha: 90, debug: false,
   lang: detected === "en" || detected === "ja" ? detected : "ko",
 });
 
@@ -144,7 +145,10 @@ function fishing() {
   const stats = `<table><thead><tr><td></td><th>${tr("이번 실행")}</th><th>${tr("전체")}</th></tr></thead><tbody>${names.map((name, i) =>
     `<tr><th scope="row">${tr(name)}</th><td id="run-${i}"></td><td id="total-${i}"></td></tr>`).join("")}</tbody></table>`;
   const cfg = current?.tuning;
-  return card("statistics", "낚시 통계",
+  return card("fishing-test", "낚시 테스트",
+    text("보정된 위치에서 낚시 한 판만 실행합니다.", 12)
+    + `<div class="buttons">${button("낚시 테스트", "fish-test", "accent")}</div>`)
+  + card("statistics", "낚시 통계",
     stats + `<div class="buttons">${button("이번 실행 초기화", "reset:session")}${button("전체 초기화", "reset:total", "danger")}</div>`)
   + card("fishing-options", "세부 설정",
     numberInput("입질 최대 대기 (초)", "넘으면 Exit 후 다시 던짐 · 기본 60", "biteSeconds", cfg?.biteSeconds ?? 60, 5, 600)
@@ -207,6 +211,18 @@ function logs() {
     + `<pre id="records">${tr("아직 기록 없음")}</pre><div class="buttons">${button("기록 지우기", "reset:log")}</div>`);
 }
 
+let discord: DiscordState = { linked: false, name: "", code: null, error: "" };
+
+function applyDiscord() {
+  const status = document.getElementById("discord-status");
+  const button = document.querySelector<HTMLButtonElement>('[data-action="discord"]');
+  if (!status || !button) return;
+  status.textContent = discord.linked ? discord.name : discord.code
+    ? `${t("연결 기다리는 중")} · ${discord.code.slice(0, 4)}-${discord.code.slice(4)}`
+    : discord.error;
+  button.textContent = t(discord.linked ? "연결 끊기" : discord.code ? "취소" : "디스코드 로그인");
+}
+
 function settings() {
   const version = current?.version || "0.1.0";
   return card("update", "업데이트",
@@ -218,7 +234,12 @@ function settings() {
     + text("매크로를 안 돌릴 때 떠 있는 창을 통째로 끔 · 앱 맨 위 버튼과 같음 · 끄면 돌던 매크로도 멈춤", 12)
     + toggle("Acrux 앱을 볼 때는 숨기기", 'id="hide-on-app"', overlay.hideOnApp)
     + `<label class="opacity">${tr("조작 창 투명도")}<input id="opacity" type="range" min="40" max="100" value="${overlay.alpha}"></label>`
-    + `<div class="buttons">${button("조작 창 위치 되돌리기", "reset-overlay")}</div>`)
+    + `<div class="buttons">${button("조작 창 위치 되돌리기", "reset-overlay")}</div>`
+    + `<label class="opacity">${tr("디버깅 모드")} · ${tr(overlay.debug ? "켜짐" : "꺼짐")}<input id="debug-mode" type="range" min="0" max="100" value="100"></label>`
+    + text("슬라이더를 왼쪽 끝까지 밀면 디버깅 모드를 전환합니다.", 12))
+  + card("discord-link", "디스코드 연결",
+    '<p id="discord-status" class="readout"></p>'
+    + `<div class="buttons">${button("디스코드 로그인", "discord", "accent")}</div>`)
   + card("info", "정보",
     text("사용자 수 집계: 켜져 있다는 신호만 보냄 (무작위 번호 · 개인 정보 없음)", 12)
     + text("Acrux Mobile V" + version, 13, "fg") + text("Made by 얼로니", 12));
@@ -303,6 +324,7 @@ function statsText(prefix: string, s: Stats) {
 }
 
 function applyStatus() {
+  applyDiscord();
   const s = current;
   const session = s?.stats ?? zero;
   setText("access-state", t(s?.inputReady ? "✓ 켜짐" : "꺼짐"));
@@ -347,6 +369,7 @@ async function refresh() {
   const ticket = ++request;
   try {
     const next = await status();
+    if (document.getElementById("discord-status")) discord = await discordState();
     biome = await biomeStatus();
     transport = await invoke<typeof transport>("biome_transport");
     online = await invoke<typeof online>("online_status");
@@ -519,6 +542,15 @@ async function perform(action: string) {
       pageMemory.set(page, element("scroll").scrollTop);
       render();
       if (name === "reset-overlay") message("조작 창 위치를 왼쪽 위로 되돌림");
+    } else if (name === "fish-test") {
+      current = await control("testFish");
+      applyStatus();
+    } else if (name === "discord") {
+      if (discord.linked) await unlinkDiscord();
+      else if (discord.code) await cancelDiscord();
+      else await linkDiscord();
+      discord = await discordState();
+      applyDiscord();
     } else if (name === "biome") {
       await setup("biome", { action: arg });
     } else if (name === "webhook-test") {
@@ -615,6 +647,17 @@ document.addEventListener("change", async event => {
       busy = false;
       void refresh();
     }
+  } else if (input.id === "debug-mode") {
+    const toggle = input.valueAsNumber === 0;
+    input.value = "100";
+    if (!toggle) return;
+    overlay.debug = !overlay.debug;
+    try { await syncOverlay(); } catch (error) {
+      overlay.debug = !overlay.debug;
+      message(String(error));
+    }
+    pageMemory.set(page, element("scroll").scrollTop);
+    renderPage();
   } else if (input.id === "opacity" || input.id === "hide-on-app") {
     const previous = { ...overlay };
     if (input.id === "opacity") overlay.alpha = input.valueAsNumber;

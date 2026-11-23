@@ -3,6 +3,7 @@ mod activities;
 mod android;
 mod biome;
 mod coordinator;
+mod discord;
 mod fishing;
 mod items;
 #[cfg(target_os = "linux")]
@@ -11,6 +12,8 @@ mod macro_step;
 mod navigation;
 mod ocr;
 mod online;
+mod reel;
+mod server_check;
 mod vision;
 #[cfg(target_os = "windows")]
 mod windows;
@@ -52,7 +55,18 @@ struct Runtime {
     capture: bool,
     input: bool,
     totals: Stats,
-    log: VecDeque<String>,
+    log: VecDeque<(String, String)>,
+    discord: discord::Account,
+    macro_since: Option<f64>,
+    returning_until: f64,
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
+    return_play: Option<server_check::Play>,
+    #[cfg(target_os = "android")]
+    resume_after_return: bool,
+    #[cfg(target_os = "android")]
+    resume_after_check: bool,
+    #[cfg(target_os = "android")]
+    resume_route_retry: f64,
     logged: Option<String>,
     navigation: Navigation,
     job: Option<Job>,
@@ -72,6 +86,8 @@ struct Runtime {
 struct Profile {
     biome: biome::Settings,
     online: online::Settings,
+    discord: discord::Account,
+    reel_learning: reel::Learning,
     calibration: Option<Calibration>,
     tuning: Tuning,
     totals: Stats,
@@ -101,6 +117,7 @@ struct Status {
     phase: Phase,
     message: String,
     macro_running: bool,
+    returning: bool,
     feature_statuses: serde_json::Value,
     settings_error: Option<String>,
     stats: Stats,
@@ -294,6 +311,7 @@ impl Runtime {
             phase: self.phase(),
             message: self.message(),
             macro_running: self.coordinator.running,
+            returning: now() < self.returning_until,
             feature_statuses: {
                 let config = self.macro_config();
                 let mut statuses = self.coordinator.statuses(&config, now());
@@ -320,6 +338,8 @@ impl Runtime {
                 Ok(profile) => {
                     biome::load(profile.biome);
                     online::load(profile.online);
+                    self.discord = profile.discord;
+                    self.fishing.reel_learning = profile.reel_learning.checked();
                     self.fishing.calibration = profile.calibration;
                     self.totals = profile.totals;
                     self.navigation = profile.navigation;
@@ -353,6 +373,8 @@ impl Runtime {
         self.persist_profile(&Profile {
             biome,
             online: online::settings(),
+            discord: self.discord.clone(),
+            reel_learning: self.fishing.reel_learning,
             calibration: self.fishing.calibration,
             tuning,
             totals: self.totals,
@@ -372,13 +394,38 @@ impl Runtime {
             .ok_or("설정 저장소가 준비되지 않았습니다.")?;
         let data = serde_json::to_vec_pretty(profile).map_err(|error| error.to_string())?;
         let temporary = path.with_extension("tmp");
-        fs::write(&temporary, data)
-            .and_then(|_| fs::rename(&temporary, path))
-            .map_err(|error| format!("설정을 저장하지 못했습니다. {error}"))
+        let write = || -> std::io::Result<()> {
+            use std::io::Write;
+            let mut options = fs::OpenOptions::new();
+            options.create(true).truncate(true).write(true);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                options.mode(0o600);
+            }
+            let mut file = options.open(&temporary)?;
+            file.write_all(&data)?;
+            drop(file);
+            fs::rename(&temporary, path)
+        };
+        write().map_err(|error| format!("설정을 저장하지 못했습니다. {error}"))
     }
 
     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "android"))]
     fn frame(&mut self, frame: &vision::Frame<'_>) -> Option<GameInput> {
+        if now() < self.returning_until {
+            return None;
+        }
+        #[cfg(target_os = "android")]
+        if std::mem::take(&mut self.resume_after_return) {
+            if let Err(error) = self.control(Action::Start) {
+                self.push_log(error);
+            }
+        }
+        #[cfg(target_os = "android")]
+        if self.resume_route_retry > 0. && now() >= self.resume_route_retry {
+            self.resume_mobile_route();
+        }
         if let Some(job) = self.job.as_mut() {
             let tick = job.tick(now(), frame);
             return self.navigation_tick(tick);
@@ -398,6 +445,7 @@ impl Runtime {
         }
         let before = self.fishing.stats;
         let was_fishing = self.fishing.phase;
+        let test_fishing = self.fishing.testing();
         let tap = self.fishing.frame(now(), frame);
         let changed = before != self.fishing.stats;
         if changed {
@@ -407,7 +455,10 @@ impl Runtime {
                 self.fish_retry_at = 0.;
             }
         }
-        if self.navigation.options.use_sell && self.fishing.stats.inventory_increased(before) {
+        if !test_fishing
+            && self.navigation.options.use_sell
+            && self.fishing.stats.inventory_increased(before)
+        {
             match self.navigation.job(Task::Sell, now(), true) {
                 Ok(job) => self.job = Some(job),
                 Err(error) => {
@@ -428,6 +479,9 @@ impl Runtime {
             self.block_fishing(self.fishing.message);
         }
         self.record();
+        if let Some(line) = self.fishing.reel_log.take() {
+            self.push_log(line);
+        }
         if std::mem::take(&mut self.fishing.calibration_changed) || changed {
             self.settings_error = self.save(self.fishing.tuning).err();
         }
@@ -463,6 +517,24 @@ impl Runtime {
                 message,
                 sold,
             } => {
+                if let Some(draft) = self.job.as_mut().and_then(Job::take_sale_draft) {
+                    match self.edit_navigation(|navigation| {
+                        for key in navigation::SELL {
+                            if let Some(position) = draft.get(key).copied() {
+                                navigation.set_point(key, position)?;
+                            }
+                        }
+                        Ok(())
+                    }) {
+                        Ok(()) => self.stop(message),
+                        Err(error) => {
+                            self.settings_error = Some(error);
+                            self.stop("판매 위치를 저장하지 못했습니다.");
+                        }
+                    }
+                    self.record();
+                    return None;
+                }
                 if let Some(count) = sold {
                     self.empty_sales = if count == 0 {
                         self.empty_sales.saturating_add(1)
@@ -507,6 +579,16 @@ impl Runtime {
         #[cfg(any(target_os = "windows", target_os = "linux"))]
         if let Some(input) = self.deliver_background_ocr() {
             return Some(input);
+        }
+        if now() < self.returning_until {
+            #[cfg(any(target_os = "windows", target_os = "linux"))]
+            return self
+                .return_play
+                .as_mut()
+                .and_then(|play| play.tap(now()))
+                .map(GameInput::Motion);
+            #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+            return None;
         }
         let config = self.macro_config();
         self.coordinator.poll(&config, &biome::status(), now());
@@ -648,11 +730,32 @@ impl Runtime {
         }
         if let Some(restart) = self.coordinator.take_release() {
             self.fishing.release(now());
+            #[cfg(target_os = "android")]
+            if std::mem::take(&mut self.resume_after_check)
+                && self.navigation.route_parts(Place::Fish) > 0
+            {
+                self.fishing.stop("낚시 장소로 돌아갈 준비 중");
+                self.resume_mobile_route();
+            }
             if restart {
                 self.fishing.stop("낚시 장소로 돌아갈 준비 중");
             }
         }
         self.record();
+    }
+
+    #[cfg(target_os = "android")]
+    fn resume_mobile_route(&mut self) {
+        match self.navigation.job(Task::Fish, now(), true) {
+            Ok(job) => {
+                self.job = Some(job);
+                self.resume_route_retry = 0.;
+            }
+            Err(error) => {
+                self.resume_route_retry = now() + 15.;
+                self.push_log(format!("낚시 장소 복귀 실패 · 15초 뒤 다시 시도 · {error}"));
+            }
+        }
     }
 
     fn begin_fishing(&mut self) {
@@ -731,6 +834,13 @@ impl Runtime {
     }
 
     fn phase(&self) -> Phase {
+        #[cfg(target_os = "android")]
+        if self.resume_after_return || self.resume_route_retry > 0. {
+            return Phase::Moving;
+        }
+        if now() < self.returning_until {
+            return Phase::Moving;
+        }
         match self.job.as_ref() {
             Some(job) if job.desktop_recording() => Phase::Recording,
             Some(job) if job.recording_at.is_some() && job.action != Task::Measure => {
@@ -745,6 +855,9 @@ impl Runtime {
     }
 
     fn message(&self) -> String {
+        if now() < self.returning_until {
+            return "비공개 서버로 복귀 중".into();
+        }
         if let Some(job) = self.job.as_ref() {
             return job.message().into();
         }
@@ -757,12 +870,31 @@ impl Runtime {
         self.generation = self.generation.wrapping_add(1);
         self.job = None;
         self.coordinator.stop_all(now());
+        self.returning_until = 0.;
+        #[cfg(any(target_os = "windows", target_os = "linux"))]
+        {
+            self.return_play = None;
+        }
+        #[cfg(target_os = "android")]
+        {
+            self.resume_after_return = false;
+            self.resume_after_check = false;
+            self.resume_route_retry = 0.;
+        }
         self.background_ocr = None;
         self.fishing.release(now());
         self.fishing.stop(message);
     }
 
     fn no_target(&mut self) {
+        if now() < self.returning_until {
+            return;
+        }
+        if self.coordinator.feature() == Some("startup_reset") {
+            self.coordinator.missing_startup_target(now());
+            self.macro_updates();
+            return;
+        }
         if self.coordinator.has_job() {
             let traveling = self.coordinator.traveling();
             self.coordinator
@@ -805,7 +937,8 @@ impl Runtime {
             self.log.pop_front();
         }
         eprintln!("[acrux] {message}");
-        self.log.push_back(message);
+        self.log
+            .push_back((chrono::Local::now().format("%H:%M:%S").to_string(), message));
     }
 
     fn control(&mut self, action: Action) -> Result<(), String> {
@@ -816,8 +949,15 @@ impl Runtime {
         if !self.capture || !self.input {
             return Err("화면 캡처와 입력을 먼저 준비하세요.".into());
         }
-        if self.job.is_some() {
+        if self.job.is_some() || now() < self.returning_until || self.coordinator.screen_job() {
             return Err("실행 중인 작업을 먼저 중지하세요.".into());
+        }
+        if action == Action::TestFish {
+            return self.fishing.start_test(now()).map_err(str::to_owned);
+        }
+        if action == Action::Start {
+            self.fishing.reset_failures();
+            self.macro_since = Some(now());
         }
         #[cfg(any(target_os = "windows", target_os = "linux"))]
         if action == Action::Start {
@@ -826,6 +966,7 @@ impl Runtime {
             self.empty_sales = 0;
             let config = self.macro_config();
             self.coordinator.start(&config, now())?;
+            self.coordinator.startup_reset(&config, now());
             return Ok(());
         }
         if action == Action::Start {
@@ -841,7 +982,7 @@ impl Runtime {
         match action {
             Action::Calibrate => self.fishing.calibrate(now()),
             Action::Start => self.fishing.start(now()),
-            Action::Stop => unreachable!(),
+            Action::Stop | Action::TestFish => unreachable!(),
         }
         .map_err(str::to_owned)
     }
@@ -921,14 +1062,243 @@ impl Runtime {
 fn game_available() -> bool {
     #[cfg(any(target_os = "windows", target_os = "linux"))]
     return desktop::game_available();
-    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    #[cfg(target_os = "android")]
+    return android::game_available();
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "android")))]
     false
+}
+
+fn open_url(_app: &tauri::AppHandle, url: &str) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    return android::open_url(_app, url);
+    #[cfg(target_os = "windows")]
+    return windows::open_url(url);
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    return std::process::Command::new(if cfg!(target_os = "linux") {
+        "xdg-open"
+    } else {
+        "open"
+    })
+    .arg(url)
+    .spawn()
+    .map(|_| ())
+    .map_err(|error| error.to_string());
+    #[allow(unreachable_code)]
+    Err("브라우저를 열 수 없습니다.".into())
+}
+
+static PRIVATE_SCREEN: Mutex<()> = Mutex::new(());
+
+fn private_link(state: &Runtime) -> Option<String> {
+    let config = state.macro_config();
+    let link = |value: &serde_json::Value| value.as_str().and_then(server_check::roblox_deep_link);
+    link(&config["ret"]["ps_link"])
+        .or_else(|| server_check::roblox_deep_link(&biome::settings().ps_link))
+}
+
+fn check_private_server(progress: impl Fn(&str)) -> serde_json::Value {
+    use serde_json::json;
+    let link = private_link(&runtime()).is_some();
+    let unavailable = |why| json!({"own": null, "why": why, "link": link});
+    let Ok(_screen) = PRIVATE_SCREEN.try_lock() else {
+        return unavailable("busy");
+    };
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "android")))]
+    return unavailable("error");
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "android"))]
+    {
+        let mobile = cfg!(target_os = "android");
+        let (job, generation, fishing) = {
+            let state = runtime();
+            if now() < state.returning_until {
+                return unavailable("returning");
+            }
+            if !state.capture || !state.input {
+                return unavailable("perm");
+            }
+            if state.fishing.phase == Phase::Calibrating || state.fishing.testing() {
+                return unavailable(if mobile { "other" } else { "cal" });
+            }
+            if matches!(state.coordinator.feature(), Some("mpop" | "mblood")) {
+                return unavailable("popping");
+            }
+            if state.job.is_some() || state.coordinator.active() {
+                return unavailable(if mobile { "other" } else { "busy" });
+            }
+            let config = state.macro_config();
+            #[cfg(target_os = "android")]
+            let config = {
+                let mut config = config;
+                config["move"]["reset_wait"] =
+                    serde_json::json!(state.navigation.options.reset_wait);
+                config
+            };
+            let job = if mobile {
+                server_check::ScreenJob::mobile(&config, &state.navigation.positions, now())
+            } else {
+                Some(server_check::ScreenJob::new(&config, true, now()))
+            };
+            let Some(job) = job else {
+                return unavailable("menu_pos");
+            };
+            (job, state.generation, state.fishing.phase.active())
+        };
+        #[cfg(any(target_os = "windows", target_os = "linux"))]
+        {
+            if !desktop::game_available() {
+                return unavailable("no_roblox");
+            }
+            if desktop::focus_game().is_err() {
+                return unavailable("error");
+            }
+        }
+        #[cfg(target_os = "android")]
+        let _foreground = match android::bring_game_forward() {
+            Ok(guard) => guard,
+            Err(_) => return unavailable("no_roblox"),
+        };
+        {
+            let mut state = runtime();
+            if state.generation != generation
+                || state.job.is_some()
+                || state.fishing.testing()
+                || state.fishing.phase == Phase::Calibrating
+            {
+                return unavailable("busy");
+            }
+            if let Err(why) = state.coordinator.check_server(job, mobile) {
+                return unavailable(why);
+            }
+            #[cfg(target_os = "android")]
+            {
+                state.resume_after_check = fishing;
+            }
+        }
+        let mut waiting = mobile && fishing;
+        if waiting {
+            progress("waiting");
+        } else {
+            progress("checking");
+        }
+        let mut timeout = now() + if waiting { 60. } else { 42. };
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            let mut state = runtime();
+            if let Some(result) = state.coordinator.server_result() {
+                if !result["error"].is_null() {
+                    return unavailable("error");
+                }
+                return json!({"own": result["own"], "why": result["why"], "link": link});
+            }
+            if state.generation != generation {
+                return unavailable("error");
+            }
+            if now() >= timeout {
+                state.coordinator.stop_feature("ps_check", now());
+                state.generation = state.generation.wrapping_add(1);
+                #[cfg(target_os = "android")]
+                if waiting {
+                    state.resume_after_check = false;
+                }
+                state.macro_updates();
+                return unavailable("stuck");
+            }
+            if waiting && state.coordinator.is_ready() {
+                waiting = false;
+                timeout = now() + 35.;
+                drop(state);
+                progress("checking");
+            }
+        }
+    }
+}
+
+fn return_private_server() -> serde_json::Value {
+    use serde_json::json;
+    let error = |why| json!({"ok": false, "why": why});
+    let Ok(_screen) = PRIVATE_SCREEN.try_lock() else {
+        return error("busy");
+    };
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "android")))]
+    return error("error");
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "android"))]
+    {
+        let (link, generation) = {
+            let mut state = runtime();
+            let Some(link) = private_link(&state) else {
+                return error("no_link");
+            };
+            if now() < state.returning_until {
+                return error("returning");
+            }
+            if state.job.is_some()
+                || state.coordinator.active()
+                || state.fishing.phase == Phase::Calibrating
+                || state.fishing.testing()
+            {
+                return error("busy");
+            }
+            state.generation = state.generation.wrapping_add(1);
+            #[cfg(target_os = "android")]
+            {
+                state.resume_after_return = state.fishing.phase.active();
+            }
+            state.fishing.stop("비공개 서버로 복귀 중");
+            state.returning_until = now() + 45.;
+            state.record();
+            (link, state.generation)
+        };
+        #[cfg(any(target_os = "windows", target_os = "linux"))]
+        let original_log = biome::latest_desktop_log();
+        #[cfg(any(target_os = "windows", target_os = "linux"))]
+        let launched = desktop::rejoin(&link, generation);
+        #[cfg(target_os = "android")]
+        let launched = android::rejoin(&link);
+        if let Err(reason) = launched {
+            let mut state = runtime();
+            if state.generation == generation {
+                state.returning_until = 0.;
+                #[cfg(target_os = "android")]
+                {
+                    state.resume_after_return = false;
+                }
+                state.push_log(reason);
+            }
+            return error("error");
+        }
+        #[cfg(any(target_os = "windows", target_os = "linux"))]
+        {
+            {
+                let mut state = runtime();
+                if state.generation != generation {
+                    return error("error");
+                }
+                let config = state.macro_config();
+                let max_time = config["play"]["max_time"]
+                    .as_f64()
+                    .unwrap_or(300.)
+                    .clamp(10., 600.);
+                state.returning_until = now() + max_time;
+                state.return_play = Some(server_check::Play::new(&config));
+            }
+            std::thread::spawn(move || server_check::wait_for_join(generation, original_log));
+        }
+        json!({"ok":true, "why":""})
+    }
+}
+
+#[tauri::command]
+async fn desktop_return_private() -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(return_private_server)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 enum Action {
     Calibrate,
+    TestFish,
     Start,
     Stop,
 }
@@ -950,7 +1320,11 @@ fn control(action: Action, generation: Option<i32>) -> Result<Status, String> {
             }
         }
         #[cfg(any(target_os = "windows", target_os = "linux"))]
-        desktop::focus_game()?;
+        if let Err(error) = desktop::focus_game() {
+            if action != Action::Start || !desktop::game_available() {
+                return Err(error);
+            }
+        }
     }
     #[cfg(any(target_os = "windows", target_os = "linux"))]
     let geometry = desktop::geometry();
@@ -1088,6 +1462,8 @@ fn save_macro_settings(mut config: serde_json::Value) -> Result<serde_json::Valu
     state.persist_profile(&Profile {
         biome: biome.clone(),
         online: online.clone(),
+        discord: state.discord.clone(),
+        reel_learning: state.fishing.reel_learning,
         calibration: state.fishing.calibration,
         tuning,
         totals: state.totals,
@@ -1100,7 +1476,7 @@ fn save_macro_settings(mut config: serde_json::Value) -> Result<serde_json::Valu
     })?;
     state.macro_settings = config;
     state.fishing.tuning = tuning;
-    if !state.coordinator.running {
+    if !state.coordinator.running && !state.coordinator.screen_job() {
         state.generation = state.generation.wrapping_add(1);
     }
     biome::configure(biome);
@@ -1387,7 +1763,12 @@ fn reset(kind: Reset) -> Result<Status, String> {
 
 #[tauri::command]
 fn fishing_log() -> Vec<String> {
-    let mut lines: Vec<String> = runtime().log.iter().rev().cloned().collect();
+    let mut lines: Vec<String> = runtime()
+        .log
+        .iter()
+        .rev()
+        .map(|(_, text)| text.clone())
+        .collect();
     lines.extend(biome::status().logs);
     lines.truncate(300);
     lines
@@ -1486,6 +1867,9 @@ pub fn run() {
             biome::watch_desktop();
             #[cfg(any(target_os = "windows", target_os = "linux"))]
             desktop::start()?;
+            #[cfg(target_os = "android")]
+            android::remember_app(app.handle().clone());
+            discord::start();
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -1496,6 +1880,12 @@ pub fn run() {
             biome_test,
             online_status,
             save_online,
+            discord::discord_state,
+            discord::discord_login,
+            discord::discord_open_page,
+            discord::discord_cancel,
+            discord::discord_logout,
+            desktop_return_private,
             control,
             macro_action,
             save_tuning,

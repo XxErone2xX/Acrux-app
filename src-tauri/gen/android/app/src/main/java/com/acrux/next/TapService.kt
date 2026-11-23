@@ -10,6 +10,8 @@ import android.view.accessibility.AccessibilityEvent
 class TapService : AccessibilityService() {
     @Volatile var gameVisible = false
         private set
+    @Volatile var foregroundPackage: String? = null
+        private set
     @Volatile var gesturePending = false
         private set
     private val main = Handler(Looper.getMainLooper())
@@ -42,9 +44,15 @@ class TapService : AccessibilityService() {
     @Suppress("DEPRECATION")
     private fun updateWindow(reset: Boolean = false) {
         if (!::overlay.isInitialized) return
-        val root = rootInActiveWindow
+        // Accessibility overlay windows can be active without replacing the game.
+        val focusedApp = windows.firstOrNull {
+            it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION && (it.isActive || it.isFocused)
+        }
+        val root = focusedApp?.root ?: rootInActiveWindow
         val foreground = try { root?.packageName?.toString() } finally { root?.recycle() }
+        foregroundPackage = foreground
         gameVisible = foreground == GAME_PACKAGE
+        Native.gameVisible(gameVisible)
         if (!gameVisible) Native.noTarget()
         overlay.update(gameVisible, foreground == packageName, reset)
     }
@@ -84,6 +92,8 @@ class TapService : AccessibilityService() {
             }
         }
     }
+
+    fun debugVisible() = ::overlay.isInitialized && overlay.debugVisible()
 
     fun safePoint(x: Float, y: Float) = !overlay.contains(x, y)
     @Suppress("DEPRECATION")
@@ -146,11 +156,13 @@ class TapService : AccessibilityService() {
     }
 
     private fun finished() {
+        Native.gestureAck(generation, true)
         gesturePending = false
     }
 
     private fun rejected() {
-        finished()
+        Native.gestureAck(generation, false)
+        gesturePending = false
         if (Native.inputCurrent(generation)) Native.inputRejected()
     }
 
@@ -162,6 +174,7 @@ class TapService : AccessibilityService() {
     override fun onDestroy() {
         if (current === this) {
             current = null
+            Native.gameVisible(false)
             Native.accessibility(false)
         }
         if (::routes.isInitialized) routes.stop()

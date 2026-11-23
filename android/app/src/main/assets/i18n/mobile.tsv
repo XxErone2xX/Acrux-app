@@ -803,3 +803,15 @@ VIP 는 걸음이 빨라서 짧게 · 기본 2.5	VIP walks faster, so shorter ·
 연결하기	Link	連携する
 설정 ›	Settings ›	設定 ›
 기다리는 중	Waiting	待機中
+낚시 테스트 중	Fishing test	釣りテスト中
+디버깅 모드	Debug mode	デバッグモード
+서버 체크	Server check	サーバーチェック
+게임 메뉴 버튼 (왼쪽 줄 세 개)	Game menu button (three lines on the left)	ゲームメニューボタン (左の三本線)
+게임 메뉴 X	Game menu X	ゲームメニューの X
+내 서버 관리창 X	Private server panel X	プライベートサーバー管理画面の X
+낚시 테스트	Fishing test	釣りテスト
+보정된 위치에서 낚시 한 판만 실행합니다.	Fish once using the calibrated positions.	補正済みの位置で釣りを一回だけ実行します。
+슬라이더를 왼쪽 끝까지 밀면 디버깅 모드를 전환합니다.	Slide all the way left to toggle debug mode.	スライダーを左端まで動かしてデバッグモードを切り替えます。
+연결 기다리는 중	Waiting to link	連携待ち
+비공개 서버 확인 중	Checking the private server	プライベートサーバーを確認中
+비공개 서버로 복귀 중	Returning to the private server	プライベートサーバーに復帰中

@@ -28,6 +28,8 @@ pub struct Frame<'a> {
     stride: usize,
     pixel_stride: usize,
     bgra: bool,
+    #[cfg(target_os = "android")]
+    debug_mask: bool,
 }
 
 impl<'a> Frame<'a> {
@@ -54,10 +56,35 @@ impl<'a> Frame<'a> {
             stride,
             pixel_stride,
             bgra,
+            #[cfg(target_os = "android")]
+            debug_mask: false,
         })
     }
 
     pub(crate) fn pixel(&self, x: usize, y: usize) -> [u8; 3] {
+        let color = self.raw_pixel(x, y);
+        #[cfg(target_os = "android")]
+        if self.debug_mask && color == [255, 13, 197] {
+            return [
+                (x.saturating_sub(3), y),
+                ((x + 3).min(self.width - 1), y),
+                (x, y.saturating_sub(3)),
+                (x, (y + 3).min(self.height - 1)),
+            ]
+            .into_iter()
+            .map(|(x, y)| self.raw_pixel(x, y))
+            .find(|color| *color != [255, 13, 197])
+            .unwrap_or([0; 3]);
+        }
+        color
+    }
+
+    #[cfg(target_os = "android")]
+    pub(crate) fn set_debug_mask(&mut self, enabled: bool) {
+        self.debug_mask = enabled;
+    }
+
+    fn raw_pixel(&self, x: usize, y: usize) -> [u8; 3] {
         let p = y * self.stride + x * self.pixel_stride;
         let [r, g, b] = [self.bytes[p], self.bytes[p + 1], self.bytes[p + 2]];
         if self.bgra {
@@ -79,7 +106,7 @@ impl<'a> Frame<'a> {
         (x(rect.0), y(rect.1), x(rect.2), y(rect.3))
     }
 
-    fn centered(point: Point, width: f64, height: f64) -> Rect {
+    pub(crate) fn centered(point: Point, width: f64, height: f64) -> Rect {
         Rect(
             point.0 - width / 2.0,
             point.1 - height / 2.0,
@@ -196,9 +223,20 @@ impl<'a> Frame<'a> {
     }
 
     pub fn result_close(&self, window: Rect) -> Point {
-        let expected = window.at(0.9222, 0.0579);
+        self.detect_result_close(window)
+            .unwrap_or_else(|| window.at(0.9222, 0.0579))
+    }
+
+    pub fn detect_result_close(&self, window: Rect) -> Option<Point> {
+        self.find_close(
+            window.inset(0.6, -0.03, 1.05, 0.25),
+            window.at(0.9222, 0.0579),
+        )
+    }
+
+    pub(crate) fn find_close(&self, region: Rect, expected: Point) -> Option<Point> {
         let (cx, cy) = self.position(expected);
-        let (left, top, right, bottom) = self.bounds(window.inset(0.6, -0.03, 1.05, 0.25));
+        let (left, top, right, bottom) = self.bounds(region);
         let (w, h) = (right - left, bottom - top);
         let lower = (self.height * 4 / 1000).max(3);
         let upper = (self.height * 35 / 1000).max(lower);
@@ -264,7 +302,7 @@ impl<'a> Frame<'a> {
                 }
             }
         }
-        best.map_or(expected, |(_, x, y)| {
+        best.map(|(_, x, y)| {
             Point(
                 (x as f64 + 0.5) / self.width as f64,
                 (y as f64 + 0.5) / self.height as f64,
@@ -273,7 +311,7 @@ impl<'a> Frame<'a> {
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Button {
     Fish,
     Exit,

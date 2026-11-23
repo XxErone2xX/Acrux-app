@@ -23,6 +23,7 @@ use windows_sys::Win32::{
     System::Threading::{
         OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION,
     },
+    UI::Shell::ShellExecuteW,
     UI::{
         Input::KeyboardAndMouse::{
             GetAsyncKeyState, MapVirtualKeyW, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD,
@@ -34,9 +35,9 @@ use windows_sys::Win32::{
         WindowsAndMessaging::{
             FindWindowExW, GetAncestor, GetClassNameW, GetClientRect, GetCursorPos,
             GetForegroundWindow, GetSystemMetrics, GetWindowThreadProcessId, IsIconic,
-            IsWindowVisible, SetForegroundWindow, ShowWindow, WindowFromPoint, GA_ROOT,
-            SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
-            SW_RESTORE,
+            IsWindowVisible, PostMessageW, SetForegroundWindow, ShowWindow, WindowFromPoint,
+            GA_ROOT, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
+            SW_RESTORE, SW_SHOWNORMAL, WM_CLOSE,
         },
     },
 };
@@ -150,6 +151,11 @@ fn worker() {
         }
         arrive_held = arrived;
         let Some((origin, w, h)) = geometry else {
+            let retry = runtime().coordinator.startup_due(crate::now());
+            if retry && focus_game().is_ok() {
+                thread::sleep(Duration::from_millis(50));
+                continue;
+            }
             runtime().no_target();
             held.release();
             surface = None;
@@ -188,7 +194,7 @@ fn worker() {
                 Some(true) => {}
                 Some(false) => {
                     let mut state = runtime();
-                    if state.input_current(generation) {
+                    if state.input_current(generation) && !state.coordinator.screen_job() {
                         state.stop("Windows에서 게임 입력을 보내지 못했습니다.");
                     }
                     held.release();
@@ -338,6 +344,44 @@ pub fn focus_game() -> Result<(), String> {
         thread::sleep(Duration::from_millis(20));
     }
     Err("Windows가 창 전환을 허용하지 않았습니다. Roblox 창을 앞에 두고 다시 시도하세요.".into())
+}
+
+pub fn open_url(url: &str) -> Result<(), String> {
+    let url: Vec<u16> = url.encode_utf16().chain(Some(0)).collect();
+    let result = unsafe {
+        ShellExecuteW(
+            null_mut(),
+            null_mut(),
+            url.as_ptr(),
+            null_mut(),
+            null_mut(),
+            SW_SHOWNORMAL,
+        )
+    };
+    if result as isize > 32 {
+        Ok(())
+    } else {
+        Err("주소를 열지 못했습니다.".into())
+    }
+}
+
+pub fn rejoin(url: &str, generation: i32) -> Result<(), String> {
+    if let Some(window) = game_window() {
+        if unsafe { PostMessageW(window, WM_CLOSE, 0, 0) } == 0 {
+            return Err("Roblox 창을 닫지 못했습니다.".into());
+        }
+        let until = Instant::now() + Duration::from_secs(5);
+        while game_available() && Instant::now() < until {
+            thread::sleep(Duration::from_millis(100));
+        }
+        if game_available() {
+            return Err("Roblox 창이 닫히지 않았습니다.".into());
+        }
+    }
+    if runtime().generation != generation {
+        return Err("서버 복귀가 취소됐습니다.".into());
+    }
+    open_url(url)
 }
 
 /// Capture only the real foreground client's pixels, never another app covering it.

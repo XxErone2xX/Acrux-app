@@ -854,7 +854,10 @@ fn worker() {
                 if let (Some(command), Some(input)) = (command, input.as_mut()) {
                     let completed = perform(&desktop, input, target, command, command_generation);
                     crate::desktop_input_ack(command_generation, completed);
-                    if !completed && runtime().input_current(command_generation) {
+                    if !completed && {
+                        let state = runtime();
+                        state.input_current(command_generation) && !state.coordinator.screen_job()
+                    } {
                         input.release();
                         runtime().stop("게임 입력을 완료하지 못해 중지했습니다.");
                     }
@@ -887,7 +890,11 @@ fn worker() {
                                         command_generation,
                                     );
                                     crate::desktop_input_ack(command_generation, completed);
-                                    if !completed && runtime().input_current(command_generation) {
+                                    if !completed && {
+                                        let state = runtime();
+                                        state.input_current(command_generation)
+                                            && !state.coordinator.screen_job()
+                                    } {
                                         input.release();
                                         runtime().stop("게임 입력을 완료하지 못해 중지했습니다.");
                                     }
@@ -901,6 +908,11 @@ fn worker() {
                     }
                 }
             } else {
+                let retry = runtime().coordinator.startup_due(crate::now());
+                if retry && target.is_some_and(|target| desktop.focus(target).is_ok()) {
+                    thread::sleep(Duration::from_millis(50));
+                    continue;
+                }
                 if let Some(input) = input.as_mut() {
                     input.release();
                 }
@@ -934,6 +946,38 @@ pub fn snapshot() -> Result<Vec<u8>, String> {
     let target = desktop.game().ok_or("Sober 창을 먼저 열어 주세요.")?;
     desktop.capture(target)
 }
+pub fn rejoin(url: &str, generation: i32) -> Result<(), String> {
+    use std::process::{Command, Stdio};
+    if game_available() {
+        let result = Command::new("flatpak")
+            .args(["kill", "org.vinegarhq.Sober"])
+            .status()
+            .map_err(|error| format!("Sober를 닫지 못했습니다: {error}"))?;
+        if !result.success() {
+            return Err("Sober를 닫지 못했습니다.".into());
+        }
+    }
+    if runtime().generation != generation {
+        return Err("서버 복귀가 취소됐습니다.".into());
+    }
+    Command::new("flatpak")
+        .args([
+            "run",
+            "--socket=x11",
+            "--nosocket=wayland",
+            "--env=SDL_VIDEODRIVER=x11",
+            "--env=GDK_BACKEND=x11",
+            "org.vinegarhq.Sober",
+            url,
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("Sober를 열지 못했습니다: {error}"))
+}
+
 pub fn open_game() -> Result<(), String> {
     if focus_game().is_ok() {
         return Ok(());

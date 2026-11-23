@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { cancelDiscord, discordState, linkDiscord, unlinkDiscord } from "./discord";
 import { biomeStatus } from "./biome";
 import defaults from "./desktop-defaults.json";
 import { control, macroAction, status, type FeatureName, type Status, type Tuning } from "./engine";
@@ -254,7 +255,7 @@ async function autoCalibrate(name: string, feature: FeatureName) {
     if (!(Number(completed.completedAt) > Number(before.featureStatuses?.[feature]?.completedAt ?? 0))) return { error: completed.msg || "자동 보정이 완료되지 않았습니다." };
     const native = normalize(await invoke<Config>("macro_settings"));
     // Keep unrelated edits made while calibration was running.
-    config[feature] = native[feature];
+    config[feature] = native[feature] as Bag;
     if (name === "sell_autocal") config.base = native.base;
     persist();
     return { [feature]: structuredClone(config[feature]), ...(name === "sell_autocal" ? { base: structuredClone(config.base) } : {}) };
@@ -384,10 +385,25 @@ async function request(name: string, payload: Bag) {
         online: online.status === "fulfilled" ? online.value.online : null, online_on: online.status === "fulfilled",
         seq, logs, status: statusLabel(s),
         roblox: s.gameAvailable, macro_on: s.macroRunning, move,
+        ret: { running: s.returning, msg: s.message },
         ...s.featureStatuses,
         mfish: { ...s.featureStatuses?.mfish, stats: s.stats },
         stats: { session: stats(s.stats), all: stats(s.totals), since: null, started: openedAt },
       };
+    }
+    case "discord_state": return discordState();
+    case "discord_login": return linkDiscord();
+    case "discord_cancel": return cancelDiscord();
+    case "discord_logout": return unlinkDiscord();
+    case "ret_test": {
+      await configSaves;
+      const result = await invoke<{ ok: boolean; why: string }>("desktop_return_private");
+      const errors: Record<string, string> = {
+        no_link: "복귀에 사용할 Roblox 비공개 서버 링크를 입력하세요.",
+        busy: "실행 중인 작업이 끝난 뒤 다시 시도하세요.",
+        returning: "이미 비공개 서버로 복귀 중입니다.",
+      };
+      return result.ok ? result : { error: errors[result.why] ?? "비공개 서버로 복귀하지 못했습니다." };
     }
     case "open_game": {
       const current = await invoke<Status>("desktop_open_game"); updateConnection(current); return { ok: true };

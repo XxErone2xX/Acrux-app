@@ -10,7 +10,7 @@
 
 - [Acrux-Alpha.apk](https://github.com/XxErone2xX/Acrux-app/releases/download/alpha/Acrux-Alpha.apk) — Android (arm64) · 패키지 `com.acrux.next` (정식 앱과 따로 깔림)
 - [Acrux-Alpha.exe](https://github.com/XxErone2xX/Acrux-app/releases/download/alpha/Acrux-Alpha.exe) — Windows
-- `src-tauri/` · `frontend/` 가 바뀐 커밋이 main 에 들어오면 `.github/workflows/alpha.yml` 이 자동으로 다시 빌드 (실패 기록은 `alpha-build-log` 릴리스)
+- `src-tauri/` · `frontend/` 가 바뀐 커밋이 dev 에 들어오면 `.github/workflows/alpha.yml` 이 자동으로 다시 빌드 (실패 기록은 `alpha-build-log` 릴리스)
 - 서명: 비밀값 `ACRUX_ALPHA_KEYSTORE_B64` · `ACRUX_ALPHA_KEYSTORE_PASS` 를 넣으면 그 키로 · 없으면 CI 가 캐시한 디버그 키 (7일 넘게 빌드가 없으면 키가 바뀌어서 한 번 지우고 다시 깔아야 함)
 
 ## 현재 상태
@@ -21,11 +21,11 @@ Android와 Windows는 기존 앱별 화면을 따릅니다. Android의 TypeScrip
 - Windows에서는 `npm run tauri -- dev`로 실행하거나 `npm run tauri -- build`로 패키징합니다.
 - Android에서는 JDK 17, Android SDK 36, NDK와 Rust의 `aarch64-linux-android` 타깃을 준비한 뒤 `npm run tauri -- android build --apk --target aarch64 --debug`를 실행합니다. 테스트 패키지 `com.acrux.next`는 기존 앱과 별도로 설치됩니다.
 
-미리보기에는 낚시와 이동·판매, 바이옴 감시·디스코드 알림 흐름이 들어 있습니다. Android에서는 조작 창에서 조이스틱과 버튼 위치를 직접 지정하고 방향 패드의 실제 누름·이동·뗌 시각으로 길을 기록합니다. 이전 미리보기의 0.5초 단위 기록도 읽을 수 있으며 새 타이밍을 적용하려면 길을 다시 기록해야 합니다. Windows에서는 기존 이동 메뉴에서 지점 위치와 도착 시간을 저장합니다. 두 앱 모두 수동으로 지정한 판매 위치를 사용합니다.
+미리보기에는 낚시와 이동·판매, 바이옴 감시·디스코드 알림 흐름이 들어 있습니다. Android에서는 조작 창에서 조이스틱과 버튼 위치를 직접 지정하고 방향 패드의 실제 누름·이동·뗌 시각으로 길을 기록합니다. 이전 미리보기의 0.5초 단위 기록도 읽을 수 있으며 새 타이밍을 적용하려면 길을 다시 기록해야 합니다. Windows에서는 기존 이동 메뉴에서 지점 위치와 도착 시간을 저장합니다. 두 앱 모두 직접 지정한 판매 위치를 사용할 수 있습니다. Android에서는 Captain Flarg 앞에서 대화를 연 뒤 판매 위치를 자동 보정할 수도 있습니다.
 
 Android의 바이옴 기능은 앱 내부 무선 디버깅 페어링과 로그 수집을 사용합니다. 로그 재연결 시 이어 읽기와 2분 정체 감지, 웹후크별 순차 전송·429 재시도를 포함합니다. 사용자 수는 `https://acruxmacro.com/api/`에서 읽습니다.
 
-판매 자동 보정, 조이스틱 자동 검색, 나머지 PC 전용 자동화, 기존 설정 이전, 배포 업데이트는 아직 이식 전입니다. Roblox 안에서 이동과 판매가 동작하는지는 별도 검증이 필요합니다.
+조이스틱 자동 검색, 나머지 PC 전용 자동화, 기존 설정 이전, 배포 업데이트는 아직 이식 전입니다. Roblox 안에서 이동과 판매가 동작하는지는 별도 검증이 필요합니다.
 
 ### Apple 빌드 확인
 
@@ -54,3 +54,5 @@ UI 재현 전 Android 16 (SM-S931N)에서 각 앱을 화면에 띄워 PSS를 세
 ## 옮긴 커밋
 
 - `02977ec` Mobile V1.4.1 (길 기록 · 재생 · 바이옴 이어 읽기) — 이식 기준
+- `23f2118` PC V3.3.2 (바이옴 보호, 어두운 화면 낚시)
+- `495aca7..86c2b57` 후속 변경 중 Discord 연결과 서버 확인·복귀, PC 시작 재설정 재시도, Android 릴링 반응 학습·결과창 감지·낚시 테스트·디버깅 표시·판매 자동 보정과 OCR 보완을 이식

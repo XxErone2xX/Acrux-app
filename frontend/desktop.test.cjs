@@ -55,6 +55,8 @@ function desktop(options = {}) {
   };
   const modules = {
     '@tauri-apps/api/core': { invoke }, './desktop-defaults.json': defaults,
+    './discord': { discordState: () => invoke('discord_state'), linkDiscord: () => invoke('discord_login'),
+      cancelDiscord: () => invoke('discord_cancel'), unlinkDiscord: () => invoke('discord_logout') },
     './engine': {
       status: async () => { if (options.statusError) throw new Error(options.statusError); return structuredClone(current); },
       control: async (action, generation) => {

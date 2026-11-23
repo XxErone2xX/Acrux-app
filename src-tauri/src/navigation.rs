@@ -1,3 +1,6 @@
+use crate::ocr::Word;
+#[cfg(target_os = "android")]
+use crate::vision::Rect;
 use crate::vision::{Frame, Point};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
@@ -30,7 +33,7 @@ pub enum Place {
 pub struct Options {
     pub use_move: bool,
     pub use_sell: bool,
-    reset_wait: f64,
+    pub(crate) reset_wait: f64,
     wa: f64,
     a: f64,
     aw: f64,
@@ -221,7 +224,17 @@ impl Navigation {
     pub fn set_point(&mut self, key: &str, point: Point) -> Result<(), &'static str> {
         let allowed = BASE.contains(&key)
             || SELL.contains(&key)
-            || ["stick_center", "stick_edge", "jump_btn", "talk_btn"].contains(&key);
+            || [
+                "stick_center",
+                "stick_edge",
+                "jump_btn",
+                "talk_btn",
+                "game_menu",
+                "private_server_commands",
+                "ps_menu_close",
+                "ps_panel_close",
+            ]
+            .contains(&key);
         if !allowed || !(0.0..1.0).contains(&point.0) || !(0.0..1.0).contains(&point.1) {
             return Err("저장할 위치를 확인하세요.");
         }
@@ -559,6 +572,11 @@ impl Navigation {
                 tap(&mut steps, point, 0.5);
                 steps.push_back(Step::Input(self.stick(0, -1, 600, true)?, 0.0));
             }
+            Task::CalibrateSale => {
+                job.deadline = now + 120.;
+                job.sale_draft = Some(self.positions.clone());
+                steps.push_back(Step::Check(Check::Calibrate(CalibrationStage::Dialog)));
+            }
             Task::Sell => {
                 let [dialog, sell_fish, first, all, confirm, close]: [Point; 6] = self
                     .points(&SELL)
@@ -592,6 +610,8 @@ impl Navigation {
                     delay: self.options.sell_delay,
                     max: self.options.sell_max,
                     sold: 0,
+                    #[cfg(target_os = "android")]
+                    ocr_at: f64::NEG_INFINITY,
                 });
             }
         }
@@ -612,6 +632,7 @@ pub enum Task {
     StickTest,
     JumpTest,
     Sell,
+    CalibrateSale,
     Measure,
 }
 
@@ -685,12 +706,22 @@ enum Step {
     Check(Check),
     Replay(DesktopRoute, f64),
 }
+#[derive(Clone, Copy)]
 enum Check {
     Dialog(u8),
     Shop,
     Before,
     Confirm { before: f64, tries: u8, until: f64 },
     Closed { before: f64, tries: u8 },
+    Calibrate(CalibrationStage),
+}
+
+#[derive(Clone, Copy)]
+enum CalibrationStage {
+    Dialog,
+    Shop(u8),
+    Confirm(u8),
+    Close(u8),
 }
 
 struct Sale {
@@ -704,6 +735,8 @@ struct Sale {
     delay: f64,
     max: u32,
     sold: u32,
+    #[cfg(target_os = "android")]
+    ocr_at: f64,
 }
 
 pub enum Tick {
@@ -727,6 +760,7 @@ pub struct Job {
     pub recording_at: Option<f64>,
     steps: VecDeque<Step>,
     sale: Option<Sale>,
+    sale_draft: Option<BTreeMap<String, Point>>,
     resume: bool,
     desktop_record: Option<DesktopRecording>,
     replay: Option<Replay>,
@@ -743,6 +777,7 @@ impl Job {
             recording_at: None,
             steps: VecDeque::new(),
             sale: None,
+            sale_draft: None,
             resume,
             desktop_record: None,
             replay: None,
@@ -757,6 +792,12 @@ impl Job {
             (Task::Measure, Some(_)) => "시간 재는 중 · 도착하면 F6을 누르세요.",
             (_, Some(_)) => "길 기록 중 · 이동 버튼을 누르고 도착하면 저장하세요.",
             (Task::Sell, _) => "판매 · 이동 또는 판매 중",
+            (Task::CalibrateSale, _) => match self.steps.front() {
+                Some(Step::Check(Check::Calibrate(CalibrationStage::Dialog))) => {
+                    "Captain Flarg 앞에서 대화 버튼을 눌러 대화를 여세요"
+                }
+                _ => "판매 화면 보정 중",
+            },
             (Task::StickTest, _) => "조이스틱 테스트 중",
             (Task::JumpTest, _) => "점프 테스트 중",
             _ => "이동 중",
@@ -801,16 +842,68 @@ impl Job {
         )))
     }
 
+    pub fn take_sale_draft(&mut self) -> Option<BTreeMap<String, Point>> {
+        self.sale_draft.take()
+    }
+
     pub fn needs_frame(&self) -> bool {
         self.replay.is_none() && matches!(self.steps.front(), Some(Step::Check(_)))
     }
 
     pub fn tick(&mut self, now: f64, frame: &Frame<'_>) -> Tick {
-        self.tick_inner(now, (frame.width, frame.height), Some(frame))
+        self.tick_inner(now, (frame.width, frame.height), Some(frame), &[])
+    }
+
+    #[cfg(target_os = "android")]
+    pub fn sale_ocr(&mut self, now: f64, frame: &Frame<'_>) -> Option<Rect> {
+        if now < self.ready_at {
+            return None;
+        }
+        let Step::Check(check) = self.steps.front()? else {
+            return None;
+        };
+        if matches!(check, Check::Calibrate(_)) {
+            return Some(Rect(0.05, 0.12, 0.89, 0.94));
+        }
+        let sale = self.sale.as_mut()?;
+        if now < sale.ocr_at + 0.5 {
+            return None;
+        }
+        let region = match *check {
+            Check::Dialog(_) if frame.sale_color(sale.sell_fish, false) < 0.035 => {
+                Frame::centered(sale.sell_fish, 0.50, 0.30)
+            }
+            Check::Shop if frame.sale_color(sale.all, false) < 0.035 => {
+                Frame::centered(sale.all, 0.52, 0.28)
+            }
+            Check::Confirm { before, .. } | Check::Closed { before, .. }
+                if !confirmed(frame, sale.confirm, before) =>
+            {
+                Rect(
+                    0.18_f64.min(sale.all.0 - 0.1),
+                    0.23,
+                    0.82_f64.max(sale.all.0 + 0.1),
+                    0.76_f64.max(sale.all.1 + 0.08),
+                )
+            }
+            _ => return None,
+        };
+        sale.ocr_at = now;
+        Some(Rect(
+            region.0.max(0.),
+            region.1.max(0.),
+            region.2.min(1.),
+            region.3.min(1.),
+        ))
+    }
+
+    #[cfg(target_os = "android")]
+    pub fn tick_with_words(&mut self, now: f64, frame: &Frame<'_>, words: &[Word]) -> Tick {
+        self.tick_inner(now, (frame.width, frame.height), Some(frame), words)
     }
 
     pub fn tick_without_frame(&mut self, now: f64, geometry: (usize, usize)) -> Tick {
-        self.tick_inner(now, geometry, None)
+        self.tick_inner(now, geometry, None, &[])
     }
 
     fn tick_inner(
@@ -818,6 +911,7 @@ impl Job {
         now: f64,
         geometry: (usize, usize),
         frame: Option<&Frame<'_>>,
+        words: &[Word],
     ) -> Tick {
         if !now.is_finite() || now < 0. || geometry.0 == 0 || geometry.1 == 0 {
             return Tick::Failed("이동 시각이나 화면 크기를 확인할 수 없습니다.");
@@ -866,6 +960,7 @@ impl Job {
                 sold: self.sale.as_ref().map(|sale| sale.sold),
                 message: match self.action {
                     Task::Sell => "판매 후 낚시 장소로 돌아왔습니다.",
+                    Task::CalibrateSale => "판매 위치 보정을 완료했습니다.",
                     _ => "이동 동작이 끝났습니다.",
                 },
             };
@@ -879,9 +974,12 @@ impl Job {
                 self.ready_at = now + seconds;
                 Tick::Wait
             }
-            Step::Check(check) => {
-                self.check(now, frame.expect("visual steps require a frame"), check)
-            }
+            Step::Check(check) => self.check(
+                now,
+                frame.expect("visual steps require a frame"),
+                check,
+                words,
+            ),
             Step::Replay(route, margin) => {
                 self.replay = Some(Replay {
                     route,
@@ -889,20 +987,26 @@ impl Job {
                     started: now,
                     margin,
                 });
-                self.tick_inner(now, geometry, frame)
+                self.tick_inner(now, geometry, frame, words)
             }
         }
     }
 
-    fn check(&mut self, now: f64, frame: &Frame<'_>, check: Check) -> Tick {
+    fn check(&mut self, now: f64, frame: &Frame<'_>, check: Check, words: &[Word]) -> Tick {
+        if let Check::Calibrate(stage) = check {
+            return self.calibrate_sale(now, frame, words, stage);
+        }
         let sale = self
             .sale
             .as_mut()
             .expect("sale steps require sale positions");
         match check {
             Check::Dialog(tries) => {
-                if frame.sale_color(sale.sell_fish, false) >= 0.035 {
-                    tap(&mut self.steps, sale.sell_fish, 0.8 + sale.delay);
+                let button = (frame.sale_color(sale.sell_fish, false) >= 0.035)
+                    .then_some(sale.sell_fish)
+                    .or_else(|| sale_label(words, "sellflsh", sale.sell_fish));
+                if let Some(button) = button {
+                    tap(&mut self.steps, button, 0.8 + sale.delay);
                     self.steps.push_back(Step::Check(Check::Shop));
                 } else if tries < 16 {
                     tap(&mut self.steps, sale.dialog, 0.35);
@@ -915,7 +1019,10 @@ impl Job {
             }
             Check::Shop => {
                 if frame.sale_color(sale.all, false) < 0.035 {
-                    return Tick::Failed("Sell All을 찾지 못했습니다. 상점 위치를 확인하세요.");
+                    let Some(button) = sell_all_label(words, sale.all) else {
+                        return Tick::Failed("Sell All을 찾지 못했습니다. 상점 위치를 확인하세요.");
+                    };
+                    sale.all = button;
                 }
                 tap(&mut self.steps, sale.first, 0.5 + sale.delay);
                 self.steps.push_back(Step::Check(Check::Before));
@@ -934,33 +1041,43 @@ impl Job {
                 tries,
                 until,
             } => {
-                if confirmed(frame, sale.confirm, before) {
-                    tap(&mut self.steps, sale.confirm, 1.2 + sale.delay);
+                let confirm = (confirmed(frame, sale.confirm, before))
+                    .then_some(sale.confirm)
+                    .or_else(|| confirmation_labels(words));
+                let shop = frame.sale_color(sale.all, false) >= 0.035
+                    || sell_all_label(words, sale.all).is_some();
+                if let Some(point) = confirm {
+                    sale.confirm = point;
+                    tap(&mut self.steps, point, 1.2 + sale.delay);
                     self.steps
                         .push_back(Step::Check(Check::Closed { before, tries: 1 }));
                 } else if now < until {
                     self.steps.push_back(Step::Check(check));
-                } else if tries < 3 && frame.sale_color(sale.all, false) >= 0.035 {
+                } else if tries < 3 && shop {
                     tap(&mut self.steps, sale.all, 0.2 + sale.delay);
                     self.steps.push_back(Step::Check(Check::Confirm {
                         before,
                         tries: tries + 1,
                         until: now + 2.5 + sale.delay,
                     }));
-                } else if frame.sale_color(sale.all, false) >= 0.035 {
+                } else if shop {
                     self.end_sale();
                 } else {
                     return Tick::Failed("판매 도중 상점을 찾지 못했습니다.");
                 }
             }
+            Check::Calibrate(_) => unreachable!(),
             Check::Closed { before, tries } => {
-                if confirmed(frame, sale.confirm, before) {
+                let confirm = confirmed(frame, sale.confirm, before)
+                    .then_some(sale.confirm)
+                    .or_else(|| confirmation_labels(words));
+                if let Some(point) = confirm {
                     if tries >= 3 {
                         return Tick::Failed(
                             "판매 확인창이 닫히지 않았습니다. 확인 버튼 위치를 확인하세요.",
                         );
                     }
-                    tap(&mut self.steps, sale.confirm, 1.2 + sale.delay);
+                    tap(&mut self.steps, point, 1.2 + sale.delay);
                     self.steps.push_back(Step::Check(Check::Closed {
                         before,
                         tries: tries + 1,
@@ -978,6 +1095,161 @@ impl Job {
         Tick::Wait
     }
 
+    fn calibrate_sale(
+        &mut self,
+        now: f64,
+        frame: &Frame<'_>,
+        words: &[Word],
+        stage: CalibrationStage,
+    ) -> Tick {
+        let positions = self.sale_draft.as_mut().unwrap();
+        if now >= self.deadline {
+            return Tick::Failed(
+                "판매 위치 보정 시간이 지났습니다. Captain Flarg 앞에서 다시 시도하세요.",
+            );
+        }
+        let word = |key: &str| {
+            words
+                .iter()
+                .find(|word| sale_text(&word.text).contains(key))
+        };
+        let center = |word: &Word| word.rect.at(0.5, 0.5);
+        let mut enqueue = |stage| self.steps.push_back(Step::Check(Check::Calibrate(stage)));
+        self.ready_at = now + 0.55;
+        match stage {
+            CalibrationStage::Dialog => {
+                if let Some(dialog) = word("cllcktosklp").or_else(|| word("whotdoyou")) {
+                    let point = center(dialog);
+                    positions.insert("dialog_pos".into(), point);
+                    if word("sellflsh").is_none() {
+                        enqueue(CalibrationStage::Dialog);
+                        return Tick::Input(Motion::Tap(point, 40));
+                    }
+                }
+                if let Some(button) = word("sellflsh").map(center).filter(|point| point.1 > 0.45) {
+                    positions.insert("sell_fish_pos".into(), button);
+                    enqueue(CalibrationStage::Shop(0));
+                    return Tick::Input(Motion::Tap(button, 40));
+                }
+                enqueue(CalibrationStage::Dialog);
+            }
+            CalibrationStage::Shop(tries) => {
+                let title = word("flshlngshop").map(center);
+                let all = title.and_then(|title| {
+                    let near = Point(0.26, (title.1 + 0.45).min(0.84));
+                    sell_all_label(words, near).filter(|p| p.0 < 0.55 && p.1 > title.1 + 0.2)
+                });
+                if let (Some(title), Some(all)) = (title, all) {
+                    let close = words
+                        .iter()
+                        .filter(|word| matches!(word.text.trim(), "X" | "x" | "×" | "✕" | "✖"))
+                        .map(center)
+                        .filter(|p| p.0 > title.0 && (p.1 - title.1).abs() < 0.08)
+                        .max_by(|a, b| a.0.total_cmp(&b.0));
+                    let first = words
+                        .iter()
+                        .filter_map(|word| {
+                            let p = center(word);
+                            let text = sale_text(&word.text);
+                            (p.0 > 0.07
+                                && p.0 < 0.72
+                                && p.1 > title.1 + 0.10
+                                && p.1 < all.1 - 0.035
+                                && text.len() >= 3
+                                && ![
+                                    "sell",
+                                    "buy",
+                                    "shop",
+                                    "flshlng",
+                                    "sort",
+                                    "seorch",
+                                    "lnventory",
+                                    "prlce",
+                                ]
+                                .iter()
+                                .any(|key| text.contains(key)))
+                            .then_some(Point(
+                                p.0,
+                                p.1 - (word.rect.3 - word.rect.1).clamp(0.01, 0.03),
+                            ))
+                        })
+                        .min_by(|a, b| {
+                            if (a.1 - b.1).abs() <= 0.025 {
+                                a.0.total_cmp(&b.0)
+                            } else {
+                                a.1.total_cmp(&b.1)
+                            }
+                        });
+                    let Some(first) = first.or_else(|| positions.get("first_fish_pos").copied())
+                    else {
+                        return Tick::Failed(
+                            "첫 물고기 칸을 찾지 못했습니다. 물고기가 있을 때 다시 보정하세요.",
+                        );
+                    };
+                    positions.insert("first_fish_pos".into(), first);
+                    positions.insert("sell_all_pos".into(), all);
+                    if let Some(close) = close {
+                        positions.insert("shop_close_pos".into(), close);
+                    }
+                    tap(&mut self.steps, first, 0.5);
+                    tap(&mut self.steps, all, 0.5);
+                    self.steps
+                        .push_back(Step::Check(Check::Calibrate(CalibrationStage::Confirm(0))));
+                } else if tries < 8 {
+                    enqueue(CalibrationStage::Shop(tries + 1));
+                } else {
+                    return Tick::Failed("Fishing Shop과 Sell All을 찾지 못했습니다.");
+                }
+            }
+            CalibrationStage::Confirm(tries) => {
+                if let Some((sell, cancel)) = sale_confirmation(words) {
+                    positions.insert("confirm_sell_pos".into(), sell);
+                    enqueue(CalibrationStage::Close(0));
+                    return Tick::Input(Motion::Tap(cancel, 40));
+                }
+                if tries < 8 {
+                    enqueue(CalibrationStage::Confirm(tries + 1));
+                    if matches!(tries, 2 | 5) && word("flshlngshop").is_some() {
+                        let all = positions["sell_all_pos"];
+                        return Tick::Input(Motion::Tap(all, if tries == 2 { 70 } else { 150 }));
+                    }
+                } else if word("flshlngshop").is_some()
+                    && word("sellconflrm").is_none()
+                    && word("reollywonttosell").is_none()
+                {
+                    enqueue(CalibrationStage::Close(0));
+                } else {
+                    return Tick::Failed(
+                        "판매 확인창을 확인하지 못했습니다. 화면을 직접 닫고 다시 시도하세요.",
+                    );
+                }
+            }
+            CalibrationStage::Close(tries) => {
+                if sale_confirmation(words).is_some() {
+                    return Tick::Failed(
+                        "판매 확인창이 닫히지 않았습니다. 취소를 누른 뒤 다시 시도하세요.",
+                    );
+                }
+                if word("flshlngshop").is_some() {
+                    if let Some(close) = positions
+                        .get("shop_close_pos")
+                        .copied()
+                        .filter(|_| tries < 2)
+                    {
+                        enqueue(CalibrationStage::Close(tries + 1));
+                        return Tick::Input(Motion::Tap(close, 40));
+                    }
+                }
+                // A blank OCR is accepted only after the configured close control was used.
+                if tries == 0 && words.is_empty() && frame.width > 0 {
+                    enqueue(CalibrationStage::Close(1));
+                    return Tick::Wait;
+                }
+            }
+        }
+        Tick::Wait
+    }
+
     fn end_sale(&mut self) {
         let sale = self.sale.as_mut().unwrap();
         tap(&mut self.steps, sale.close, 0.5 + sale.delay);
@@ -987,6 +1259,61 @@ impl Job {
 
 fn tap(queue: &mut VecDeque<Step>, point: Point, after: f64) {
     queue.push_back(Step::Input(Motion::Tap(point, 150), after));
+}
+
+fn sale_text(text: &str) -> String {
+    text.chars()
+        .filter(char::is_ascii_alphanumeric)
+        .map(|character| match character.to_ascii_lowercase() {
+            'a' => 'o',
+            'i' | '1' => 'l',
+            ch => ch,
+        })
+        .collect()
+}
+
+fn sale_label(words: &[Word], key: &str, near: Point) -> Option<Point> {
+    words
+        .iter()
+        .filter_map(|word| (sale_text(&word.text) == key).then(|| word.rect.at(0.5, 0.5)))
+        .filter(|point| (point.0 - near.0).abs() < 0.21 && (point.1 - near.1).abs() < 0.13)
+        .min_by(|a, b| {
+            ((a.0 - near.0).abs() + (a.1 - near.1).abs())
+                .total_cmp(&((b.0 - near.0).abs() + (b.1 - near.1).abs()))
+        })
+}
+
+fn sell_all_label(words: &[Word], near: Point) -> Option<Point> {
+    sale_label(words, "selloll", near).or_else(|| {
+        let sell = sale_label(words, "sell", near)?;
+        let all = sale_label(words, "oll", near)?;
+        ((0. ..0.12).contains(&(all.0 - sell.0)) && (all.1 - sell.1).abs() <= 0.03)
+            .then_some(Point((sell.0 + all.0) * 0.5, (sell.1 + all.1) * 0.5))
+    })
+}
+
+fn confirmation_labels(words: &[Word]) -> Option<Point> {
+    sale_confirmation(words).map(|(sell, _)| sell)
+}
+
+fn sale_confirmation(words: &[Word]) -> Option<(Point, Point)> {
+    words.iter().find_map(|word| {
+        if sale_text(&word.text) != "concel" {
+            return None;
+        }
+        let cancel = word.rect.at(0.5, 0.5);
+        words
+            .iter()
+            .filter_map(|word| {
+                let sell = word.rect.at(0.5, 0.5);
+                (sale_text(&word.text) == "sell"
+                    && (sell.1 - cancel.1).abs() <= 0.045
+                    && (0.035..0.35).contains(&(cancel.0 - sell.0)))
+                .then_some(sell)
+            })
+            .max_by(|a, b| a.0.total_cmp(&b.0))
+            .map(|sell| (sell, cancel))
+    })
 }
 
 fn confirmed(frame: &Frame<'_>, point: Point, baseline: f64) -> bool {
@@ -1476,6 +1803,48 @@ mod tests {
             let route: DesktopRoute = serde_json::from_value(route).unwrap();
             assert!(route.normalized().is_err());
         }
+    }
+
+    #[test]
+    fn mobile_sale_calibration_only_taps_cancel_in_the_confirmation() {
+        let pixels = vec![0; 320 * 180 * 3];
+        let frame = Frame::new(&pixels, 320, 180, 320 * 3, 3, false).unwrap();
+        let word = |text: &str, x, y| Word {
+            text: text.into(),
+            rect: crate::vision::Rect(x, y, x, y),
+        };
+        let mut nav = Navigation::default();
+        nav.set_point("confirm_sell_pos", Point(0.4, 0.6)).unwrap();
+        let mut job = nav.job(Task::CalibrateSale, 0., false).unwrap();
+        let _ = job.tick_inner(0., (320, 180), Some(&frame), &[word("Sell Fish", 0.5, 0.7)]);
+        let shop = [
+            word("Fishing Shop", 0.35, 0.24),
+            word("Moonfish", 0.22, 0.46),
+            word("Sell All", 0.26, 0.7),
+            word("X", 0.68, 0.24),
+        ];
+        assert!(matches!(
+            job.tick_inner(1., (320, 180), Some(&frame), &shop),
+            Tick::Wait
+        ));
+        assert!(matches!(
+            job.tick_inner(2., (320, 180), Some(&frame), &shop),
+            Tick::Input(_)
+        ));
+        assert!(matches!(
+            job.tick_inner(3., (320, 180), Some(&frame), &shop),
+            Tick::Input(_)
+        ));
+        let modal = [word("Sell", 0.44, 0.6), word("Cancel", 0.58, 0.6)];
+        assert!(
+            matches!(job.tick_inner(4., (320, 180), Some(&frame), &modal),
+            Tick::Input(Motion::Tap(Point(x, y), _)) if x == 0.58 && y == 0.6)
+        );
+        assert!(matches!(nav.positions["confirm_sell_pos"], Point(0.4, 0.6)));
+        assert!(matches!(
+            job.take_sale_draft().unwrap()["confirm_sell_pos"],
+            Point(0.44, 0.6)
+        ));
     }
 
     #[test]

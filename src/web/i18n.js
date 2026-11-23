@@ -133,6 +133,10 @@ const I18N = (() => {
     ['F7 로 취소', 'F7 cancels', 'F7でキャンセル'],
     ['자동 보정 중… (다시 누르면 취소)', 'Calibrating… (press again to cancel)', '自動補正中…（もう一度押すとキャンセル）'],
     ['자동 보정 취소 중', 'Cancelling auto calibration', '自動補正をキャンセル中'],
+    ['게임 화면을 다른 기능이 사용 중', 'Another feature is using the game screen', '別の機能がゲーム画面を使用中'],
+    ['자동 낚시가 아직 멈추지 않음', "Auto fishing hasn't stopped yet", '自動釣りがまだ止まっていない'],
+    ['시작 재설정을 못 함 (로블록스 창을 앞으로 못 가져옴) — 잠시 뒤 다시', "Couldn't reset at start (couldn't bring the Roblox window to the front) — retrying shortly", '開始時のリセットができない（Roblox ウィンドウを前面に出せない）— 少し後に再試行'],
+    ['시작 재설정을 못 함 (로블록스 창을 앞으로 못 가져옴) — 재설정 없이 시작', "Couldn't reset at start (couldn't bring the Roblox window to the front) — starting without a reset", '開始時のリセットができない（Roblox ウィンドウを前面に出せない）— リセットせずに開始'],
     ['자동 보정 취소됨', 'Auto calibration cancelled', '自動補正をキャンセルしました'],
     ['자동 낚시가 멈추지 않음 — 낚시를 끄고 다시 눌러주세요', 'Auto fishing did not pause — turn fishing off and press again', '自動釣りが止まりません — 釣りをオフにしてもう一度押してください'],
     ['Fish 를 눌러도 반응 없음 (인벤토리 가득?) — 대기 창만 맞춤', 'No response to Fish (inventory full?) — only the waiting window was set', 'Fishを押しても反応なし（インベントリ満杯？）— 待機ウィンドウだけ合わせました'],
@@ -1618,6 +1622,31 @@ const I18N = (() => {
     ['디스코드 연결 실패', 'Discord link failed', 'Discord 連携に失敗'],
     ['디스코드 연결 끊음', 'Unlinked Discord', 'Discord の連携を解除'],
     ['디스코드 연결이 끊김 — 다시 연결하려면 설정 → Acrux → 디스코드 연결', 'Discord link removed — to link again, go to Settings → Acrux → Discord link', 'Discord 連携が解除されました — もう一度連携するには 設定 → Acrux → Discord 連携'],
+    // V3.3.3: 서버 체크 (디스코드 봇 /서버 체크)
+    ['서버 체크', 'Server check', 'サーバーチェック'],
+    ['메뉴 버튼', 'Menu button', 'メニューボタン'],
+    ['메뉴 버튼 위치', 'Menu button position', 'メニューボタンの位置'],
+    ['왼쪽 메뉴 맨 아래 줄 세 개 버튼', 'The three-line button at the bottom of the left menu', '左メニューの一番下にある三本線のボタン'],
+    ['쓰는 기능: 서버 체크 (디스코드 봇) · 선택 — 비워 두면 기본 위치 (1920×1080 전체 화면 기준)', 'Used by: Server check (Discord bot) · Optional — leave empty to use the default position (based on 1920×1080 fullscreen)', '使用する機能: サーバーチェック（Discord ボット）・任意 — 空欄なら既定の位置（1920×1080 全画面基準）'],
+    ['로블록스 화면에서 메뉴 버튼 클릭', 'Click the Menu button in Roblox', 'Roblox画面でメニューボタンをクリック'],
+    ['메뉴 버튼 위치 저장', 'Menu button position saved', 'メニューボタンの位置を保存'],
+    ['서버 체크 — 메뉴를 열어 내 브섭인지 확인', 'Server check — opening the menu to see if this is your private server', 'サーバーチェック — メニューを開いて自分のプライベートサーバーか確認'],
+    ['서버 체크 중 — 매크로 잠시 멈춤 (끝나면 다시 시작)', 'Server check — macro paused (restarts when done)', 'サーバーチェック中 — マクロを一時停止（終わると再開）'],
+    ['서버 체크 끝 — 매크로 다시 시작', 'Server check done — macro restarted', 'サーバーチェック終了 — マクロ再開'],
+    ['서버 체크 — 내 브섭', 'Server check — your private server', 'サーバーチェック — 自分のプライベートサーバー'],
+    ['서버 체크 — 내 브섭이 아님', 'Server check — not your private server', 'サーバーチェック — 自分のプライベートサーバーではない'],
+    ['서버 체크 — Menu 창이 안 닫힘 (직접 닫아 주세요)', "Server check — the Menu window didn't close (please close it yourself)", 'サーバーチェック — Menu ウィンドウが閉じない（手動で閉じてください）'],
+    ['디스코드 봇 — 내 서버로 복귀', 'Discord bot — returning to your server', 'Discord ボット — 自分のサーバーへ復帰'],
+    ['복귀 · 게임 입장 중', 'Returning · joining the game', '復帰・ゲーム参加中'],
+    ['모드가 다른 서버에서 작업 중', 'A mod is working in another server', 'MODが別のサーバーで作業中'],
+    ['레어 바이옴 팝핑 · 블러드 레인 중', 'Popping a rare biome · making Blood Rain', 'レアバイオームポッピング・ブラッドレイン中'],
+    ['자동 보정 중', 'Auto calibration running', '自動補正中'],
+    ['로블록스가 꺼져 있음', 'Roblox is closed', 'Robloxが閉じている'],
+    ['오류', 'Error', 'エラー'],
+    ['이미 서버 체크 중', 'Server check already running', 'すでにサーバーチェック中'],
+    ['하던 기능이 안 멈춤', "Running features didn't stop", '実行中の機能が止まらない'],
+    ['메뉴 창을 못 찾음 — 매크로 설정 → 공통 위치 → 메뉴 버튼 위치를 지정해 주세요', "Menu window not found — set the Menu button position in Macro settings → Shared positions", 'Menu ウィンドウが見つからない — マクロ設定 → 共通位置 → メニューボタンの位置を指定してください'],
+    ['복귀할 브섭 링크가 없음 (매크로 복귀 설정에서 입력)', 'No private server link to return to (enter it in Macro return settings)', '復帰するプライベートサーバーのリンクがない（マクロ復帰設定で入力）'],
   ];
 
   // 같은 글자라도 동작 편집기 안에서는 뜻이 다름 (대기 = 상태 '대기' 가 아니라 동작 '기다리기')
@@ -1921,6 +1950,10 @@ const I18N = (() => {
     [/^프로세스 종료 실패: (.*)$/, 'Failed to end process: $1', 'プロセス終了失敗: $1'],
     [/^(\w+(?:Error|Exception)): (.*)$/, (g, r) => `${r[1]}: ${g[2]}`, (g, r) => `${r[1]}: ${g[2]}`],
     [/^([^·]+?) 오류: (.*)$/, '$1 error: $2', '$1エラー: $2'],
+    // V3.3.3: 서버 체크
+    [/^(.+) 감지 — 서버 체크가 끝나면 시작$/, '$1 detected — starts after the server check', '$1 検知 — サーバーチェックが終わったら開始'],
+    [/^서버 체크 — 확인 못 함 \((.+)\)$/, "Server check — couldn't check ($1)", 'サーバーチェック — 確認できない（$1）'],
+    [/^서버 체크 안 함 — 하던 기능이 안 멈춤 \((.+)\)$/, "Server check skipped — running features didn't stop ($1)", 'サーバーチェックせず — 実行中の機能が止まらない（$1）'],
   ];
   // 일반 패턴 — 글자를 ' · ' 등으로 나눠 본 뒤에도 못 찾았을 때만 (긴 문장 전체에 먼저 걸리지 않게)
   const G = [

@@ -5,6 +5,7 @@ use crate::{
     items::{self, ItemUse},
     macro_step::Step,
     ocr::Word,
+    server_check::ScreenJob,
     vision::{Frame, Rect},
 };
 use serde_json::{json, Value};
@@ -31,30 +32,35 @@ enum Purpose {
 enum Runner {
     Items(ItemUse),
     Activity(Activity),
+    Screen(ScreenJob),
 }
 impl Runner {
     fn tick(&mut self, now: f64, frame: Option<&Frame<'_>>, words: &[Word]) -> Step {
         match self {
             Self::Items(j) => j.tick(now, frame, words),
             Self::Activity(j) => j.tick(now, frame, words),
+            Self::Screen(j) => j.tick(now, frame, words),
         }
     }
     fn ack(&mut self, ok: bool, now: f64) {
         match self {
             Self::Items(j) => j.ack(ok, now),
             Self::Activity(j) => j.ack(ok, now),
+            Self::Screen(j) => j.ack(ok, now),
         }
     }
     fn status(&self) -> Value {
         match self {
             Self::Items(j) => j.status(),
             Self::Activity(j) => j.status(),
+            Self::Screen(j) => j.status(),
         }
     }
     fn logs(&mut self) -> Vec<String> {
         match self {
             Self::Items(j) => j.take_logs(),
             Self::Activity(j) => j.take_logs(),
+            Self::Screen(j) => j.take_logs(),
         }
     }
 }
@@ -209,6 +215,56 @@ impl Coordinator {
         self.log("매크로 켜짐");
         Ok(())
     }
+    pub fn startup_reset(&mut self, config: &Value, at: f64) {
+        self.install(
+            "startup_reset",
+            Runner::Screen(ScreenJob::new(config, false, at)),
+            Hold::Replace,
+            true,
+            false,
+        );
+    }
+
+    pub fn check_server(&mut self, job: ScreenJob, mobile: bool) -> Result<(), &'static str> {
+        if self.active.is_some() {
+            return Err("busy");
+        }
+        let hold = if mobile {
+            Hold::FinishCatch
+        } else {
+            Hold::Replace
+        };
+        self.install("ps_check", Runner::Screen(job), hold, true, false);
+        Ok(())
+    }
+
+    pub fn server_result(&self) -> Option<&Value> {
+        self.states
+            .get("ps_check")
+            .filter(|state| state["running"] == false)
+    }
+
+    pub fn screen_job(&self) -> bool {
+        matches!(self.feature(), Some("startup_reset" | "ps_check"))
+    }
+
+    pub fn startup_due(&self, at: f64) -> bool {
+        self.active.as_ref().is_some_and(|active| {
+            active.feature == "startup_reset"
+                && matches!(&active.runner, Runner::Screen(job) if job.reset_due(at))
+        })
+    }
+
+    pub fn missing_startup_target(&mut self, at: f64) {
+        if self.feature() != Some("startup_reset") {
+            return;
+        }
+        self.ready();
+        if matches!(self.tick(at), Some(Step::Input(_))) {
+            self.ack(false, at);
+        }
+    }
+
     pub fn stop_all(&mut self, at: f64) {
         self.running = false;
         self.cancel_current("중지됨", at);
@@ -442,7 +498,7 @@ impl Coordinator {
         {
             self.cancel_current("기능이 꺼져 중지했습니다.", at);
         }
-        if !self.running {
+        if !self.running || self.screen_job() {
             return;
         }
         let occurrence = biome.history.last().cloned();
@@ -846,6 +902,11 @@ impl Coordinator {
                     self.memory_at = next.max(if error.is_some() { at + 600. } else { at });
                 }
                 self.patch = job.config_patch();
+            }
+            Runner::Screen(_) => {
+                if active.feature == "ps_check" {
+                    self.log(status["msg"].as_str().unwrap_or_default().to_owned());
+                }
             }
         }
         for line in active.runner.logs() {

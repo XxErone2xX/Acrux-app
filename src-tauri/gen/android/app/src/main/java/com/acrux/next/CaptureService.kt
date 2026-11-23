@@ -163,7 +163,7 @@ class CaptureService : Service() {
             if (image.timestamp - previousFrame < 8_000_000L) return
             previousFrame = image.timestamp
             val plane = image.planes[0]
-            val tap = Native.frame(plane.buffer, image.width, image.height, plane.rowStride, plane.pixelStride)
+            val tap = Native.frame(plane.buffer, image.width, image.height, plane.rowStride, plane.pixelStride, tapper.debugVisible())
             if (tap != null) tapper.input(tap)
         }
     }

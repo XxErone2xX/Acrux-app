@@ -1450,13 +1450,15 @@ document.addEventListener('change', e => {
 // ---------------------------------------------------------------- 매크로 설정 · 위치 (공통 위치 칸 · 기능마다 위치 · 이동 묶음)
 // feat: 설정 묶음 (base = 여러 기능이 같이 쓰는 공통 위치 / mfish = 자동 낚시만 …) · points: [키, 이름, 설명] · region: [키, 이름, 설명]
 // 저장은 서버(api)에서 · windows: 창 영역(드래그) → 안쪽 위치를 서버가 계산
+const MPOS_OPTIONAL = new Set(['menu_pos']);   // 비워 둬도 되는 위치 (기본값이 있음 · 지정 개수에 안 셈)
 const MPOS = {
   base: { box: 'mposBase',
           points: [...POP_POS.map(([k, n, sub]) => [k, n, sub || '']),
                    ['chat_pos', '채팅 버튼', '왼쪽 위의 채팅 버튼'],
                    ['collection_pos', '도감 버튼', '왼쪽 메뉴의 도감(Collection · 책 모양) 버튼'],
                    ['collection_close', '도감 Exit', '도감을 연 상태에서 Exit(닫기) 버튼'],
-                   ['dialog_pos', '대화창', 'NPC 대화를 넘길 곳 (Click to skip.)']],
+                   ['dialog_pos', '대화창', 'NPC 대화를 넘길 곳 (Click to skip.)'],
+                   ['menu_pos', '메뉴 버튼', '왼쪽 메뉴 맨 아래 줄 세 개 버튼']],
           regions: [['ocr_region', 'OCR 영역', '검색 결과 아이템 이름·개수 (예: Warp Potion x23)'],
                     ['notice_region', '알림 영역', '오른쪽 알림 카드 자리를 넉넉히 드래그']],
           // 칸: [id, 이름, 설명, 들어갈 항목, 맨 위에 연동 줄을 넣을지, 따로 그리는 부분(MPOS_CUSTOM)]
@@ -1465,6 +1467,7 @@ const MPOS = {
                  ['popset', '팝핑 딜레이 · 일치율', '인벤토리를 여는 기능이 같이 씀 · 렉이 있으면 딜레이를 늘림', [], false, 'popcommon'],
                  ['notice', '알림', '쓰는 기능: 자동 낚시 (인벤토리 가득) · 포션 자동 제작 (Auto Crafted)', ['notice_region']],
                  ['ui', '대화창', '쓰는 기능: 자동 낚시 (판매) · 상인 자동 구매', ['dialog_pos']],
+                 ['menu', '메뉴 버튼', '쓰는 기능: 서버 체크 (디스코드 봇) · 선택 — 비워 두면 기본 위치 (1920×1080 전체 화면 기준)', ['menu_pos']],
                  ['move', '이동 · 기준 장소', '모든 이동의 출발점 (리셋 → 카메라 정렬 → 걷기 → 줌) · 쓰는 기능: 자동 낚시 · 포션 자동 제작 · 오토 메모리 매치',
                   ['chat_pos', 'collection_pos', 'collection_close'], false, 'movebase']] },
   mfish: { box: 'mposFish',
@@ -1531,10 +1534,10 @@ function renderMpos(feat) {
   const link = Mods.emit('mpos_top', feat).join('');     // 맨 위 줄 (top 이 켜진 칸 · 모드가 더함)
   // 묶음마다 따로 칸(카드)으로 나눠서 보여 줌 · 제목 옆에 지정한 개수 / 전체 개수
   box.innerHTML = d.tabs.map(([id, name, sub, keys, top, custom, pre]) => {
-    const n = keys.filter(k => c[k]).length;
+    const req = keys.filter(k => !MPOS_OPTIONAL.has(k)), n = req.filter(k => c[k]).length;
     return `
     <div class="grp mpos-group" data-mpos-group="${id}">
-      <div class="grp-head"><b>${name}</b>${keys.length ? `<em class="${n === keys.length ? 'done' : ''}">${n}/${keys.length}</em>` : ''}</div>
+      <div class="grp-head"><b>${name}</b>${req.length ? `<em class="${n === req.length ? 'done' : ''}">${n}/${req.length}</em>` : ''}</div>
       <p class="grp-desc">${sub}</p>
       <div class="card form mpos-card">${pre ? `<div data-mpos-custom="${pre}"></div>` : ''}${top ? link : ''}${keys.map(k => items[k] || '').join('')}${custom ? `<div data-mpos-custom="${custom}"></div>` : ''}</div></div>`;
   }).join('');

@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 export type Phase = "idle" | "calibrating" | "searching" | "casting" | "waiting" | "reeling" | "result" | "moving" | "selling" | "recording";
-export type Action = "calibrate" | "start" | "stop";
+export type Action = "calibrate" | "start" | "stop" | "testFish";
 export interface Tuning {
   biteSeconds: number;
   leadMs: number;
@@ -38,6 +38,7 @@ export interface Status {
   inputReady: boolean;
   gameAvailable: boolean;
   macroRunning: boolean;
+  returning: boolean;
   featureStatuses: Record<FeatureName, FeatureStatus>;
   connectionMessage?: string;
   calibrated: boolean;

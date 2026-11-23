@@ -641,6 +641,25 @@ fn log_directories() -> Vec<std::path::PathBuf> {
 }
 
 #[cfg(any(target_os = "windows", target_os = "linux"))]
+pub(crate) fn latest_desktop_log() -> Option<std::path::PathBuf> {
+    use std::fs;
+    log_directories()
+        .into_iter()
+        .filter_map(|path| fs::read_dir(path).ok())
+        .flatten()
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .to_ascii_lowercase()
+                .ends_with(".log")
+        })
+        .max_by_key(|entry| entry.metadata().and_then(|meta| meta.modified()).ok())
+        .map(|entry| entry.path())
+}
+
+#[cfg(any(target_os = "windows", target_os = "linux"))]
 pub fn watch_desktop() {
     std::thread::spawn(|| {
         use std::{
@@ -681,18 +700,7 @@ pub fn watch_desktop() {
             }
             if !player.is_empty() {
                 lock().release_held();
-                let latest = log_directories()
-                    .into_iter()
-                    .filter_map(|path| fs::read_dir(path).ok())
-                    .flatten()
-                    .filter_map(Result::ok)
-                    .filter(|entry| {
-                        let name = entry.file_name().to_string_lossy().to_lowercase();
-                        name.ends_with(".log")
-                    })
-                    .max_by_key(|entry| entry.metadata().and_then(|m| m.modified()).ok())
-                    .map(|entry| entry.path());
-                if let Some(path) = latest {
+                if let Some(path) = latest_desktop_log() {
                     if let Ok(mut reader) = fs::File::open(&path) {
                         let length = reader.metadata().map(|m| m.len()).unwrap_or(0);
                         let fresh = file
