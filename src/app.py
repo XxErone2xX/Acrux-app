@@ -706,12 +706,9 @@ class Bridge:
                 return e.code, {}
 
     def _blocked_lookup(self, guild):
-        """바이오미 웹후크의 목적지 서버가 차단됐는지 (/api/macro/blocked) → (status, json) | None"""
-        token = (self.data.get("discord") or {}).get("token")
-        if not token:
-            return None
+        """바이옴 웹후크의 목적지 서버가 차단됐는지 (/api/block/check · 공개 · 로그인 불필요) → (status, json) | None"""
         try:
-            return self._dc_req("/macro/blocked", {"guild": guild}, token)
+            return self._dc_req("/block/check", {"guild": guild})
         except Exception:
             return None
 

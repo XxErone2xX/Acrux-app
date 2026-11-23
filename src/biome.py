@@ -171,6 +171,8 @@ def _resolve_block(hook):
         with _block_lock:
             _block_cache[hook] = info
             _block_resolving.discard(hook)
+    if info["blocked"]:
+        _notice_once(hook, info)       # 차단 확인되면 (웹후크 입력·전송 무관) 바로 안내 1회
 
 
 def _block_for(hook):
@@ -430,6 +432,7 @@ class BiomeWatcher:
         self.history = []               # [(time, biome)]
         self.pending = None             # 계정 확인 전에 읽은 바이옴 (확인되면 적용)
         self.last_player = None
+        self._last_hooks = None          # 웹후크 설정이 바뀌면 바로 차단 확인
         # 안전 모드: 서버 ID (로그의 Joining game) 가 SAFE_SEC 초 이상 그대로일 때만 바이옴 웹후크를 보냄
         # (다른 사람 서버에 잠깐 들어갔다 나오는 경우 알림이 안 가게) · K 키로 타이머 건너뜀
         self.job = None                 # 지금 접속한 서버 ID (로그 파일이 바뀌어도 같은 서버면 이어서)
@@ -519,6 +522,12 @@ class BiomeWatcher:
     def tick(self):
         cfg, hooks, player = self._cfg()
         active = bool(self.is_active())
+
+        if hooks != self._last_hooks:          # 설정에서 웹후크를 입력·변경하면 바로 차단 확인 (차단이면 안내)
+            self._last_hooks = hooks
+            for h in hooks:
+                if is_webhook(h):
+                    _block_for(h)
 
         # 켜짐/꺼짐 알림 (스크립트의 Biome Macro Enabled/Disabled)
         if active != self.was_active:
