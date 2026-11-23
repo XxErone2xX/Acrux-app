@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- 매크로 중 알림 끄기: 매크로가 도는 동안만 방해 금지 (설정에서 켰을 때 · 끝나면 되돌림) -->
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
 
     <!-- 서버 체크: 디스코드 등 다른 앱에서 명령을 보냈으면 로블록스를 앞으로 가져왔다가 그 앱으로 돌려보냄 (앱 실행 화면 찾기) -->
     <queries>

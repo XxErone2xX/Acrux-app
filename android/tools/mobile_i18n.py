@@ -922,6 +922,17 @@ E = [
     ["재설정 위치가 지정되지 않음: {0}", "Reset position not set: {0}", "リセット位置が未指定: {0}"],
     ["서버 체크 후 낚시 장소 복구 실패: {0} — 잠시 뒤 다시 감", "Couldn't get back to the fishing spot after the server check: {0} — trying again shortly", "サーバーチェック後に釣り場所へ戻れない: {0} — 少し後にもう一度"],
     ["서버 체크 뒤 로블록스가 맨 앞에 없음 — 잠시 뒤 낚시 장소로 다시 감", "Roblox isn't in front after the server check — going back to the fishing spot shortly", "サーバーチェック後 Roblox が前面にない — 少し後に釣り場所へ戻る"],
+    # ---------------------------------------------------------------- V1.8.2: 매크로 중 알림 끄기 (방해 금지)
+    ["매크로 중 알림 끄기", "Mute notifications while the macro runs", "マクロ中は通知をオフ"],
+    ["매크로가 도는 동안 방해 금지 모드를 켜서 알림 배너가 안 뜨게 함 · 배너가 떠 있을 때 매크로가 그 자리를 누르면 다른 앱이 열렸음 · 끝나면 원래대로 되돌림", "Turns on Do Not Disturb while the macro runs so notification banners don't appear · the macro could tap a banner and open another app · restored when it ends", "マクロ実行中はおやすみモードをオンにして通知バナーを出さない · バナーが出ている時にマクロがそこを押すと別のアプリが開いていた · 終わると元に戻す"],
+    ["처음 한 번 방해 금지 접근 권한이 필요함 · 매크로 중에는 전화 · 메시지 · 앱 알림이 모두 조용해짐 (알람은 울림)", "Needs Do Not Disturb access once · calls, messages and app notifications are all silenced while the macro runs (alarms still ring)", "最初に一度おやすみモードへのアクセス権限が必要 · マクロ中は電話 · メッセージ · アプリ通知がすべて静かになる (アラームは鳴る)"],
+    ["목록에서 Acrux 를 허용한 뒤 돌아오세요", "Allow Acrux in the list, then come back", "一覧で Acrux を許可してから戻ってください"],
+    ["휴대폰 설정 → 알림 → 방해 금지 접근에서 Acrux 를 허용하세요", "Allow Acrux in phone Settings → Notifications → Do Not Disturb access", "端末の設定 → 通知 → おやすみモードへのアクセスで Acrux を許可してください"],
+    ["매크로 중 알림 끄기: 방해 금지 접근 권한이 없어서 못 켬 (설정 → 매크로 중 알림 끄기)", "Mute notifications: no Do Not Disturb access, so it wasn't turned on (Settings → Mute notifications while the macro runs)", "通知オフ: おやすみモードへのアクセス権限がないのでオンにできない (設定 → マクロ中は通知をオフ)"],
+    ["매크로 중 알림 끄기: 방해 금지 켬 (끝나면 되돌림)", "Mute notifications: Do Not Disturb on (restored when done)", "通知オフ: おやすみモードをオン (終わると戻す)"],
+    ["매크로 중 알림 끄기: 방해 금지 되돌림", "Mute notifications: Do Not Disturb restored", "通知オフ: おやすみモードを元に戻した"],
+    ["매크로 중 알림 끄기 실패: {0}", "Mute notifications failed: {0}", "通知オフに失敗: {0}"],
+    ["방해 금지를 되돌리지 못함 — 휴대폰 설정에서 방해 금지를 확인해 주세요: {0}", "Couldn't restore Do Not Disturb — please check it in phone settings: {0}", "おやすみモードを戻せない — 端末の設定で確認してください: {0}"],
     ["결과창이 낚시 창 안에 겹쳐 남아 있음 — 낚시 창 안 X 를 누름", "The result window is stuck inside the fishing window — tapping its X", "結果ウィンドウが釣りウィンドウ内に重なって残っている — その X を押す"],
 ]
 

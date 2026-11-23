@@ -438,6 +438,7 @@ final class Hub {
                     java.util.concurrent.CompletableFuture<org.json.JSONObject> pending = psWant.getAndSet(null);
                     if (pending != null) pending.complete(psRes(null, "other"));
                 }
+                Quiet.off(app);                                       // 켜 둔 방해 금지를 되돌림
                 state = lastError != null ? "멈춤 — " + lastError : "대기";     // 멈춘 이유를 떠 있는 창에도
                 String why = lastError;
                 if (why != null) main.post(() -> android.widget.Toast.makeText(app, com.acrux.mobile.core.I18n.t("멈춤 — " + why), android.widget.Toast.LENGTH_LONG).show());
@@ -445,6 +446,7 @@ final class Hub {
                 changed();
             }
         }, "acrux-worker");
+        Quiet.on(app);                                            // 매크로 중 알림 끄기 (설정에서 켰을 때 · 일이 바로 끝나도 되돌리게 시작 전에)
         worker.start();
         main.post(BoxOverlay::started);                        // 디버깅 모드 · 낚시 테스트: 보정된 칸 · 상태를 바로 그림 (시작 전 1초 동안도 보임)
         changed();

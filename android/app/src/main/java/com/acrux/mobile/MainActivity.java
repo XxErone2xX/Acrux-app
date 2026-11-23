@@ -46,6 +46,16 @@ public class MainActivity extends Activity {
     /** 디버깅 모드 켜기 · 끄기 (앱 맨 위 작은 것 · 설정) — 왼쪽으로 밀어서 */
     Slide dbgSw, dbgSw2;
     final Runnable refresh = this::refresh;
+    /** 매크로 중 알림 끄기 스위치 · 권한 화면에 다녀오는 중 (돌아오면 켬) */
+    Switch quietSw;
+    boolean quietWait, quietQuiet;
+
+    /** 스위치를 코드에서 맞춤 (설정 바뀜으로 안 봄) */
+    void quietShow(boolean on) {
+        quietQuiet = true;
+        quietSw.setChecked(on);
+        quietQuiet = false;
+    }
     final TextView[][] statCells = new TextView[4][2];
     TextView statRunHead, statAllHead;
     TextView dcState, dcBtn, dcHomeSub, dcHomeGo;
@@ -137,6 +147,12 @@ public class MainActivity extends Activity {
         TapService t = TapService.instance;
         if (t != null) t.updateVisible();
         refresh();                                         // (안내 권한 상태도 같이)
+        if (quietSw != null) {                             // 방해 금지 권한을 허용하고 돌아왔으면 켬 · 권한이 빠졌으면 끔
+            boolean ok = Quiet.granted(this);
+            if (quietWait) Quiet.setWanted(this, ok);         // 허용 안 하고 돌아왔으면 꺼 둠
+            quietWait = false;
+            quietShow(Quiet.wanted(this) && ok);
+        }
         Guide.auto();                                      // 필요한 설정 안내가 있으면 띄움
     }
 
@@ -991,6 +1007,39 @@ public class MainActivity extends Activity {
             public void onStopTrackingTouch(SeekBar s) {}
         });
         win.addView(alpha, Ui.fill(this, 4));
+
+        LinearLayout quiet = section(pg, "매크로 중 알림 끄기");
+        quiet.addView(Ui.text(this, "매크로가 도는 동안 방해 금지 모드를 켜서 알림 배너가 안 뜨게 함 · 배너가 떠 있을 때 매크로가 그 자리를 누르면 다른 앱이 열렸음 · 끝나면 원래대로 되돌림",
+                12, Ui.MUTED, false));
+        quietSw = new Switch(this);
+        quietSw.setText(Ui.tr("매크로 중 알림 끄기"));
+        quietSw.setTextColor(Ui.FG);
+        quietSw.setTextSize(14);
+        Ui.tint(quietSw);
+        quietShow(Quiet.wanted(this) && Quiet.granted(this));
+        quietSw.setOnCheckedChangeListener((v, c) -> {
+            if (quietQuiet) return;
+            if (c && !Quiet.granted(this)) {
+                // 권한부터: 설정 화면에서 Acrux 허용 → 돌아오면 (onResume) 켜짐
+                Quiet.setWanted(this, true);
+                quietWait = true;
+                quietShow(false);
+                try {
+                    startActivity(new android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS));
+                    android.widget.Toast.makeText(this, Ui.tr("목록에서 Acrux 를 허용한 뒤 돌아오세요"), android.widget.Toast.LENGTH_LONG).show();
+                } catch (RuntimeException e) {
+                    android.widget.Toast.makeText(this, Ui.tr("휴대폰 설정 → 알림 → 방해 금지 접근에서 Acrux 를 허용하세요"), android.widget.Toast.LENGTH_LONG).show();
+                }
+                return;
+            }
+            quietWait = false;
+            Quiet.setWanted(this, c);
+            if (c && Hub.running()) Quiet.on(this);              // 매크로가 이미 도는 중이면 바로
+            else if (!c) Quiet.off(this);
+        });
+        quiet.addView(quietSw, Ui.fill(this, 8));
+        quiet.addView(Ui.text(this, "처음 한 번 방해 금지 접근 권한이 필요함 · 매크로 중에는 전화 · 메시지 · 앱 알림이 모두 조용해짐 (알람은 울림)",
+                12, Ui.MUTED, false), Ui.fill(this, 4));
 
         LinearLayout dbg = section(pg, "디버깅 모드");
         dbg.addView(Ui.text(this, "켜면 모든 기능 (자동 낚시 · 낚시 보정 · 낚시 테스트 · 판매 · 판매 보정 · 이동 · 길 기록 · 조이스틱 · 점프 · 바이옴 매크로) 을 돌릴 때 매크로가 보는 칸 · 읽은 것 · 누른 자리를 로블록스 화면에 그림",

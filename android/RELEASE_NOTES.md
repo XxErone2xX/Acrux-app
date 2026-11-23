@@ -1,3 +1,9 @@
+## Acrux Mobile V1.8.2 업데이트
+1. 설정에 매크로 중 알림 끄기를 추가했습니다. [ 매크로가 도는 동안 방해 금지 모드 · 끝나면 원래대로 ]
+
+## Acrux Mobile V1.8.2 Update
+1. Added Mute notifications while the macro runs in settings. [ Do Not Disturb while the macro runs · restored afterwards ]
+
 ## Acrux Mobile V1.8.1 업데이트
 1. 결과창이 낚시 창 안에 겹쳐 남으면 그 X를 눌러 닫습니다.
 2. 서버 체크 뒤 낚시 장소로 못 돌아가도 자동 낚시가 꺼지지 않고 다시 갑니다.

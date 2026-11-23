@@ -8,5 +8,6 @@ public class AcruxApp extends Application {
     public void onCreate() {
         super.onCreate();
         Crash.install(this);
+        Quiet.off(this);                                          // 매크로 중에 앱이 강제로 꺼졌으면 켜 둔 방해 금지를 되돌림
     }
 }
