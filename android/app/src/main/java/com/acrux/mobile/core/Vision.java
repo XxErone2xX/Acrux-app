@@ -789,6 +789,72 @@ public final class Vision {
 
     /** 흰 × 버튼 후보 전부 {가운데 x, y} (찾은 순서 = 위 → 아래) — 맨 위 하나만 보면 그게 다른 무늬일 때 진짜 X 를 놓침 */
     public static List<double[]> findCloseXAll(Img im, int H, boolean relaxed) {
+        return findCloseXAll(im, H, relaxed, false);
+    }
+
+    /**
+     * 낚시 창 구석의 아주 작은 X (결과창이 낚시 창 안에 겹쳐 남았을 때 · 화면 높이의 0.3 ~ 2% · 흐린 회색도)
+     *  · 밝은 회색 점 덩어리 (파란 하늘 · 빨간 배경은 빼고) 중에서 두 대각선은 이어지고, 위 · 아래 · 왼쪽 · 오른쪽 가운데 끝은 비어 있는 것 (X 모양)
+     *  → 덩어리 가운데 {x, y} 목록 (im 기준)
+     */
+    public static List<double[]> tinyX(Img im, int H) {
+        List<double[]> out = new ArrayList<>();
+        int W = im.w, Hh = im.h, N = W * Hh;
+        boolean[] ink = new boolean[N];
+        for (int k = 0; k < N; k++) ink[k] = im.min(k) > 95 && im.max(k) - im.min(k) < 70;
+        int[] lab = new int[N], q = new int[N];
+        int id = 0;
+        double lo = Math.max(4, 0.003 * H), hi = 0.02 * H;
+        for (int s = 0; s < N; s++) {
+            if (!ink[s] || lab[s] != 0) continue;
+            id++;
+            int qh = 0, qt = 0, x1 = s % W, y1 = s / W, x2 = x1, y2 = y1;
+            lab[s] = id;
+            q[qt++] = s;
+            while (qh < qt) {
+                int p = q[qh++], px = p % W, py = p / W;
+                x1 = Math.min(x1, px); y1 = Math.min(y1, py); x2 = Math.max(x2, px); y2 = Math.max(y2, py);
+                for (int dy = -1; dy <= 1; dy++)
+                    for (int dx = -1; dx <= 1; dx++) {
+                        int nx = px + dx, ny = py + dy;
+                        if ((dx | dy) == 0 || nx < 0 || ny < 0 || nx >= W || ny >= Hh) continue;
+                        int nk = ny * W + nx;
+                        if (ink[nk] && lab[nk] == 0) { lab[nk] = id; q[qt++] = nk; }
+                    }
+            }
+            int bw = x2 - x1 + 1, bh = y2 - y1 + 1;
+            if (bw < lo || bh < lo || bw > hi || bh > hi || bw > bh * 1.6 || bh > bw * 1.6) continue;
+            if (qt > bw * bh * 0.75) continue;                 // 꽉 찬 덩어리 (점 · 네모)
+            final int L = id;
+            java.util.function.BiPredicate<Integer, Integer> at = (x, y) -> {
+                for (int dy = -1; dy <= 1; dy++)
+                    for (int dx = -1; dx <= 1; dx++) {
+                        int nx = x + dx, ny = y + dy;
+                        if (nx >= 0 && ny >= 0 && nx < W && ny < Hh && lab[ny * W + nx] == L) return true;
+                    }
+                return false;
+            };
+            int hitA = 0, hitB = 0, n = Math.max(bw, bh);
+            for (int i = 0; i < n; i++) {
+                double f = n == 1 ? 0 : (double) i / (n - 1);
+                int xa = x1 + (int) Math.round(f * (bw - 1)), ya = y1 + (int) Math.round(f * (bh - 1));
+                int xb = x2 - (int) Math.round(f * (bw - 1));
+                if (at.test(xa, ya)) hitA++;
+                if (at.test(xb, ya)) hitB++;
+            }
+            if (hitA < n * 0.8 || hitB < n * 0.8) continue;
+            int cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+            // + 모양 · 덩어리와 달리 X 는 위 · 아래 · 왼쪽 · 오른쪽 가운데 끝이 비어 있음
+            int ends = 0;
+            for (int[] e : new int[][]{{cx, y1}, {cx, y2}, {x1, cy}, {x2, cy}}) if (lab[e[1] * W + e[0]] == L) ends++;
+            if (ends > 1) continue;
+            out.add(new double[]{cx, cy});
+        }
+        return out;
+    }
+
+    /** cross: relaxed (바탕이 밝아도 됨) 여도 X 모양은 엄격하게 (낚시 창 구석처럼 꺾쇠 · 글자가 가까운 곳) */
+    public static List<double[]> findCloseXAll(Img im, int H, boolean relaxed, boolean cross) {
         List<double[]> out = new ArrayList<>();
         int W = im.w, Hh = im.h, N = W * Hh;
         boolean[] white = new boolean[N], dark = new boolean[N];
@@ -852,7 +918,7 @@ public final class Vision {
             if (ring - n > 0.15 * n) continue;
             if (diag(lab, W, Hh, i, x1, y1, bw, bh, false) < 0.85 || diag(lab, W, Hh, i, x1, y1, bw, bh, true) < 0.85) continue;
             // 엄격한 X 모양은 화면 넓은 곳을 볼 때만 (결과창 오른쪽 위 구석만 볼 때는 쓰레기 결과창 X 처럼 모양이 달라도 됨)
-            if (!relaxed && !crossShape(lab, W, i, x1, y1, bw, bh)) continue;
+            if ((!relaxed || cross) && !crossShape(lab, W, i, x1, y1, bw, bh)) continue;
             double left = meanOf(dark, W, Hh, Math.max(0, x1 - 5 * m), y1, Math.max(0, x1 - m), y2 + 1);
             double below = meanOf(dark, W, Hh, x1, y2 + m, x2 + 1, y2 + 5 * m);
             if (!relaxed && !((!Double.isNaN(left) && left > 0.6) || (!Double.isNaN(below) && below > 0.6))) continue;

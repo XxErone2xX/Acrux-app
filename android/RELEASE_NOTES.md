@@ -1,3 +1,13 @@
+## Acrux Mobile V1.8.1 업데이트
+1. 결과창이 낚시 창 안에 겹쳐 남으면 그 X를 눌러 닫습니다.
+2. 서버 체크 뒤 낚시 장소로 못 돌아가도 자동 낚시가 꺼지지 않고 다시 갑니다.
+3. 낚시 자동 보정이 결과창을 제목 글자 ~ 물고기 그림으로 잘못 잡던 문제를 수정했습니다.
+
+## Acrux Mobile V1.8.1 Update
+1. Closes the result window when it gets stuck inside the fishing window.
+2. Auto fishing no longer stops if it can't get back to the fishing spot after a server check.
+3. Fixed fishing auto calibration picking the title text and fish picture as the result window.
+
 ## Acrux Mobile V1.8.0 업데이트
 1. 서버 체크가 자동 낚시의 다음 대기 화면이나 다른 기능의 종료를 최대 1분 기다립니다.
 2. 디스코드에서 다른 기능을 기다리는 단계와 내 서버 확인 단계를 표시합니다.

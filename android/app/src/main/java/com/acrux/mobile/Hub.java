@@ -357,7 +357,7 @@ final class Hub {
             f.onStart = sl::goFish;
             zeroSells = sellSkips = 0;
             f.onFull = () -> sellOnce(sl);
-            f.onIdle = () -> psAtIdle(sl);                         // 디스코드 봇 서버 체크: 던지기 전 대기 화면에서 (낚시를 끊지 않게)
+            f.onIdle = () -> psAtIdle(sl, f);                         // 디스코드 봇 서버 체크: 던지기 전 대기 화면에서 (낚시를 끊지 않게)
         }
         TapService ts = TapService.instance;
         if (ts != null && ts.coversGame() && (m.equals("cal") || m.equals("run") || test))
@@ -504,7 +504,7 @@ final class Hub {
         for (String[] k : Mover.RESET_KEYS) {
             if (pos.get(k[0]) == null) {
                 log("서버 체크 — 봇 명령어 → 서버 체크에서 재설정 버튼 위치를 지정해 주세요", 'y');
-                return psRes(null, "error");
+                return psRes(null, "menu_pos");                // 위치 지정이 빠짐 (서버 체크 위치와 같은 화면)
             }
         }
         ServerCheck want = null;
@@ -581,7 +581,7 @@ final class Hub {
     }
 
     /** 자동 낚시가 던지기 전 대기 화면에서 부름 (워커 스레드) → 서버 체크 요청이 있었으면 하고 true */
-    static boolean psAtIdle(Seller seller) {
+    static boolean psAtIdle(Seller seller, Fisher fisher) {
         ServerCheck want;
         synchronized (Hub.class) {
             want = psWant.getAndSet(null);
@@ -597,17 +597,22 @@ final class Hub {
                 want.progress.accept("checking");
                 want.complete(psRun());
                 CHECK.run();
-                if (TapService.robloxFront()) {
+                // 서버 체크는 캐릭터를 재설정함 → 낚시 장소로 돌아감 · 못 돌아가면 자동 낚시를 끄지 않고 Fisher 가 쉬었다가 다시 감
+                if (!TapService.robloxFront()) {
+                    log("서버 체크 뒤 로블록스가 맨 앞에 없음 — 잠시 뒤 낚시 장소로 다시 감", 'y');
+                    fisher.lostSpot = true;
+                } else {
                     OUT.state("낚시 장소로 돌아가는 중");
                     seller.goFish();
                 }
-                else throw new Fisher.Stopped();
             }
+        } catch (Fisher.Stopped e) {
+            want.complete(psRes(null, "other"));
+            throw e;
         } catch (RuntimeException e) {
             want.complete(psRes(null, "error"));
-            if (e instanceof Fisher.Stopped) throw e;
-            log("서버 체크 후 낚시 장소 복구 실패: " + e.getMessage(), 'r');
-            throw new Fisher.Stopped();
+            log("서버 체크 후 낚시 장소 복구 실패: " + e.getMessage() + " — 잠시 뒤 다시 감", 'y');
+            fisher.lostSpot = true;
         } finally {
             psBusy = false;
             OUT.state(was);

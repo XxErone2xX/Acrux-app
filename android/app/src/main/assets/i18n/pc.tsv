@@ -117,6 +117,10 @@ Fish 버튼이 보일 때 [자동 보정] 을 누르면 한 마리 낚으면서 
 F7 로 취소	F7 cancels	F7でキャンセル
 자동 보정 중… (다시 누르면 취소)	Calibrating… (press again to cancel)	自動補正中…（もう一度押すとキャンセル）
 자동 보정 취소 중	Cancelling auto calibration	自動補正をキャンセル中
+게임 화면을 다른 기능이 사용 중	Another feature is using the game screen	別の機能がゲーム画面を使用中
+자동 낚시가 아직 멈추지 않음	Auto fishing hasn't stopped yet	自動釣りがまだ止まっていない
+시작 재설정을 못 함 (로블록스 창을 앞으로 못 가져옴) — 잠시 뒤 다시	Couldn't reset at start (couldn't bring the Roblox window to the front) — retrying shortly	開始時のリセットができない（Roblox ウィンドウを前面に出せない）— 少し後に再試行
+시작 재설정을 못 함 (로블록스 창을 앞으로 못 가져옴) — 재설정 없이 시작	Couldn't reset at start (couldn't bring the Roblox window to the front) — starting without a reset	開始時のリセットができない（Roblox ウィンドウを前面に出せない）— リセットせずに開始
 자동 보정 취소됨	Auto calibration cancelled	自動補正をキャンセルしました
 자동 낚시가 멈추지 않음 — 낚시를 끄고 다시 눌러주세요	Auto fishing did not pause — turn fishing off and press again	自動釣りが止まりません — 釣りをオフにしてもう一度押してください
 Fish 를 눌러도 반응 없음 (인벤토리 가득?) — 대기 창만 맞춤	No response to Fish (inventory full?) — only the waiting window was set	Fishを押しても反応なし（インベントリ満杯？）— 待機ウィンドウだけ合わせました

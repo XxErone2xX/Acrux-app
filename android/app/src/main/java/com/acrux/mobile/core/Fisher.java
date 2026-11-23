@@ -98,6 +98,8 @@ public final class Fisher {
     public Runnable onLearn;
     /** 던지기 전 대기 화면 (Fish 버튼이 보이고 낚싯대를 안 던졌음) 마다: 낚시 밖에서 할 일 (서버 체크 등) 을 했으면 true (그 시간은 멈춰 선 걸로 안 셈) */
     public java.util.function.BooleanSupplier onIdle;
+    /** onIdle 에서 낚시 장소를 떠났는데 돌아오지 못함 (서버 체크의 재설정 뒤 이동 오류 등) → 낚시를 끄지 않고 낚시 장소로 다시 감 (쉬는 시간은 점점 길게) */
+    public volatile boolean lostSpot;
 
     /** 낚시 테스트 · 디버깅 모드에서 화면에 그려 볼 것 (앱이 넣음 · 없으면 안 씀) */
     public interface Probe {
@@ -548,6 +550,10 @@ public final class Fisher {
                 out.state("입질 기다리는 중");
             } else if ("idle".equals(st)) {
                 if (castAt == null && !waited && onIdle != null && onIdle.getAsBoolean()) {
+                    if (lostSpot) {
+                        lostSpot = false;
+                        relocate();
+                    }
                     progressAt = knownAt = now();
                     continue;
                 }
@@ -608,6 +614,14 @@ public final class Fisher {
                             out.state("인벤토리 가득 — 판매 필요");
                             throw new Stopped();
                         }
+                    }
+                    if (stuckResult()) {
+                        // 결과창이 낚시 창 안에 겹쳐 남아서 Fish 가 안 먹힘 → X 를 누르고 다시 (반응 없음으로 안 셈)
+                        castAt = null;
+                        tries = 0;
+                        progressAt = knownAt = now();
+                        sleep(0.6);
+                        continue;
                     }
                     out.state("Fish 터치" + (tries > 0 ? " (" + (tries + 1) + "번째)" : ""));
                     tapRatio(cfg.fishBtn);
@@ -754,6 +768,48 @@ public final class Fisher {
                 && Math.abs(x2 / W - Math.max(k[0], k[2])) < 0.03 && Math.abs(y2 / H - Math.max(k[1], k[3])) < 0.03;
     }
 
+    /**
+     * 결과창이 낚시 창 안에 겹쳐 남은 상태 (게임 버그): Fish 버튼은 보이는데 낚시 창 오른쪽 위 구석에 작은 결과창 X 가 있음
+     *  → Fish 가 보여서 닫힌 걸로 보고 X 를 안 누르던 문제 (Fish 가 안 먹혀서 '인벤토리 가득' 으로 판매하러 감)
+     *  · 낚시 창 오른쪽 위 구석에서 X 모양 (꺾쇠 · 글자와 헷갈리지 않게 모양은 엄격하게 · 바탕은 밝아도 됨) → 화면 좌표 또는 null
+     */
+    int[] panelX() {
+        double[] r = cfg.panelRegion;
+        if (r == null) return null;
+        int W = W(), H = H();
+        int x1 = (int) (Math.min(r[0], r[2]) * W), y1 = (int) (Math.min(r[1], r[3]) * H);
+        int x2 = (int) (Math.max(r[0], r[2]) * W), y2 = (int) (Math.max(r[1], r[3]) * H);
+        int w = x2 - x1, h = y2 - y1;
+        if (w < 20 || h < 20) return null;
+        int sx = Math.max(0, x1 + (int) (w * 0.78)), sy = Math.max(0, y1 - (int) (h * 0.06));
+        int ex = Math.min(W, x2 + (int) (w * 0.03)), ey = Math.min(H, y1 + (int) (h * 0.25));
+        if (ex - sx < 8 || ey - sy < 8) return null;
+        Img im = grab(sx, sy, ex - sx, ey - sy);
+        if (im.w != ex - sx || im.h != ey - sy) return null;
+        double[] best = null;
+        for (double[] c : Vision.findCloseXAll(im, H, true, true)) if (best == null || c[0] > best[0]) best = c;   // 가장 오른쪽
+        if (best == null)                                          // 아주 작고 흐린 X (태블릿 등 큰 화면)
+            for (double[] c : Vision.tinyX(im, H)) if (best == null || c[0] > best[0]) best = c;
+        return best == null ? null : new int[]{sx + (int) best[0], sy + (int) best[1]};
+    }
+
+    /** 한 판 (결과창 닫기 ~ 다음 결과창) 에 낚시 창 구석 X 를 누른 횟수 — X 처럼 보이는 게 늘 그 자리에 있어도 낚시가 안 막히게 2번까지만 */
+    int panelTaps;
+
+    /** 낚시 창 안에 겹친 결과창 X 를 두 번 연속 같은 자리에서 보면 누름 → 눌렀으면 true */
+    boolean stuckResult() {
+        if (panelTaps >= 2) return false;
+        int[] a = panelX();
+        if (a == null) return false;
+        sleep(0.12);
+        int[] b = panelX();
+        if (b == null || !nearPx(a, b)) return false;
+        panelTaps++;
+        out.log("결과창이 낚시 창 안에 겹쳐 남아 있음 — 낚시 창 안 X 를 누름", 'd');
+        in.tap(b[0], b[1], 60);
+        return true;
+    }
+
     /** 결과창 X 누르기 (화면에서 찾은 X 먼저 · 없으면 보정한 자리) */
     void tapClose() {
         if (!clickFoundX() && cfg.closePos != null) tapRatio(cfg.closePos);
@@ -776,6 +832,7 @@ public final class Fisher {
     /** → "success" · "junk" · "fail" (셌을 때) · null (결과창을 못 닫았고 결과도 못 봄 → 안 셈) */
     String finish(Img base) {
         phase = 3;
+        panelTaps = 0;                                         // 새 판 → 낚시 창 구석 X 를 다시 2번까지 누를 수 있음
         out.state("결과창 닫는 중");
         double[] title = base != null ? cfg.titlePos : null;
         double start = now(), end = start + FINISH_MAX, lookAt = start + LOOK_FROM;
@@ -787,6 +844,11 @@ public final class Fisher {
         while (now() < end) {
             check();
             String bs = Vision.buttonState(grabBox(cfg.fishBtn));
+            if (("fish".equals(bs) || "exit".equals(bs)) && stuckResult()) {
+                first = false;                                 // Fish 는 보이는데 결과창이 낚시 창 안에 겹쳐 남음 → 그 X 를 누르고 다시 봄
+                sleep(0.4);
+                continue;
+            }
             if ("fish".equals(bs) || "exit".equals(bs)) {
                 if (first) {
                     // 결과창이 한 번도 안 가렸음 → 결과가 없었던 것 (미니게임으로 잘못 봤거나 이미 닫힘) → 안 셈
@@ -1125,7 +1187,9 @@ public final class Fisher {
         // 1. PC 와 같음: 모양 비율 (낚시 창은 Fish / Exit 버튼까지 — 순위표도 비율이 비슷함)
         for (int[] f : frames) {
             double ratio = ratio(f);
-            if (lo <= ratio && ratio <= hi && placed(im, f) && (keyIndex == 2 || (keyIndex == 0 ? hasButton(im, f) : hasBar(im, f)))) return ratioBox(im, f);
+            // 결과창도 오른쪽 위에 X 가 있어야 함 (제목 글자 ~ 물고기 그림 틀을 결과창으로 잘못 보던 문제)
+            if (lo <= ratio && ratio <= hi && placed(im, f)
+                    && (keyIndex == 0 ? hasButton(im, f) : keyIndex == 1 ? hasBar(im, f) : hasX(im, f))) return ratioBox(im, f);
         }
         // 2. 늘어난 화면: 비율을 넓게 보고 안의 내용으로 확인 (버튼 · 릴링 바 · X)
         double[] got = loose(im, keyIndex, frames);
@@ -1136,7 +1200,31 @@ public final class Fisher {
             got = loose(im, keyIndex, more);
             if (got != null) return got;
         }
-        return null;
+        // 4. 결과창 테두리를 못 찾음 (아래 왼쪽이 낚시 창에 가림 등) → 결과창 X 로 창 자리를 계산
+        return keyIndex == 2 ? resultFromX(im) : null;
+    }
+
+    /** 결과창 가로 : 세로 (창 테두리를 못 찾을 때 X 로 창을 계산하는 데 씀) */
+    static final double RESULT_RATIO = 0.80;
+
+    /**
+     * 결과창 X (화면 위쪽 · 가운데보다 오른쪽 · 모양 엄격) → 결과창 영역 (화면 비율) 또는 null
+     *  · 창은 화면 가로 가운데 → X 가 창 안 RESULT_CLOSE 자리라서 창 너비가 나옴 · 높이는 RESULT_RATIO
+     */
+    static double[] resultFromX(Img im) {
+        double cx = im.w / 2.0, kx = Vision.RESULT_CLOSE[0] * 2 - 1;
+        double[] best = null;
+        for (double[] x : Vision.findCloseXAll(im, im.h, false)) {
+            if (x[1] > im.h * 0.6 || x[0] < cx + im.w * 0.05) continue;
+            if (best == null || x[1] < best[1]) best = x;
+        }
+        if (best == null) return null;
+        double hw = (best[0] - cx) / kx;
+        if (hw < im.w * 0.06 || hw > im.w * 0.46) return null;
+        double w = hw * 2, h = w / RESULT_RATIO;
+        double y1 = best[1] - Vision.RESULT_CLOSE[1] * h, y2 = y1 + h;
+        if (y1 < 0 || y2 > im.h * 1.02) return null;
+        return new double[]{Vision.round4((cx - hw) / im.w), Vision.round4(y1 / im.h), Vision.round4((cx + hw) / im.w), Vision.round4(Math.min(y2, im.h) / im.h)};
     }
 
     double[] loose(Img im, int keyIndex, List<int[]> frames) {

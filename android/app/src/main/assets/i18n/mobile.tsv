@@ -932,3 +932,12 @@ Menu 창을 여는 버튼 · 내 서버 확인에 씀	Opens the Menu window · u
 내 서버로 복귀 — 45초 뒤 자동 낚시 다시 시작	Returning to your server — auto fishing restarts in 45 s	自分のサーバーへ復帰 — 45 秒後に自動釣りを再開
 자동 낚시 다시 시작 못 함 — {0}	Couldn't restart auto fishing — {0}	自動釣りを再開できない — {0}
 내 서버로 복귀 오류: {0}	Return to your server error: {0}	自分のサーバーへの復帰エラー: {0}
+서버 체크 — 내 서버	Server check — your server	サーバーチェック — 自分のサーバー
+서버 체크 — 내 서버가 아님	Server check — not your server	サーバーチェック — 自分のサーバーではない
+서버 체크 — 메뉴를 열어 내 서버인지 확인	Server check — opening the menu to see if this is your server	サーバーチェック — メニューを開いて自分のサーバーか確認
+다른 기능이 1분 안에 끝나지 않음	Another feature didn't finish within a minute	別の機能が1分以内に終わらない
+낚시 장소로 돌아가는 중	Going back to the fishing spot	釣り場所に戻っています
+재설정 위치가 지정되지 않음: {0}	Reset position not set: {0}	リセット位置が未指定: {0}
+서버 체크 후 낚시 장소 복구 실패: {0} — 잠시 뒤 다시 감	Couldn't get back to the fishing spot after the server check: {0} — trying again shortly	サーバーチェック後に釣り場所へ戻れない: {0} — 少し後にもう一度
+서버 체크 뒤 로블록스가 맨 앞에 없음 — 잠시 뒤 낚시 장소로 다시 감	Roblox isn't in front after the server check — going back to the fishing spot shortly	サーバーチェック後 Roblox が前面にない — 少し後に釣り場所へ戻る
+결과창이 낚시 창 안에 겹쳐 남아 있음 — 낚시 창 안 X 를 누름	The result window is stuck inside the fishing window — tapping its X	結果ウィンドウが釣りウィンドウ内に重なって残っている — その X を押す

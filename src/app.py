@@ -816,16 +816,19 @@ class Bridge:
         mmatch_boardcal mmatch_test mmerch_buy_test pick_point pick_region play_pos ocr_test
     """.split())
 
+    SCREEN_WAIT = 3.0                       # 버튼 요청이 화면 사용권을 기다리는 시간 (초)
+
     def screen_request(self, fn, payload):
         name = fn.__name__
         cancel = {"api_mfish_autocal": "_autocal_stop", "api_sell_autocal": "_sellcal_stop",
                   "api_mmerch_autocal": "_merchcal_stop", "api_mcraft_autocal": "_craftcal_stop",
                   "api_mmatch_autocal": "_matchcal_stop"}
-        if not self.screen_gate.acquire(blocking=False):
-            event = getattr(self, cancel.get(name, ""), None)
-            if self.manual_screen == name and event is not None:
-                event.set()
-                return {"error": "자동 보정 취소 중"}
+        event = getattr(self, cancel.get(name, ""), None)
+        if self.manual_screen == name and event is not None:   # 도는 중인 자동 보정 버튼을 한 번 더 누름 → 취소
+            event.set()
+            return {"error": "자동 보정 취소 중"}
+        # 매크로가 1초마다 잠깐씩 화면 사용권을 잡음 → 바로 포기하지 않고 잠깐 기다림 (타이밍이 겹쳐서 나던 '사용 중' 오류)
+        if not self.screen_gate.acquire(timeout=self.SCREEN_WAIT):
             return {"error": "게임 화면을 다른 기능이 사용 중"}
         try:
             self.manual_screen = name
@@ -991,6 +994,8 @@ class Bridge:
                 else:
                     answer()
 
+    START_RESET_TRIES = 5                   # 시작 재설정이 이만큼 실패하면 재설정 없이 시작
+
     def _run_start_reset(self, startup):
         # The scheduler already owns screen_gate. Biome-triggered jobs use urgent_lock.
         with self.urgent_lock:
@@ -999,7 +1004,22 @@ class Bridge:
             if macro.key_down_now("f7"):
                 self._macro_user_stop()
                 return
+            # 실패 (로블록스 창을 앞으로 못 가져옴 등) 하면 2 · 4 · 6 · 8초 뒤 다시 · 5번 실패하면 재설정 없이 시작 (1초마다 창을 계속 뺏지 않게)
+            if time.time() < getattr(startup, "retry_at", 0):
+                return
             if not macro.respawn(startup, startup=True):
+                if startup.is_set():
+                    return
+                startup.tries = getattr(startup, "tries", 0) + 1
+                if startup.tries >= self.START_RESET_TRIES:
+                    self._on_log("시작 재설정을 못 함 (로블록스 창을 앞으로 못 가져옴) — 재설정 없이 시작", "y")
+                    with self.lock:
+                        if self.start_reset is startup:
+                            self.start_reset = None
+                    return
+                if startup.tries == 1:
+                    self._on_log("시작 재설정을 못 함 (로블록스 창을 앞으로 못 가져옴) — 잠시 뒤 다시", "y")
+                startup.retry_at = time.time() + 2.0 * startup.tries
                 return
             if startup.wait(max(0.0, float(self.data.get("move", {}).get("reset_wait", 3.5)))):
                 return
