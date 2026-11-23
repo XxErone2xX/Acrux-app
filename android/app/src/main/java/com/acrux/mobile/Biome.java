@@ -5,6 +5,7 @@ import android.content.Context;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -21,6 +22,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -536,6 +538,11 @@ final class Biome {
                     Hub.log("디스코드 웹후크 주소가 아니라서 안 보냄 (…" + h.substring(Math.max(0, h.length() - 6)) + ")", 'y');
                     continue;
                 }
+                Block blk = blockFor(h);
+                if (blk != null && blk.resolved && blk.blocked) {   // 차단된 서버 → 바이옴 알림은 건너뛰고 안내만 한 번
+                    sendNoticeOnce(h, blk);
+                    continue;
+                }
                 int code = post(h, payload);
                 for (int tries = 0; code == 429 && tries < 3; tries++) {     // 디스코드가 너무 빠르다고 하면 잠깐 기다렸다 다시 (순서 유지)
                     sleep(1500L * (tries + 1));
@@ -565,5 +572,122 @@ final class Biome {
         } finally {
             if (c != null) c.disconnect();
         }
+    }
+
+    // ---- 차단된 서버 (웹사이트 /api/block 에서 어드민이 관리) ----------------------------------
+    //  바이옴 웹후크의 목적지 서버(길드)가 차단됐으면, 그 웹후크로는 바이옴 알림 대신 안내를 한 번 보내고 전송을 건너뜀.
+    //  속도: 보낼 때마다 확인하지 않음. 웹후크별로 서버 ID·차단 여부를 한 번 알아내 캐시하고(10분) 전송 경로는 캐시만 읽음.
+    static final long BLOCK_TTL = 10 * 60_000L;
+    static final Map<String, Block> blockCache = new ConcurrentHashMap<>();
+    static final Set<String> blockResolving = ConcurrentHashMap.newKeySet();
+
+    static final class Block {
+        long at;                 // 이 정보를 알아낸 때 (ms) — TTL 계산
+        boolean resolved;        // 확인이 끝남 (아니면 통과시킴)
+        String guild;            // 웹후크가 가리키는 서버 ID (못 알아내면 null)
+        boolean blocked;
+        String reason = "";
+        long blockedAt;          // 처음 차단된 때 (ms)
+        String discord = "";     // 티켓 여는 메인 서버 초대 (비어 있으면 기본값)
+        final List<String> images = new ArrayList<>();
+        boolean noticeSent;      // 차단 안내를 이미 보냄 (한 번만)
+    }
+
+    /** 캐시만 읽음 — 없거나 오래됐으면 뒤 스레드에서 조회를 시작하고, 지금은 있는 값(없으면 null)을 줌 → 전송은 통과 */
+    static Block blockFor(String hook) {
+        Block b = blockCache.get(hook);
+        if (b != null && System.currentTimeMillis() - b.at < BLOCK_TTL) return b;
+        if (blockResolving.add(hook)) {
+            Thread t = new Thread(() -> {
+                try { resolveBlock(hook); } catch (Exception ignore) {} finally { blockResolving.remove(hook); }
+            }, "acrux-block");
+            t.setDaemon(true);
+            t.start();
+        }
+        return b;   // null 또는 오래된 값 — 둘 다 전송 쪽에서 통과로 다룸 (차단 확정값만 막음)
+    }
+
+    /** 웹후크 → 서버 ID → 웹사이트에 "이 서버 차단?" 조회 → 캐시 (네트워크 · 뒤 스레드에서만 호출) */
+    static void resolveBlock(String hook) {
+        Block nb = new Block();
+        nb.at = System.currentTimeMillis();
+        nb.resolved = true;
+        try {
+            nb.guild = webhookGuild(hook);
+            String tok = DiscordLink.token();
+            if (nb.guild != null && tok != null && !tok.isEmpty()) {
+                Object[] r = DiscordLink.call("/macro/blocked", new JSONObject().put("guild", nb.guild), tok);
+                int st = (int) r[0];
+                JSONObject j = (JSONObject) r[1];
+                if (st == 200 && j.optBoolean("blocked", false)) {
+                    nb.blocked = true;
+                    nb.reason = j.optString("reason", "");
+                    nb.blockedAt = j.optLong("at", 0);
+                    nb.discord = j.optString("discord", "");
+                    JSONArray im = j.optJSONArray("images");
+                    if (im != null) for (int i = 0; i < im.length(); i++) {
+                        String u = im.optString(i, "");
+                        if (!u.isEmpty()) nb.images.add(u);
+                    }
+                    Block prev = blockCache.get(hook);          // 같은 서버면 안내 중복 방지
+                    nb.noticeSent = prev != null && prev.blocked && prev.noticeSent && nb.guild.equals(prev.guild);
+                }
+            }
+        } catch (Exception e) {
+            nb.at = System.currentTimeMillis() - BLOCK_TTL + 60_000L;   // 확인 실패 → 통과하되 1분 뒤 다시 시도
+        }
+        blockCache.put(hook, nb);
+    }
+
+    /** 웹후크 주소를 GET 하면 그 웹후크가 속한 서버 ID(guild_id) 를 줌 (못 알아내면 null) */
+    static String webhookGuild(String hook) {
+        String u = hook.trim();
+        int q = u.indexOf('?');
+        if (q >= 0) u = u.substring(0, q);
+        HttpURLConnection c = null;
+        try {
+            c = (HttpURLConnection) new URL(u).openConnection();
+            c.setRequestMethod("GET");
+            c.setConnectTimeout(8000);
+            c.setReadTimeout(8000);
+            c.setRequestProperty("User-Agent", "AcruxMobile/1.0");
+            if (c.getResponseCode() != 200) return null;
+            StringBuilder sb = new StringBuilder();
+            try (InputStream in = c.getInputStream()) {
+                byte[] buf = new byte[4096];
+                int r;
+                while ((r = in.read(buf)) > 0) sb.append(new String(buf, 0, r, StandardCharsets.UTF_8));
+            }
+            String g = new JSONObject(sb.toString()).optString("guild_id", "");
+            return g.isEmpty() ? null : g;
+        } catch (Exception e) {
+            return null;
+        } finally {
+            if (c != null) c.disconnect();
+        }
+    }
+
+    /** 차단된 서버 웹후크로 한 번만 보내는 안내 (양식 그대로) */
+    static void sendNoticeOnce(String hook, Block b) {
+        if (b.noticeSent) return;
+        b.noticeSent = true;
+        try {
+            String invite = b.discord != null && !b.discord.isEmpty() ? b.discord : DISCORD_URL;
+            String date = b.blockedAt > 0 ? new SimpleDateFormat("yyyy/MM/dd", Locale.ROOT).format(new Date(b.blockedAt)) : "-";
+            String reason = b.reason == null || b.reason.isEmpty() ? "-" : b.reason.replace("\n", "\n> ");
+            String desc = "> ## 이 서버는 아크룩스 매크로 [ Acrux Macro ] 에서 차단되었습니다.\n"
+                    + "> 본 서버에서 티켓을 열어, 차단 해제 신청을 할 수 있습니다:\n"
+                    + "> " + invite + "\n> \n"
+                    + "> **차단된 날짜:** " + date + " ~\n"
+                    + "> **차단 사유:**\n> " + reason;
+            JSONObject e = embed(desc, EXIT_COLOR);
+            JSONArray embeds = new JSONArray();
+            if (!b.images.isEmpty()) e.put("image", new JSONObject().put("url", b.images.get(0)));
+            embeds.put(e);
+            for (int i = 1; i < b.images.size() && i < 10; i++)
+                embeds.put(new JSONObject().put("color", EXIT_COLOR).put("image", new JSONObject().put("url", b.images.get(i))));
+            post(hook, new JSONObject().put("embeds", embeds));
+            Hub.log("차단된 서버라 바이옴 알림 대신 안내를 보냄", 'y');
+        } catch (Exception ignore) {}
     }
 }

@@ -97,6 +97,7 @@ class Bridge:
         self.biome = biome.BiomeWatcher(lambda: self.data.get("biome", {}),
                                         lambda: bool(self.data.get("biome", {}).get("enabled")),
                                         on_change=self._on_biome_change)
+        biome.block_lookup = self._blocked_lookup   # 차단된 서버 웹후크 조회 (/api/macro/blocked)
         # 매크로 탭 · 레어 바이옴 자동 팝핑 (내 서버)
         # 매크로 탭 · 자동 낚시 (제자리 낚시) — 매크로 버튼 + 켜기가 켜져 있는 동안 계속
         self.fisher = fishing.Fisher(self._mfish_cfg, self._on_log,
@@ -703,6 +704,16 @@ class Bridge:
                 return e.code, json.loads(e.read(4096).decode("utf-8") or "{}")
             except Exception:
                 return e.code, {}
+
+    def _blocked_lookup(self, guild):
+        """바이오미 웹후크의 목적지 서버가 차단됐는지 (/api/macro/blocked) → (status, json) | None"""
+        token = (self.data.get("discord") or {}).get("token")
+        if not token:
+            return None
+        try:
+            return self._dc_req("/macro/blocked", {"guild": guild}, token)
+        except Exception:
+            return None
 
     def api_discord_state(self, _):
         dc = self.data.get("discord") or {}

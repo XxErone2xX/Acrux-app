@@ -5,6 +5,11 @@
 - 플레이어 이름이 설정돼 있으면 그 계정의 로그만 사용 (TutorialCursor 줄로 확인)
 - 디스코드 웹후크: 바이옴 시작 · 끝 임베드
 """
+# =====================================================================
+#  이 코드는 보안을 위해 건드리지 마십시오.
+#  건드릴 경우 변조 클라이언트 감지 시스템으로 IP밴을 당하실 수 있습니다.
+# =====================================================================
+
 import difflib
 import json
 import os
@@ -114,6 +119,104 @@ def is_webhook(url):
     return bool(WEBHOOK_RE.fullmatch((url or "").strip()))
 
 
+# =====================================================================
+#  이 코드는 보안을 위해 건드리지 마십시오.
+#  건드릴 경우 변조 클라이언트 감지 시스템으로 IP밴을 당하실 수 있습니다.
+# =====================================================================
+# 차단된 서버 (웹사이트 /api/block 에서 어드민이 관리) — 바이오미 웹후크의 목적지 서버가 차단됐으면
+#  그 웹후크로는 알림 대신 안내를 한 번만 보내고 전송을 막음.
+#  속도: 보낼 때마다 확인하지 않음 — 웹후크별로 서버 ID·차단 여부를 한 번 알아내 캐시(10분)하고 전송은 캐시만 봄.
+block_lookup = None          # app 이 설정: (guild_id) -> (status, json) | None   (/api/macro/blocked)
+_BLOCK_TTL = 600.0
+_block_cache = {}
+_block_resolving = set()
+_block_lock = threading.Lock()
+
+
+def _webhook_guild(hook):
+    """웹후크 주소를 GET 하면 그 웹후크가 속한 서버 ID(guild_id) 를 줌 (못 알아내면 None)"""
+    url = (hook or "").strip().split("?", 1)[0]
+    try:
+        req = urllib.request.Request(url, method="GET", headers={"User-Agent": "AcruxMacro/1.0"})
+        with urllib.request.urlopen(req, timeout=8) as r:
+            j = json.loads(r.read(8192).decode("utf-8") or "{}")
+        g = str(j.get("guild_id") or "")
+        return g or None
+    except Exception:
+        return None
+
+
+def _resolve_block(hook):
+    """웹후크 → 서버 ID → 웹사이트에 "이 서버 차단?" 조회 → 캐시 (네트워크 · 뒤 스레드에서만)"""
+    info = {"at": time.time(), "resolved": True, "blocked": False, "guild": None,
+            "reason": "", "block_at": 0, "discord": "", "images": [], "notice_sent": False}
+    try:
+        info["guild"] = _webhook_guild(hook)
+        if info["guild"] and block_lookup:
+            res = block_lookup(info["guild"])
+            if res:
+                st, j = res
+                if st == 200 and j.get("blocked"):
+                    info["blocked"] = True
+                    info["reason"] = str(j.get("reason") or "")
+                    info["block_at"] = int(j.get("at") or 0)
+                    info["discord"] = str(j.get("discord") or "")
+                    info["images"] = [str(u) for u in (j.get("images") or []) if u][:10]
+                    prev = _block_cache.get(hook)
+                    if prev and prev.get("blocked") and prev.get("notice_sent") and prev.get("guild") == info["guild"]:
+                        info["notice_sent"] = True
+    except Exception:
+        info["at"] = time.time() - _BLOCK_TTL + 60    # 실패 → 통과하되 1분 뒤 다시 시도
+    finally:
+        with _block_lock:
+            _block_cache[hook] = info
+            _block_resolving.discard(hook)
+
+
+def _block_for(hook):
+    """캐시만 봄 — 없거나 오래됐으면 뒤에서 조회 시작, 지금은 있는 값(없으면 None) → 전송은 통과"""
+    now = time.time()
+    with _block_lock:
+        b = _block_cache.get(hook)
+        if b and now - b["at"] < _BLOCK_TTL:
+            return b
+        if hook not in _block_resolving:
+            _block_resolving.add(hook)
+            threading.Thread(target=_resolve_block, args=(hook,), daemon=True).start()
+    return b
+
+
+def _blocked_notice_payload(b):
+    """차단된 서버 웹후크로 한 번만 보내는 안내 (양식 그대로)"""
+    invite = b.get("discord") or DISCORD_URL
+    at = b.get("block_at") or 0
+    try:
+        date = datetime.fromtimestamp(at / 1000).strftime("%Y/%m/%d") if at else "-"
+    except Exception:
+        date = "-"
+    reason = ((b.get("reason") or "").strip().replace("\n", "\n> ")) or "-"
+    desc = ("> ## 이 서버는 아크룩스 매크로 [ Acrux Macro ] 에서 차단되었습니다.\n"
+            "> 본 서버에서 티켓을 열어, 차단 해제 신청을 할 수 있습니다:\n"
+            "> " + invite + "\n> \n"
+            "> **차단된 날짜:** " + date + " ~\n"
+            "> **차단 사유:**\n> " + reason)
+    embeds = [{"description": desc, "color": EXIT_COLOR, "timestamp": _now_iso(), "footer": {"text": MACRO_NAME_LABEL}}]
+    imgs = b.get("images") or []
+    if imgs:
+        embeds[0]["image"] = {"url": imgs[0]}
+    for u in imgs[1:10]:
+        embeds.append({"color": EXIT_COLOR, "image": {"url": u}})
+    return {"embeds": embeds}
+
+
+def _notice_once(hook, b):
+    if b.get("notice_sent"):
+        return
+    b["notice_sent"] = True
+    _enqueue(hook, _blocked_notice_payload(b), lambda r: None)
+    _log("차단된 서버라 바이오미 알림 대신 안내를 보냄", "y")
+
+
 # 웹후크마다 한 줄로 차례대로 보냄 — 전에는 알림마다 스레드를 따로 띄워서 바이옴 끝 · 시작이 동시에 나가면
 # 가끔 Started 가 Ended 보다 먼저 도착했음 (같은 웹후크로 가는 건 보낸 순서 그대로)
 _queues = {}
@@ -172,6 +275,11 @@ def send_all(hooks, payload, wait=False):
     for h in hooks:
         if not is_webhook(h):
             results.append((h[-8:], "디스코드 웹후크 주소 형식이 아님"))
+            continue
+        blk = _block_for(h)
+        if blk and blk["resolved"] and blk["blocked"]:   # 차단된 서버 → 알림은 건너뛰고 안내만 한 번
+            _notice_once(h, blk)
+            results.append((h[-8:], "blocked"))
             continue
         ev = threading.Event()
         pending.append(ev)

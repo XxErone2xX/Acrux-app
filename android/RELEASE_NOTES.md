@@ -1,3 +1,9 @@
+## Acrux Mobile V1.8.3 업데이트
+1. 보안 강화.
+
+## Acrux Mobile V1.8.3 Update
+1. Security enhancement.
+
 ## Acrux Mobile V1.8.2 업데이트
 1. 설정에 매크로 중 알림 끄기를 추가했습니다. [ 매크로가 도는 동안 방해 금지 모드 · 끝나면 원래대로 ]
 
