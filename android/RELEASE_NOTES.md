@@ -1,7 +1,7 @@
-## Acrux Mobile V1.8.3 업데이트
+## Acrux Mobile V1.8.4 업데이트
 1. 보안 강화.
 
-## Acrux Mobile V1.8.3 Update
+## Acrux Mobile V1.8.4 Update
 1. Security enhancement.
 
 ## Acrux Mobile V1.8.2 업데이트
