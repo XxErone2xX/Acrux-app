@@ -1018,8 +1018,6 @@ final class Hub {
         cfg.reelJump = num(p, "reelJump", 0);
         cfg.reelDelay = num(p, "reelDelay", 0);
         cfg.reelSpot = p.getInt("reelSpot", 0);
-        cfg.closeLearn = arr(p.getString("closeLearn", ""));
-        if (cfg.closeLearn != null && cfg.closeLearn.length % 3 != 0) cfg.closeLearn = null;
         autoUpdate = p.getBoolean("autoUpdate", true);
         debug = p.getBoolean("debug", false);
         sellMax = p.getInt("sellMax", 100);
@@ -1065,7 +1063,7 @@ final class Hub {
                 .putFloat("leadMs", (float) cfg.leadMs).putFloat("targetPct", (float) cfg.targetPct)
                 .putBoolean("adaptive", cfg.adaptive).putBoolean("tapAbove", cfg.tapAbove)
                 .putFloat("reelFall", (float) cfg.reelFall).putFloat("reelJump", (float) cfg.reelJump).putFloat("reelDelay", (float) cfg.reelDelay)
-                .putInt("reelSpot", cfg.reelSpot).putString("closeLearn", cfg.closeLearn == null ? "" : arr(cfg.closeLearn))
+                .putInt("reelSpot", cfg.reelSpot).remove("closeLearn")              // 1.8.5: 결과창 X 자리 기억 없앰 (예전 값 지움)
                 .putBoolean("autoUpdate", autoUpdate)
                 .putInt("sellMax", sellMax).putFloat("sellDelay", (float) sellDelay)
                 .putFloat("m_reset_wait", (float) move.resetWait)
@@ -1082,17 +1080,16 @@ final class Hub {
         cfg.panelRegion = cfg.reelRegion = cfg.resultRegion = null;
         cfg.fishBtn = cfg.barRegion = cfg.closePos = cfg.titlePos = null;
         cfg.reelDerived = true;
-        cfg.closeLearn = null;
         cfg.reelSpot = 0;
         save();
         changed();
     }
 
-    /** 자동 낚시가 잰 값만 저장 (릴링 지연 · 속도 · 누르는 자리 · 결과창 X 자리) — 낚시 중에 판마다 부름 */
+    /** 자동 낚시가 잰 값만 저장 (릴링 지연 · 속도 · 누르는 자리) — 낚시 중에 판마다 부름 */
     static void saveLearned() {
         prefs().edit()
                 .putFloat("reelFall", (float) cfg.reelFall).putFloat("reelJump", (float) cfg.reelJump).putFloat("reelDelay", (float) cfg.reelDelay)
-                .putInt("reelSpot", cfg.reelSpot).putString("closeLearn", cfg.closeLearn == null ? "" : arr(cfg.closeLearn))
+                .putInt("reelSpot", cfg.reelSpot).remove("closeLearn")
                 .apply();
         changed();
     }
@@ -1101,8 +1098,7 @@ final class Hub {
     static void resetReel() {
         cfg.reelFall = cfg.reelJump = cfg.reelDelay = 0;
         cfg.reelSpot = 0;
-        cfg.closeLearn = null;
         saveLearned();
-        log("릴링 측정값 · 기억한 결과창 X 자리를 지움", 'd');
+        log("릴링 측정값을 지움", 'd');
     }
 }

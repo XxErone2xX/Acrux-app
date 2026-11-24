@@ -561,8 +561,6 @@ public class MainActivity extends Activity {
         String d = String.format(java.util.Locale.ROOT, "%.2f", c.reelDelay);
         String s = I18n.f("터치 지연 {0}초", d);
         if (c.reelSpot > 0) s += " · " + I18n.f("누르는 자리 {0}번", c.reelSpot + 1);
-        int n = c.closeLearn == null ? 0 : c.closeLearn.length / 3;
-        if (n > 0) s += " · " + I18n.f("기억한 결과창 X {0}곳", n);
         return s;
     }
 

@@ -1,3 +1,11 @@
+## Acrux Mobile V1.8.5 업데이트
+1. 결과창이 낚시 창 안에 겹쳐 남았을 때 X 를 못 누르던 문제를 수정했습니다. [ Exit 상태 · 화면을 못 읽을 때도 ]
+2. 결과창 X 위치를 기억하던 기능을 없앴습니다.
+
+## Acrux Mobile V1.8.5 Update
+1. Fixed the X not being tapped when the result window stays stuck inside the fishing window. [ also in the Exit state · when the screen can't be read ]
+2. Removed remembering result window X spots.
+
 ## Acrux Mobile V1.8.4 업데이트
 1. 보안 강화.
 

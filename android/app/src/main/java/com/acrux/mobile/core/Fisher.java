@@ -94,7 +94,7 @@ public final class Fisher {
     public Runnable onStart;
     /** 인벤토리 가득: 판매하고 돌아왔으면 true (낚시 이어감) · 못 하면 false (멈춤) */
     public java.util.function.BooleanSupplier onFull;
-    /** 릴링 측정값 · 결과창 X 자리를 새로 배웠을 때 (앱이 저장) */
+    /** 릴링 측정값을 새로 쟀을 때 (앱이 저장) */
     public Runnable onLearn;
     /** 던지기 전 대기 화면 (Fish 버튼이 보이고 낚싯대를 안 던졌음) 마다: 낚시 밖에서 할 일 (서버 체크 등) 을 했으면 true (그 시간은 멈춰 선 걸로 안 셈) */
     public java.util.function.BooleanSupplier onIdle;
@@ -426,6 +426,7 @@ public final class Fisher {
         Double castAt = null, waitAt = null, unknownAt = null;
         int tries = 0, rescues = 0, maybe = 0;
         double progressAt = now(), knownAt = now(), testAt = now();
+        double panelLookAt = 0;                                // 겹친 결과창 X 를 다음에 볼 때 (Exit · 모르는 화면에서 1.5초마다)
         boolean seen = false, waited = false, hinted = false;          // 낚시 화면을 봤는지 (테스트) · 던진 뒤 Exit 를 봤는지 · 안내했는지 (테스트)
         while (true) {
             check();
@@ -490,6 +491,12 @@ public final class Fisher {
                     barQuietUntil = now() + 2.0;
                     if (bogusRun == 1 || bogusRun % 10 == 0)
                         out.log("미니게임 바처럼 보였지만 미니게임이 아님 — 다시 확인 (" + bogusRun + "번째) · " + lastRead, 'd');
+                    // 바처럼 보인 게 낚시 창 안에 겹쳐 남은 결과창 (물고기 그림) 일 때가 많음 → 그 X 를 누름
+                    if (stuckResult()) {
+                        knownAt = progressAt = now();
+                        barQuietUntil = -1;
+                        sleep(0.6);
+                    }
                     continue;
                 }
                 bogusRun = 0;
@@ -527,6 +534,14 @@ public final class Fisher {
             if ("wait".equals(st)) {
                 castAt = null;
                 tries = 0;
+                // Exit (입질 대기) 인데 지난 결과창이 낚시 창 안에 겹쳐 남아 있으면 그 X 를 누름 (전에는 Fish 일 때만 봤음)
+                if (t >= panelLookAt) {
+                    panelLookAt = t + 1.5;
+                    if (stuckResult()) {
+                        sleep(0.4);
+                        continue;
+                    }
+                }
                 if (waitAt == null) waitAt = t;
                 // Exit 가 0.5초 넘게 보여야 '던졌음' 으로 봄 — 낚시 장소로 다시 간 직후 · 화면이 늦게 바뀔 때 지난 화면 (Exit) 이 잠깐 보이는 걸로
                 //  뒤의 대기 화면을 '미니게임을 못 봄' 으로 세지 않게
@@ -630,6 +645,17 @@ public final class Fisher {
             } else {
                 if (unknownAt == null) unknownAt = t;
                 out.state("낚시 화면 확인 중");
+                // 결과창이 낚시 창 안에 겹쳐서 Fish 버튼까지 못 읽는 경우 → 낚시 창 구석 X 부터 봄
+                //  (화면 아무 데서나 X 를 찾는 일반 찾기로는 이 작은 X 를 못 찾아서, 보정한 X 자리만 누르다 30초 뒤 낚시 장소로 다시 갔음)
+                if (t >= panelLookAt) {
+                    panelLookAt = t + 1.5;
+                    if (stuckResult()) {
+                        knownAt = progressAt = now();             // 낚시 창은 있음 → 낚시 장소로 다시 가지 않음
+                        unknownAt = null;
+                        sleep(0.6);
+                        continue;
+                    }
+                }
                 if (once && waited && !hinted && t - unknownAt > 2.0) {
                     hinted = true;
                     out.log("Exit 버튼이 사라졌는데 미니게임으로 안 보임 — 주황 칸 (미니게임 바) · ◇ 칸이 실제 미니게임과 맞는지 확인", 'y');
@@ -825,9 +851,9 @@ public final class Fisher {
 
     /**
      * 결과창 닫기 — Fish / Exit 버튼이 다시 보일 때까지
-     *  · 누를 자리: 화면에서 두 번 확인한 X → 창 크기로 계산한 자리 → 보정한 X → 전에 눌러서 닫혔던 자리
+     *  · 누를 자리: 화면에서 두 번 확인한 X → 창 크기로 계산한 자리 → 보정한 X
      *  · X 가 나타날 시간 (X_SHOWN) 이 지났는데 한 자리를 DWELL 초 동안 눌러도 안 닫히면 다음 자리 · 다 해 봤으면 처음부터
-     *  · 보정한 자리가 아닌 곳을 눌러서 닫혔으면 그 자리를 기억 (다음 결과창부터는 X 를 못 찾아도 바로 누름)
+     *  · (1.8.5 부터 닫힌 자리를 기억하지 않음 — 그런 결과창은 한 번만 생기고 한동안 다시 안 생겨서 기억한 자리가 오히려 엉뚱한 곳을 누름)
      */
     /** → "success" · "junk" · "fail" (셌을 때) · null (결과창을 못 닫았고 결과도 못 봄 → 안 셈) */
     String finish(Img base) {
@@ -837,8 +863,8 @@ public final class Fisher {
         double[] title = base != null ? cfg.titlePos : null;
         double start = now(), end = start + FINISH_MAX, lookAt = start + LOOK_FROM;
         boolean seenFail = false, seenSuccess = false, seenJunk = false, closed = false;
-        double[] found = null, guess = null, pend = null, target = null, lastTap = null;
-        double targetAt = start, lastTapAt = -1;
+        double[] found = null, guess = null, pend = null, target = null;
+        double targetAt = start;
         List<double[]> failed = new ArrayList<>();
         boolean first = true;
         while (now() < end) {
@@ -902,19 +928,10 @@ public final class Fisher {
             if (target != null) {
                 int[] tap = px(target[0], target[1]);
                 in.tap(tap[0], tap[1], t - targetAt >= 0.4 ? 90 : 40);
-                lastTap = target;
-                lastTapAt = now();
             }
             sleep(FINISH_GAP);
         }
-        if (!closed) {
-            out.log("결과창을 닫은 뒤 " + (int) FINISH_MAX + "초 동안 Fish 버튼이 보이지 않음 — 다시 확인", 'y');
-        } else if (lastTap != null && (cfg.closePos == null || !nearRatio(lastTap, cfg.closePos)) && now() - lastTapAt < 1.5 && lastTapAt - targetAt >= 0.25) {
-            // 닫히기 직전에 (0.25초 넘게 이어서) 누른 자리 = 닫은 자리 (보정한 자리가 아닐 때만 기억 · 막 다른 자리로 바꾼 직후면 어느 쪽인지 몰라서 안 함)
-            cfg.learnClose(lastTap[0], lastTap[1]);
-            out.log("결과창이 닫힌 자리를 기억함 (" + SellText.r4(lastTap[0]) + ", " + SellText.r4(lastTap[1]) + ")", 'd');
-            if (onLearn != null) onLearn.run();
-        }
+        if (!closed) out.log("결과창을 닫은 뒤 " + (int) FINISH_MAX + "초 동안 Fish 버튼이 보이지 않음 — 다시 확인", 'y');
         if (!closed && !seenFail && !seenSuccess && !seenJunk) {
             out.log("결과 확인 안 됨 — 통계에 안 넣음", 'd');
             return null;
@@ -929,13 +946,12 @@ public final class Fisher {
         return kind;
     }
 
-    /** 다음에 누를 결과창 X 자리 (화면 비율) — 찾은 X 모양 → 창 크기로 계산한 자리 → 보정한 X → 기억한 자리 · 다 안 됐으면 처음부터 */
+    /** 다음에 누를 결과창 X 자리 (화면 비율) — 찾은 X 모양 → 창 크기로 계산한 자리 → 보정한 X · 다 안 됐으면 처음부터 */
     double[] pickClose(double[] found, double[] guess, List<double[]> failed) {
         List<double[]> c = new ArrayList<>();
         if (found != null) c.add(found);
         if (guess != null) c.add(guess);
         if (cfg.closePos != null) c.add(cfg.closePos);
-        c.addAll(cfg.learnedClose());
         for (double[] p : c) {
             boolean bad = false;
             for (double[] f : failed) bad |= nearRatio(p, f);

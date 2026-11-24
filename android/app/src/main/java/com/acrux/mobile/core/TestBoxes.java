@@ -5,12 +5,12 @@ import java.util.List;
 
 /**
  * 낚시 테스트: 화면에 그릴 칸 — 매크로가 실제로 보는 자리 (Fisher 와 같은 계산 · 화면 px)
- *  · 창 (대기 창 · 미니게임 창 · 결과창) · Fish 버튼 확인 칸 (+ 누르는 자리) · 미니게임 바 · ◇ 확인 칸 · 결과 제목 확인 칸 · X 자리 · 기억한 X 자리
+ *  · 창 (대기 창 · 미니게임 창 · 결과창) · Fish 버튼 확인 칸 (+ 누르는 자리) · 미니게임 바 · ◇ 확인 칸 · 결과 제목 확인 칸 · X 자리
  *  · 선은 칸 바깥에 그림 (매크로가 그 칸 안을 볼 때 선이 안 섞이게) · 그린 자리는 Mask 로 화면 캡처에서도 지움
  */
 public final class TestBoxes {
     public static final int C_PANEL = 0xFF29B6F6, C_FISH = 0xFF2EE66B, C_REEL = 0xFFFFD43B, C_BAR = 0xFFFF8A1F, C_RESULT = 0xFFE040FB,
-            C_TITLE = 0xFFFF6FAE, C_CLOSE = 0xFFFF3B3B, C_LEARN = 0xFFFFA3A3, C_DIA = 0xFF9BE7FF, C_MARK = 0xFFFFFFFF, C_ZONE = 0xFF2EE66B,
+            C_TITLE = 0xFFFF6FAE, C_CLOSE = 0xFFFF3B3B, C_DIA = 0xFF9BE7FF, C_MARK = 0xFFFFFFFF, C_ZONE = 0xFF2EE66B,
             C_TAP = 0xFFFFFFFF, C_PRED = 0xFF4DB8FF, C_AIM = 0xFFFFE14D, C_STICK = 0xFF3BA55D, C_OCR = 0xFFFFB84D;
     /** 글자 자리: 칸 위 왼쪽 · 아래 왼쪽 · 오른쪽 · 왼쪽 · 위 오른쪽 · 없음 */
     public static final int L_TOP = 0, L_BOTTOM = 1, L_RIGHT = 2, L_LEFT = 3, L_TOP_RIGHT = 4, L_NONE = -1;
@@ -43,7 +43,7 @@ public final class TestBoxes {
 
     /**
      * 지금 단계에 매크로가 보는 칸만 (Fisher.phase) — 0 모름 (다 그림 · 칸이 안 맞을 때 어디가 틀렸는지 보이게) · 1 대기 · 입질 기다림 (대기 창 · Fish 버튼 · ◇)
-     *  · 2 릴링 (미니게임 창 · 바 · ◇ 두 칸) · 3 결과창 (결과창 · 제목 · X · 기억한 X) · 4 이동 · 판매 (안 그림 — 낚시 창을 안 봄)
+     *  · 2 릴링 (미니게임 창 · 바 · ◇ 두 칸) · 3 결과창 (결과창 · 제목 · X) · 4 이동 · 판매 (안 그림 — 낚시 창을 안 봄)
      *  · 5 자동 보정에서 낚시 창을 아직 못 찾음 (안 그림 — 전에 보정한 칸이 실제 창 테두리 위에 그려지면 창을 못 찾을 수 있어서)
      */
     public static List<Box> of(Settings cfg, int W, int H, int phase) {
@@ -58,7 +58,7 @@ public final class TestBoxes {
                     show = b.kind.equals("reel") || b.kind.equals("bar") || b.kind.startsWith("dia_");
                     break;
                 case 3:
-                    show = b.kind.equals("result") || b.kind.equals("title") || b.kind.equals("close") || b.kind.equals("learned");
+                    show = b.kind.equals("result") || b.kind.equals("title") || b.kind.equals("close");
                     break;
                 case 4:
                 case 5:
@@ -100,7 +100,6 @@ public final class TestBoxes {
         if (cfg.resultRegion != null) out.add(win("result", "결과창", C_RESULT, cfg.resultRegion, W, H, L_TOP));
         if (cfg.titlePos != null) out.add(grabBox("title", "결과 제목", C_TITLE, cfg.titlePos, 0.12, 0.05, W, H, L_BOTTOM, false));
         if (cfg.closePos != null) out.add(square("close", "X", C_CLOSE, cfg.closePos, Math.max(7, (int) (H * 0.032)), W, H, L_LEFT));
-        for (double[] p : cfg.learnedClose()) out.add(square("learned", "X 기억", C_LEARN, p, Math.max(6, (int) (H * 0.026)), W, H, L_BOTTOM));
         return out;
     }
 
