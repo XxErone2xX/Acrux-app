@@ -957,7 +957,7 @@ Menu 창을 여는 버튼 · 내 서버 확인에 씀	Opens the Menu window · u
 곧 사용	Using soon	まもなく使用
 {0}분 뒤	in {0} min	{0}分後
 다 쓰고 인벤토리 닫기	Close the inventory when done	使い終わったらインベントリを閉じる
-간격 · 일치율 숫자는 앱 → 낚시 → 오토 아이템 사용	Intervals · match rate: app → Fishing → Auto item use	間隔・一致率の数値はアプリ → 釣り → オートアイテム使用
+간격 · 일치율 숫자는 앱 → 오토 아이템	Intervals · match rate: app → Auto items	間隔・一致率の数値はアプリ → オートアイテム
 위치 (인벤토리 → Items 를 열고 지정)	Positions (open Inventory → Items, then set)	位置 (インベントリ → Items を開いて指定)
 Inventory 버튼	Inventory button	Inventory ボタン
 Items 버튼	Items button	Items ボタン
@@ -979,7 +979,6 @@ Use 옆 수량을 넣는 칸	The amount box next to Use	Use の横の数量欄
 켜짐	On	オン
 위치 {0} / {1} 저장됨	{0} / {1} positions saved	位置 {0} / {1} 保存済み
 오토 아이템 테스트 중	Testing auto items	オートアイテムテスト中
-자동 낚시 중 간격마다 인벤토리에서 아이템을 1개씩 사용 (던지기 전 대기 화면에서) · 위치 · 이름 읽는 칸은 Acrux 창 → 오토 아이템에서 직접 지정	Uses 1 item from the inventory on each interval during auto fishing (on the idle screen before casting) · set positions · name area yourself in the Acrux window → Auto items	自動釣り中に間隔ごとにインベントリからアイテムを1個ずつ使用 (投げる前の待機画面で) · 位置・名前を読む範囲は Acrux ウィンドウ → オートアイテムで自分で指定
 {0} 간격 (분)	{0} interval (min)	{0} の間隔 (分)
 이름 일치율 (%)	Name match rate (%)	名前の一致率 (%)
 글자 읽기로 확인하는 기준 · 기본 70	Threshold for the text check · default 70	文字読み取りで確認する基準 · 既定 70
@@ -1005,3 +1004,13 @@ Use 옆 수량을 넣는 칸	The amount box next to Use	Use の横の数量欄
 무선 디버깅 명령 실패: {0}	Wireless debugging command failed: {0}	ワイヤレスデバッグのコマンド失敗: {0}
 이름 읽는 칸이 너무 작음 — 다시	The name area is too small — try again	名前を読む範囲が小さすぎる — もう一度
 이름 읽는 칸 저장	Name area saved	名前を読む範囲を保存
+쿨타임마다 인벤토리에서 아이템을 1개씩 사용 · 자동 낚시 중 던지기 전 대기 화면에서 (낚시는 잠깐 쉼)	Uses 1 item from the inventory on each cooldown · during auto fishing, on the idle screen before casting (fishing pauses briefly)	クールタイムごとにインベントリからアイテムを1個ずつ使用 · 自動釣り中の投げる前の待機画面で (釣りは少し休む)
+자동 낚시 중 쿨타임마다 사용	Use on each cooldown during auto fishing	自動釣り中にクールタイムごとに使用
+지금 사용 테스트	Test use now	今すぐ使用テスト
+사용할 아이템	Items to use	使うアイテム
+위치	Positions	位置
+인벤토리 → Items 를 연 채로 게임에서 버튼 위치를 지정하세요.	Open Inventory → Items and set the button positions in the game.	インベントリ → Items を開いたままゲームでボタン位置を指定してください。
+게임에서 위치 지정	Set positions in game	ゲームで位置を指定
+{0}번 사용	used {0} times	{0}回使用
+자동 낚시를 시작하면 사용	Used once auto fishing starts	自動釣りを開始すると使用
+로블록스가 맨 앞에 없음 — 테스트 안 함	Roblox isn't in front — test skipped	Roblox が最前面にない — テストしない

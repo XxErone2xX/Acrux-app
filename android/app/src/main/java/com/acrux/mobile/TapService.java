@@ -1207,7 +1207,7 @@ public class TapService extends AccessibilityService {
             }, () -> c.use[i], () -> c.use[i] = !c.use[i]);
         }
         flag(m, "items:close", "다 쓰고 인벤토리 닫기", null, () -> c.close, () -> c.close = !c.close);
-        info(m, () -> Ui.tr("간격 · 일치율 숫자는 앱 → 낚시 → 오토 아이템 사용"), () -> true);
+        info(m, () -> Ui.tr("간격 · 일치율 숫자는 앱 → 오토 아이템"), () -> true);
         m.addView(section("위치 (인벤토리 → Items 를 열고 지정)"), mw());
         String[] hints = {"인벤토리를 여닫는 버튼", "인벤토리 안 Items 칸", "아이템 검색칸", "검색하면 맨 앞에 나오는 아이템 칸", "Use 옆 수량을 넣는 칸", null};
         for (int k = 0; k < ItemUser.KEYS.length; k++) pos(m, ItemUser.KEYS[k][0], ItemUser.KEYS[k][1], hints[k]);

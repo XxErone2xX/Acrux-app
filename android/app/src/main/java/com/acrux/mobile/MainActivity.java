@@ -41,7 +41,7 @@ import java.util.List;
 public class MainActivity extends Activity {
     static final int REQ_CAPTURE = 7;
 
-    TextView accState, capState, calState, logView, runState, posView, reelInfo;
+    TextView accState, capState, calState, logView, runState, posView, reelInfo, itemState, itemPositions;
     TextView accBtn, capBtn, updState, updBtn, updNotes, updBanner, uiBtn, uiBtn2, onDot, onText;
     /** 디버깅 모드 켜기 · 끄기 (앱 맨 위 작은 것 · 설정) — 왼쪽으로 밀어서 */
     Slide dbgSw, dbgSw2;
@@ -249,7 +249,7 @@ public class MainActivity extends Activity {
         Page fishPg = page("fish", "낚시");              // 낚시 · 판매 · 길 한 칸
         buildFishing(fishPg);
         buildMove(fishPg);
-        buildItems(fishPg);
+        buildItems(page("items", "오토 아이템"));          // 기능마다 칸 하나 (PC 의 매크로 설정과 같음)
         buildBiome(page("biome", "바이옴"));
         buildLog(page("log", "로그"));
         buildSettings(page("settings", "설정"));
@@ -633,28 +633,98 @@ public class MainActivity extends Activity {
         saved.addView(clearPos, cp);
     }
 
-    /** 오토 아이템 사용 — PC 와 같음 (Strange Controller 10.5분 · Biome Randomizer 18분마다 1개) · 위치는 Acrux 창 → 오토 아이템 */
+    /** 오토 아이템 사용 — PC 와 같음 (Strange Controller 10.5분 · Biome Randomizer 18분마다 1개 · 간격은 바꿀 수 있음) · 위치는 게임에서 직접 지정 */
     void buildItems(Page pg) {
         com.acrux.mobile.core.ItemUser.Cfg c = Hub.items.cfg;
-        LinearLayout it = section(pg, "오토 아이템 사용");
-        it.addView(Ui.text(this, "자동 낚시 중 간격마다 인벤토리에서 아이템을 1개씩 사용 (던지기 전 대기 화면에서) · 위치 · 이름 읽는 칸은 Acrux 창 → 오토 아이템에서 직접 지정",
+        LinearLayout on = section(pg, "오토 아이템 사용");
+        on.addView(Ui.text(this, "쿨타임마다 인벤토리에서 아이템을 1개씩 사용 · 자동 낚시 중 던지기 전 대기 화면에서 (낚시는 잠깐 쉼)",
                 12, Ui.MUTED, false), Ui.fill(this, 6));
-        it.addView(sw("오토 아이템 사용", c.on, v -> {
+        on.addView(sw("자동 낚시 중 쿨타임마다 사용", c.on, v -> {
             c.on = v;
             Hub.changed();
         }), Ui.fill(this, 6));
+        itemState = Ui.text(this, "", 13, Ui.MUTED, true);
+        on.addView(itemState, Ui.fill(this, 8));
+        on.addView(Ui.button(this, "지금 사용 테스트", Ui.ACCENT, v -> inGame(s -> {
+            Hub.setUi(true);
+            s.startMode("itemtest");
+        }, 1500)), Ui.wrap());
+
+        LinearLayout set = section(pg, "사용할 아이템");
         String[] nm = com.acrux.mobile.core.ItemUser.NAMES;
         double[] def = {10.5, 18.0};
         for (int k = 0; k < nm.length; k++) {
             int i = k;
-            it.addView(sw(nm[k], c.use[k], v -> {
+            set.addView(sw(nm[k], c.use[k], v -> {
                 c.use[i] = v;
                 Hub.changed();
             }), Ui.fill(this, 4));
-            it.addView(num(I18n.f("{0} 간격 (분)", nm[k]), I18n.f("기본 {0}", numText(def[k])), c.min[k], v -> c.min[i] = clamp(v, 0.5, 600)), Ui.fill(this, 8));
+            set.addView(num(I18n.f("{0} 간격 (분)", nm[k]), I18n.f("기본 {0}", numText(def[k])), c.min[k], v -> c.min[i] = clamp(v, 0.5, 600)), Ui.fill(this, 10));
         }
-        it.addView(sw("다 쓰고 인벤토리 닫기", c.close, v -> c.close = v), Ui.fill(this, 6));
-        it.addView(num("이름 일치율 (%)", "글자 읽기로 확인하는 기준 · 기본 70", c.match, v -> c.match = clamp(v, 1, 100)), Ui.fill(this, 8));
+        set.addView(sw("다 쓰고 인벤토리 닫기", c.close, v -> c.close = v), Ui.fill(this, 6));
+        set.addView(num("이름 일치율 (%)", "글자 읽기로 확인하는 기준 · 기본 70", c.match, v -> c.match = clamp(v, 1, 100)), Ui.fill(this, 8));
+
+        LinearLayout ps = section(pg, "위치");
+        itemPositions = Ui.text(this, "", 12, Ui.MUTED, false);
+        itemPositions.setTypeface(Typeface.MONOSPACE);
+        ps.addView(itemPositions, Ui.fill(this, 6));
+        ps.addView(Ui.text(this, "인벤토리 → Items 를 연 채로 게임에서 버튼 위치를 지정하세요.", 12, Ui.MUTED, false), Ui.fill(this, 8));
+        ps.addView(Ui.button(this, "게임에서 위치 지정", Ui.ACCENT, v -> inGame(s -> {
+            Hub.setUi(true);
+            s.page = "items";
+            s.showPage("items");
+        }, 0)), Ui.wrap());
+    }
+
+    /** 로블록스를 앞으로 가져온 뒤 (ms 뒤) Acrux 창에서 할 일 — 접근성 · 로블록스가 없으면 안내 */
+    void inGame(java.util.function.Consumer<TapService> then, long ms) {
+        TapService service = TapService.instance;
+        if (service == null || !TapService.bringFront(TapService.roblox == null ? "com.roblox.client" : TapService.roblox)) {
+            android.widget.Toast.makeText(this, Ui.tr("접근성 권한과 Roblox 설치 상태를 확인하세요."), android.widget.Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (ms <= 0) then.accept(service);
+        else Hub.main.postDelayed(() -> then.accept(service), ms);
+    }
+
+    /** 오토 아이템 칸의 상태 한 줄 + 저장된 위치 (refresh 에서) */
+    void showItems() {
+        if (itemState == null) return;
+        com.acrux.mobile.core.ItemUser it = Hub.items;
+        String miss = com.acrux.mobile.core.ItemUser.missing(Hub.pos);
+        int n = com.acrux.mobile.core.ItemUser.saved(Hub.pos), all = TapService.itemSlots();
+        String st;
+        int col;
+        if (!it.cfg.on) {
+            st = Ui.tr("꺼짐");
+            col = Ui.MUTED;
+        } else if (miss != null) {
+            st = I18n.f("위치 {0} / {1} 저장됨", n, all) + " — " + Ui.tr("게임에서 위치 지정");
+            col = Ui.YELLOW;
+        } else {
+            StringBuilder b = new StringBuilder(Ui.tr("켜짐"));
+            boolean fishing = Hub.running() && "run".equals(Hub.mode);
+            double t = com.acrux.mobile.core.ItemUser.now();
+            for (int k = 0; k < com.acrux.mobile.core.ItemUser.NAMES.length; k++) {
+                if (!it.cfg.use[k]) continue;
+                b.append("\n").append(com.acrux.mobile.core.ItemUser.NAMES[k]).append(" · ")
+                        .append(I18n.f("{0}분마다", TapService.fmt(it.cfg.min[k])));
+                if (fishing) {
+                    double left = it.left(k, t);
+                    b.append(" · ").append(left <= 0 ? Ui.tr("곧 사용") : I18n.f("{0}분 뒤", TapService.fmt(Math.ceil(left / 6) / 10.0)));
+                }
+                if (it.used[k] > 0) b.append(" · ").append(I18n.f("{0}번 사용", it.used[k]));
+            }
+            if (!fishing) b.append("\n").append(Ui.tr("자동 낚시를 시작하면 사용"));
+            st = b.toString();
+            col = Ui.GREEN;
+        }
+        itemState.setText(st);
+        itemState.setTextColor(col);
+        StringBuilder ps = new StringBuilder();
+        for (String[] k : com.acrux.mobile.core.ItemUser.KEYS) line(ps, Ui.tr(k[1]), Hub.pos.get(k[0]));
+        for (String[] k : com.acrux.mobile.core.ItemUser.OCR) line(ps, Ui.tr(k[1]), Hub.pos.get(k[0]));
+        itemPositions.setText(ps.toString().trim());
     }
 
     // ---------------------------------------------------------------- 기록
@@ -1330,6 +1400,7 @@ public class MainActivity extends Activity {
         route(ps, Ui.tr("낚시 장소 길"), Hub.fishRoute);
         route(ps, Ui.tr("판매 장소 길"), Hub.sellRoute);
         posView.setText(ps.toString().trim());
+        showItems();
 
         if (current >= 0 && "log".equals(pages.get(current).key)) refreshLogs();
     }

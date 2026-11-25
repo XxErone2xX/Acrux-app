@@ -915,6 +915,7 @@ final class Hub {
             endNote = "판매 테스트: " + sold + "종류 판매";
         } else if (m.equals("itemtest")) {
             // 테스트: 쿨타임 · 켜짐과 상관없이 지금 바로 (고른 아이템 · 하나도 안 골랐으면 둘 다)
+            if (!TapService.robloxFront()) throw new RuntimeException("로블록스가 맨 앞에 없음 — 테스트 안 함");
             List<Integer> keys = new ArrayList<>();
             for (int k = 0; k < ItemUser.NAMES.length; k++) if (items.cfg.use[k]) keys.add(k);
             if (keys.isEmpty()) for (int k = 0; k < ItemUser.NAMES.length; k++) keys.add(k);
