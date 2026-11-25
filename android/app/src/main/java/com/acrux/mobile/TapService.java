@@ -21,6 +21,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import com.acrux.mobile.core.ItemUser;
 import com.acrux.mobile.core.Mover;
 import com.acrux.mobile.core.Seller;
 
@@ -33,7 +34,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * 접근성 서비스 — 로블록스 위에 떠 있는 조작 창 + 모든 터치 (dispatchGesture · 루팅 · Shizuku 없음)
  * 자동 낚시 탭 · 이동 (조이스틱 · 화면 끌기 · 두 손가락 줌) · 판매 버튼
- * 화면 내용은 읽지 않음 (canRetrieveWindowContent = false · 화면 색은 화면 캡처로 봄)
+ * 화면 내용은 읽지 않음 (화면 색은 화면 캡처로 봄) · canRetrieveWindowContent 는 오토 아이템의 입력칸에 글자를 넣을 때만 씀 (키보드가 뜬 칸 하나)
  */
 public class TapService extends AccessibilityService {
     static volatile TapService instance;
@@ -300,6 +301,45 @@ public class TapService extends AccessibilityService {
         p.moveTo(x, y);
         if (!dispatchGesture(new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(p, 0, Math.max(1, ms))).build(), COUNT, null))
             cancelled.incrementAndGet();
+    }
+
+    // ---- 글자 넣기 (오토 아이템: 검색칸 · 수량칸) — 키보드가 뜬 입력칸에 접근성으로 바로 넣음 (안 되면 Hub 가 무선 디버깅으로)
+
+    /** 키보드가 뜬 입력칸 (우리 앱 것 · 없으면 null) */
+    android.view.accessibility.AccessibilityNodeInfo inputNode() {
+        try {
+            android.view.accessibility.AccessibilityNodeInfo n = findFocus(android.view.accessibility.AccessibilityNodeInfo.FOCUS_INPUT);
+            if (n == null || !n.isEditable()) return null;
+            if (n.getPackageName() != null && n.getPackageName().toString().equals(getPackageName())) return null;
+            return n;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** 입력칸 글자를 text 로 바꿈 (원래 글자는 지워짐) → 됐는지 */
+    boolean setInputText(String text) {
+        android.view.accessibility.AccessibilityNodeInfo n = inputNode();
+        if (n == null) return false;
+        android.os.Bundle b = new android.os.Bundle();
+        b.putCharSequence(android.view.accessibility.AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text);
+        try {
+            return n.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_SET_TEXT, b);
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    /** 입력칸에서 엔터 (안드로이드 11 이상) → 됐는지 */
+    boolean inputEnter() {
+        if (android.os.Build.VERSION.SDK_INT < 30) return false;
+        android.view.accessibility.AccessibilityNodeInfo n = inputNode();
+        if (n == null) return false;
+        try {
+            return n.performAction(android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.getId());
+        } catch (RuntimeException e) {
+            return false;
+        }
     }
 
     /** 한 손가락으로 (x0, y0) → (x1, y1) 끌기 (화면 돌리기) */
@@ -819,6 +859,7 @@ public class TapService extends AccessibilityService {
             {"fishcal", "fish", "낚시 보정"},
             {"route", "fish", "길"},
             {"sell", "fish", "판매"},
+            {"items", "home", "오토 아이템"},                    // 오토 아이템 사용 (자동 낚시 중 간격마다)
     };
 
     static String parentOf(String id) {
@@ -851,6 +892,9 @@ public class TapService extends AccessibilityService {
                 return serverPositions() + " / " + (Mover.RESET_KEYS.length + 2 + Hub.PS_CLOSE_KEYS.length) + " 저장됨";
             case "base":
                 return count(Mover.BASE_KEYS) + " / " + Mover.BASE_KEYS.length + " 저장됨";
+            case "items":
+                return !Hub.items.cfg.on ? "꺼짐" : ItemUser.missing(Hub.pos) != null
+                        ? "위치 " + ItemUser.saved(Hub.pos) + " / " + itemSlots() + " 저장됨" : "켜짐";
             default:
                 return "";
         }
@@ -879,9 +923,15 @@ public class TapService extends AccessibilityService {
                 return serverPositions() == Mover.RESET_KEYS.length + 2 + Hub.PS_CLOSE_KEYS.length;
             case "base":
                 return Guide.baseReady();
+            case "items":
+                return !Hub.items.cfg.on || ItemUser.missing(Hub.pos) == null;
             default:
                 return true;
         }
+    }
+
+    static int itemSlots() {
+        return ItemUser.KEYS.length + ItemUser.OCR.length;
     }
 
     static int serverPositions() {
@@ -1052,6 +1102,9 @@ public class TapService extends AccessibilityService {
             case "base":
                 pageBase(m);
                 break;
+            case "items":
+                pageItems(m);
+                break;
             default:                                            // 묶음 페이지 = 아래 기능 목록
                 for (String[] p : PAGES) if (p[1].equals(id)) featRow(m, p[0]);
                 break;
@@ -1137,6 +1190,77 @@ public class TapService extends AccessibilityService {
         for (String[] k : Mover.BASE_KEYS) pos(m, k[0], k[1], null);
         m.addView(section("테스트"), mw());
         act(m, "act:base", "기준 장소로", null, false, v -> toggle("base"));
+    }
+
+    /** 오토 아이템 사용 — 켜고 끄기 · 아이템 고르기 · 위치 (직접 지정) · 테스트 (간격 · 일치율 숫자는 앱 → 낚시) */
+    void pageItems(LinearLayout m) {
+        ItemUser.Cfg c = Hub.items.cfg;
+        flag(m, "items:on", "오토 아이템 사용", () -> "자동 낚시 중 간격마다 1개씩", () -> c.on, () -> c.on = !c.on);
+        for (int k = 0; k < ItemUser.NAMES.length; k++) {
+            int i = k;
+            flag(m, "items:" + k, ItemUser.NAMES[k], () -> {
+                if (!c.use[i]) return Ui.tr("안 씀");
+                String every = com.acrux.mobile.core.I18n.f("{0}분마다", fmt(c.min[i]));
+                if (!c.on || !Hub.running() || !"run".equals(Hub.mode)) return every;
+                double left = Hub.items.left(i, ItemUser.now());
+                return every + " · " + (left <= 0 ? Ui.tr("곧 사용") : com.acrux.mobile.core.I18n.f("{0}분 뒤", fmt(Math.ceil(left / 6) / 10.0)));
+            }, () -> c.use[i], () -> c.use[i] = !c.use[i]);
+        }
+        flag(m, "items:close", "다 쓰고 인벤토리 닫기", null, () -> c.close, () -> c.close = !c.close);
+        info(m, () -> Ui.tr("간격 · 일치율 숫자는 앱 → 낚시 → 오토 아이템 사용"), () -> true);
+        m.addView(section("위치 (인벤토리 → Items 를 열고 지정)"), mw());
+        String[] hints = {"인벤토리를 여닫는 버튼", "인벤토리 안 Items 칸", "아이템 검색칸", "검색하면 맨 앞에 나오는 아이템 칸", "Use 옆 수량을 넣는 칸", null};
+        for (int k = 0; k < ItemUser.KEYS.length; k++) pos(m, ItemUser.KEYS[k][0], ItemUser.KEYS[k][1], hints[k]);
+        m.addView(section("이름 읽는 칸"), mw());
+        val(m, "pos:item_ocr", "이름 읽는 칸", "검색한 아이템 이름 · 개수 (x23) 가 보이는 곳 · 왼쪽 위 → 오른쪽 아래",
+                () -> Hub.pos.containsKey(ItemUser.OCR[0][0]) && Hub.pos.containsKey(ItemUser.OCR[1][0]), v -> pickItemOcr());
+        m.addView(section("테스트"), mw());
+        act(m, "act:itemtest", "지금 한 번 써 보기", "인벤토리를 열고 고른 아이템을 1개씩 사용", false, v -> toggle("itemtest"));
+    }
+
+    /** 이름 읽는 칸: 왼쪽 위 → 오른쪽 아래를 차례로 지정 */
+    void pickItemOcr() {
+        String[] a = ItemUser.OCR[0], b = ItemUser.OCR[1];
+        pick(a[1], Hub.pos.get(a[0]), p0 -> {
+            if (p0 == null) return;
+            Hub.main.post(() -> pick(b[1], Hub.pos.get(b[0]), p1 -> {
+                if (p1 == null) return;
+                if (Math.abs(p1[0] - p0[0]) < 0.01 || Math.abs(p1[1] - p0[1]) < 0.01) {
+                    Hub.log("이름 읽는 칸이 너무 작음 — 다시", 'y');
+                    return;
+                }
+                Hub.pos.put(a[0], new double[]{Math.min(p0[0], p1[0]), Math.min(p0[1], p1[1])});
+                Hub.pos.put(b[0], new double[]{Math.max(p0[0], p1[0]), Math.max(p0[1], p1[1])});
+                Hub.save();
+                Hub.log("이름 읽는 칸 저장", 'g');
+            }));
+        });
+    }
+
+    /** 켜고 끄는 줄 (줄 아무 데나 누르면 바뀜) · sub: 밑에 작은 한 줄 (null = 없음) */
+    void flag(LinearLayout m, String key, String title, java.util.function.Supplier<String> sub, java.util.function.BooleanSupplier get, Runnable flip) {
+        LinearLayout r = reg(key, hrow());
+        r.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 8));
+        r.setBackground(press());
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.addView(Ui.text(this, title, 12.5f, C_FG, false), Ui.wrap());
+        TextView st = sub == null ? null : Ui.text(this, "", 10, C_DIM, false);
+        if (st != null) col.addView(st, Ui.wrap());
+        r.addView(col, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        Toggle t = new Toggle(this);
+        r.addView(t, new LinearLayout.LayoutParams(Ui.dp(this, 28), Ui.dp(this, 14)));
+        r.setOnClickListener(v -> {
+            flip.run();
+            Hub.save();
+            Hub.changed();
+        });
+        live.add(() -> {
+            t.set(get.getAsBoolean());
+            if (st != null) Ui.set(st, sub.get());
+        });
+        m.addView(r, mw());
+        m.addView(hair(), hairLp());
     }
 
     // ---- 줄 만들기

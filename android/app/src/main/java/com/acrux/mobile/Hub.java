@@ -7,6 +7,7 @@ import android.os.Looper;
 import android.os.Process;
 
 import com.acrux.mobile.core.Fisher;
+import com.acrux.mobile.core.ItemUser;
 import com.acrux.mobile.core.Mover;
 import com.acrux.mobile.core.Route;
 import com.acrux.mobile.core.Touch;
@@ -44,6 +45,8 @@ final class Hub {
     static volatile double[] stick;
     static int sellMax = 100;
     static double sellDelay = 0;
+    /** 오토 아이템 사용 (설정 + 마지막으로 쓴 시각 · 앱이 켜져 있는 동안 그대로) */
+    static final ItemUser items = new ItemUser();
 
     static final List<String> logs = new ArrayList<>();
     static final List<Runnable> listeners = new CopyOnWriteArrayList<>();
@@ -346,6 +349,10 @@ final class Hub {
             String miss = sl.missing();
             if (miss != null) return miss;
         }
+        if (m.equals("itemtest")) {
+            String miss = ItemUser.missing(pos);
+            if (miss != null) return miss;
+        }
         if (m.equals("base") || m.equals("fish") || m.equals("sellgo") || m.startsWith("rec_")) {
             String miss = mv.baseMissing();
             if (miss != null) return miss;
@@ -357,7 +364,10 @@ final class Hub {
             f.onStart = sl::goFish;
             zeroSells = sellSkips = 0;
             f.onFull = () -> sellOnce(sl);
-            f.onIdle = () -> psAtIdle(sl, f);                         // 디스코드 봇 서버 체크: 던지기 전 대기 화면에서 (낚시를 끊지 않게)
+            // 던지기 전 대기 화면에서 (낚시를 끊지 않게): 디스코드 봇 서버 체크 → 오토 아이템 사용
+            f.onIdle = () -> psAtIdle(sl, f) || itemsAtIdle(mv);
+            items.retryAt = 0;
+            if (items.cfg.on && ItemUser.missing(pos) != null) log(ItemUser.missing(pos), 'y');
         }
         TapService ts = TapService.instance;
         if (ts != null && ts.coversGame() && (m.equals("cal") || m.equals("run") || test))
@@ -622,6 +632,72 @@ final class Hub {
         return true;
     }
 
+    /** 자동 낚시의 던지기 전 대기 화면: 쓸 차례인 아이템이 있으면 사용 → 했는지 (그동안 낚시는 쉼) */
+    static boolean itemsAtIdle(Mover mv) {
+        double t = ItemUser.now();
+        List<Integer> keys = items.due(t);
+        if (keys.isEmpty()) return false;
+        if (ItemUser.missing(pos) != null) {
+            items.retryAt = t + 60;
+            if (items.missLogDue(t)) log(ItemUser.missing(pos), 'y');
+            return false;
+        }
+        if (!TapService.robloxFront()) return false;
+        String was = state;
+        try {
+            items.run(keys, mv, new MlOcr(), pos, Hub::typeText, OUT, false);
+        } catch (Fisher.Stopped e) {
+            throw e;
+        } catch (RuntimeException e) {
+            items.retryAt = ItemUser.now() + 60;
+            log("오토 아이템 오류: " + e.getMessage() + " — 1분 뒤 다시 시도", 'y');
+        } finally {
+            OUT.state(was);
+        }
+        return true;
+    }
+
+    /**
+     * 오토 아이템: 키보드가 뜬 입력칸에 글자 넣기 + 엔터 (clear: 원래 글자를 지우고)
+     *  ① 접근성으로 입력칸 글자를 바로 바꿈 (키보드가 뜰 때까지 1.2초 기다림) ② 안 되면 무선 디버깅 (input text · 엔터 키)
+     */
+    static boolean typeText(String text, boolean clear) {
+        TapService ts = TapService.instance;
+        if (ts != null) {
+            long end = System.nanoTime() + 1_200_000_000L;
+            while (true) {
+                CHECK.run();
+                if (ts.setInputText(text)) {
+                    Touch.nap(150);
+                    if (!ts.inputEnter() && !adbShell("input keyevent 66")) log("엔터를 못 보냄 (안드로이드 11 미만 · 무선 디버깅 없음) — 그대로 진행", 'd');
+                    return true;
+                }
+                if (System.nanoTime() > end) break;
+                Touch.nap(100);
+            }
+        }
+        StringBuilder c = new StringBuilder();
+        if (clear) {
+            c.append("input keyevent 123");                        // 끝으로 → 지우기 30번
+            for (int i = 0; i < 30; i++) c.append(" 67");
+            c.append("; ");
+        }
+        c.append("input text '").append(text.replace("'", "").replace(" ", "%s")).append("'; input keyevent 66");
+        return adbShell(c.toString());
+    }
+
+    /** 무선 디버깅으로 명령 하나 (연결 안 됐으면 false) */
+    static boolean adbShell(String cmd) {
+        if (!Adb.connected || app == null) return false;
+        try {
+            Adb.shell(app, cmd, 10000, l -> { });
+            return true;
+        } catch (Exception e) {
+            log("무선 디버깅 명령 실패: " + e.getMessage(), 'd');
+            return false;
+        }
+    }
+
     /** 메뉴를 열어 확인하고 닫음 (화면을 쓰는 다른 일이 없을 때만 부름) */
     static org.json.JSONObject psRun() {
         CaptureService cap = CaptureService.active;
@@ -837,6 +913,17 @@ final class Hub {
             stat("sold", sold);
             log("판매 테스트: " + sold + "종류 판매", 'g');
             endNote = "판매 테스트: " + sold + "종류 판매";
+        } else if (m.equals("itemtest")) {
+            // 테스트: 쿨타임 · 켜짐과 상관없이 지금 바로 (고른 아이템 · 하나도 안 골랐으면 둘 다)
+            List<Integer> keys = new ArrayList<>();
+            for (int k = 0; k < ItemUser.NAMES.length; k++) if (items.cfg.use[k]) keys.add(k);
+            if (keys.isEmpty()) for (int k = 0; k < ItemUser.NAMES.length; k++) keys.add(k);
+            double retry = items.retryAt;
+            int n = items.run(keys, mv, new MlOcr(), pos, Hub::typeText, OUT, true);
+            items.retryAt = retry;                                 // 테스트 결과로 자동 낚시 중 다음 시도를 미루지 않음
+            endWarn = n < keys.size();
+            endNote = "오토 아이템 테스트: " + n + " / " + keys.size() + "개 사용";
+            log(endNote, endWarn ? 'y' : 'g');
         } else if (m.equals("base")) {
             mv.goBase();
             log("기준 장소 도착", 'g');
@@ -1022,6 +1109,14 @@ final class Hub {
         debug = p.getBoolean("debug", false);
         sellMax = p.getInt("sellMax", 100);
         sellDelay = num(p, "sellDelay", 0);
+        ItemUser.Cfg ic = items.cfg;
+        ic.on = p.getBoolean("it_on", false);
+        ic.use[0] = p.getBoolean("it_strange", true);
+        ic.use[1] = p.getBoolean("it_random", true);
+        ic.min[0] = num(p, "it_strange_min", 10.5);
+        ic.min[1] = num(p, "it_random_min", 18.0);
+        ic.close = p.getBoolean("it_close", true);
+        ic.match = num(p, "it_match", 70);
         move.resetWait = num(p, "m_reset_wait", move.resetWait);
         // V0.9.11 기준 장소 걷기가 바뀜 (W+A → A → A+W → 쉼 → D) — 예전 값(m_w_time …)은 안 씀
         move.waTime = num(p, "m2_wa", move.waTime);
@@ -1066,6 +1161,9 @@ final class Hub {
                 .putInt("reelSpot", cfg.reelSpot).remove("closeLearn")              // 1.8.5: 결과창 X 자리 기억 없앰 (예전 값 지움)
                 .putBoolean("autoUpdate", autoUpdate)
                 .putInt("sellMax", sellMax).putFloat("sellDelay", (float) sellDelay)
+                .putBoolean("it_on", items.cfg.on).putBoolean("it_strange", items.cfg.use[0]).putBoolean("it_random", items.cfg.use[1])
+                .putFloat("it_strange_min", (float) items.cfg.min[0]).putFloat("it_random_min", (float) items.cfg.min[1])
+                .putBoolean("it_close", items.cfg.close).putFloat("it_match", (float) items.cfg.match)
                 .putFloat("m_reset_wait", (float) move.resetWait)
                 .putFloat("m2_wa", (float) move.waTime).putBoolean("vip", move.vip).putFloat("m2_wa_vip", (float) move.waVip).putFloat("m2_a", (float) move.aTime).putFloat("m2_aw", (float) move.awTime)
                 .putFloat("m2_pause", (float) move.pauseTime).putFloat("m2_d", (float) move.dTime)

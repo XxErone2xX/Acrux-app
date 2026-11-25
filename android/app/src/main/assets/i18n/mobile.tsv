@@ -949,3 +949,59 @@ Menu 창을 여는 버튼 · 내 서버 확인에 씀	Opens the Menu window · u
 매크로 중 알림 끄기 실패: {0}	Mute notifications failed: {0}	通知オフに失敗: {0}
 방해 금지를 되돌리지 못함 — 휴대폰 설정에서 방해 금지를 확인해 주세요: {0}	Couldn't restore Do Not Disturb — please check it in phone settings: {0}	おやすみモードを戻せない — 端末の設定で確認してください: {0}
 결과창이 낚시 창 안에 겹쳐 남아 있음 — 낚시 창 안 X 를 누름	The result window is stuck inside the fishing window — tapping its X	結果ウィンドウが釣りウィンドウ内に重なって残っている — その X を押す
+오토 아이템	Auto items	オートアイテム
+오토 아이템 사용	Auto item use	オートアイテム使用
+자동 낚시 중 간격마다 1개씩	One at a time on an interval during auto fishing	自動釣り中に間隔ごとに1個ずつ
+안 씀	Not used	使わない
+{0}분마다	Every {0} min	{0}分ごと
+곧 사용	Using soon	まもなく使用
+{0}분 뒤	in {0} min	{0}分後
+다 쓰고 인벤토리 닫기	Close the inventory when done	使い終わったらインベントリを閉じる
+간격 · 일치율 숫자는 앱 → 낚시 → 오토 아이템 사용	Intervals · match rate: app → Fishing → Auto item use	間隔・一致率の数値はアプリ → 釣り → オートアイテム使用
+위치 (인벤토리 → Items 를 열고 지정)	Positions (open Inventory → Items, then set)	位置 (インベントリ → Items を開いて指定)
+Inventory 버튼	Inventory button	Inventory ボタン
+Items 버튼	Items button	Items ボタン
+Search 버튼	Search button	Search ボタン
+아이템 칸	Item slot	アイテム枠
+수량 입력칸	Amount box	数量入力欄
+Use 버튼	Use button	Use ボタン
+인벤토리를 여닫는 버튼	The button that opens and closes the inventory	インベントリを開閉するボタン
+인벤토리 안 Items 칸	The Items tab in the inventory	インベントリ内の Items タブ
+아이템 검색칸	Item search box	アイテム検索欄
+검색하면 맨 앞에 나오는 아이템 칸	The first item slot after searching	検索すると先頭に出るアイテム枠
+Use 옆 수량을 넣는 칸	The amount box next to Use	Use の横の数量欄
+이름 읽는 칸	Name reading area	名前を読む範囲
+이름 읽는 칸 왼쪽 위	Name reading area: top left	名前を読む範囲の左上
+이름 읽는 칸 오른쪽 아래	Name reading area: bottom right	名前を読む範囲の右下
+검색한 아이템 이름 · 개수 (x23) 가 보이는 곳 · 왼쪽 위 → 오른쪽 아래	Where the searched item's name · count (x23) shows · top left → bottom right	検索したアイテム名・個数 (x23) が見える所 · 左上 → 右下
+지금 한 번 써 보기	Try once now	今すぐ一度試す
+인벤토리를 열고 고른 아이템을 1개씩 사용	Opens the inventory and uses 1 of each chosen item	インベントリを開いて選んだアイテムを1個ずつ使用
+켜짐	On	オン
+위치 {0} / {1} 저장됨	{0} / {1} positions saved	位置 {0} / {1} 保存済み
+오토 아이템 테스트 중	Testing auto items	オートアイテムテスト中
+자동 낚시 중 간격마다 인벤토리에서 아이템을 1개씩 사용 (던지기 전 대기 화면에서) · 위치 · 이름 읽는 칸은 Acrux 창 → 오토 아이템에서 직접 지정	Uses 1 item from the inventory on each interval during auto fishing (on the idle screen before casting) · set positions · name area yourself in the Acrux window → Auto items	自動釣り中に間隔ごとにインベントリからアイテムを1個ずつ使用 (投げる前の待機画面で) · 位置・名前を読む範囲は Acrux ウィンドウ → オートアイテムで自分で指定
+{0} 간격 (분)	{0} interval (min)	{0} の間隔 (分)
+이름 일치율 (%)	Name match rate (%)	名前の一致率 (%)
+글자 읽기로 확인하는 기준 · 기본 70	Threshold for the text check · default 70	文字読み取りで確認する基準 · 既定 70
+오토 아이템 위치 지정 필요: {0} (Acrux 창 → 오토 아이템)	Auto items needs positions: {0} (Acrux window → Auto items)	オートアイテムの位置指定が必要: {0} (Acrux ウィンドウ → オートアイテム)
+오토 아이템 사용 — {0}	Auto item use — {0}	オートアイテム使用 — {0}
+오토 아이템 사용 테스트 — {0}	Auto item use test — {0}	オートアイテム使用テスト — {0}
+오토 아이템: Inventory 열기	Auto items: opening Inventory	オートアイテム: Inventory を開く
+오토 아이템: Inventory 닫기	Auto items: closing Inventory	オートアイテム: Inventory を閉じる
+오토 아이템: {0} 검색	Auto items: searching {0}	オートアイテム: {0} を検索
+오토 아이템: {0} 검색 (다시)	Auto items: searching {0} (again)	オートアイテム: {0} を検索 (再試行)
+오토 아이템: {0} 1개 사용	Auto items: using 1 {0}	オートアイテム: {0} を1個使用
+오토 아이템: 검색칸에 글자를 못 넣음 — 무선 디버깅을 연결하면 그걸로 입력함 (앱 → 바이옴 → 무선 디버깅 연결) · 5분 뒤 다시 시도	Auto items: couldn't type into the search box — connect wireless debugging to type with it (app → Biome → Wireless debugging) · retrying in 5 min	オートアイテム: 検索欄に入力できない — ワイヤレスデバッグを接続するとそれで入力 (アプリ → バイオーム → ワイヤレスデバッグ接続) · 5分後に再試行
+오토 아이템 — 쓴 아이템 없음 · 1분 뒤 다시 시도	Auto items — nothing used · retrying in 1 min	オートアイテム — 使ったアイテムなし · 1分後に再試行
+글자 읽기: '{0}' · {1} 일치율 {2}%	Text read: '{0}' · {1} match {2}%	文字読み取り: '{0}' · {1} 一致率 {2}%
+{0} — 일치율 {1}% 미만, 건너뜀	{0} — match below {1}%, skipped	{0} — 一致率 {1}% 未満、スキップ
+{0} — 개수를 읽지 못해 건너뜀	{0} — couldn't read the count, skipped	{0} — 個数を読めずスキップ
+{0} — 없음, 건너뜀	{0} — none, skipped	{0} — なし、スキップ
+오토 아이템: 수량칸에 1 을 못 넣음 — 그대로 Use	Auto items: couldn't type 1 into the amount box — pressing Use anyway	オートアイテム: 数量欄に 1 を入力できない — そのまま Use
+{0} 1개 사용 (보유 {1}개)	Used 1 {0} (had {1})	{0} を1個使用 (所持 {1}個)
+오토 아이템 테스트: {0} / {1}개 사용	Auto items test: used {0} / {1}	オートアイテムテスト: {0} / {1}個使用
+오토 아이템 오류: {0} — 1분 뒤 다시 시도	Auto items error: {0} — retrying in 1 min	オートアイテムのエラー: {0} — 1分後に再試行
+엔터를 못 보냄 (안드로이드 11 미만 · 무선 디버깅 없음) — 그대로 진행	Couldn't send Enter (Android below 11 · no wireless debugging) — continuing	Enter を送れない (Android 11 未満 · ワイヤレスデバッグなし) — そのまま続行
+무선 디버깅 명령 실패: {0}	Wireless debugging command failed: {0}	ワイヤレスデバッグのコマンド失敗: {0}
+이름 읽는 칸이 너무 작음 — 다시	The name area is too small — try again	名前を読む範囲が小さすぎる — もう一度
+이름 읽는 칸 저장	Name area saved	名前を読む範囲を保存

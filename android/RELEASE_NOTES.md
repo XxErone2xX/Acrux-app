@@ -1,3 +1,9 @@
+## Acrux Mobile V1.8.6 업데이트
+1. 오토 아이템 사용을 추가했습니다. [ Strange Controller 10.5분 · Biome Randomizer 18분마다 · 간격 변경 가능 ]
+
+## Acrux Mobile V1.8.6 Update
+1. Added auto item use. [ Strange Controller every 10.5 min · Biome Randomizer every 18 min · intervals adjustable ]
+
 ## Acrux Mobile V1.8.5 업데이트
 1. 결과창이 낚시 창 안에 겹쳐 남았을 때 X 를 못 누르던 문제를 수정했습니다. [ Exit 상태 · 화면을 못 읽을 때도 ]
 2. 결과창 X 위치를 기억하던 기능을 없앴습니다.

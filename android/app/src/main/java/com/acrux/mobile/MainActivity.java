@@ -249,6 +249,7 @@ public class MainActivity extends Activity {
         Page fishPg = page("fish", "낚시");              // 낚시 · 판매 · 길 한 칸
         buildFishing(fishPg);
         buildMove(fishPg);
+        buildItems(fishPg);
         buildBiome(page("biome", "바이옴"));
         buildLog(page("log", "로그"));
         buildSettings(page("settings", "설정"));
@@ -630,6 +631,30 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams cp = Ui.wrap();
         cp.topMargin = Ui.dp(this, 8);
         saved.addView(clearPos, cp);
+    }
+
+    /** 오토 아이템 사용 — PC 와 같음 (Strange Controller 10.5분 · Biome Randomizer 18분마다 1개) · 위치는 Acrux 창 → 오토 아이템 */
+    void buildItems(Page pg) {
+        com.acrux.mobile.core.ItemUser.Cfg c = Hub.items.cfg;
+        LinearLayout it = section(pg, "오토 아이템 사용");
+        it.addView(Ui.text(this, "자동 낚시 중 간격마다 인벤토리에서 아이템을 1개씩 사용 (던지기 전 대기 화면에서) · 위치 · 이름 읽는 칸은 Acrux 창 → 오토 아이템에서 직접 지정",
+                12, Ui.MUTED, false), Ui.fill(this, 6));
+        it.addView(sw("오토 아이템 사용", c.on, v -> {
+            c.on = v;
+            Hub.changed();
+        }), Ui.fill(this, 6));
+        String[] nm = com.acrux.mobile.core.ItemUser.NAMES;
+        double[] def = {10.5, 18.0};
+        for (int k = 0; k < nm.length; k++) {
+            int i = k;
+            it.addView(sw(nm[k], c.use[k], v -> {
+                c.use[i] = v;
+                Hub.changed();
+            }), Ui.fill(this, 4));
+            it.addView(num(I18n.f("{0} 간격 (분)", nm[k]), I18n.f("기본 {0}", numText(def[k])), c.min[k], v -> c.min[i] = clamp(v, 0.5, 600)), Ui.fill(this, 8));
+        }
+        it.addView(sw("다 쓰고 인벤토리 닫기", c.close, v -> c.close = v), Ui.fill(this, 6));
+        it.addView(num("이름 일치율 (%)", "글자 읽기로 확인하는 기준 · 기본 70", c.match, v -> c.match = clamp(v, 1, 100)), Ui.fill(this, 8));
     }
 
     // ---------------------------------------------------------------- 기록
@@ -1285,7 +1310,7 @@ public class MainActivity extends Activity {
             for (int i = 0; i < cells.length; i++) statCells[i][k].setText(cells[i]);
         }
         String mode = !Hub.running() ? "" : "cal".equals(Hub.mode) ? "자동 보정 중" : "fishtest".equals(Hub.mode) ? "낚시 테스트 중" : "sellcal".equals(Hub.mode) ? "판매 보정 중"
-                : "sell".equals(Hub.mode) ? "판매 중" : "run".equals(Hub.mode) ? "자동 낚시 중"
+                : "sell".equals(Hub.mode) ? "판매 중" : "run".equals(Hub.mode) ? "자동 낚시 중" : "itemtest".equals(Hub.mode) ? "오토 아이템 테스트 중"
                 : Hub.mode.startsWith("rec_") ? "길 기록 중" : Hub.mode.startsWith("stick") ? "조이스틱" : "이동 테스트 중";
         runState.setText((mode.isEmpty() ? "" : Ui.tr(mode) + (Hub.debug ? " (" + Ui.tr("디버깅") + ")" : "") + " · ") + Ui.tr(Hub.state) + stats);
 
