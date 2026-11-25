@@ -855,6 +855,11 @@ public final class Vision {
 
     /** cross: relaxed (바탕이 밝아도 됨) 여도 X 모양은 엄격하게 (낚시 창 구석처럼 꺾쇠 · 글자가 가까운 곳) */
     public static List<double[]> findCloseXAll(Img im, int H, boolean relaxed, boolean cross) {
+        return findCloseXAll(im, H, relaxed, cross, false);
+    }
+
+    /** leftText: X 왼쪽에 바로 붙은 글자는 괜찮음 (쓰레기 결과창 'Fish Caught...?' 의 ? 가 X 바로 옆에 있음) */
+    public static List<double[]> findCloseXAll(Img im, int H, boolean relaxed, boolean cross, boolean leftText) {
         List<double[]> out = new ArrayList<>();
         int W = im.w, Hh = im.h, N = W * Hh;
         boolean[] white = new boolean[N], dark = new boolean[N];
@@ -910,9 +915,9 @@ public final class Vision {
             int m = Math.max(bw, bh);
             int ring = 0;
             for (int y = Math.max(0, y1 - m); y < Math.min(Hh, y2 + m + 1); y++) {
-                for (int x = Math.max(0, x1 - m); x < Math.min(W, x2 + m + 1); x++) {
+                for (int x = Math.max(0, leftText ? x1 : x1 - m); x < Math.min(W, x2 + m + 1); x++) {
                     int k = y * W + x;
-                    if (white[k] && !big[lab[k]]) ring++;
+                    if (white[k] && !big[lab[k]] && !(leftText && lab[k] != i && stats.get(lab[k])[2] < x1)) ring++;
                 }
             }
             if (ring - n > 0.15 * n) continue;

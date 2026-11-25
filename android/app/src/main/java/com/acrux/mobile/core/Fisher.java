@@ -1220,6 +1220,24 @@ public final class Fisher {
         return keyIndex == 2 ? resultFromX(im) : null;
     }
 
+    /** 결과창 찾기: 테두리로 찾은 창이 X 로 계산한 창 안에 쏙 들어가면 (물고기 그림 틀 등) X 로 계산한 창 */
+    double[] resultOf(Img im) {
+        double[] got = frameOf(im, 2), fx = resultFromX(im);
+        if (got == null) return fx;
+        if (fx != null && inside(got, fx) && area(got) < area(fx) * 0.6) return fx;
+        return got;
+    }
+
+    static boolean inside(double[] a, double[] b) {
+        double m = 0.02;
+        return Math.min(a[0], a[2]) >= Math.min(b[0], b[2]) - m && Math.max(a[0], a[2]) <= Math.max(b[0], b[2]) + m
+                && Math.min(a[1], a[3]) >= Math.min(b[1], b[3]) - m && Math.max(a[1], a[3]) <= Math.max(b[1], b[3]) + m;
+    }
+
+    static double area(double[] a) {
+        return Math.abs(a[2] - a[0]) * Math.abs(a[3] - a[1]);
+    }
+
     /** 결과창 가로 : 세로 (창 테두리를 못 찾을 때 X 로 창을 계산하는 데 씀) */
     static final double RESULT_RATIO = 0.80;
 
@@ -1230,9 +1248,13 @@ public final class Fisher {
     static double[] resultFromX(Img im) {
         double cx = im.w / 2.0, kx = Vision.RESULT_CLOSE[0] * 2 - 1;
         double[] best = null;
-        for (double[] x : Vision.findCloseXAll(im, im.h, false)) {
-            if (x[1] > im.h * 0.6 || x[0] < cx + im.w * 0.05) continue;
-            if (best == null || x[1] < best[1]) best = x;
+        // 엄격한 X 먼저 · 없으면 쓰레기 결과창 X (바탕이 밝아도 · 제목 끝 '?' 가 바로 왼쪽에 붙어 있어도 · 모양은 엄격하게)
+        for (boolean relaxed : new boolean[]{false, true}) {
+            for (double[] x : relaxed ? Vision.findCloseXAll(im, im.h, true, true, true) : Vision.findCloseXAll(im, im.h, false)) {
+                if (x[1] > im.h * 0.6 || x[0] < cx + im.w * 0.05) continue;
+                if (best == null || x[1] < best[1]) best = x;
+            }
+            if (best != null) break;
         }
         if (best == null) return null;
         double hw = (best[0] - cx) / kx;
@@ -1310,7 +1332,8 @@ public final class Fisher {
         double end = now() + sec;
         while (now() < end) {
             check();
-            double[] cur = frameOf(full(), keyIndex);
+            Img im = full();
+            double[] cur = keyIndex == 2 ? resultOf(im) : frameOf(im, keyIndex);
             if (cur != null && prev != null) {
                 boolean same = true;
                 for (int i = 0; i < 4; i++) same &= Math.abs(cur[i] - prev[i]) <= 0.002;

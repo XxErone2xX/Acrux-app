@@ -1,3 +1,9 @@
+## Acrux Mobile V1.8.7 업데이트
+1. 낚시 자동 보정이 쓰레기 결과창에서 결과창 위치를 잘못 재던 문제를 수정했습니다.
+
+## Acrux Mobile V1.8.7 Update
+1. Fixed fishing auto calibration measuring the wrong result window on trash catches.
+
 ## Acrux Mobile V1.8.6 업데이트
 1. 오토 아이템 사용을 추가했습니다. [ Strange Controller 10.5분 · Biome Randomizer 18분마다 · 간격 변경 가능 ]
 
