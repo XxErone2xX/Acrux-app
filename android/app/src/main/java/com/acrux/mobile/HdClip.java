@@ -41,7 +41,9 @@ final class HdClip {
     static final String[] QUALITY_NAMES = {"자동", "낮음 (가로 800)", "보통 (가로 1280)", "높음 (가로 1600)", "최고 (원본 · 최대 2560)"};
     static final int[] FPS_CHOICES = {0, 4, 10, 15, 20, 30};
     /** 자동 단계 (가로 길이 · FPS) — 0 은 고화질 클립 없음 (가벼운 클립과 같음) */
-    static final int[][] AUTO = {{800, 4}, {1280, 10}, {1280, 15}, {1600, 20}};
+    static final int[][] AUTO = {{800, 4}, {1280, 8}, {1280, 12}, {1600, 15}};
+    /** 릴링 (미니게임) 중에는 이 FPS 까지만 (화면 복사를 줄여서 릴링 타이밍에 영향 없게) */
+    static final int REEL_FPS = 5;
     static final long WINDOW_US = 60_000_000L;
     /** 압축률 (픽셀 · 장면당 비트) · 최대 비트레이트 (1분에 90MB 아래 → 웹사이트 한도 100MB 안) */
     static final double BPP = 0.12;
@@ -281,7 +283,7 @@ final class HdClip {
     static void load(long workMs, long periodMs, long nowMs) {
         if (!isAuto() || codec == null) return;
         ema = ema * 0.9 + workMs * 0.1;
-        boolean over = ema > periodMs * 0.75;
+        boolean over = ema > periodMs * 0.5;
         if (nowMs - thermalAt > 10_000) {
             thermalAt = nowMs;
             try {
@@ -295,7 +297,7 @@ final class HdClip {
             return;
         }
         if (overSince == 0) overSince = nowMs;
-        if (nowMs - overSince < 3000 || autoLevel <= 0) return;
+        if (nowMs - overSince < 2000 || autoLevel <= 0) return;
         autoLevel--;
         overSince = 0;
         ema = 0;

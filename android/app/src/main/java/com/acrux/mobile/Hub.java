@@ -146,17 +146,24 @@ final class Hub {
 
     // ---- 화면 갱신
     static final java.util.concurrent.atomic.AtomicBoolean refreshQueued = new java.util.concurrent.atomic.AtomicBoolean();
+    /** 화면 다시 그리기 — 여러 번 불려도 0.1초에 한 번만 (낚시 중 상태가 자주 바뀔 때 화면 · Acrux 창을 매번 다시 그리지 않게) */
     static void changed() {
         if (listeners.isEmpty() || !refreshQueued.compareAndSet(false, true)) return;
-        main.post(() -> {
+        long wait = Math.max(0, REFRESH_MS - (android.os.SystemClock.uptimeMillis() - lastRefresh));
+        main.postDelayed(() -> {
             refreshQueued.set(false);
+            lastRefresh = android.os.SystemClock.uptimeMillis();
             for (Runnable r : listeners) r.run();
-        });
+        }, wait);
     }
+
+    static final long REFRESH_MS = 100;
+    static volatile long lastRefresh;
+    static final ThreadLocal<SimpleDateFormat> CLOCK = ThreadLocal.withInitial(() -> new SimpleDateFormat("HH:mm:ss", Locale.ROOT));
 
     static void log(String msg, char color) {
         if (color == 'r' && running()) lastRed = msg;
-        String t = new SimpleDateFormat("HH:mm:ss", Locale.ROOT).format(new Date());
+        String t = CLOCK.get().format(new Date());
         synchronized (logs) {
             logs.add(t + "  " + msg);
             logRevision++;
@@ -465,6 +472,7 @@ final class Hub {
                 if (why != null) main.post(() -> android.widget.Toast.makeText(app, com.acrux.mobile.core.I18n.t("멈춤 — " + why), android.widget.Toast.LENGTH_LONG).show());
                 save();
                 changed();
+                main.postDelayed(() -> Updater.runEnded(app), 1500);    // 매크로 중에 찾은 업데이트는 끝난 뒤에 받음
             }
         }, "acrux-worker");
         Quiet.on(app);                                            // 매크로 중 알림 끄기 (설정에서 켰을 때 · 일이 바로 끝나도 되돌리게 시작 전에)

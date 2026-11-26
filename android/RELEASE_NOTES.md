@@ -1,3 +1,11 @@
+## Acrux Mobile V1.9.0 업데이트
+1. 성능을 최적화했습니다.
+2. 매크로가 돌고 있을 때는 업데이트를 받지 않고, 멈춘 뒤에 받게 했습니다.
+
+## Acrux Mobile V1.9.0 Update
+1. Performance optimizations.
+2. Updates now wait until the macro stops instead of installing while it runs.
+
 ## Acrux Mobile V1.8.10 업데이트
 1. 버그 보고 클립의 화질 · FPS 를 폰 성능에 맞게 자동으로 정하고, 직접 바꿀 수 있게 했습니다.
 2. 버그 보고 스크린샷을 원본 화질로 보내게 했습니다.

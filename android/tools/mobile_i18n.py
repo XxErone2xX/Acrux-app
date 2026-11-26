@@ -1088,6 +1088,8 @@ E = [
     ["버그 보고 고화질 클립을 만들지 못함: {0}", "Couldn't make the high-quality bug report clip: {0}", "バグ報告の高画質クリップを作れない: {0}"],
     ["버그 보고 고화질 클립을 보냄 (#{0} · {1}MB)", "Sent the high-quality bug report clip (#{0} · {1}MB)", "バグ報告の高画質クリップを送信 (#{0} · {1}MB)"],
     ["버그 보고 고화질 클립을 못 보냄 ({0})", "Couldn't send the high-quality bug report clip ({0})", "バグ報告の高画質クリップを送れない ({0})"],
+    # ---------------------------------------------------------------- V1.9.0
+    ["새 버전 V{0} 있음 — 매크로가 끝나면 받음", "New version V{0} available — will download when the macro stops", "新しいバージョン V{0} あり — マクロが終わったらダウンロード"],
 ]
 
 

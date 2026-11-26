@@ -36,6 +36,15 @@ final class Updater {
     static volatile String status = "";
     static volatile String newVer, notes, apkUrl, shaUrl;
     static volatile boolean busy, checkedOnce;
+    /** 매크로가 도는 중에 찾은 업데이트 → 매크로가 끝나면 받음 */
+    static volatile boolean afterRun;
+
+    /** 매크로가 끝났을 때 (Hub) — 미뤄 둔 업데이트를 받음 */
+    static void runEnded(Context c) {
+        if (!afterRun || Hub.running()) return;
+        afterRun = false;
+        if (newVer != null && apkUrl != null) download(c);
+    }
     /** 최신 릴리스 (확인 못 하면 지난번에 확인한 값) · 팝업 단계: 0 없음 · 1 권장 (Z 가 3 이상 차이) · 2 강제 (X · Y 가 다름) */
     static volatile String latest;
     static volatile int level;
@@ -181,6 +190,12 @@ final class Updater {
                     set("새 버전 V" + best + " 있음");
                     Hub.log("새 버전 V" + best + " 있음 (지금 V" + cur + ")", 'c');
                     get = auto && (Hub.autoUpdate || level == 2);      // 강제 업데이트는 자동 업데이트를 꺼 놔도 바로 받음
+                    if (get && Hub.running()) {
+                        // 매크로가 도는 중엔 받지도 설치하지도 않음 (설치 화면 · 앱 재시작이 매크로를 끊음) → 매크로가 끝나면 받음
+                        get = false;
+                        afterRun = true;
+                        set("새 버전 V" + best + " 있음 — 매크로가 끝나면 받음");
+                    }
                 } else {
                     newVer = null;
                     set("최신 버전 (V" + cur + ")");

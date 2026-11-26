@@ -110,28 +110,46 @@ final class BugReport {
             long period = 1000 / FPS;
             try {
                 hd = on && clip ? HdClip.target() : null;
+                com.acrux.mobile.core.Fisher fs = Hub.fisher;
+                if (hd != null && fs != null && fs.phase == 2) hd = new int[]{hd[0], Math.min(hd[1], HdClip.REEL_FPS)};   // 릴링 중엔 덜 찍음
                 if (hd != null) period = Math.max(20, 1000 / Math.max(FPS, hd[1]));
                 CaptureService cap = CaptureService.active;
                 if (on && clip && cap != null && Hub.running() && TapService.robloxSure()) {      // 매크로가 돌 때만 (배터리)
                     idleSince = 0;
-                    full = cap.frame(full, wh);                      // 화면을 한 번만 복사해서 둘 다 씀
-                    if (full != null) {
-                        if (hd != null) HdClip.feed(full, wh[0], wh[1], hd);
-                        else HdClip.stop();
-                        if (t0 - lastLite >= 1000 / FPS - 20) {
-                            lastLite = t0;
-                            int lw = Math.min(FRAME_W, wh[0]), lh = (int) Math.round((double) wh[1] * lw / wh[0]);
-                            if (small == null || small.getWidth() != lw || small.getHeight() != lh) {
-                                if (small != null) small.recycle();
-                                small = Bitmap.createBitmap(lw, lh, Bitmap.Config.ARGB_8888);
-                                sc = new android.graphics.Canvas(small);
+                    boolean lite = t0 - lastLite >= 1000 / FPS - 20;
+                    if (hd != null) {
+                        full = cap.frame(full, wh);                  // 고화질: 화면을 한 번 복사해서 둘 다 씀
+                        if (full != null) {
+                            HdClip.feed(full, wh[0], wh[1], hd);
+                            if (lite) {
+                                lastLite = t0;
+                                int lw = Math.min(FRAME_W, wh[0]), lh = (int) Math.round((double) wh[1] * lw / wh[0]);
+                                if (small == null || small.getWidth() != lw || small.getHeight() != lh) {
+                                    if (small != null) small.recycle();
+                                    small = Bitmap.createBitmap(lw, lh, Bitmap.Config.ARGB_8888);
+                                    sc = new android.graphics.Canvas(small);
+                                }
+                                sc.drawBitmap(full, new android.graphics.Rect(0, 0, wh[0], wh[1]), new android.graphics.Rect(0, 0, lw, lh), paint);
+                                addLite(small, lw, lh);
                             }
-                            sc.drawBitmap(full, new android.graphics.Rect(0, 0, wh[0], wh[1]), new android.graphics.Rect(0, 0, lw, lh), paint);
-                            ByteArrayOutputStream o = new ByteArrayOutputStream(64 * 1024);
-                            small.compress(Bitmap.CompressFormat.JPEG, 55, o);
-                            Frame f = new Frame(SystemClock.uptimeMillis(), lw, lh, o.toByteArray());
-                            synchronized (ring) {
-                                ring.addLast(f);
+                        }
+                    } else {
+                        HdClip.stop();
+                        if (full != null) {                          // 고화질을 안 쓰면 큰 복사본은 내려놓음
+                            full.recycle();
+                            full = null;
+                        }
+                        if (lite) {                                  // 가벼운 클립만: 화면을 건너뛰며 작게만 복사 (전체 복사 없이)
+                            lastLite = t0;
+                            int[] px = cap.sample(FRAME_W, wh);
+                            if (px != null) {
+                                if (small == null || small.getWidth() != wh[0] || small.getHeight() != wh[1]) {
+                                    if (small != null) small.recycle();
+                                    small = Bitmap.createBitmap(wh[0], wh[1], Bitmap.Config.ARGB_8888);
+                                    sc = new android.graphics.Canvas(small);
+                                }
+                                small.setPixels(px, 0, wh[0], 0, 0, wh[0], wh[1]);
+                                addLite(small, wh[0], wh[1]);
                             }
                         }
                     }
@@ -164,6 +182,16 @@ final class BugReport {
             } catch (InterruptedException e) {
                 return;
             }
+        }
+    }
+
+    /** 가벼운 클립 한 장 (JPEG) */
+    static void addLite(Bitmap b, int w, int h) {
+        ByteArrayOutputStream o = new ByteArrayOutputStream(64 * 1024);
+        b.compress(Bitmap.CompressFormat.JPEG, 55, o);
+        Frame f = new Frame(SystemClock.uptimeMillis(), w, h, o.toByteArray());
+        synchronized (ring) {
+            ring.addLast(f);
         }
     }
 
