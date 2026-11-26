@@ -1019,7 +1019,10 @@ final class Hub {
             endNote = "판매 테스트: " + sold + "종류 판매";
         } else if (m.equals("itemtest")) {
             // 테스트: 언제 · 조건 · 켜짐과 상관없이 지금 바로 (켜 둔 아이템 · 하나도 안 켰으면 전부)
-            if (!TapService.robloxFront()) throw new RuntimeException("로블록스가 맨 앞에 없음 — 테스트 안 함");
+            if (!TapService.robloxFront()) {
+                log("맨 앞 앱: " + TapService.front, 'd');
+                throw new RuntimeException("로블록스가 맨 앞에 없음 — 테스트 안 함");
+            }
             List<ItemUser.Item> keys = new ArrayList<>();
             for (ItemUser.Item it : items.items) if (it.on && !it.name.trim().isEmpty()) keys.add(it);
             if (keys.isEmpty()) for (ItemUser.Item it : items.items) if (!it.name.trim().isEmpty()) keys.add(it);

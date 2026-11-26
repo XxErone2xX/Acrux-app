@@ -217,7 +217,18 @@ final class BugReport {
     static void onLog(String msg, char color) {
         if (!on || msg == null || !Hub.running()) return;
         if (!(color == 'r' && !msg.startsWith("웹후크") && !msg.startsWith("ADB")) && !stuck(msg)) return;
+        if (notBug(msg) || !TapService.robloxFront()) return;   // 로블록스가 앞에 없으면 클립에 찍힐 것도 없음
         auto(msg);
+    }
+
+    /** 버그가 아니라 사용자 쪽 상태 · 설정 문제 — 자동 보고 안 함 (로블록스가 앞에 없음 · 권한 꺼짐 · 위치 미지정 · 화면을 건드림 · "~해 주세요" 안내) */
+    static final String[] NOT_BUG = {
+            "맨 앞에 없음", "접근성 권한", "먼저 지정", "먼저 조이스틱", "지정되지 않음", "화면이 계속 눌려 있어서", "화면을 아직 못 받음", "주세요",
+    };
+
+    static boolean notBug(String msg) {
+        for (String s : NOT_BUG) if (msg.contains(s)) return true;
+        return false;
     }
 
     /** 자동 낚시가 막힌 줄 (PC · 모바일 공통 문구 일부) */

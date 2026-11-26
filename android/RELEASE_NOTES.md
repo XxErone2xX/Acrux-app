@@ -1,3 +1,13 @@
+## Acrux Mobile V1.9.1 업데이트
+1. 업데이트 안내 창을 바꿨습니다.
+2. 로블록스가 앞에 있는데도 "로블록스가 맨 앞에 없음"으로 멈추던 문제를 고쳤습니다.
+3. 로블록스가 앞에 없을 때처럼 버그가 아닌 상황에서는 자동 버그 리포트를 보내지 않게 했습니다.
+
+## Acrux Mobile V1.9.1 Update
+1. Updated the update popup.
+2. Fixed the macro stopping with "Roblox is not in front" while Roblox was in front.
+3. Automatic bug reports are no longer sent for non-bug situations, such as Roblox not being in front.
+
 ## Acrux Mobile V1.9.0 업데이트
 1. 성능을 최적화했습니다.
 2. 매크로가 돌고 있을 때는 업데이트를 받지 않고, 멈춘 뒤에 받게 했습니다.

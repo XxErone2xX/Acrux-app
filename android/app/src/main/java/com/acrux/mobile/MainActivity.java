@@ -100,12 +100,14 @@ public class MainActivity extends Activity {
         card.setBackground(new Ui.Deco(this, Ui.PANEL, Ui.LINE, Ui.ACCENT, true));
         updTitle = Ui.text(this, "", 17, Ui.FG, true);
         card.addView(updTitle, Ui.fill(this, 8));
+        updStatus = Ui.text(this, "", 12, Ui.YELLOW, false);          // 새 버전 있음 · 받는 중 — 제목 바로 밑 (눈에 잘 띄게)
+        card.addView(updStatus, Ui.fill(this, 6));
         updBody = Ui.text(this, "", 13, Ui.MUTED, false);
         android.widget.ScrollView sv = new android.widget.ScrollView(this);
         sv.addView(updBody);
-        card.addView(sv, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 150)));
-        updStatus = Ui.text(this, "", 12, Ui.YELLOW, false);
-        card.addView(updStatus, Ui.fill(this, 10));
+        LinearLayout.LayoutParams svp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 180));
+        svp.topMargin = Ui.dp(this, 10);
+        card.addView(sv, svp);
         LinearLayout btns = new LinearLayout(this);
         btns.setGravity(Gravity.END);
         updLater = Ui.button(this, "나중에", Ui.MUTED, v -> {
@@ -139,11 +141,21 @@ public class MainActivity extends Activity {
         if (!on) return;
         boolean forced = Updater.forced();
         String v = Updater.latest;
-        Ui.set(updTitle, I18n.f(forced ? "V{0} 업데이트가 필요해요" : "새 버전 V{0} 이 나왔어요", v));
+        Ui.set(updTitle, I18n.f(forced ? "{0} 버전 업데이트가 필요합니다." : "{0} 버전 업데이트가 있습니다.", v));
         String n = Updater.notes;
-        updBody.setText(Ui.tr(forced ? "큰 업데이트라서 업데이트하기 전에는 매크로를 쓸 수 없어요. 예전 버전에서 고친 버그가 계속 생기지 않게 해 주세요."
-                : "지금 버전보다 업데이트가 3번 이상 나왔어요. 고친 버그가 많으니 업데이트를 권장해요.")
-                + (n != null && !n.isEmpty() ? "\n\n" + I18n.f("V{0} 바뀐 점", v) + "\n" + n : ""));
+        // 안내 · (빈 줄) · 업데이트 로그 (굵게) · 바뀐 점
+        android.text.SpannableStringBuilder b = new android.text.SpannableStringBuilder(Ui.tr(forced
+                ? "전 버전과는 많은 차이점이 발생했기 때문에, 이 업데이트는 필수입니다."
+                : "지금 버전 이후로 업데이트가 3번 이상 나왔기 때문에, 이 업데이트를 권장합니다."));
+        if (n != null && !n.isEmpty()) {
+            b.append("\n\n");
+            int at = b.length();
+            b.append(Ui.tr("업데이트 로그"));
+            b.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), at, b.length(), 0);
+            b.setSpan(new android.text.style.ForegroundColorSpan(Ui.FG), at, b.length(), 0);
+            b.append("\n").append(n);
+        }
+        updBody.setText(b);
         updStatus.setText(Updater.status.isEmpty() ? "" : Ui.tr(Updater.status));
         updLater.setVisibility(forced ? View.GONE : View.VISIBLE);
         updGo.setEnabled(!Updater.busy);

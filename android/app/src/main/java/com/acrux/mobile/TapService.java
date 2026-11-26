@@ -205,14 +205,58 @@ public class TapService extends AccessibilityService {
     /** 로블록스가 맨 앞 (모르면 true) */
     static boolean robloxFront() {
         String p = front;
-        return p == null || p.startsWith("com.roblox.");
+        return p == null || p.startsWith("com.roblox.") || topIsRoblox();
+    }
+
+    static volatile long topAt;
+    static volatile boolean topRb;
+
+    /** 마지막 화면 전환 이벤트가 로블록스가 아니어도 실제 창 목록으로 한 번 더 확인 (다른 앱 이벤트가 로블록스 뒤에 늦게 와서 잘못 멈추던 것) */
+    static boolean topIsRoblox() {
+        TapService t = instance;
+        if (t == null) return false;
+        long now = SystemClock.uptimeMillis();
+        if (now - topAt < 300) return topRb;                   // 매 확인마다 창 목록을 읽지 않게 (0.3초 캐시)
+        topAt = now;
+        String top = t.topApp();
+        boolean rb = top != null && top.startsWith("com.roblox.");
+        if (rb) {
+            Hub.log("맨 앞 앱 판정 고침: " + front + " → " + top, 'd');
+            front = top;
+            roblox = top;
+        }
+        topRb = rb;
+        return rb;
+    }
+
+    /** 화면 절반 이상을 덮는 앱 창 중 맨 위 창의 패키지 (모르면 null) — 작은 PIP 창 등은 뺌 */
+    String topApp() {
+        try {
+            DisplayMetrics dm = getResources().getDisplayMetrics();
+            long area = (long) Math.max(dm.widthPixels, 1) * Math.max(dm.heightPixels, 1);
+            android.graphics.Rect r = new android.graphics.Rect();
+            android.view.accessibility.AccessibilityWindowInfo best = null;
+            for (android.view.accessibility.AccessibilityWindowInfo w : getWindows()) {
+                if (w.getType() != android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION) continue;
+                w.getBoundsInScreen(r);
+                if ((long) r.width() * r.height() < area / 2) continue;
+                if (best == null || w.getLayer() > best.getLayer()) best = w;
+            }
+            if (best == null) return null;
+            android.view.accessibility.AccessibilityNodeInfo root = best.getRoot();
+            if (root == null) return null;
+            CharSequence pk = root.getPackageName();
+            return pk == null ? null : pk.toString();
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     /** 로블록스가 맨 앞이고 알림 · 알림창이 안 덮고 있을 때만 (버그 보고 클립 · 스크린샷 — 다른 앱 · 알림 내용은 안 찍게) */
     static boolean robloxSure() {
         String p = front;
         TapService t = instance;
-        if (t == null || p == null || !p.startsWith("com.roblox.")) return false;
+        if (t == null || p == null || !(p.startsWith("com.roblox.") || topIsRoblox())) return false;
         long now = android.os.SystemClock.uptimeMillis();
         if (now - coverAt > 500) {                                // 창 목록은 0.5초에 한 번만 (클립이 초당 30장일 때도 가볍게)
             coverAt = now;

@@ -1101,3 +1101,8 @@ V{0} 업데이트가 필요해요	Update to V{0} required	V{0} へのアップ�
 버그 보고 고화질 클립을 보냄 (#{0} · {1}MB)	Sent the high-quality bug report clip (#{0} · {1}MB)	バグ報告の高画質クリップを送信 (#{0} · {1}MB)
 버그 보고 고화질 클립을 못 보냄 ({0})	Couldn't send the high-quality bug report clip ({0})	バグ報告の高画質クリップを送れない ({0})
 새 버전 V{0} 있음 — 매크로가 끝나면 받음	New version V{0} available — will download when the macro stops	新しいバージョン V{0} あり — マクロが終わったらダウンロード
+{0} 버전 업데이트가 필요합니다.	Update to version {0} is required.	バージョン {0} へのアップデートが必要です。
+{0} 버전 업데이트가 있습니다.	Version {0} is available.	バージョン {0} のアップデートがあります。
+전 버전과는 많은 차이점이 발생했기 때문에, 이 업데이트는 필수입니다.	This version differs a lot from the previous one, so this update is required.	前のバージョンとの違いが大きいため、このアップデートは必須です。
+지금 버전 이후로 업데이트가 3번 이상 나왔기 때문에, 이 업데이트를 권장합니다.	3 or more updates have come out since your version, so this update is recommended.	今のバージョンから3回以上アップデートが出ているため、このアップデートをおすすめします。
+업데이트 로그	Update log	アップデートログ
