@@ -251,7 +251,6 @@ final class BugReport {
         m.put("lang", com.acrux.mobile.core.I18n.lang());
         m.put("mode", mode == null ? "" : mode);
         m.put("state", state == null ? "" : state);
-        m.put("stats", stats());
         m.put("device", device());
         m.put("at", System.currentTimeMillis());
         // 스크린샷 (지금 화면 · 로블록스가 맨 앞일 때만)
@@ -400,15 +399,6 @@ final class BugReport {
         } catch (Exception e) {
             return 0;
         }
-    }
-
-    static String stats() {
-        StringBuilder s = new StringBuilder();
-        for (int i = 0; i < Hub.STAT_KEYS.length; i++) {
-            if (s.length() > 0) s.append(" · ");
-            s.append(Hub.STAT_KEYS[i]).append(' ').append(Hub.statRun[i]);
-        }
-        return s.toString();
     }
 
     /** 기록에서 비밀 · 개인 정보 지우기 (웹사이트에서도 한 번 더 지움) */
