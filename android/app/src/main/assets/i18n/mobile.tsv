@@ -1014,3 +1014,23 @@ Use 옆 수량을 넣는 칸	The amount box next to Use	Use の横の数量欄
 {0}번 사용	used {0} times	{0}回使用
 자동 낚시를 시작하면 사용	Used once auto fishing starts	自動釣りを開始すると使用
 로블록스가 맨 앞에 없음 — 테스트 안 함	Roblox isn't in front — test skipped	Roblox が最前面にない — テストしない
+버그 보고	Bug reports	バグ報告
+매크로가 막히면 매크로 기록 · 게임 화면 (스크린샷 · 최근 1분 클립) · 기기 이름 · 안드로이드 · 앱 버전을 개발자에게 보냄. 전화번호 같은 개인 정보는 보내지 않고, 다른 앱 화면 · 알림은 찍지 않으며 화면 위쪽은 흐리게 처리함.	When the macro gets stuck, sends the macro log · game screen (screenshot · last 1 minute clip) · device name · Android · app version to the developers. No personal info like phone numbers is sent; other apps and notifications are never captured, and the top of the screen is blurred.	マクロが止まったら、マクロの記録 · ゲーム画面 (スクリーンショット · 直近1分のクリップ) · 端末名 · Android · アプリのバージョンを開発者に送ります。電話番号などの個人情報は送らず、他のアプリ画面や通知は撮らず、画面上部はぼかします。
+버그가 나면 자동으로 보고	Report bugs automatically	バグが起きたら自動で報告
+최근 1분 클립도 같이 보내기	Also send the last 1 minute clip	直近1分のクリップも送る
+지금 버그 신고	Report a bug now	今すぐバグを報告
+버그 신고를 보내는 중 — 로그 탭에서 결과를 볼 수 있음	Sending the bug report — see the result in the Log tab	バグ報告を送信中 — 結果はログタブで確認できます
+버그 신고	Report a bug	バグを報告
+지난 1분 클립 · 기록을 개발자에게 보냄	Sends the last 1 minute clip · log to the developers	直近1分のクリップ · 記録を開発者に送る
+버그 신고는 1분에 한 번만 보낼 수 있음	You can send a bug report once a minute	バグ報告は1分に1回だけ送れます
+버그 보고를 보냄	Bug report sent	バグ報告を送信
+버그 보고를 보냄 (#{0})	Bug report sent (#{0})	バグ報告を送信 (#{0})
+버그 보고를 못 보냄 ({0})	Couldn't send the bug report ({0})	バグ報告を送れない ({0})
+버그 보고 클립 {0}초 ({1}ms)	Bug report clip {0}s ({1}ms)	バグ報告クリップ {0}秒 ({1}ms)
+버그 보고 클립을 만들지 못함 — 클립 없이 보냄: {0}	Couldn't make the bug report clip — sending without it: {0}	バグ報告のクリップを作れない — クリップなしで送信: {0}
+버그 보고를 만들지 못함: {0}	Couldn't make the bug report: {0}	バグ報告を作れない: {0}
+V{0} 업데이트가 필요해요	Update to V{0} required	V{0} へのアップデートが必要です
+새 버전 V{0} 이 나왔어요	New version V{0} is out	新しいバージョン V{0} が出ました
+큰 업데이트라서 업데이트하기 전에는 매크로를 쓸 수 없어요. 예전 버전에서 고친 버그가 계속 생기지 않게 해 주세요.	This is a major update, so the macro can't be used until you update. This keeps already-fixed bugs from coming back.	大きなアップデートのため、アップデートするまでマクロは使えません。修正済みのバグが再発しないようにしてください。
+지금 버전보다 업데이트가 3번 이상 나왔어요. 고친 버그가 많으니 업데이트를 권장해요.	3 or more updates have come out since your version. Many bugs were fixed, so updating is recommended.	今のバージョンから3回以上アップデートが出ています。多くのバグが修正されたのでアップデートをおすすめします。
+새 버전 V{0} 업데이트가 필요함 — 앱을 열어서 업데이트	Update to V{0} required — open the app to update	V{0} へのアップデートが必要 — アプリを開いてアップデート

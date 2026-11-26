@@ -224,6 +224,48 @@ public class CaptureService extends Service implements Fisher.Screen {
         return copy(out, x0, y0, 0, 0, out.w, out.h, step) ? out : null;
     }
 
+    /**
+     * 버그 보고 클립 · 스크린샷: 화면 전체를 가로 maxW 이하로 줄여서 ARGB (wh 에 가로 · 세로) · 화면이 없으면 null
+     *  · 낚시 인식과 같은 화면을 잠깐만 잡음 (복사만 하고 JPEG 은 밖에서)
+     */
+    synchronized int[] sample(int maxW, int[] wh) {
+        if (reader == null) return null;
+        fitSize();
+        acquire();
+        if (cur == null) return null;
+        Image.Plane p;
+        ByteBuffer buf;
+        try {
+            p = cur.getPlanes()[0];
+            buf = p.getBuffer().duplicate();
+        } catch (RuntimeException e) {
+            cur.close();
+            cur = null;
+            return null;
+        }
+        int iw = cur.getWidth(), ih = cur.getHeight();
+        int step = Math.max(1, (iw + maxW - 1) / maxW);
+        int ow = iw / step, oh = ih / step;
+        if (ow < 16 || oh < 16) return null;
+        int rs = p.getRowStride(), ps = Math.max(4, p.getPixelStride()), lim = buf.limit();
+        int[] out = new int[ow * oh];
+        int need = ((ow - 1) * step + 1) * ps;
+        if (rowBuf.length < need) rowBuf = new byte[need];
+        byte[] row = rowBuf;
+        for (int y = 0; y < oh; y++) {
+            int at = y * step * rs;
+            if (at < 0 || at + need > lim) break;                   // 나머지 줄은 검은색
+            buf.position(at);
+            buf.get(row, 0, need);
+            int k = y * ow;
+            for (int x = 0, o = 0, adv = ps * step; x < ow; x++, o += adv)
+                out[k + x] = 0xff000000 | (row[o] & 255) << 16 | (row[o + 1] & 255) << 8 | (row[o + 2] & 255);
+        }
+        wh[0] = ow;
+        wh[1] = oh;
+        return out;
+    }
+
     synchronized android.graphics.Bitmap ocrBitmap(int x, int y, int width, int height) {
         if (reader == null) return null;
         fitSize();

@@ -71,6 +71,8 @@ final class Hub {
             load();
             Online.start();
             DiscordLink.start();
+            BugReport.start();
+            Updater.loadCached(app);
         }
     }
 
@@ -159,6 +161,10 @@ final class Hub {
             logs.add(t + "  " + msg);
             logRevision++;
             while (logs.size() > 300) logs.remove(0);
+        }
+        try {
+            BugReport.onLog(msg, color);                       // 막힌 줄이면 버그 자동 보고
+        } catch (Throwable ignored) {
         }
         changed();
     }
@@ -328,6 +334,9 @@ final class Hub {
      *  · rec_fish / rec_sell 길 기록 · stickfind / sticktest 조이스틱 → 못 하면 이유 */
     static synchronized String start(String m) {
         if (running()) return "이미 실행 중";
+        // 큰 업데이트 (X · Y 가 바뀜) 전엔 실행 안 함 — 옛 버전의 고친 버그가 계속 나와서
+        if (Updater.forced()) return "새 버전 V" + Updater.latest + " 업데이트가 필요함 — 앱을 열어서 업데이트";
+        Updater.maybeCheck(app);
         if (psBusy) return "서버 체크 중 — 잠시 후 다시";
         psResume = false;
         lastError = null;
@@ -1118,6 +1127,8 @@ final class Hub {
         ic.min[1] = num(p, "it_random_min", 18.0);
         ic.close = p.getBoolean("it_close", true);
         ic.match = num(p, "it_match", 70);
+        BugReport.on = p.getBoolean("bug_on", true);
+        BugReport.clip = p.getBoolean("bug_clip", true);
         move.resetWait = num(p, "m_reset_wait", move.resetWait);
         // V0.9.11 기준 장소 걷기가 바뀜 (W+A → A → A+W → 쉼 → D) — 예전 값(m_w_time …)은 안 씀
         move.waTime = num(p, "m2_wa", move.waTime);
@@ -1165,6 +1176,7 @@ final class Hub {
                 .putBoolean("it_on", items.cfg.on).putBoolean("it_strange", items.cfg.use[0]).putBoolean("it_random", items.cfg.use[1])
                 .putFloat("it_strange_min", (float) items.cfg.min[0]).putFloat("it_random_min", (float) items.cfg.min[1])
                 .putBoolean("it_close", items.cfg.close).putFloat("it_match", (float) items.cfg.match)
+                .putBoolean("bug_on", BugReport.on).putBoolean("bug_clip", BugReport.clip)
                 .putFloat("m_reset_wait", (float) move.resetWait)
                 .putFloat("m2_wa", (float) move.waTime).putBoolean("vip", move.vip).putFloat("m2_wa_vip", (float) move.waVip).putFloat("m2_a", (float) move.aTime).putFloat("m2_aw", (float) move.awTime)
                 .putFloat("m2_pause", (float) move.pauseTime).putFloat("m2_d", (float) move.dTime)

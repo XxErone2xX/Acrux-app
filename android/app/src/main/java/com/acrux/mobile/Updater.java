@@ -24,6 +24,7 @@ import java.security.MessageDigest;
  * 자동 업데이트 — GitHub 릴리스(mobile-v<버전>)에서 새 버전을 찾아 받고, 받은 파일을 sha256 으로 확인한 뒤 바로 설치 화면을 띄움
  * 앱을 켤 때 한 번 확인 (끌 수 있음) · 앱에서 [확인] / [업데이트] 로도
  * 서명 키가 고정이라 덮어쓰기 설치 (V0.7.0 부터 · 그 전 버전은 한 번만 지우고 새로 설치)
+ * 업데이트 팝업: X.Y.Z 에서 X · Y 가 바뀌면 강제 (업데이트 전엔 매크로 실행 안 됨) · Z 만 바뀌면 3 이상 차이 날 때만 팝업 (닫을 수 있음)
  */
 final class Updater {
     private Updater() {}
@@ -35,6 +36,52 @@ final class Updater {
     static volatile String status = "";
     static volatile String newVer, notes, apkUrl, shaUrl;
     static volatile boolean busy, checkedOnce;
+    /** 최신 릴리스 (확인 못 하면 지난번에 확인한 값) · 팝업 단계: 0 없음 · 1 권장 (Z 가 3 이상 차이) · 2 강제 (X · Y 가 다름) */
+    static volatile String latest;
+    static volatile int level;
+    static volatile long checkedAt;
+    static final int PATCH_POPUP = 3;
+    static final long RECHECK_MS = 6 * 3600_000L;
+
+    /** "1.8.5" → {1, 8, 5} */
+    static int[] parts(String v) {
+        String[] x = (v == null ? "" : v).split("[^0-9]+");
+        int[] o = new int[3];
+        int k = 0;
+        for (String t : x) {
+            if (t.isEmpty() || k >= 3) continue;
+            try {
+                o[k++] = Integer.parseInt(t);
+            } catch (NumberFormatException e) {
+                k++;
+            }
+        }
+        return o;
+    }
+
+    /** 지금 버전 → 최신 버전이면 팝업 단계 */
+    static int levelOf(String cur, String lat) {
+        if (lat == null || cmp(lat, cur) <= 0) return 0;
+        int[] a = parts(cur), b = parts(lat);
+        if (a[0] != b[0] || a[1] != b[1]) return 2;
+        return b[2] - a[2] >= PATCH_POPUP ? 1 : 0;
+    }
+
+    static boolean forced() {
+        return level == 2;
+    }
+
+    /** 앱을 켤 때: 지난번에 확인한 최신 버전으로 먼저 정함 (확인이 늦거나 실패해도 강제 업데이트가 풀리지 않게) */
+    static void loadCached(Context c) {
+        String v = Hub.prefs().getString("upLatest", null);
+        latest = v;
+        level = levelOf(current(c), v);
+    }
+
+    /** 매크로를 켤 때 등 — 마지막 확인이 오래됐으면 조용히 다시 확인 */
+    static void maybeCheck(Context c) {
+        if (c != null && !busy && System.currentTimeMillis() - checkedAt > RECHECK_MS) check(c, true);
+    }
 
     static String current(Context c) {
         try {
@@ -117,6 +164,12 @@ final class Updater {
                         bestNotes = r.optString("body");
                     }
                 }
+                checkedAt = System.currentTimeMillis();
+                if (best != null) {
+                    latest = best;
+                    level = levelOf(cur, best);
+                    Hub.prefs().edit().putString("upLatest", best).apply();
+                }
                 if (best == null) {
                     newVer = null;
                     set("릴리스를 못 찾음");
@@ -127,7 +180,7 @@ final class Updater {
                     notes = firstSection(bestNotes);
                     set("새 버전 V" + best + " 있음");
                     Hub.log("새 버전 V" + best + " 있음 (지금 V" + cur + ")", 'c');
-                    get = auto && Hub.autoUpdate;
+                    get = auto && (Hub.autoUpdate || level == 2);      // 강제 업데이트는 자동 업데이트를 꺼 놔도 바로 받음
                 } else {
                     newVer = null;
                     set("최신 버전 (V" + cur + ")");

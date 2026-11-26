@@ -208,6 +208,30 @@ public class TapService extends AccessibilityService {
         return p == null || p.startsWith("com.roblox.");
     }
 
+    /** 로블록스가 맨 앞이고 알림 · 알림창이 안 덮고 있을 때만 (버그 보고 클립 · 스크린샷 — 다른 앱 · 알림 내용은 안 찍게) */
+    static boolean robloxSure() {
+        String p = front;
+        TapService t = instance;
+        return t != null && p != null && p.startsWith("com.roblox.") && !t.systemCover();
+    }
+
+    /** 시스템 창 (알림 · 내려 연 알림창) 이 화면 위쪽에 크게 떠 있음 — 상태 표시줄 · 아래 내비게이션 바처럼 얇은 건 뺌 */
+    boolean systemCover() {
+        try {
+            List<android.view.accessibility.AccessibilityWindowInfo> ws = getWindows();
+            DisplayMetrics dm = getResources().getDisplayMetrics();
+            int H = Math.max(dm.heightPixels, 1);
+            android.graphics.Rect r = new android.graphics.Rect();
+            for (android.view.accessibility.AccessibilityWindowInfo w : ws) {
+                if (w.getType() != android.view.accessibility.AccessibilityWindowInfo.TYPE_SYSTEM) continue;
+                w.getBoundsInScreen(r);
+                if (r.height() >= H * 0.08 && r.top < H * 0.5) return true;
+            }
+        } catch (RuntimeException ignored) {
+        }
+        return false;
+    }
+
     /** 그 앱을 앞으로 (이미 켜져 있으면 하던 화면 그대로) → 됐는지 */
     static boolean bringFront(String pkg) {
         TapService t = instance;
@@ -1107,6 +1131,10 @@ public class TapService extends AccessibilityService {
                 break;
             default:                                            // 묶음 페이지 = 아래 기능 목록
                 for (String[] p : PAGES) if (p[1].equals(id)) featRow(m, p[0]);
+                if ("home".equals(id)) {
+                    // 버그 신고: 지난 1분 클립 · 기록 · 지금 화면을 개발자에게 (자동 보고를 꺼 놔도 직접은 보낼 수 있음)
+                    act(m, "act:bug", "버그 신고", "지난 1분 클립 · 기록을 개발자에게 보냄", false, v -> BugReport.manual());
+                }
                 break;
         }
     }

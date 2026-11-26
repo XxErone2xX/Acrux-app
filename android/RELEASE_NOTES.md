@@ -1,3 +1,11 @@
+## Acrux Mobile V1.8.8 업데이트
+1. 버그 자동 보고를 추가했습니다. [ 설정에서 끄기 · 클립만 끄기 가능 ]
+2. 업데이트 팝업을 추가했습니다. [ 큰 업데이트는 필수 ]
+
+## Acrux Mobile V1.8.8 Update
+1. Added automatic bug reports. [ Can be turned off in Settings · clips can be turned off separately ]
+2. Added an update popup. [ Major updates are required ]
+
 ## Acrux Mobile V1.8.7 업데이트
 1. 낚시 자동 보정이 쓰레기 결과창에서 결과창 위치를 잘못 재던 문제를 수정했습니다.
 

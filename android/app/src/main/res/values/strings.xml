@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Acrux Mobile</string>
-    <string name="acc_desc">Acrux Mobile 매크로가 로블록스 화면을 대신 터치하는 데 사용합니다. 화면 내용은 읽지 않으며, 오토 아이템 사용 때 키보드가 뜬 입력칸에 아이템 이름을 넣는 것만 합니다.</string>
+    <string name="acc_desc">Acrux Mobile 매크로가 로블록스 화면을 대신 터치하는 데 사용합니다. 화면 내용은 읽지 않으며, 오토 아이템 사용 때 키보드가 뜬 입력칸에 아이템 이름을 넣고, 버그 보고 때 알림이 화면을 덮고 있는지만 확인합니다 (그때는 화면을 찍지 않음).</string>
 </resources>

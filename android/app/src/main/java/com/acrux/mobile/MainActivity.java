@@ -83,6 +83,73 @@ public class MainActivity extends Activity {
     FrameLayout guideDim;
     final Runnable guideView = this::showGuide;
 
+    // ---- 업데이트 팝업 (Updater.level: 1 권장 · 2 강제)
+    FrameLayout updDim;
+    TextView updTitle, updBody, updStatus, updGo, updLater;
+    /** 권장 팝업을 [나중에] 로 닫은 버전 (앱을 다시 켤 때까지 안 띄움) */
+    static String updDismissed;
+
+    void buildUpdatePopup(FrameLayout frame) {
+        updDim = new FrameLayout(this);
+        updDim.setBackgroundColor(0xB0000000);
+        updDim.setClickable(true);                         // 뒤 화면은 안 눌림
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        int p = Ui.dp(this, 20);
+        card.setPadding(p, p, p, p);
+        card.setBackground(new Ui.Deco(this, Ui.PANEL, Ui.LINE, Ui.ACCENT, true));
+        updTitle = Ui.text(this, "", 17, Ui.FG, true);
+        card.addView(updTitle, Ui.fill(this, 8));
+        updBody = Ui.text(this, "", 13, Ui.MUTED, false);
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.addView(updBody);
+        card.addView(sv, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 150)));
+        updStatus = Ui.text(this, "", 12, Ui.YELLOW, false);
+        card.addView(updStatus, Ui.fill(this, 10));
+        LinearLayout btns = new LinearLayout(this);
+        btns.setGravity(Gravity.END);
+        updLater = Ui.button(this, "나중에", Ui.MUTED, v -> {
+            updDismissed = Updater.latest;
+            refresh();
+        });
+        updGo = Ui.button(this, "업데이트", Ui.ACCENT, v -> {
+            if (Updater.newVer != null) Updater.download(this);
+            else Updater.check(this, true);                  // 아직 확인 전 (지난번 값으로 강제) → 확인하고 바로 받음
+        });
+        LinearLayout.LayoutParams lp = Ui.wrap();
+        lp.leftMargin = Ui.dp(this, 10);
+        btns.addView(updLater, Ui.wrap());
+        btns.addView(updGo, lp);
+        card.addView(btns, Ui.fill(this, 0));
+        int sw = getResources().getDisplayMetrics().widthPixels;
+        updDim.addView(card, new FrameLayout.LayoutParams(Math.min(Ui.dp(this, 420), sw - Ui.dp(this, 32)), FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
+        updDim.setVisibility(View.GONE);
+        frame.addView(updDim, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+    }
+
+    boolean updShown() {
+        int lv = Updater.level;
+        return lv == 2 || (lv == 1 && Updater.latest != null && !Updater.latest.equals(updDismissed));
+    }
+
+    void showUpdatePopup() {
+        if (updDim == null) return;
+        boolean on = updShown();
+        updDim.setVisibility(on ? View.VISIBLE : View.GONE);
+        if (!on) return;
+        boolean forced = Updater.forced();
+        String v = Updater.latest;
+        Ui.set(updTitle, I18n.f(forced ? "V{0} 업데이트가 필요해요" : "새 버전 V{0} 이 나왔어요", v));
+        String n = Updater.notes;
+        updBody.setText(Ui.tr(forced ? "큰 업데이트라서 업데이트하기 전에는 매크로를 쓸 수 없어요. 예전 버전에서 고친 버그가 계속 생기지 않게 해 주세요."
+                : "지금 버전보다 업데이트가 3번 이상 나왔어요. 고친 버그가 많으니 업데이트를 권장해요.")
+                + (n != null && !n.isEmpty() ? "\n\n" + I18n.f("V{0} 바뀐 점", v) + "\n" + n : ""));
+        updStatus.setText(Updater.status.isEmpty() ? "" : Ui.tr(Updater.status));
+        updLater.setVisibility(forced ? View.GONE : View.VISIBLE);
+        updGo.setEnabled(!Updater.busy);
+        updGo.setAlpha(Updater.busy ? 0.4f : 1f);
+    }
+
     void showGuide() {
         if (guideDim == null) return;
         boolean on = Guide.cur != null;
@@ -126,7 +193,8 @@ public class MainActivity extends Activity {
         frame.addView(guideDim, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         Guide.views.add(guideView);
         Hub.langListeners.add(relang);
-        if (Hub.autoUpdate && !Updater.checkedOnce) {        // 앱을 켤 때 한 번: 새 버전이 있으면 받아서 설치 화면까지
+        buildUpdatePopup(frame);                           // 업데이트 팝업은 안내보다 위
+        if (!Updater.checkedOnce) {                        // 앱을 켤 때 한 번: 확인 (팝업) · 자동 업데이트가 켜져 있거나 강제면 받아서 설치 화면까지
             Updater.checkedOnce = true;
             Updater.check(this, true);
         }
@@ -158,6 +226,15 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        if (updDim != null && updDim.getVisibility() == View.VISIBLE) {
+            if (!Updater.forced()) {                       // 뒤로 가기 = [나중에] · 강제는 앱을 닫음
+                updDismissed = Updater.latest;
+                refresh();
+                return;
+            }
+            super.onBackPressed();
+            return;
+        }
         if (Guide.cur != null) {                           // 뒤로 가기 = [나중에]
             Guide.postpone();
             return;
@@ -1050,6 +1127,18 @@ public class MainActivity extends Activity {
         updNotes = Ui.text(this, "", 12, Ui.MUTED, false);
         up.addView(updNotes, Ui.fill(this, 4));
 
+        // 버그 보고 — BugReport
+        LinearLayout bug = section(pg, "버그 보고");
+        bug.addView(Ui.text(this, "매크로가 막히면 매크로 기록 · 게임 화면 (스크린샷 · 최근 1분 클립) · 기기 이름 · 안드로이드 · 앱 버전을 개발자에게 보냄. 전화번호 같은 개인 정보는 보내지 않고, 다른 앱 화면 · 알림은 찍지 않으며 화면 위쪽은 흐리게 처리함.",
+                12, Ui.MUTED, false), Ui.fill(this, 8));
+        bug.addView(sw("버그가 나면 자동으로 보고", BugReport.on, v -> BugReport.on = v), Ui.fill(this, 6));
+        bug.addView(sw("최근 1분 클립도 같이 보내기", BugReport.clip, v -> BugReport.clip = v), Ui.fill(this, 8));
+        LinearLayout.LayoutParams bbp = Ui.wrap();
+        bbp.topMargin = Ui.dp(this, 4);
+        bug.addView(Ui.button(this, "지금 버그 신고", Ui.ACCENT, v -> {
+            if (BugReport.manual()) android.widget.Toast.makeText(this, Ui.tr("버그 신고를 보내는 중 — 로그 탭에서 결과를 볼 수 있음"), android.widget.Toast.LENGTH_LONG).show();
+        }), bbp);
+
         // 디스코드 연결 (매크로 봇) — DiscordLink
         LinearLayout dc = section(pg, "디스코드 연결");
         dc.addView(Ui.text(this, "연결하면 디스코드 봇 (/상태 · /통계 · /로그) 으로 이 매크로를 볼 수 있음", 12, Ui.MUTED, false));
@@ -1332,6 +1421,7 @@ public class MainActivity extends Activity {
     void refresh() {
         showDiscord();
         showGuide();
+        showUpdatePopup();
         showBiome();
         Integer on = Online.count;
         onText.setText("Now Active : " + (on == null ? "--" : String.valueOf(on)));
