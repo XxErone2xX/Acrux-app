@@ -252,6 +252,7 @@ final class BugReport {
         m.put("mode", mode == null ? "" : mode);
         m.put("state", state == null ? "" : state);
         m.put("stats", stats());
+        m.put("device", device());
         m.put("at", System.currentTimeMillis());
         // 스크린샷 (지금 화면 · 로블록스가 맨 앞일 때만)
         if (cap != null && TapService.robloxSure()) {
@@ -299,11 +300,96 @@ final class BugReport {
             m.put("model", (Build.MANUFACTURER + " " + Build.MODEL).trim());
             m.put("android", Build.VERSION.RELEASE + " (" + Build.VERSION.SDK_INT + ")");
             m.put("lang", com.acrux.mobile.core.I18n.lang());
+            m.put("device", device());
             m.put("at", System.currentTimeMillis());
             write(new File(d, "log.txt"), scrub(c).getBytes(StandardCharsets.UTF_8));
             write(new File(d, "meta.json"), m.toString().getBytes(StandardCharsets.UTF_8));
             trim();
         } catch (Throwable ignored) {
+        }
+    }
+
+    /**
+     * 기기 정보 (버그가 특정 기종에서만 나는지 보려고) — 이름 · 칩 · 메모리 · 화면 · 로블록스 버전 · 배터리 · 발열 · 네트워크 종류
+     *  · 기기 고유 번호 (IMEI · 시리얼 · 광고 ID 등) 는 안 넣음
+     */
+    static JSONObject device() {
+        JSONObject d = new JSONObject();
+        android.content.Context c = Hub.app;
+        put(d, "brand", Build.BRAND);
+        put(d, "manufacturer", Build.MANUFACTURER);
+        put(d, "model", Build.MODEL);
+        put(d, "device", Build.DEVICE);
+        put(d, "hardware", Build.HARDWARE);
+        if (Build.VERSION.SDK_INT >= 31) put(d, "soc", (Build.SOC_MANUFACTURER + " " + Build.SOC_MODEL).trim());
+        put(d, "abi", Build.SUPPORTED_ABIS.length > 0 ? Build.SUPPORTED_ABIS[0] : "");
+        put(d, "android", Build.VERSION.RELEASE);
+        put(d, "sdk", String.valueOf(Build.VERSION.SDK_INT));
+        put(d, "build", Build.DISPLAY);
+        put(d, "cores", String.valueOf(Runtime.getRuntime().availableProcessors()));
+        put(d, "heapMax", (Runtime.getRuntime().maxMemory() >> 20) + "MB");
+        try {
+            android.app.ActivityManager am = (android.app.ActivityManager) c.getSystemService(android.content.Context.ACTIVITY_SERVICE);
+            android.app.ActivityManager.MemoryInfo mi = new android.app.ActivityManager.MemoryInfo();
+            am.getMemoryInfo(mi);
+            put(d, "ram", String.format(Locale.ROOT, "%.1fGB", mi.totalMem / 1073741824.0));
+            put(d, "ramFree", (mi.availMem >> 20) + "MB" + (mi.lowMemory ? " (low)" : ""));
+        } catch (Throwable ignored) {
+        }
+        try {
+            android.util.DisplayMetrics dm = c.getResources().getDisplayMetrics();
+            put(d, "display", Math.max(dm.widthPixels, dm.heightPixels) + "x" + Math.min(dm.widthPixels, dm.heightPixels) + " · " + dm.densityDpi + "dpi");
+            android.hardware.display.DisplayManager dmg = (android.hardware.display.DisplayManager) c.getSystemService(android.content.Context.DISPLAY_SERVICE);
+            android.view.Display disp = dmg.getDisplay(android.view.Display.DEFAULT_DISPLAY);
+            if (disp != null) put(d, "refresh", Math.round(disp.getRefreshRate()) + "Hz");
+        } catch (Throwable ignored) {
+        }
+        CaptureService cap = CaptureService.active;
+        if (cap != null) put(d, "capture", cap.width() + "x" + cap.height());
+        try {
+            String rp = TapService.roblox != null ? TapService.roblox : "com.roblox.client";
+            put(d, "roblox", c.getPackageManager().getPackageInfo(rp, 0).versionName);
+        } catch (Throwable e) {
+            put(d, "roblox", "?");
+        }
+        try {
+            android.os.BatteryManager bm = (android.os.BatteryManager) c.getSystemService(android.content.Context.BATTERY_SERVICE);
+            put(d, "battery", bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) + "%" + (Build.VERSION.SDK_INT >= 23 && bm.isCharging() ? " (charging)" : ""));
+        } catch (Throwable ignored) {
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= 29) {
+                android.os.PowerManager pm = (android.os.PowerManager) c.getSystemService(android.content.Context.POWER_SERVICE);
+                String[] th = {"none", "light", "moderate", "severe", "critical", "emergency", "shutdown"};
+                int t = pm.getCurrentThermalStatus();
+                put(d, "thermal", t >= 0 && t < th.length ? th[t] : String.valueOf(t));
+                put(d, "powerSave", pm.isPowerSaveMode() ? "on" : "off");
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager) c.getSystemService(android.content.Context.CONNECTIVITY_SERVICE);
+            android.net.NetworkCapabilities nc = cm.getNetworkCapabilities(cm.getActiveNetwork());
+            put(d, "network", nc == null ? "none" : nc.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) ? "wifi"
+                    : nc.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) ? "mobile" : "other");
+        } catch (Throwable ignored) {
+        }
+        try {
+            put(d, "storageFree", (c.getFilesDir().getUsableSpace() >> 20) + "MB");
+        } catch (Throwable ignored) {
+        }
+        put(d, "accessibility", TapService.instance != null ? "on" : "off");
+        put(d, "adb", Adb.connected ? "on" : "off");
+        synchronized (ring) {
+            put(d, "clipFrames", String.valueOf(ring.size()));
+        }
+        return d;
+    }
+
+    static void put(JSONObject o, String k, String v) {
+        try {
+            if (v != null && !v.trim().isEmpty()) o.put(k, v.trim().length() > 80 ? v.trim().substring(0, 80) : v.trim());
+        } catch (Exception ignored) {
         }
     }
 
