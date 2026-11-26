@@ -1,3 +1,11 @@
+## Acrux Mobile V1.8.9 업데이트
+1. 오토 아이템을 아이템 사용으로 바꾸고, 자동 낚시 없이도 따로 쓸 수 있게 했습니다.
+2. 사용할 아이템과 조건을 직접 만들 수 있게 했습니다. [ 시간 · 바이옴 등 ]
+
+## Acrux Mobile V1.8.9 Update
+1. Renamed Auto items to Item use, and it now runs on its own without auto fishing.
+2. You can now create your own items and conditions. [ time · biome, etc. ]
+
 ## Acrux Mobile V1.8.8 업데이트
 1. 버그 자동 보고를 추가했습니다. [ 설정에서 끄기 · 클립만 끄기 가능 ]
 2. 업데이트 팝업을 추가했습니다. [ 큰 업데이트는 필수 ]

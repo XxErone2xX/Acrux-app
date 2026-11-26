@@ -326,7 +326,7 @@ public class MainActivity extends Activity {
         Page fishPg = page("fish", "낚시");              // 낚시 · 판매 · 길 한 칸
         buildFishing(fishPg);
         buildMove(fishPg);
-        buildItems(page("items", "오토 아이템"));          // 기능마다 칸 하나 (PC 의 매크로 설정과 같음)
+        buildItems(page("items", "아이템 사용"));          // 기능마다 칸 하나 (PC 의 매크로 설정과 같음)
         buildBiome(page("biome", "바이옴"));
         buildLog(page("log", "로그"));
         buildSettings(page("settings", "설정"));
@@ -710,34 +710,43 @@ public class MainActivity extends Activity {
         saved.addView(clearPos, cp);
     }
 
-    /** 오토 아이템 사용 — PC 와 같음 (Strange Controller 10.5분 · Biome Randomizer 18분마다 1개 · 간격은 바꿀 수 있음) · 위치는 게임에서 직접 지정 */
+    /** 아이템 사용 — 자동 낚시와 따로인 기능 (켜 두면 자동 낚시 중에도 같이 씀) · 아이템 · 언제 · 조건은 직접 만듦 · 위치는 게임에서 직접 지정 */
     void buildItems(Page pg) {
         com.acrux.mobile.core.ItemUser.Cfg c = Hub.items.cfg;
-        LinearLayout on = section(pg, "오토 아이템 사용");
-        on.addView(Ui.text(this, "쿨타임마다 인벤토리에서 아이템을 1개씩 사용 · 자동 낚시 중 던지기 전 대기 화면에서 (낚시는 잠깐 쉼)",
+        LinearLayout on = section(pg, "아이템 사용");
+        on.addView(Ui.text(this, "정한 때가 되면 인벤토리에서 아이템을 사용 · 혼자서 돌리거나, 켜 두면 자동 낚시 중에도 던지기 전에 같이 씀",
                 12, Ui.MUTED, false), Ui.fill(this, 6));
-        on.addView(sw("자동 낚시 중 쿨타임마다 사용", c.on, v -> {
+        on.addView(sw("아이템 사용", c.on, v -> {
             c.on = v;
             Hub.changed();
         }), Ui.fill(this, 6));
         itemState = Ui.text(this, "", 13, Ui.MUTED, true);
         on.addView(itemState, Ui.fill(this, 8));
-        on.addView(Ui.button(this, "지금 사용 테스트", Ui.ACCENT, v -> inGame(s -> {
+        LinearLayout btns = new LinearLayout(this);
+        btns.addView(Ui.button(this, "아이템 사용만 시작", Ui.ACCENT, v -> inGame(s -> {
+            Hub.setUi(true);
+            s.startMode("items");
+        }, 1500)), Ui.wrap());
+        LinearLayout.LayoutParams bl = Ui.wrap();
+        bl.leftMargin = Ui.dp(this, 10);
+        btns.addView(Ui.button(this, "지금 사용 테스트", Ui.MUTED, v -> inGame(s -> {
             Hub.setUi(true);
             s.startMode("itemtest");
-        }, 1500)), Ui.wrap());
+        }, 1500)), bl);
+        on.addView(btns, Ui.fill(this, 0));
 
-        LinearLayout set = section(pg, "사용할 아이템");
-        String[] nm = com.acrux.mobile.core.ItemUser.NAMES;
-        double[] def = {10.5, 18.0};
-        for (int k = 0; k < nm.length; k++) {
-            int i = k;
-            set.addView(sw(nm[k], c.use[k], v -> {
-                c.use[i] = v;
-                Hub.changed();
-            }), Ui.fill(this, 4));
-            set.addView(num(I18n.f("{0} 간격 (분)", nm[k]), I18n.f("기본 {0}", numText(def[k])), c.min[k], v -> c.min[i] = clamp(v, 0.5, 600)), Ui.fill(this, 10));
-        }
+        LinearLayout list = section(pg, "아이템");
+        list.addView(Ui.text(this, "아이템마다 이름 (인벤토리 검색에 그대로 씀) · 개수 · 언제 쓸지 · 조건을 정함. 바이옴 관련은 바이옴 매크로가 켜져 있어야 함.",
+                12, Ui.MUTED, false), Ui.fill(this, 6));
+        itemsBox = new LinearLayout(this);
+        itemsBox.setOrientation(LinearLayout.VERTICAL);
+        list.addView(itemsBox, Ui.fill(this, 4));
+        itemAdd = new LinearLayout(this);
+        itemAdd.setOrientation(LinearLayout.HORIZONTAL);
+        list.addView(itemAdd, Ui.fill(this, 10));
+        drawItems();
+
+        LinearLayout set = section(pg, "설정");
         set.addView(sw("다 쓰고 인벤토리 닫기", c.close, v -> c.close = v), Ui.fill(this, 6));
         set.addView(num("이름 일치율 (%)", "글자 읽기로 확인하는 기준 · 기본 70", c.match, v -> c.match = clamp(v, 1, 100)), Ui.fill(this, 8));
 
@@ -753,6 +762,176 @@ public class MainActivity extends Activity {
         }, 0)), Ui.wrap());
     }
 
+    LinearLayout itemsBox, itemAdd;
+    /** 언제 — 종류 · 보이는 이름 */
+    static final String[][] ITEM_TRIGGERS = {
+            {com.acrux.mobile.core.ItemUser.EVERY, "몇 분마다"},
+            {com.acrux.mobile.core.ItemUser.BIOME, "이 바이옴이 되면"},
+            {com.acrux.mobile.core.ItemUser.BIOME_CHANGE, "바이옴이 바뀌면"},
+            {com.acrux.mobile.core.ItemUser.START, "시작할 때 한 번"},
+    };
+    /** 기본 아이템 (빠져 있으면 [+ 이름] 으로 다시 넣음) */
+    static final Object[][] ITEM_TEMPLATES = {{"Strange Controller", 10.5}, {"Biome Randomizer", 18.0}};
+
+    static String triggerName(String t) {
+        for (String[] x : ITEM_TRIGGERS) if (x[0].equals(t)) return x[1];
+        return t;
+    }
+
+    /** 고를 수 있는 바이옴 (NORMAL + 바이옴 매크로가 아는 것) */
+    static String[] biomeChoices() {
+        java.util.TreeSet<String> s = new java.util.TreeSet<>(Biome.TARGET);
+        s.add("NORMAL");
+        s.addAll(Biome.SHOW.keySet());
+        return s.toArray(new String[0]);
+    }
+
+    static String biomeList(java.util.Set<String> bs, String none) {
+        if (bs.isEmpty()) return Ui.tr(none);
+        StringBuilder b = new StringBuilder();
+        for (String x : bs) b.append(b.length() > 0 ? ", " : "").append(Biome.show(x));
+        return b.toString();
+    }
+
+    /** 아이템 목록 다시 그리기 (추가 · 삭제 · 언제 종류를 바꿨을 때) */
+    void drawItems() {
+        if (itemsBox == null) return;
+        itemsBox.removeAllViews();
+        java.util.List<com.acrux.mobile.core.ItemUser.Item> its = Hub.items.items;
+        if (its.isEmpty()) itemsBox.addView(Ui.text(this, "아이템이 없음 — 아래에서 추가하세요", 12, Ui.MUTED, false), Ui.fill(this, 4));
+        for (com.acrux.mobile.core.ItemUser.Item it : its) itemsBox.addView(itemCard(it), Ui.fill(this, 8));
+        itemAdd.removeAllViews();
+        itemAdd.addView(Ui.button(this, "+ 새 아이템", Ui.ACCENT, v -> {
+            com.acrux.mobile.core.ItemUser.Item n = new com.acrux.mobile.core.ItemUser.Item();
+            n.min = 10;
+            Hub.items.items.add(n);
+            itemsChanged(true);
+        }), Ui.wrap());
+        for (Object[] t : ITEM_TEMPLATES) {
+            boolean has = false;
+            for (com.acrux.mobile.core.ItemUser.Item it : its) has |= it.name.trim().equalsIgnoreCase((String) t[0]);
+            if (has) continue;
+            LinearLayout.LayoutParams lp = Ui.wrap();
+            lp.leftMargin = Ui.dp(this, 8);
+            itemAdd.addView(Ui.button(this, "+ " + t[0], Ui.MUTED, v -> {
+                Hub.items.items.add(com.acrux.mobile.core.ItemUser.Item.of((String) t[0], (Double) t[1]));
+                itemsChanged(true);
+            }), lp);
+        }
+    }
+
+    void itemsChanged(boolean redraw) {
+        Hub.save();
+        Hub.changed();
+        if (redraw) drawItems();
+    }
+
+    /** 아이템 하나: 켜기 · 이름 · 삭제 / 언제 (+ 분 · 바이옴 · 횟수) / 개수 / 조건 (이 바이옴일 때만 · 아닐 때만) */
+    View itemCard(com.acrux.mobile.core.ItemUser.Item it) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        int p = Ui.dp(this, 12);
+        card.setPadding(p, Ui.dp(this, 10), p, Ui.dp(this, 12));
+        card.setBackground(new Ui.Deco(this, Ui.BG, Ui.LINE, Ui.LINE, true, 8, 1.5f));
+
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        Switch s = new Switch(this);
+        Ui.tint(s);
+        s.setChecked(it.on);
+        s.setOnCheckedChangeListener((v, c) -> {
+            it.on = c;
+            itemsChanged(false);
+        });
+        top.addView(s, Ui.wrap());
+        View name = field(Ui.tr("아이템 이름 (예: Heavenly Potion)"), it.name, false, v -> {
+            if (v.equals(it.name)) return;
+            it.name = v;
+            Hub.save();
+        });
+        LinearLayout.LayoutParams nl = Ui.weight();
+        nl.leftMargin = Ui.dp(this, 8);
+        top.addView(name, nl);
+        LinearLayout.LayoutParams dl = Ui.wrap();
+        dl.leftMargin = Ui.dp(this, 8);
+        top.addView(Ui.button(this, "삭제", Ui.RED, v -> new android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle(Ui.tr("아이템을 삭제할까요?"))
+                .setMessage(it.name.trim().isEmpty() ? "?" : it.name.trim())
+                .setPositiveButton(Ui.tr("삭제"), (d, w) -> {
+                    Hub.items.items.remove(it);
+                    itemsChanged(true);
+                })
+                .setNegativeButton(Ui.tr("취소"), null).show()), dl);
+        card.addView(top, Ui.fill(this, 0));
+
+        // 언제
+        TextView when = Ui.button(this, I18n.f("언제: {0}", Ui.tr(triggerName(it.trigger))), Ui.ACCENT, null);
+        when.setOnClickListener(v -> {
+            android.widget.PopupMenu pm = new android.widget.PopupMenu(this, when);
+            for (int i = 0; i < ITEM_TRIGGERS.length; i++) pm.getMenu().add(0, i, i, Ui.tr(ITEM_TRIGGERS[i][1]));
+            pm.setOnMenuItemClickListener(mi -> {
+                it.trigger = ITEM_TRIGGERS[mi.getItemId()][0];
+                it.pending = false;
+                itemsChanged(true);
+                return true;
+            });
+            pm.show();
+        });
+        card.addView(when, Ui.fill(this, 10));
+        switch (it.trigger) {
+            case com.acrux.mobile.core.ItemUser.EVERY:
+                card.addView(num("몇 분마다", "0.1분 이상", it.min, v -> it.min = clamp(v, 0.1, 1440)), Ui.fill(this, 8));
+                break;
+            case com.acrux.mobile.core.ItemUser.BIOME:
+                card.addView(biomePick("어떤 바이옴이 되면", "바이옴 고르기", it.biomes), Ui.fill(this, 8));
+                break;
+            case com.acrux.mobile.core.ItemUser.BIOME_CHANGE:
+                card.addView(Ui.text(this, "바이옴이 다른 바이옴으로 바뀔 때마다 한 번", 12, Ui.MUTED, false), Ui.fill(this, 6));
+                break;
+            default:
+                card.addView(Ui.text(this, "아이템 사용 · 자동 낚시를 시작할 때 한 번", 12, Ui.MUTED, false), Ui.fill(this, 6));
+        }
+        card.addView(num("개수", "한 번에 쓰는 개수 · 가진 것보다 많으면 가진 만큼", it.amount, v -> it.amount = (int) clamp(Math.round(v), 1, 99)), Ui.fill(this, 8));
+        // 조건
+        card.addView(Ui.text(this, "조건", 13, Ui.FG, true), Ui.fill(this, 10));
+        card.addView(biomePick("이 바이옴일 때만", "상관없음", it.only), Ui.fill(this, 4));
+        card.addView(biomePick("이 바이옴이 아닐 때만", "없음", it.not), Ui.fill(this, 4));
+        return card;
+    }
+
+    /** 바이옴 여러 개 고르기 줄 (누르면 목록 창) */
+    View biomePick(String title, String none, java.util.Set<String> set) {
+        TextView val = Ui.text(this, biomeList(set, none), 12, set.isEmpty() ? Ui.MUTED : Ui.FG, false);
+        TextView btn = Ui.button(this, "고르기", Ui.MUTED, null);
+        btn.setOnClickListener(v -> {
+            String[] all = biomeChoices();
+            boolean[] on = new boolean[all.length];
+            String[] shown = new String[all.length];
+            for (int i = 0; i < all.length; i++) {
+                on[i] = set.contains(all[i]);
+                shown[i] = Biome.show(all[i]);
+            }
+            new android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                    .setTitle(Ui.tr(title))
+                    .setMultiChoiceItems(shown, on, (d, i, c) -> on[i] = c)
+                    .setPositiveButton(Ui.tr("확인"), (d, w) -> {
+                        set.clear();
+                        for (int i = 0; i < all.length; i++) if (on[i]) set.add(all[i]);
+                        val.setText(biomeList(set, none));
+                        val.setTextColor(set.isEmpty() ? Ui.MUTED : Ui.FG);
+                        itemsChanged(false);
+                    })
+                    .setNeutralButton(Ui.tr("모두 해제"), (d, w) -> {
+                        set.clear();
+                        val.setText(biomeList(set, none));
+                        val.setTextColor(Ui.MUTED);
+                        itemsChanged(false);
+                    })
+                    .setNegativeButton(Ui.tr("취소"), null).show();
+        });
+        return row(title, "", val, btn);
+    }
+
     /** 로블록스를 앞으로 가져온 뒤 (ms 뒤) Acrux 창에서 할 일 — 접근성 · 로블록스가 없으면 안내 */
     void inGame(java.util.function.Consumer<TapService> then, long ms) {
         TapService service = TapService.instance;
@@ -764,15 +943,15 @@ public class MainActivity extends Activity {
         else Hub.main.postDelayed(() -> then.accept(service), ms);
     }
 
-    /** 오토 아이템 칸의 상태 한 줄 + 저장된 위치 (refresh 에서) */
+    /** 아이템 사용 칸의 상태 + 저장된 위치 (refresh 에서) */
     void showItems() {
         if (itemState == null) return;
-        com.acrux.mobile.core.ItemUser it = Hub.items;
+        com.acrux.mobile.core.ItemUser iu = Hub.items;
         String miss = com.acrux.mobile.core.ItemUser.missing(Hub.pos);
         int n = com.acrux.mobile.core.ItemUser.saved(Hub.pos), all = TapService.itemSlots();
         String st;
         int col;
-        if (!it.cfg.on) {
+        if (!iu.cfg.on) {
             st = Ui.tr("꺼짐");
             col = Ui.MUTED;
         } else if (miss != null) {
@@ -780,19 +959,22 @@ public class MainActivity extends Activity {
             col = Ui.YELLOW;
         } else {
             StringBuilder b = new StringBuilder(Ui.tr("켜짐"));
-            boolean fishing = Hub.running() && "run".equals(Hub.mode);
+            boolean going = Hub.running() && ("run".equals(Hub.mode) || "items".equals(Hub.mode));
             double t = com.acrux.mobile.core.ItemUser.now();
-            for (int k = 0; k < com.acrux.mobile.core.ItemUser.NAMES.length; k++) {
-                if (!it.cfg.use[k]) continue;
-                b.append("\n").append(com.acrux.mobile.core.ItemUser.NAMES[k]).append(" · ")
-                        .append(I18n.f("{0}분마다", TapService.fmt(it.cfg.min[k])));
-                if (fishing) {
-                    double left = it.left(k, t);
-                    b.append(" · ").append(left <= 0 ? Ui.tr("곧 사용") : I18n.f("{0}분 뒤", TapService.fmt(Math.ceil(left / 6) / 10.0)));
+            int shown = 0;
+            for (com.acrux.mobile.core.ItemUser.Item it : iu.items) {
+                if (!it.on || it.name.trim().isEmpty()) continue;
+                shown++;
+                b.append("\n").append(it.name.trim()).append(" · ").append(com.acrux.mobile.core.ItemUser.describe(it));
+                if (going) {
+                    double left = iu.left(it, t);
+                    if (left >= 0) b.append(" · ").append(left <= 0 ? Ui.tr("곧 사용") : I18n.f("{0}분 뒤", TapService.fmt(Math.ceil(left / 6) / 10.0)));
+                    else if (it.pending) b.append(" · ").append(Ui.tr("곧 사용"));
                 }
-                if (it.used[k] > 0) b.append(" · ").append(I18n.f("{0}번 사용", it.used[k]));
+                if (it.used > 0) b.append(" · ").append(I18n.f("{0}번 사용", it.used));
             }
-            if (!fishing) b.append("\n").append(Ui.tr("자동 낚시를 시작하면 사용"));
+            if (shown == 0) b.append("\n").append(Ui.tr("켜 둔 아이템이 없음"));
+            else if (!going) b.append("\n").append(Ui.tr("[아이템 사용만 시작] 또는 자동 낚시를 시작하면 사용"));
             st = b.toString();
             col = Ui.GREEN;
         }
@@ -1470,7 +1652,7 @@ public class MainActivity extends Activity {
             for (int i = 0; i < cells.length; i++) statCells[i][k].setText(cells[i]);
         }
         String mode = !Hub.running() ? "" : "cal".equals(Hub.mode) ? "자동 보정 중" : "fishtest".equals(Hub.mode) ? "낚시 테스트 중" : "sellcal".equals(Hub.mode) ? "판매 보정 중"
-                : "sell".equals(Hub.mode) ? "판매 중" : "run".equals(Hub.mode) ? "자동 낚시 중" : "itemtest".equals(Hub.mode) ? "오토 아이템 테스트 중"
+                : "sell".equals(Hub.mode) ? "판매 중" : "run".equals(Hub.mode) ? "자동 낚시 중" : "itemtest".equals(Hub.mode) ? "아이템 사용 테스트 중" : "items".equals(Hub.mode) ? "아이템 사용 중"
                 : Hub.mode.startsWith("rec_") ? "길 기록 중" : Hub.mode.startsWith("stick") ? "조이스틱" : "이동 테스트 중";
         runState.setText((mode.isEmpty() ? "" : Ui.tr(mode) + (Hub.debug ? " (" + Ui.tr("디버깅") + ")" : "") + " · ") + Ui.tr(Hub.state) + stats);
 

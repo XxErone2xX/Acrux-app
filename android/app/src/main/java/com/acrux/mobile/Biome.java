@@ -332,6 +332,7 @@ final class Biome {
         if (b == null || !on() || loop == null) return;
         if (current == null) {
             current = b;
+            Hub.items.onBiome(null, b);                           // 아이템 사용: 이 바이옴이 되면
             leftSent = false;
             Hub.log("지금 바이옴: " + show(b), 'c');
             Hub.changed();
@@ -377,6 +378,7 @@ final class Biome {
     static void change(String b) {
         String prev = current;
         current = b;
+        Hub.items.onBiome(prev, b);                               // 아이템 사용: 이 바이옴이 되면 · 바이옴이 바뀌면
         leftSent = false;
         Hub.log("바이옴: " + (prev == null ? "-" : show(prev)) + " → " + show(b), RARE.contains(b) ? 'g' : 'c');
         Hub.changed();

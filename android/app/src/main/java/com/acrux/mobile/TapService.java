@@ -34,7 +34,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * 접근성 서비스 — 로블록스 위에 떠 있는 조작 창 + 모든 터치 (dispatchGesture · 루팅 · Shizuku 없음)
  * 자동 낚시 탭 · 이동 (조이스틱 · 화면 끌기 · 두 손가락 줌) · 판매 버튼
- * 화면 내용은 읽지 않음 (화면 색은 화면 캡처로 봄) · canRetrieveWindowContent 는 오토 아이템의 입력칸에 글자를 넣을 때만 씀 (키보드가 뜬 칸 하나)
+ * 화면 내용은 읽지 않음 (화면 색은 화면 캡처로 봄) · canRetrieveWindowContent 는 아이템 사용의 입력칸에 글자를 넣을 때만 씀 (키보드가 뜬 칸 하나)
  */
 public class TapService extends AccessibilityService {
     static volatile TapService instance;
@@ -327,7 +327,7 @@ public class TapService extends AccessibilityService {
             cancelled.incrementAndGet();
     }
 
-    // ---- 글자 넣기 (오토 아이템: 검색칸 · 수량칸) — 키보드가 뜬 입력칸에 접근성으로 바로 넣음 (안 되면 Hub 가 무선 디버깅으로)
+    // ---- 글자 넣기 (아이템 사용: 검색칸 · 수량칸) — 키보드가 뜬 입력칸에 접근성으로 바로 넣음 (안 되면 Hub 가 무선 디버깅으로)
 
     /** 키보드가 뜬 입력칸 (우리 앱 것 · 없으면 null) */
     android.view.accessibility.AccessibilityNodeInfo inputNode() {
@@ -883,7 +883,7 @@ public class TapService extends AccessibilityService {
             {"fishcal", "fish", "낚시 보정"},
             {"route", "fish", "길"},
             {"sell", "fish", "판매"},
-            {"items", "home", "오토 아이템"},                    // 오토 아이템 사용 (자동 낚시 중 간격마다)
+            {"items", "home", "아이템 사용"},                    // 아이템 사용 (자동 낚시와 따로인 기능 · 같이 돌 수도 있음)
     };
 
     static String parentOf(String id) {
@@ -1220,30 +1220,32 @@ public class TapService extends AccessibilityService {
         act(m, "act:base", "기준 장소로", null, false, v -> toggle("base"));
     }
 
-    /** 오토 아이템 사용 — 켜고 끄기 · 아이템 고르기 · 위치 (직접 지정) · 테스트 (간격 · 일치율 숫자는 앱 → 낚시) */
+    /** 아이템 사용 — 켜고 끄기 · 아이템별 켜고 끄기 · 혼자 돌리기 · 위치 (직접 지정) · 테스트 (아이템 추가 · 언제 · 조건은 앱 → 아이템 사용) */
     void pageItems(LinearLayout m) {
         ItemUser.Cfg c = Hub.items.cfg;
-        flag(m, "items:on", "오토 아이템 사용", () -> "자동 낚시 중 간격마다 1개씩", () -> c.on, () -> c.on = !c.on);
-        for (int k = 0; k < ItemUser.NAMES.length; k++) {
-            int i = k;
-            flag(m, "items:" + k, ItemUser.NAMES[k], () -> {
-                if (!c.use[i]) return Ui.tr("안 씀");
-                String every = com.acrux.mobile.core.I18n.f("{0}분마다", fmt(c.min[i]));
-                if (!c.on || !Hub.running() || !"run".equals(Hub.mode)) return every;
-                double left = Hub.items.left(i, ItemUser.now());
-                return every + " · " + (left <= 0 ? Ui.tr("곧 사용") : com.acrux.mobile.core.I18n.f("{0}분 뒤", fmt(Math.ceil(left / 6) / 10.0)));
-            }, () -> c.use[i], () -> c.use[i] = !c.use[i]);
+        flag(m, "items:on", "아이템 사용", () -> Ui.tr("쓸 차례가 되면 인벤토리에서 사용 · 자동 낚시 중에는 던지기 전에"), () -> c.on, () -> c.on = !c.on);
+        int k = 0;
+        for (ItemUser.Item it : Hub.items.items) {
+            flag(m, "items:" + k++, it.name.trim().isEmpty() ? "?" : it.name.trim(), () -> {
+                if (!it.on) return Ui.tr("안 씀");
+                String w = ItemUser.describe(it);
+                double left = Hub.items.left(it, ItemUser.now());
+                if (!c.on || !Hub.running() || !("run".equals(Hub.mode) || "items".equals(Hub.mode))) return w;
+                if (left < 0) return w + (it.pending ? " · " + Ui.tr("곧 사용") : "");
+                return w + " · " + (left <= 0 ? Ui.tr("곧 사용") : com.acrux.mobile.core.I18n.f("{0}분 뒤", fmt(Math.ceil(left / 6) / 10.0)));
+            }, () -> it.on, () -> it.on = !it.on);
         }
         flag(m, "items:close", "다 쓰고 인벤토리 닫기", null, () -> c.close, () -> c.close = !c.close);
-        info(m, () -> Ui.tr("간격 · 일치율 숫자는 앱 → 오토 아이템"), () -> true);
+        info(m, () -> Ui.tr("아이템 추가 · 언제 · 조건 · 일치율은 앱 → 아이템 사용"), () -> true);
+        act(m, "act:items", "아이템 사용만 시작", "자동 낚시 없이 쓸 차례를 기다렸다가 사용 · 자동 낚시 중에는 켜 두면 같이 씀", true, v -> toggle("items"));
         m.addView(section("위치 (인벤토리 → Items 를 열고 지정)"), mw());
         String[] hints = {"인벤토리를 여닫는 버튼", "인벤토리 안 Items 칸", "아이템 검색칸", "검색하면 맨 앞에 나오는 아이템 칸", "Use 옆 수량을 넣는 칸", null};
-        for (int k = 0; k < ItemUser.KEYS.length; k++) pos(m, ItemUser.KEYS[k][0], ItemUser.KEYS[k][1], hints[k]);
+        for (int i = 0; i < ItemUser.KEYS.length; i++) pos(m, ItemUser.KEYS[i][0], ItemUser.KEYS[i][1], hints[i]);
         m.addView(section("이름 읽는 칸"), mw());
         val(m, "pos:item_ocr", "이름 읽는 칸", "검색한 아이템 이름 · 개수 (x23) 가 보이는 곳 · 왼쪽 위 → 오른쪽 아래",
                 () -> Hub.pos.containsKey(ItemUser.OCR[0][0]) && Hub.pos.containsKey(ItemUser.OCR[1][0]), v -> pickItemOcr());
         m.addView(section("테스트"), mw());
-        act(m, "act:itemtest", "지금 한 번 써 보기", "인벤토리를 열고 고른 아이템을 1개씩 사용", false, v -> toggle("itemtest"));
+        act(m, "act:itemtest", "지금 한 번 써 보기", "인벤토리를 열고 켜 둔 아이템을 정한 개수만큼 사용", false, v -> toggle("itemtest"));
     }
 
     /** 이름 읽는 칸: 왼쪽 위 → 오른쪽 아래를 차례로 지정 */
@@ -1733,7 +1735,7 @@ public class TapService extends AccessibilityService {
         if (run && open) Hub.main.postDelayed(tick, 1000);
         if (status != null) Ui.set(status, !cap ? "화면 캡처 꺼짐 · 앱에서 시작" : Hub.state);
         if (runBtn != null) {
-            boolean macro = !run || "run".equals(Hub.mode);
+            boolean macro = !run || "run".equals(Hub.mode) || "items".equals(Hub.mode);
             Ui.set(runBtn, !run ? "매크로 시작" : macro ? "매크로 정지" : "정지");   // 보정 · 테스트 · 기록 중에도 [정지] 로 멈춤
             int col = run ? C_RED : C_ACC;
             if (col != runCol) {

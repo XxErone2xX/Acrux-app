@@ -45,7 +45,7 @@ final class Hub {
     static volatile double[] stick;
     static int sellMax = 100;
     static double sellDelay = 0;
-    /** 오토 아이템 사용 (설정 + 마지막으로 쓴 시각 · 앱이 켜져 있는 동안 그대로) */
+    /** 아이템 사용 (설정 · 아이템 목록 + 마지막으로 쓴 시각 · 앱이 켜져 있는 동안 그대로) */
     static final ItemUser items = new ItemUser();
 
     static final List<String> logs = new ArrayList<>();
@@ -358,9 +358,11 @@ final class Hub {
             String miss = sl.missing();
             if (miss != null) return miss;
         }
-        if (m.equals("itemtest")) {
+        if (m.equals("itemtest") || m.equals("items")) {
             String miss = ItemUser.missing(pos);
             if (miss != null) return miss;
+            if (m.equals("items") && !items.cfg.on) return "아이템 사용이 꺼져 있음 — 앱 → 아이템 사용에서 켜 주세요";
+            if (m.equals("items")) items.onStart();
         }
         if (m.equals("base") || m.equals("fish") || m.equals("sellgo") || m.startsWith("rec_")) {
             String miss = mv.baseMissing();
@@ -373,9 +375,9 @@ final class Hub {
             f.onStart = sl::goFish;
             zeroSells = sellSkips = 0;
             f.onFull = () -> sellOnce(sl);
-            // 던지기 전 대기 화면에서 (낚시를 끊지 않게): 디스코드 봇 서버 체크 → 오토 아이템 사용
+            // 던지기 전 대기 화면에서 (낚시를 끊지 않게): 디스코드 봇 서버 체크 → 아이템 사용 (켜져 있으면 같이 돎)
             f.onIdle = () -> psAtIdle(sl, f) || itemsAtIdle(mv);
-            items.retryAt = 0;
+            items.onStart();
             if (items.cfg.on && ItemUser.missing(pos) != null) log(ItemUser.missing(pos), 'y');
         }
         TapService ts = TapService.instance;
@@ -644,7 +646,7 @@ final class Hub {
     /** 자동 낚시의 던지기 전 대기 화면: 쓸 차례인 아이템이 있으면 사용 → 했는지 (그동안 낚시는 쉼) */
     static boolean itemsAtIdle(Mover mv) {
         double t = ItemUser.now();
-        List<Integer> keys = items.due(t);
+        List<ItemUser.Item> keys = items.due(t, Biome.current);
         if (keys.isEmpty()) return false;
         if (ItemUser.missing(pos) != null) {
             items.retryAt = t + 60;
@@ -659,15 +661,100 @@ final class Hub {
             throw e;
         } catch (RuntimeException e) {
             items.retryAt = ItemUser.now() + 60;
-            log("오토 아이템 오류: " + e.getMessage() + " — 1분 뒤 다시 시도", 'y');
+            log("아이템 사용 오류: " + e.getMessage() + " — 1분 뒤 다시 시도", 'y');
         } finally {
             OUT.state(was);
         }
         return true;
     }
 
+    /** 아이템 목록 불러오기 (it_items) · 없으면 예전 설정 (Strange Controller · Biome Randomizer 켜기 · 간격) 에서 옮김 */
+    static void loadItems(SharedPreferences p) {
+        String js = p.getString("it_items", null);
+        java.util.Map<String, ItemUser.Item> old = new java.util.HashMap<>();
+        for (ItemUser.Item it : items.items) old.put(it.name, it);
+        items.items.clear();
+        if (js != null) {
+            try {
+                org.json.JSONArray a = new org.json.JSONArray(js);
+                for (int i = 0; i < a.length(); i++) {
+                    org.json.JSONObject o = a.getJSONObject(i);
+                    ItemUser.Item it = new ItemUser.Item();
+                    it.name = o.optString("name", "");
+                    it.on = o.optBoolean("on", true);
+                    it.amount = Math.max(1, Math.min(99, o.optInt("amount", 1)));
+                    it.trigger = o.optString("trigger", ItemUser.EVERY);
+                    if (!java.util.Arrays.asList(ItemUser.TRIGGERS).contains(it.trigger)) it.trigger = ItemUser.EVERY;   // 없어진 종류 → 몇 분마다
+                    it.min = Math.max(0.1, o.optDouble("min", 10));
+                    strs(o.optJSONArray("biomes"), it.biomes);
+                    strs(o.optJSONArray("only"), it.only);
+                    strs(o.optJSONArray("not"), it.not);
+                    ItemUser.Item was = old.get(it.name);                // 다시 불러와도 마지막으로 쓴 시각은 그대로
+                    if (was != null) {
+                        it.last = was.last;
+                        it.used = was.used;
+                        it.pending = was.pending;
+                    }
+                    items.items.add(it);
+                }
+                return;
+            } catch (org.json.JSONException ignored) {
+            }
+        }
+        items.defaults();
+        items.items.get(0).on = p.getBoolean("it_strange", true);
+        items.items.get(0).min = num(p, "it_strange_min", 10.5);
+        items.items.get(1).on = p.getBoolean("it_random", true);
+        items.items.get(1).min = num(p, "it_random_min", 18.0);
+    }
+
+    static void strs(org.json.JSONArray a, java.util.Set<String> out) {
+        out.clear();
+        if (a == null) return;
+        for (int i = 0; i < a.length(); i++) {
+            String v = a.optString(i, "").trim();
+            if (!v.isEmpty()) out.add(v);
+        }
+    }
+
+    static String itemsJson() {
+        org.json.JSONArray a = new org.json.JSONArray();
+        try {
+            for (ItemUser.Item it : items.items) {
+                org.json.JSONObject o = new org.json.JSONObject();
+                o.put("name", it.name).put("on", it.on).put("amount", it.amount).put("trigger", it.trigger).put("min", it.min)
+                        .put("biomes", new org.json.JSONArray(it.biomes)).put("only", new org.json.JSONArray(it.only)).put("not", new org.json.JSONArray(it.not));
+                a.put(o);
+            }
+        } catch (org.json.JSONException ignored) {
+        }
+        return a.toString();
+    }
+
+    /** 아이템 사용만 (자동 낚시 없이): 1초마다 쓸 차례인 아이템을 확인 → 로블록스가 맨 앞이면 사용 · 멈출 때까지 */
+    static void itemsLoop(Mover mv) {
+        log("아이템 사용 시작 — 쓸 차례가 되면 사용 (멈추려면 [정지])", 'g');
+        while (true) {
+            CHECK.run();
+            double t = ItemUser.now();
+            if (!itemsAtIdle(mv)) {
+                double next = -1;
+                for (ItemUser.Item it : items.items) {
+                    if (!it.on) continue;
+                    double l = items.left(it, t);
+                    if (l >= 0 && (next < 0 || l < next)) next = l;
+                }
+                OUT.state(next < 0 ? "아이템 사용: 조건 기다리는 중" : "아이템 사용: 다음 " + (int) Math.ceil(next / 60) + "분 뒤");
+                for (int i = 0; i < 10; i++) {                      // 1초 쉼 (멈춤은 바로)
+                    CHECK.run();
+                    Touch.nap(100);
+                }
+            }
+        }
+    }
+
     /**
-     * 오토 아이템: 키보드가 뜬 입력칸에 글자 넣기 + 엔터 (clear: 원래 글자를 지우고)
+     * 아이템 사용: 키보드가 뜬 입력칸에 글자 넣기 + 엔터 (clear: 원래 글자를 지우고)
      *  ① 접근성으로 입력칸 글자를 바로 바꿈 (키보드가 뜰 때까지 1.2초 기다림) ② 안 되면 무선 디버깅 (input text · 엔터 키)
      */
     static boolean typeText(String text, boolean clear) {
@@ -923,17 +1010,23 @@ final class Hub {
             log("판매 테스트: " + sold + "종류 판매", 'g');
             endNote = "판매 테스트: " + sold + "종류 판매";
         } else if (m.equals("itemtest")) {
-            // 테스트: 쿨타임 · 켜짐과 상관없이 지금 바로 (고른 아이템 · 하나도 안 골랐으면 둘 다)
+            // 테스트: 언제 · 조건 · 켜짐과 상관없이 지금 바로 (켜 둔 아이템 · 하나도 안 켰으면 전부)
             if (!TapService.robloxFront()) throw new RuntimeException("로블록스가 맨 앞에 없음 — 테스트 안 함");
-            List<Integer> keys = new ArrayList<>();
-            for (int k = 0; k < ItemUser.NAMES.length; k++) if (items.cfg.use[k]) keys.add(k);
-            if (keys.isEmpty()) for (int k = 0; k < ItemUser.NAMES.length; k++) keys.add(k);
+            List<ItemUser.Item> keys = new ArrayList<>();
+            for (ItemUser.Item it : items.items) if (it.on && !it.name.trim().isEmpty()) keys.add(it);
+            if (keys.isEmpty()) for (ItemUser.Item it : items.items) if (!it.name.trim().isEmpty()) keys.add(it);
+            if (keys.isEmpty()) throw new RuntimeException("쓸 아이템이 없음 — 앱 → 아이템 사용에서 아이템을 추가해 주세요");
             double retry = items.retryAt;
+            double[] lasts = new double[keys.size()];
+            for (int i = 0; i < keys.size(); i++) lasts[i] = keys.get(i).last;
             int n = items.run(keys, mv, new MlOcr(), pos, Hub::typeText, OUT, true);
-            items.retryAt = retry;                                 // 테스트 결과로 자동 낚시 중 다음 시도를 미루지 않음
+            items.retryAt = retry;                                 // 테스트 결과로 다음 시도를 미루지 않음
+            for (int i = 0; i < keys.size(); i++) keys.get(i).last = lasts[i];   // 테스트는 "몇 분마다" 시간도 안 건드림
             endWarn = n < keys.size();
-            endNote = "오토 아이템 테스트: " + n + " / " + keys.size() + "개 사용";
+            endNote = "아이템 사용 테스트: " + n + " / " + keys.size() + "개 사용";
             log(endNote, endWarn ? 'y' : 'g');
+        } else if (m.equals("items")) {
+            itemsLoop(mv);
         } else if (m.equals("base")) {
             mv.goBase();
             log("기준 장소 도착", 'g');
@@ -1121,10 +1214,7 @@ final class Hub {
         sellDelay = num(p, "sellDelay", 0);
         ItemUser.Cfg ic = items.cfg;
         ic.on = p.getBoolean("it_on", false);
-        ic.use[0] = p.getBoolean("it_strange", true);
-        ic.use[1] = p.getBoolean("it_random", true);
-        ic.min[0] = num(p, "it_strange_min", 10.5);
-        ic.min[1] = num(p, "it_random_min", 18.0);
+        loadItems(p);
         ic.close = p.getBoolean("it_close", true);
         ic.match = num(p, "it_match", 70);
         BugReport.on = p.getBoolean("bug_on", true);
@@ -1173,8 +1263,7 @@ final class Hub {
                 .putInt("reelSpot", cfg.reelSpot).remove("closeLearn")              // 1.8.5: 결과창 X 자리 기억 없앰 (예전 값 지움)
                 .putBoolean("autoUpdate", autoUpdate)
                 .putInt("sellMax", sellMax).putFloat("sellDelay", (float) sellDelay)
-                .putBoolean("it_on", items.cfg.on).putBoolean("it_strange", items.cfg.use[0]).putBoolean("it_random", items.cfg.use[1])
-                .putFloat("it_strange_min", (float) items.cfg.min[0]).putFloat("it_random_min", (float) items.cfg.min[1])
+                .putBoolean("it_on", items.cfg.on).putString("it_items", itemsJson())
                 .putBoolean("it_close", items.cfg.close).putFloat("it_match", (float) items.cfg.match)
                 .putBoolean("bug_on", BugReport.on).putBoolean("bug_clip", BugReport.clip)
                 .putFloat("m_reset_wait", (float) move.resetWait)

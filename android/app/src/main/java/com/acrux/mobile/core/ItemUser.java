@@ -10,10 +10,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 오토 아이템 사용 — PC 버전 popping.py 의 ItemUser 를 그대로 옮김
+ * 아이템 사용 — PC 버전 popping.py 의 ItemUser 를 옮기고 직접 만드는 아이템 · 조건을 더함
  *   Inventory → Items → (아이템마다: Search → 이름 입력 + 엔터 → 글자 읽기로 이름 확인 (일치율 · 1번 더 시도)
- *   → 아이템 칸 → 수량칸 → 1 입력 + 엔터 → Use) → Inventory 닫기
- * 간격마다 1개씩 · 하나도 못 쓰면 1분 뒤 다시 · 자동 낚시가 던지기 전 대기 화면일 때 (낚시를 끊지 않게)
+ *   → 아이템 칸 → 수량칸 → 개수 입력 + 엔터 → Use) → Inventory 닫기
+ * 아이템마다 "언제" (몇 분마다 · 바이옴이 되면 · 바이옴이 바뀌면 · 시작할 때) + "조건" (이 바이옴일 때만 · 이 바이옴이 아닐 때만)
+ * 하나도 못 쓰면 1분 뒤 다시 · 자동 낚시와 같이 돌면 던지기 전 대기 화면에서 (낚시를 끊지 않게) · 혼자서도 돌 수 있음
  * 위치는 플레이어가 직접 지정 · 글자 넣기는 접근성 (안 되면 무선 디버깅)
  */
 public final class ItemUser {
@@ -21,22 +22,47 @@ public final class ItemUser {
             {"item_search_pos", "Search 버튼"}, {"item_slot_pos", "아이템 칸"}, {"item_amount_pos", "수량 입력칸"}, {"item_use_pos", "Use 버튼"}};
     /** 아이템 이름을 읽는 칸 (두 모서리) */
     public static final String[][] OCR = {{"item_ocr_a", "이름 읽는 칸 왼쪽 위"}, {"item_ocr_b", "이름 읽는 칸 오른쪽 아래"}};
-    public static final String[] NAMES = {"Strange Controller", "Biome Randomizer"};
     static final double RETRY = 60;
     // PC 의 DELAY_DEFAULT 와 같음 (초)
     static final double D_INVENTORY = 0.5, D_ITEMS = 0.5, D_SEARCH = 0.5, D_TYPING = 0.5, D_ITEM_CLICK = 0.35, D_AFTER_DBL = 0.5, D_AFTER_ENTER = 0.35;
+
+    /** "언제" 종류 */
+    public static final String EVERY = "every", BIOME = "biome", BIOME_CHANGE = "biomeChange", START = "start";
+    public static final String[] TRIGGERS = {EVERY, BIOME, BIOME_CHANGE, START};
 
     /** 지금 입력칸에 글자를 넣음 (clear: 원래 글자를 지우고) + 엔터 → 됐는지 */
     public interface Typer {
         boolean type(String text, boolean clear);
     }
 
+    /** 쓸 아이템 하나 (플레이어가 만듦 · 기본: Strange Controller · Biome Randomizer) */
+    public static final class Item {
+        public String name = "";
+        public boolean on = true;
+        /** 한 번에 쓰는 개수 */
+        public int amount = 1;
+        /** 언제: every (min 분마다) · biome (biomes 중 하나가 되면) · biomeChange (바이옴이 바뀌면) · start (시작할 때) */
+        public String trigger = EVERY;
+        public double min = 10;
+        public final java.util.LinkedHashSet<String> biomes = new java.util.LinkedHashSet<>();
+        /** 조건: 이 바이옴일 때만 (비면 상관없음) · 이 바이옴이 아닐 때만 */
+        public final java.util.LinkedHashSet<String> only = new java.util.LinkedHashSet<>(), not = new java.util.LinkedHashSet<>();
+        // ---- 상태 (저장 안 함)
+        /** 마지막으로 쓴 시각 (초 · 0 = 켜면 바로 한 번) · 이번에 쓴 횟수 · 일이 생겨서 쓸 차례 (바이옴 · 시작) */
+        public double last;
+        public int used;
+        public boolean pending;
+
+        public static Item of(String name, double min) {
+            Item it = new Item();
+            it.name = name;
+            it.min = min;
+            return it;
+        }
+    }
+
     public static final class Cfg {
         public boolean on = false;
-        /** Strange Controller · Biome Randomizer 사용 */
-        public final boolean[] use = {true, true};
-        /** 간격 (분) — PC 와 같음 */
-        public final double[] min = {10.5, 18.0};
         /** 다 쓰고 Inventory 버튼을 한 번 더 눌러 닫기 */
         public boolean close = true;
         /** 이름 일치율 (%) */
@@ -44,12 +70,18 @@ public final class ItemUser {
     }
 
     public final Cfg cfg = new Cfg();
-    /** 마지막으로 쓴 시각 (초 · 0 = 켜면 바로 한 번 씀) · 이번에 앱을 켠 뒤 쓴 횟수 */
-    public final double[] last = {0, 0};
-    public final int[] used = {0, 0};
+    /** 쓸 아이템 목록 (순서대로 씀) */
+    public final List<Item> items = new java.util.concurrent.CopyOnWriteArrayList<>();
     public double retryAt = 0;
     /** 위치가 덜 됐다고 알린 시각 (자주 안 알리게) */
     double missLogAt = -1e9;
+
+    /** 처음 켤 때 기본 아이템 (PC 와 같은 간격 · 바꿀 수 있음) */
+    public void defaults() {
+        items.clear();
+        items.add(Item.of("Strange Controller", 10.5));
+        items.add(Item.of("Biome Randomizer", 18));
+    }
 
     public static double now() {
         return System.currentTimeMillis() / 1000.0;
@@ -60,7 +92,7 @@ public final class ItemUser {
         List<String> miss = new ArrayList<>();
         for (String[] k : KEYS) if (!pos.containsKey(k[0])) miss.add(k[1]);
         if (!pos.containsKey(OCR[0][0]) || !pos.containsKey(OCR[1][0])) miss.add("이름 읽는 칸");
-        return miss.isEmpty() ? null : "오토 아이템 위치 지정 필요: " + String.join(", ", miss) + " (Acrux 창 → 오토 아이템)";
+        return miss.isEmpty() ? null : "아이템 사용 위치 지정 필요: " + String.join(", ", miss) + " (Acrux 창 → 아이템 사용)";
     }
 
     public static int saved(Map<String, double[]> pos) {
@@ -70,28 +102,77 @@ public final class ItemUser {
         return n;
     }
 
-    /** 지금 쓸 차례인 아이템 (NAMES 번호) */
-    public List<Integer> due(double t) {
-        List<Integer> out = new ArrayList<>();
+    // ---------------------------------------------------------------- 언제 · 조건
+
+    /** 조건 (이 바이옴일 때만 · 아닐 때만) 이 맞는지 — 바이옴을 모르면 "일 때만" 은 안 맞음 */
+    public static boolean allowed(Item it, String biome) {
+        if (!it.only.isEmpty() && (biome == null || !it.only.contains(biome))) return false;
+        return biome == null || !it.not.contains(biome);
+    }
+
+    /** 지금 쓸 차례인 아이템 (biome: 지금 바이옴 · 모르면 null) */
+    public List<Item> due(double t, String biome) {
+        List<Item> out = new ArrayList<>();
         if (!cfg.on || t < retryAt) return out;
-        for (int k = 0; k < NAMES.length; k++) if (cfg.use[k] && t - last[k] >= cfg.min[k] * 60) out.add(k);
+        for (Item it : items) {
+            if (!it.on || it.name.trim().isEmpty() || !allowed(it, biome)) continue;
+            if (EVERY.equals(it.trigger) ? t - it.last >= Math.max(0.1, it.min) * 60 : it.pending) out.add(it);
+        }
         return out;
     }
 
-    /** 다음에 쓰기까지 남은 초 */
-    public double left(int k, double t) {
-        return Math.max(0, Math.max(last[k] + cfg.min[k] * 60, retryAt) - t);
+    /** 다음에 쓰기까지 남은 초 (몇 분마다만 · 나머지는 -1) */
+    public double left(Item it, double t) {
+        if (!EVERY.equals(it.trigger)) return -1;
+        return Math.max(0, Math.max(it.last + Math.max(0.1, it.min) * 60, retryAt) - t);
     }
 
-    /** 위치가 덜 됐을 때 자동 낚시 중에는 5분에 한 번만 알림 */
+    /** 바이옴이 바뀜 (Biome 감시) — 그 바이옴이 되면 쓰는 아이템은 차례 · 그 바이옴이 끝났으면 안 쓴 차례는 없앰 */
+    public void onBiome(String prev, String now) {
+        if (now == null || now.equals(prev)) return;
+        for (Item it : items) {
+            if (BIOME.equals(it.trigger)) it.pending = it.biomes.contains(now);
+            else if (BIOME_CHANGE.equals(it.trigger) && prev != null) it.pending = true;
+        }
+    }
+
+    /** 아이템 사용 · 자동 낚시를 시작할 때 */
+    public void onStart() {
+        retryAt = 0;
+        for (Item it : items) if (START.equals(it.trigger)) it.pending = true;
+    }
+
+    /** 사람이 읽는 "언제 · 조건" 한 줄 (지금 언어로) */
+    public static String describe(Item it) {
+        String w;
+        switch (it.trigger) {
+            case BIOME:
+                w = I18n.f("{0} 이 되면", it.biomes.isEmpty() ? "?" : String.join(", ", it.biomes));
+                break;
+            case BIOME_CHANGE:
+                w = I18n.t("바이옴이 바뀌면");
+                break;
+            case START:
+                w = I18n.t("시작할 때");
+                break;
+            default:
+                w = I18n.f("{0}분마다", fmt(it.min));
+        }
+        if (it.amount > 1) w += " · " + I18n.f("{0}개", it.amount);
+        if (!it.only.isEmpty()) w += " · " + I18n.f("{0} 일 때만", String.join(", ", it.only));
+        if (!it.not.isEmpty()) w += " · " + I18n.f("{0} 아닐 때", String.join(", ", it.not));
+        return w;
+    }
+
+    /** 위치가 덜 됐을 때 자동으로 돌 때는 5분에 한 번만 알림 */
     public boolean missLogDue(double t) {
         if (t - missLogAt < 300) return false;
         missLogAt = t;
         return true;
     }
 
-    /** keys 아이템을 하나씩 사용 → 쓴 개수 (멈추면 Fisher.Stopped) */
-    public int run(List<Integer> keys, Mover mv, Mover.Ocr ocr, Map<String, double[]> pos, Typer typer, Fisher.Out out, boolean test) {
+    /** 아이템들을 하나씩 사용 → 쓴 개수 (멈추면 Fisher.Stopped) */
+    public int run(List<Item> list, Mover mv, Mover.Ocr ocr, Map<String, double[]> pos, Typer typer, Fisher.Out out, boolean test) {
         String miss = missing(pos);
         if (miss != null) {
             retryAt = now() + RETRY;
@@ -99,9 +180,9 @@ public final class ItemUser {
             return 0;
         }
         List<String> names = new ArrayList<>();
-        for (int k : keys) names.add(NAMES[k]);
-        out.log((test ? "오토 아이템 사용 테스트 — " : "오토 아이템 사용 — ") + String.join(", ", names), 'd');
-        out.state("오토 아이템: Inventory 열기");
+        for (Item it : list) names.add(it.name.trim());
+        out.log((test ? "아이템 사용 테스트 — " : "아이템 사용 — ") + String.join(", ", names), 'd');
+        out.state("아이템 사용: Inventory 열기");
         mv.tapUi(pos.get("item_inventory_pos"));
         mv.sleep(D_INVENTORY);
         mv.tapUi(pos.get("item_items_pos"));
@@ -109,26 +190,27 @@ public final class ItemUser {
         int ok = 0;
         boolean noInput = false;
         try {
-            for (int k : keys) {
-                if (useOne(NAMES[k], mv, ocr, pos, typer, out)) {
-                    last[k] = now();
-                    used[k]++;
+            for (Item it : list) {
+                if (useOne(it.name.trim(), Math.max(1, it.amount), mv, ocr, pos, typer, out)) {
+                    it.last = now();
+                    it.used++;
+                    it.pending = false;
                     ok++;
                 }
                 mv.sleep(D_AFTER_ENTER);
             }
         } catch (NoInput e) {
             noInput = true;
-            out.log("오토 아이템: 검색칸에 글자를 못 넣음 — 무선 디버깅을 연결하면 그걸로 입력함 (앱 → 바이옴 → 무선 디버깅 연결) · 5분 뒤 다시 시도", 'y');
+            out.log("아이템 사용: 검색칸에 글자를 못 넣음 — 무선 디버깅을 연결하면 그걸로 입력함 (앱 → 바이옴 → 무선 디버깅 연결) · 5분 뒤 다시 시도", 'y');
         }
         if (noInput) {
             retryAt = now() + 5 * RETRY;                           // 글자를 못 넣으면 5분 뒤 다시 (인벤토리를 1분마다 열지 않게)
         } else if (ok == 0) {
             retryAt = now() + RETRY;
-            out.log("오토 아이템 — 쓴 아이템 없음 · 1분 뒤 다시 시도", 'y');
+            out.log("아이템 사용 — 쓴 아이템 없음 · 1분 뒤 다시 시도", 'y');
         }
         if (cfg.close) {
-            out.state("오토 아이템: Inventory 닫기");
+            out.state("아이템 사용: Inventory 닫기");
             mv.tapUi(pos.get("item_inventory_pos"));
             mv.sleep(D_INVENTORY);
         }
@@ -141,12 +223,12 @@ public final class ItemUser {
         }
     }
 
-    boolean useOne(String name, Mover mv, Mover.Ocr ocr, Map<String, double[]> pos, Typer typer, Fisher.Out out) {
+    boolean useOne(String name, int amount, Mover mv, Mover.Ocr ocr, Map<String, double[]> pos, Typer typer, Fisher.Out out) {
         double th = cfg.match;
         Integer count = null;
         String text = "";
         for (int attempt = 1; attempt <= 2; attempt++) {           // 일치율 미달이면 Search 부터 1번 더
-            out.state("오토 아이템: " + name + " 검색" + (attempt == 2 ? " (다시)" : ""));
+            out.state("아이템 사용: " + name + " 검색" + (attempt == 2 ? " (다시)" : ""));
             mv.tapUi(pos.get("item_search_pos"));
             mv.sleep(D_SEARCH);
             if (!typer.type(name, true)) throw new NoInput();
@@ -176,15 +258,16 @@ public final class ItemUser {
             out.log(name + " — 없음, 건너뜀", 'y');
             return false;
         }
-        out.state("오토 아이템: " + name + " 1개 사용");
+        int use = Math.min(amount, count);                       // 가진 것보다 많이는 못 씀
+        out.state("아이템 사용: " + name + " " + use + "개 사용");
         mv.tapUi(pos.get("item_slot_pos"));
         mv.sleep(D_ITEM_CLICK);
         mv.tapUi(pos.get("item_amount_pos"));
         mv.sleep(D_AFTER_DBL);
-        if (!typer.type("1", true)) out.log("오토 아이템: 수량칸에 1 을 못 넣음 — 그대로 Use", 'd');
+        if (!typer.type(String.valueOf(use), true)) out.log("아이템 사용: 수량칸에 개수를 못 넣음 — 그대로 Use", 'd');
         mv.sleep(D_AFTER_ENTER);
         mv.tapUi(pos.get("item_use_pos"));
-        out.log(name + " 1개 사용 (보유 " + count + "개)", 'g');
+        out.log(name + " " + use + "개 사용 (보유 " + count + "개)", 'g');
         return true;
     }
 
