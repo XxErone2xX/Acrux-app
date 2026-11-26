@@ -212,8 +212,17 @@ public class TapService extends AccessibilityService {
     static boolean robloxSure() {
         String p = front;
         TapService t = instance;
-        return t != null && p != null && p.startsWith("com.roblox.") && !t.systemCover();
+        if (t == null || p == null || !p.startsWith("com.roblox.")) return false;
+        long now = android.os.SystemClock.uptimeMillis();
+        if (now - coverAt > 500) {                                // 창 목록은 0.5초에 한 번만 (클립이 초당 30장일 때도 가볍게)
+            coverAt = now;
+            covered = t.systemCover();
+        }
+        return !covered;
     }
+
+    static volatile long coverAt;
+    static volatile boolean covered;
 
     /** 시스템 창 (알림 · 내려 연 알림창) 이 화면 위쪽에 크게 떠 있음 — 상태 표시줄 · 아래 내비게이션 바처럼 얇은 건 뺌 */
     boolean systemCover() {

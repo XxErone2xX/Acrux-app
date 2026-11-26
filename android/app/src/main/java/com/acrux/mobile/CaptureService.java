@@ -225,6 +225,35 @@ public class CaptureService extends Service implements Fisher.Screen {
     }
 
     /**
+     * 버그 보고 클립 · 스크린샷: 지금 화면을 그대로 Bitmap 에 (기기 스크린샷과 같은 원본 · 복사만 해서 빠름)
+     *  · Bitmap 가로는 줄 간격 기준이라 오른쪽에 여백이 있을 수 있음 → 실제 크기는 wh · reuse 가 크기가 맞으면 다시 씀
+     */
+    synchronized android.graphics.Bitmap frame(android.graphics.Bitmap reuse, int[] wh) {
+        if (reader == null) return null;
+        fitSize();
+        acquire();
+        if (cur == null) return null;
+        try {
+            Image.Plane p = cur.getPlanes()[0];
+            int ps = p.getPixelStride(), rs = p.getRowStride(), w = cur.getWidth(), h = cur.getHeight();
+            if (ps != 4 || rs % 4 != 0) return null;
+            ByteBuffer buf = p.getBuffer().duplicate();
+            buf.rewind();
+            int bw = rs / 4, bh = Math.min(h, buf.remaining() / rs);       // 마지막 줄에 여백이 없으면 그 줄은 뺌
+            if (bh < 16) return null;
+            android.graphics.Bitmap b = reuse != null && !reuse.isRecycled() && reuse.getWidth() == bw && reuse.getHeight() == bh ? reuse
+                    : android.graphics.Bitmap.createBitmap(bw, bh, android.graphics.Bitmap.Config.ARGB_8888);
+            buf.limit(bw * bh * 4);
+            b.copyPixelsFromBuffer(buf);
+            wh[0] = Math.min(w, bw);
+            wh[1] = bh;
+            return b;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
      * 버그 보고 클립 · 스크린샷: 화면 전체를 가로 maxW 이하로 줄여서 ARGB (wh 에 가로 · 세로) · 화면이 없으면 null
      *  · 낚시 인식과 같은 화면을 잠깐만 잡음 (복사만 하고 JPEG 은 밖에서)
      */

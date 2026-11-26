@@ -1014,7 +1014,6 @@ Use 옆 수량을 넣는 칸	The amount box next to Use	Use の横の数量欄
 자동 낚시를 시작하면 사용	Used once auto fishing starts	自動釣りを開始すると使用
 로블록스가 맨 앞에 없음 — 테스트 안 함	Roblox isn't in front — test skipped	Roblox が最前面にない — テストしない
 버그 보고	Bug reports	バグ報告
-매크로가 막히면 매크로 기록 · 게임 화면 (스크린샷 · 최근 1분 클립) · 기기 이름 · 안드로이드 · 앱 버전을 개발자에게 보냄. 전화번호 같은 개인 정보는 보내지 않고, 다른 앱 화면 · 알림은 찍지 않으며 화면 위쪽은 흐리게 처리함.	When the macro gets stuck, sends the macro log · game screen (screenshot · last 1 minute clip) · device name · Android · app version to the developers. No personal info like phone numbers is sent; other apps and notifications are never captured, and the top of the screen is blurred.	マクロが止まったら、マクロの記録 · ゲーム画面 (スクリーンショット · 直近1分のクリップ) · 端末名 · Android · アプリのバージョンを開発者に送ります。電話番号などの個人情報は送らず、他のアプリ画面や通知は撮らず、画面上部はぼかします。
 버그가 나면 자동으로 보고	Report bugs automatically	バグが起きたら自動で報告
 최근 1분 클립도 같이 보내기	Also send the last 1 minute clip	直近1分のクリップも送る
 지금 버그 신고	Report a bug now	今すぐバグを報告
@@ -1080,3 +1079,24 @@ V{0} 업데이트가 필요해요	Update to V{0} required	V{0} へのアップ�
 아이템 사용 시작 — 쓸 차례가 되면 사용 (멈추려면 [정지])	Item use started — uses items when it's time (press [Stop] to end)	アイテム使用開始 — タイミングが来たら使用 (止めるには [停止])
 아이템 사용: 조건 기다리는 중	Item use: waiting for a condition	アイテム使用: 条件待ち
 아이템 사용: 다음 {0}분 뒤	Item use: next in {0} min	アイテム使用: 次は{0}分後
+매크로가 막히면 매크로 기록 · 게임 화면 (스크린샷 · 최근 1분 클립) · 기기 이름 · 안드로이드 · 앱 버전을 개발자에게 보냄. 전화번호 같은 개인 정보는 보내지 않고, 다른 앱 화면 · 알림은 찍지 않음.	When the macro gets stuck, sends the macro log · game screen (screenshot · last 1 minute clip) · device name · Android · app version to the developers. No personal info like phone numbers is sent, and other apps and notifications are never captured.	マクロが止まったら、マクロの記録 · ゲーム画面 (スクリーンショット · 直近1分のクリップ) · 端末名 · Android · アプリのバージョンを開発者に送ります。電話番号などの個人情報は送らず、他のアプリ画面や通知は撮りません。
+디스코드에는 지금처럼 가벼운 클립 (4fps · 가로 800) 이 올라가고, 고화질 클립은 웹사이트에만 저장됨. 화질 · FPS 를 올리면 폰이 더 뜨거워지고 매크로가 느려질 수 있음.	Discord gets the light clip (4fps · 800 wide) as before; the high-quality clip is stored only on the website. Higher quality · FPS can make the phone hotter and the macro slower.	Discord には今まで通り軽いクリップ (4fps · 横800) が上がり、高画質クリップはウェブサイトにだけ保存されます。画質 · FPS を上げるとスマホが熱くなり、マクロが遅くなることがあります。
+클립 화질	Clip quality	クリップ画質
+클립 FPS	Clip FPS	クリップFPS
+자동	Auto	自動
+낮음 (가로 800)	Low (800 wide)	低 (横800)
+보통 (가로 1280)	Medium (1280 wide)	中 (横1280)
+높음 (가로 1600)	High (1600 wide)	高 (横1600)
+최고 (원본 · 최대 2560)	Max (original · up to 2560)	最高 (原寸 · 最大2560)
+고화질 클립은 와이파이에서만 보내기	Send high-quality clips on Wi‑Fi only	高画質クリップはWi‑Fiでのみ送る
+고화질 클립 없음 (가벼운 클립만)	No high-quality clip (light clip only)	高画質クリップなし (軽いクリップのみ)
+가로 {0} · {1}fps · 1분에 약 {2}MB	{0} wide · {1}fps · about {2}MB per minute	横{0} · {1}fps · 1分で約{2}MB
+이 폰에서 고화질 녹화가 안 됨 — 가벼운 클립만	This phone can't record high quality — light clip only	このスマホでは高画質録画ができない — 軽いクリップのみ
+폰이 따라가지 못해 낮춤 → {0}	Lowered because the phone couldn't keep up → {0}	スマホが追いつかないため下げた → {0}
+가벼운 클립만	light clip only	軽いクリップのみ
+버그 보고 클립: {0}	Bug report clip: {0}	バグ報告クリップ: {0}
+버그 보고 고화질 클립을 멈춤: {0}	Stopped the high-quality bug report clip: {0}	バグ報告の高画質クリップを停止: {0}
+버그 보고 고화질 클립이 너무 커서 뺌 ({0}MB)	High-quality bug report clip too large — left out ({0}MB)	バグ報告の高画質クリップが大きすぎるので除外 ({0}MB)
+버그 보고 고화질 클립을 만들지 못함: {0}	Couldn't make the high-quality bug report clip: {0}	バグ報告の高画質クリップを作れない: {0}
+버그 보고 고화질 클립을 보냄 (#{0} · {1}MB)	Sent the high-quality bug report clip (#{0} · {1}MB)	バグ報告の高画質クリップを送信 (#{0} · {1}MB)
+버그 보고 고화질 클립을 못 보냄 ({0})	Couldn't send the high-quality bug report clip ({0})	バグ報告の高画質クリップを送れない ({0})

@@ -41,7 +41,7 @@ import java.util.List;
 public class MainActivity extends Activity {
     static final int REQ_CAPTURE = 7;
 
-    TextView accState, capState, calState, logView, runState, posView, reelInfo, itemState, itemPositions;
+    TextView accState, capState, calState, logView, runState, posView, reelInfo, itemState, itemPositions, hdPlan;
     TextView accBtn, capBtn, updState, updBtn, updNotes, updBanner, uiBtn, uiBtn2, onDot, onText;
     /** 디버깅 모드 켜기 · 끄기 (앱 맨 위 작은 것 · 설정) — 왼쪽으로 밀어서 */
     Slide dbgSw, dbgSw2;
@@ -899,6 +899,24 @@ public class MainActivity extends Activity {
         return card;
     }
 
+    /** 하나 고르기 줄 (누르면 목록) — names 는 한국어 (보일 때 번역) */
+    View choice(String title, String[] names, java.util.function.IntSupplier get, java.util.function.IntConsumer set) {
+        TextView btn = Ui.button(this, Ui.tr(names[Math.max(0, Math.min(names.length - 1, get.getAsInt()))]), Ui.MUTED, null);
+        btn.setOnClickListener(v -> {
+            android.widget.PopupMenu pm = new android.widget.PopupMenu(this, btn);
+            for (int i = 0; i < names.length; i++) pm.getMenu().add(0, i, i, Ui.tr(names[i]));
+            pm.setOnMenuItemClickListener(mi -> {
+                set.accept(mi.getItemId());
+                btn.setText(Ui.tr(names[mi.getItemId()]));
+                Hub.save();
+                Hub.changed();
+                return true;
+            });
+            pm.show();
+        });
+        return row(title, "", null, btn);
+    }
+
     /** 바이옴 여러 개 고르기 줄 (누르면 목록 창) */
     View biomePick(String title, String none, java.util.Set<String> set) {
         TextView val = Ui.text(this, biomeList(set, none), 12, set.isEmpty() ? Ui.MUTED : Ui.FG, false);
@@ -1311,10 +1329,23 @@ public class MainActivity extends Activity {
 
         // 버그 보고 — BugReport
         LinearLayout bug = section(pg, "버그 보고");
-        bug.addView(Ui.text(this, "매크로가 막히면 매크로 기록 · 게임 화면 (스크린샷 · 최근 1분 클립) · 기기 이름 · 안드로이드 · 앱 버전을 개발자에게 보냄. 전화번호 같은 개인 정보는 보내지 않고, 다른 앱 화면 · 알림은 찍지 않으며 화면 위쪽은 흐리게 처리함.",
+        bug.addView(Ui.text(this, "매크로가 막히면 매크로 기록 · 게임 화면 (스크린샷 · 최근 1분 클립) · 기기 이름 · 안드로이드 · 앱 버전을 개발자에게 보냄. 전화번호 같은 개인 정보는 보내지 않고, 다른 앱 화면 · 알림은 찍지 않음.",
                 12, Ui.MUTED, false), Ui.fill(this, 8));
         bug.addView(sw("버그가 나면 자동으로 보고", BugReport.on, v -> BugReport.on = v), Ui.fill(this, 6));
         bug.addView(sw("최근 1분 클립도 같이 보내기", BugReport.clip, v -> BugReport.clip = v), Ui.fill(this, 8));
+        // 고화질 클립 (웹사이트용) — 화질 · FPS 는 자동 (폰 성능) 또는 직접 · 디스코드엔 늘 가벼운 클립
+        bug.addView(Ui.text(this, "디스코드에는 지금처럼 가벼운 클립 (4fps · 가로 800) 이 올라가고, 고화질 클립은 웹사이트에만 저장됨. 화질 · FPS 를 올리면 폰이 더 뜨거워지고 매크로가 느려질 수 있음.",
+                12, Ui.MUTED, false), Ui.fill(this, 4));
+        hdPlan = Ui.text(this, "", 12, Ui.FG, false);
+        bug.addView(choice("클립 화질", HdClip.QUALITY_NAMES, () -> HdClip.quality, i -> HdClip.quality = i), Ui.fill(this, 8));
+        String[] fpsNames = new String[HdClip.FPS_CHOICES.length];
+        for (int i = 0; i < fpsNames.length; i++) fpsNames[i] = HdClip.FPS_CHOICES[i] == 0 ? "자동" : HdClip.FPS_CHOICES[i] + "fps";
+        bug.addView(choice("클립 FPS", fpsNames, () -> {
+            for (int i = 0; i < HdClip.FPS_CHOICES.length; i++) if (HdClip.FPS_CHOICES[i] == HdClip.fps) return i;
+            return 0;
+        }, i -> HdClip.fps = HdClip.FPS_CHOICES[i]), Ui.fill(this, 6));
+        bug.addView(hdPlan, Ui.fill(this, 6));
+        bug.addView(sw("고화질 클립은 와이파이에서만 보내기", HdClip.wifiOnly, v -> HdClip.wifiOnly = v), Ui.fill(this, 8));
         LinearLayout.LayoutParams bbp = Ui.wrap();
         bbp.topMargin = Ui.dp(this, 4);
         bug.addView(Ui.button(this, "지금 버그 신고", Ui.ACCENT, v -> {
@@ -1673,6 +1704,7 @@ public class MainActivity extends Activity {
         route(ps, Ui.tr("판매 장소 길"), Hub.sellRoute);
         posView.setText(ps.toString().trim());
         showItems();
+        if (hdPlan != null) hdPlan.setText(HdClip.plan());
 
         if (current >= 0 && "log".equals(pages.get(current).key)) refreshLogs();
     }

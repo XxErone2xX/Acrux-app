@@ -34,8 +34,9 @@ import java.util.concurrent.Executors;
 /**
  * 버그 보고 — 매크로가 막히면 (또는 직접 신고) 기록 · 스크린샷 · 최근 1분 클립을 acruxmacro.com 으로 보냄
  *  · 앱에는 웹후크 · 토큰이 없음 (웹사이트가 받아서 개발자 탭 · 봇이 디스코드 채널에 올림)
- *  · 클립: 매크로가 돌고 로블록스가 맨 앞일 때만 초당 4장을 작게 (가로 800) JPEG 로 1분치만 들고 있다가 → 보낼 때 MP4 로 만듦
- *  · 화면 위쪽 (알림이 뜰 수 있는 곳) 은 모자이크 · 기록의 웹후크 주소 · 전화번호 · 이메일 · IP 는 지움
+ *  · 가벼운 클립 (디스코드용): 매크로가 돌고 로블록스가 맨 앞일 때만 초당 4장을 작게 (가로 800) JPEG 로 1분치 → 보낼 때 MP4
+ *  · 고화질 클립 (웹사이트용): HdClip — 화질 · FPS 는 자동 (폰 성능) 또는 직접 · 따로 올림 (와이파이에서만 · 설정)
+ *  · 스크린샷: 기기 스크린샷처럼 원본 크기 PNG · 알림이 화면을 덮고 있으면 안 찍음 · 기록의 웹후크 주소 · 전화번호 · 이메일 · IP 는 지움
  *  · 무엇이든 실패하면 조용히 넘어감 (매크로에 영향 없게) · 못 보낸 건 최대 3개까지 두고 나중에 다시
  */
 final class BugReport {
@@ -46,10 +47,10 @@ final class BugReport {
     static volatile boolean on = true, clip = true;
 
     static final int FPS = 4, CLIP_SEC = 60, FRAME_W = 800;
-    /** 화면 위쪽 이 비율만큼 모자이크 (알림 · 상태 표시줄) */
-    static final double TOP_BLUR = 0.16;
     static final long AUTO_GAP_MS = 5 * 60_000L, SAME_GAP_MS = 30 * 60_000L, MANUAL_GAP_MS = 60_000L;
     static final int AUTO_PER_DAY = 12, MAX_PENDING = 3;
+    /** 웹사이트가 받는 고화질 클립 한도 (100MB) 안 */
+    static final long HD_MAX = 95L << 20;
 
     static final class Frame {
         final long t;
@@ -98,15 +99,50 @@ final class BugReport {
     // ---------------------------------------------------------------- 1분 클립 (화면 → 작은 JPEG)
 
     static void sampleLoop() {
-        long period = 1000 / FPS;
+        Bitmap full = null, small = null;
+        int[] wh = new int[2];
+        android.graphics.Canvas sc = null;
+        android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG);
+        long lastLite = 0, idleSince = 0;
         while (true) {
             long t0 = SystemClock.uptimeMillis();
+            int[] hd = null;
+            long period = 1000 / FPS;
             try {
+                hd = on && clip ? HdClip.target() : null;
+                if (hd != null) period = Math.max(20, 1000 / Math.max(FPS, hd[1]));
                 CaptureService cap = CaptureService.active;
                 if (on && clip && cap != null && Hub.running() && TapService.robloxSure()) {      // 매크로가 돌 때만 (배터리)
-                    Frame f = grab(cap, FRAME_W, 55);
-                    if (f != null) synchronized (ring) {
-                        ring.addLast(f);
+                    idleSince = 0;
+                    full = cap.frame(full, wh);                      // 화면을 한 번만 복사해서 둘 다 씀
+                    if (full != null) {
+                        if (hd != null) HdClip.feed(full, wh[0], wh[1], hd);
+                        else HdClip.stop();
+                        if (t0 - lastLite >= 1000 / FPS - 20) {
+                            lastLite = t0;
+                            int lw = Math.min(FRAME_W, wh[0]), lh = (int) Math.round((double) wh[1] * lw / wh[0]);
+                            if (small == null || small.getWidth() != lw || small.getHeight() != lh) {
+                                if (small != null) small.recycle();
+                                small = Bitmap.createBitmap(lw, lh, Bitmap.Config.ARGB_8888);
+                                sc = new android.graphics.Canvas(small);
+                            }
+                            sc.drawBitmap(full, new android.graphics.Rect(0, 0, wh[0], wh[1]), new android.graphics.Rect(0, 0, lw, lh), paint);
+                            ByteArrayOutputStream o = new ByteArrayOutputStream(64 * 1024);
+                            small.compress(Bitmap.CompressFormat.JPEG, 55, o);
+                            Frame f = new Frame(SystemClock.uptimeMillis(), lw, lh, o.toByteArray());
+                            synchronized (ring) {
+                                ring.addLast(f);
+                            }
+                        }
+                    }
+                } else {
+                    if (idleSince == 0) idleSince = t0;
+                    else if (t0 - idleSince > 60_000L) {          // 1분 넘게 쉼 → 고화질 녹화 · 화면 복사본 내려놓기 (메모리)
+                        HdClip.stop();
+                        if (full != null) {
+                            full.recycle();
+                            full = null;
+                        }
                     }
                 }
                 synchronized (ring) {
@@ -114,56 +150,36 @@ final class BugReport {
                     while (!ring.isEmpty() && ring.peekFirst().t < keep) ring.pollFirst();
                     if (!on || !clip) ring.clear();
                 }
+                if (!on || !clip) HdClip.stop();
                 if (t0 - lastRetry > 10 * 60_000L && hasPending()) {
                     lastRetry = t0;
                     SEND.execute(BugReport::flush);
                 }
             } catch (Throwable ignored) {                 // 클립은 덤 — 무슨 일이 있어도 매크로엔 영향 없게
             }
-            long wait = period - (SystemClock.uptimeMillis() - t0);
+            long work = SystemClock.uptimeMillis() - t0;
+            if (hd != null) HdClip.load(work, period, t0);
             try {
-                Thread.sleep(Math.max(40, wait));
+                Thread.sleep(Math.max(hd != null ? 5 : 40, period - work));
             } catch (InterruptedException e) {
                 return;
             }
         }
     }
 
-    /** 지금 화면을 가로 maxW 이하로 줄여서 (위쪽 모자이크) JPEG */
-    static Frame grab(CaptureService cap, int maxW, int quality) {
+    /** 기기 스크린샷처럼: 원본 크기 PNG (화면 그대로 · 손실 없음) */
+    static byte[] screenshot(CaptureService cap) {
         int[] wh = new int[2];
-        int[] px = cap.sample(maxW, wh);
-        if (px == null) return null;
-        Bitmap b = Bitmap.createBitmap(wh[0], wh[1], Bitmap.Config.ARGB_8888);
+        Bitmap full = cap.frame(null, wh);
+        if (full == null) return null;
+        Bitmap b = wh[0] == full.getWidth() ? full : Bitmap.createBitmap(full, 0, 0, wh[0], wh[1]);
         try {
-            blurTop(px, wh[0], wh[1]);
-            b.setPixels(px, 0, wh[0], 0, 0, wh[0], wh[1]);
-            ByteArrayOutputStream o = new ByteArrayOutputStream(64 * 1024);
-            b.compress(Bitmap.CompressFormat.JPEG, quality, o);
-            return new Frame(SystemClock.uptimeMillis(), wh[0], wh[1], o.toByteArray());
+            ByteArrayOutputStream o = new ByteArrayOutputStream(4 << 20);
+            b.compress(Bitmap.CompressFormat.PNG, 100, o);
+            return o.toByteArray();
         } finally {
-            b.recycle();
-        }
-    }
-
-    /** 화면 위쪽을 큰 칸 모자이크 (알림 내용 · 상태 표시줄이 안 읽히게) */
-    static void blurTop(int[] px, int w, int h) {
-        int band = (int) Math.ceil(h * TOP_BLUR), s = Math.max(8, w / 60);
-        for (int y0 = 0; y0 < band; y0 += s) {
-            for (int x0 = 0; x0 < w; x0 += s) {
-                int y1 = Math.min(band, y0 + s), x1 = Math.min(w, x0 + s);
-                long r = 0, g = 0, bl = 0, n = 0;
-                for (int y = y0; y < y1; y++)
-                    for (int x = x0; x < x1; x++) {
-                        int c = px[y * w + x];
-                        r += (c >> 16) & 255;
-                        g += (c >> 8) & 255;
-                        bl += c & 255;
-                        n++;
-                    }
-                int c = 0xff000000 | (int) (r / n) << 16 | (int) (g / n) << 8 | (int) (bl / n);
-                for (int y = y0; y < y1; y++) Arrays.fill(px, y * w + x0, y * w + x1, c);
-            }
+            if (b != full) b.recycle();
+            full.recycle();
         }
     }
 
@@ -179,12 +195,15 @@ final class BugReport {
     /** 자동 낚시가 막힌 줄 (PC · 모바일 공통 문구 일부) */
     static final String[] STUCK = {
             "초 동안 안 보임", "한동안 낚시가 진행되지 않음", "결과창을 닫은 뒤", "아우라 도감이 안 열림 — 아우라 도감 버튼 다시 누름 (3/3)",
-            "판매 실패", "번 눌러도 반응 없음", "끝나지 않음 — 멈춘 것으로 보고", "자동 낚시 오류", "Exit 버튼이 사라졌는데",
+            "끝나지 않음 — 멈춘 것으로 보고", "자동 낚시 오류", "Exit 버튼이 사라졌는데",
             "연속 실패", "낚시 장소로 다시 감 —", "서버 체크 오류", "내 서버로 복귀 오류", "낚시 장소 복구 실패",
             "확인창 Sell 을 눌러도 안 닫힘", "상점이 안 열림", "아우라 도감 [Exit] 가 씹힘 — 다시 누름 (5/5)",
     };
 
     static boolean stuck(String msg) {
+        // 판매 실패: 마지막 시도까지 실패했을 때만 ("판매 실패 3번: …") · 중간 ("판매 실패 (1/3)") 은 다시 하는 중
+        if (msg.startsWith("판매 실패 ") && !msg.startsWith("판매 실패 (")) return true;
+        // "Fish 를 N번 눌러도 반응 없음 — 낚시 인벤토리 가득" 은 판매하러 가는 평소 흐름이라 안 셈
         for (String s : STUCK) if (msg.contains(s)) return true;
         return false;
     }
@@ -253,10 +272,30 @@ final class BugReport {
         m.put("state", state == null ? "" : state);
         m.put("device", device());
         m.put("at", System.currentTimeMillis());
-        // 스크린샷 (지금 화면 · 로블록스가 맨 앞일 때만)
+        // 스크린샷 (지금 화면 · 로블록스가 맨 앞일 때만 · 기기 스크린샷처럼 원본 PNG)
         if (cap != null && TapService.robloxSure()) {
-            Frame shot = grab(cap, 1600, 80);
-            if (shot != null) write(new File(d, "shot.jpg"), shot.jpg);
+            byte[] png = screenshot(cap);
+            if (png != null) write(new File(d, "shot.png"), png);
+        }
+        // 고화질 클립 (최근 1분 · 웹사이트용)
+        if (clip) {
+            try {
+                File hdF = new File(d, "hd.mp4");
+                int sec = HdClip.export(hdF);
+                if (sec >= 0) {
+                    m.put("hd", HdClip.describeNow());
+                    m.put("hdSec", sec);
+                    if (hdF.length() > HD_MAX) {
+                        //noinspection ResultOfMethodCallIgnored
+                        hdF.delete();
+                        Hub.log("버그 보고 고화질 클립이 너무 커서 뺌 (" + (hdF.length() >> 20) + "MB)", 'd');
+                    }
+                }
+            } catch (Throwable e) {
+                //noinspection ResultOfMethodCallIgnored
+                new File(d, "hd.mp4").delete();
+                Hub.log("버그 보고 고화질 클립을 만들지 못함: " + e, 'd');
+            }
         }
         // 클립 (최근 1분)
         if (clip && frames.size() >= 8) {
@@ -452,24 +491,45 @@ final class BugReport {
         d.delete();
     }
 
-    /** 쌓인 보고를 오래된 것부터 보냄 (SEND 스레드에서) */
+    /** 쌓인 보고를 오래된 것부터 보냄 (SEND 스레드에서) — 보고 → 고화질 클립 (따로 · 와이파이에서만 설정이면 와이파이일 때) */
     static void flush() {
         for (File d : pending()) {
-            int code = upload(d);
-            if (code == 200) {
-                delete(d);
+            File sent = new File(d, "sent.json");
+            if (!sent.exists()) {
+                int code = upload(d);
+                if (code == 400 || code == 413) {
+                    delete(d);                                 // 웹사이트가 받을 수 없는 보고 → 다시 보내도 같음
+                    lastResult = "bad";
+                    continue;
+                }
+                if (code != 200) {
+                    lastResult = code == 429 ? "rate" : "net";
+                    break;                                     // 네트워크 · 횟수 제한 → 나중에 다시
+                }
                 lastResult = "ok";
-            } else if (code == 400 || code == 413) {
-                delete(d);                                     // 웹사이트가 받을 수 없는 보고 → 다시 보내도 같음
-                lastResult = "bad";
-            } else {
-                lastResult = code == 429 ? "rate" : "net";
-                break;                                         // 네트워크 · 횟수 제한 → 나중에 다시
             }
+            File hd = new File(d, "hd.mp4");
+            if (!hd.exists()) {
+                delete(d);
+                continue;
+            }
+            if (HdClip.wifiOnly && !wifi()) continue;          // 고화질 클립은 와이파이가 될 때 (하루 안)
+            int code = uploadHd(d, hd);
+            if (code == 200 || code == 403 || code == 400 || code == 413) delete(d);   // 끝 · 열쇠 만료 · 못 받는 파일
         }
     }
 
-    /** 보고 한 건 → HTTP 코드 (0 = 연결 실패) */
+    static boolean wifi() {
+        try {
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager) Hub.app.getSystemService(android.content.Context.CONNECTIVITY_SERVICE);
+            android.net.NetworkCapabilities nc = cm.getNetworkCapabilities(cm.getActiveNetwork());
+            return nc != null && (nc.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) || nc.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET));
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /** 보고 한 건 → HTTP 코드 (0 = 연결 실패) · 받으면 sent.json 에 번호 · 고화질 클립 열쇠 */
     static int upload(File d) {
         File meta = new File(d, "meta.json");
         if (!meta.exists()) return 400;
@@ -488,8 +548,9 @@ final class BugReport {
                 part(o, b, "meta", null, null, meta);
                 File log = new File(d, "log.txt");
                 if (log.exists()) part(o, b, "log", null, null, log);
-                File shot = new File(d, "shot.jpg");
-                if (shot.exists()) part(o, b, "shot", "shot.jpg", "image/jpeg", shot);
+                File png = new File(d, "shot.png"), jpg = new File(d, "shot.jpg");
+                if (png.exists()) part(o, b, "shot", "shot.png", "image/png", png);
+                else if (jpg.exists()) part(o, b, "shot", "shot.jpg", "image/jpeg", jpg);
                 File clipF = new File(d, "clip.mp4");
                 if (clipF.exists()) part(o, b, "clip", "clip.mp4", "video/mp4", clipF);
                 o.writeBytes("--" + b + "--\r\n");
@@ -497,9 +558,42 @@ final class BugReport {
             int code = c.getResponseCode();
             String body = read(code < 400 ? c.getInputStream() : c.getErrorStream());
             if (code == 200) {
-                String id = new JSONObject(body).optString("id", "");
+                JSONObject r = new JSONObject(body);
+                String id = r.optString("id", "");
+                write(new File(d, "sent.json"), r.toString().getBytes(StandardCharsets.UTF_8));
                 Hub.log("버그 보고를 보냄" + (id.isEmpty() ? "" : " (#" + id + ")"), 'd');
             } else Hub.log("버그 보고를 못 보냄 (" + code + ")", 'd');
+            return code;
+        } catch (Exception e) {
+            return 0;
+        } finally {
+            if (c != null) c.disconnect();
+        }
+    }
+
+    /** 고화질 클립 (PUT · 받은 번호 · 열쇠로) → HTTP 코드 */
+    static int uploadHd(File d, File hd) {
+        HttpURLConnection c = null;
+        try {
+            JSONObject r = new JSONObject(new String(java.nio.file.Files.readAllBytes(new File(d, "sent.json").toPath()), StandardCharsets.UTF_8));
+            String id = r.optString("id", ""), key = r.optString("hd", "");
+            if (id.isEmpty() || key.isEmpty()) return 400;
+            c = (HttpURLConnection) new URL(URL + "/" + id + "/hd?k=" + key).openConnection();
+            c.setConnectTimeout(15_000);
+            c.setReadTimeout(120_000);
+            c.setDoOutput(true);
+            c.setRequestMethod("PUT");
+            c.setFixedLengthStreamingMode(hd.length());
+            c.setRequestProperty("Content-Type", "video/mp4");
+            c.setRequestProperty("User-Agent", "AcruxMobile/" + Online.BuildConfigVersion.get());
+            try (OutputStream o = c.getOutputStream(); InputStream in = new FileInputStream(hd)) {
+                byte[] buf = new byte[64 * 1024];
+                int n;
+                while ((n = in.read(buf)) > 0) o.write(buf, 0, n);
+            }
+            int code = c.getResponseCode();
+            read(code < 400 ? c.getInputStream() : c.getErrorStream());
+            Hub.log(code == 200 ? "버그 보고 고화질 클립을 보냄 (#" + id + " · " + (hd.length() >> 20) + "MB)" : "버그 보고 고화질 클립을 못 보냄 (" + code + ")", 'd');
             return code;
         } catch (Exception e) {
             return 0;

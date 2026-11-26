@@ -1,3 +1,13 @@
+## Acrux Mobile V1.8.10 업데이트
+1. 버그 보고 클립의 화질 · FPS 를 폰 성능에 맞게 자동으로 정하고, 직접 바꿀 수 있게 했습니다.
+2. 버그 보고 스크린샷을 원본 화질로 보내게 했습니다.
+3. 물고기를 팔러 갈 때 버그로 보고되던 문제를 수정했습니다.
+
+## Acrux Mobile V1.8.10 Update
+1. Bug report clip quality · FPS now adapts to the phone's performance and can be set manually.
+2. Bug report screenshots are now sent at original quality.
+3. Fixed going to sell fish being reported as a bug.
+
 ## Acrux Mobile V1.8.9 업데이트
 1. 오토 아이템을 아이템 사용으로 바꾸고, 자동 낚시 없이도 따로 쓸 수 있게 했습니다.
 2. 사용할 아이템과 조건을 직접 만들 수 있게 했습니다. [ 시간 · 바이옴 등 ]

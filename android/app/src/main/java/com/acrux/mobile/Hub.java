@@ -1219,6 +1219,9 @@ final class Hub {
         ic.match = num(p, "it_match", 70);
         BugReport.on = p.getBoolean("bug_on", true);
         BugReport.clip = p.getBoolean("bug_clip", true);
+        HdClip.quality = p.getInt("bug_q", 0);
+        HdClip.fps = p.getInt("bug_fps", 0);
+        HdClip.wifiOnly = p.getBoolean("bug_wifi", true);
         move.resetWait = num(p, "m_reset_wait", move.resetWait);
         // V0.9.11 기준 장소 걷기가 바뀜 (W+A → A → A+W → 쉼 → D) — 예전 값(m_w_time …)은 안 씀
         move.waTime = num(p, "m2_wa", move.waTime);
@@ -1266,6 +1269,7 @@ final class Hub {
                 .putBoolean("it_on", items.cfg.on).putString("it_items", itemsJson())
                 .putBoolean("it_close", items.cfg.close).putFloat("it_match", (float) items.cfg.match)
                 .putBoolean("bug_on", BugReport.on).putBoolean("bug_clip", BugReport.clip)
+                .putInt("bug_q", HdClip.quality).putInt("bug_fps", HdClip.fps).putBoolean("bug_wifi", HdClip.wifiOnly)
                 .putFloat("m_reset_wait", (float) move.resetWait)
                 .putFloat("m2_wa", (float) move.waTime).putBoolean("vip", move.vip).putFloat("m2_wa_vip", (float) move.waVip).putFloat("m2_a", (float) move.aTime).putFloat("m2_aw", (float) move.awTime)
                 .putFloat("m2_pause", (float) move.pauseTime).putFloat("m2_d", (float) move.dTime)
