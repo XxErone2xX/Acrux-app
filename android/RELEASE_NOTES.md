@@ -1,3 +1,9 @@
+## Acrux Mobile V1.9.3 업데이트
+1. 판매 장소 기본 길이 테스트한 길과 다르게 걷던 문제를 고쳤습니다.
+
+## Acrux Mobile V1.9.3 Update
+1. Fixed the default selling route walking differently from the tested route.
+
 ## Acrux Mobile V1.9.2 업데이트
 1. 판매 장소 기본 길을 추가했습니다. 저장된 길 대신 기본 길로 걸어갑니다.
 2. 기록한 길을 복사해서 다른 폰에 붙여 넣을 수 있습니다.

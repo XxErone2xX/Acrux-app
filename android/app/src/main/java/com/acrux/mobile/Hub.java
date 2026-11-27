@@ -97,7 +97,7 @@ final class Hub {
         return fishRoute.isEmpty() ? com.acrux.mobile.core.DefaultRoutes.get(false, move.vip) : fishRoute;
     }
 
-    /** 판매 장소: VIP 있음이면 저장된 길이 있어도 기본 길 (직접 기록한 길이 자주 NPC 앞까지 못 감) */
+    /** 판매 장소: 저장된 길이 있어도 기본 길 (직접 기록한 길이 자주 NPC 앞까지 못 감 · VIP+ 기준) */
     static Route sell() {
         if (sellRoute.isEmpty() || com.acrux.mobile.core.DefaultRoutes.forced(true, move.vip)) {
             Route d = com.acrux.mobile.core.DefaultRoutes.get(true, move.vip);

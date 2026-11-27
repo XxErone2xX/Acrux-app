@@ -17,9 +17,9 @@ public final class DefaultRoutes {
     static volatile Map<String, String> map = new HashMap<>();
 
     /**
-     * 판매 장소 기본 길 (VIP+ 기준 · PC 테스트로 맞춘 값) — 기준 장소에서 Captain Flarg 앞까지 · 저장된 길이 있어도 이걸 씀
-     *  한 줄 = {키, 초, 점프} · 키를 떼지 않고 이어서 밂 (조이스틱 손가락을 안 뗌) · 점프는 그 줄이 시작할 때 한 번
-     *  마지막 W 는 NPC 앞 단에 막혀서 서 있는 시간까지 넉넉히 (조금 덜 가도 · 렉이 있어도 같은 자리)
+     * 판매 장소 기본 길 (VIP+ 기준 · PC 테스트 route_test.py 로 맞춘 값과 같은 순서 · 같은 시간) — 기준 장소에서 Captain Flarg 앞까지
+     *  한 줄 = {키, 초, 점프} · 저장된 길이 있어도 이걸 씀 (시간을 늘이거나 줄이지 않음)
+     *  줄마다: (첫 줄이 아니면) 손가락을 다 떼고 LINE_GAP 쉼 → (점프 줄이면) 점프 버튼만 JUMP_TAP 누르고 떼고 JUMP_AFTER 쉼 → 조이스틱을 그 방향으로 초 만큼
      */
     public static final Object[][] SELL = {
             {"w", 1.6, false},
@@ -28,10 +28,12 @@ public final class DefaultRoutes {
             {"w", 0.55, true},
             {"w", 0.7, true},
     };
-    /** 점프 버튼을 누르고 있는 시간 (ms · 꾹 누르면 착지할 때마다 또 뜀) */
-    static final double JUMP_MS = 150;
+    /** 테스트 설정의 '길 줄 사이 대기' · '점프 누르는 시간' · '점프 후 대기' (ms) */
+    static final double LINE_GAP = 100, JUMP_TAP = 80, JUMP_AFTER = 100;
+    /** 조이스틱을 새로 누를 때 가운데 → 끝까지 끄는 동안 덜 걷는 시간 (ms · Pilot.RAMP_LOSS_MS) — PC 키는 바로 끝까지라 그만큼 더 누름 */
+    static final double STICK_RAMP = 33;
 
-    /** {키, 초, 점프} 줄들 → 길 (조이스틱을 떼지 않고 방향만 바꿈 · 점프 줄은 조이스틱 + 점프를 같이 새로 누르고 점프만 먼저 뗌) */
+    /** {키, 초, 점프} 줄들 → 길 (PC 테스트와 같은 순서 · 같은 시각) */
     public static Route fromSteps(Object[][] steps) {
         Route r = new Route();
         double t = 0;
@@ -42,22 +44,26 @@ public final class DefaultRoutes {
             boolean jump = (Boolean) st[2];
             double[] v = Stick.dir(k.contains("w"), k.contains("a"), k.contains("s"), k.contains("d"));
             if (v == null || sec <= 0) continue;
-            if (first || jump) {
-                r.evs.add(new Route.Ev('F', t, v[0], v[1], true, jump));
-                if (jump) r.evs.add(new Route.Ev('U', t + Math.min(JUMP_MS, sec * 1000), 0, 0, false, true));
-            } else {
-                r.evs.add(new Route.Ev('M', t, v[0], v[1], false, false));
+            if (!first) {
+                r.evs.add(new Route.Ev('X', t, 0, 0, false, false));          // 손가락을 다 떼고
+                t += LINE_GAP;                                                // 잠깐 섬
             }
+            if (jump) {
+                r.evs.add(new Route.Ev('F', t, 0, 0, false, true));           // 점프 버튼만 누름
+                r.evs.add(new Route.Ev('U', t + JUMP_TAP, 0, 0, false, true));
+                t += JUMP_TAP + JUMP_AFTER;                                   // 뛰고 나서 공중에서 이동 시작
+            }
+            r.evs.add(new Route.Ev('F', t, v[0], v[1], true, false));
             first = false;
-            t += sec * 1000;
+            t += sec * 1000 + STICK_RAMP;
         }
         if (!r.evs.isEmpty()) r.evs.add(new Route.Ev('X', t, 0, 0, false, false));
         return r;
     }
 
-    /** 이 길은 저장된 길보다 기본 길을 먼저 씀 (판매 장소 · VIP 있음 = VIP+ 기준 값이 있을 때) */
+    /** 이 길은 저장된 길보다 기본 길을 먼저 씀 (판매 장소 · VIP+ 기준) */
     public static boolean forced(boolean sell, boolean vip) {
-        return sell && vip;
+        return sell;
     }
 
     private DefaultRoutes() {}
@@ -81,12 +87,11 @@ public final class DefaultRoutes {
         map = parse(text);
     }
 
-    /** 기본 길 (없으면 빈 길) — assets 의 길이 있으면 그것 · 판매 장소는 없으면 SELL (VIP 없음은 시간을 늘려서 · 덜 정확) */
+    /** 기본 길 (없으면 빈 길) — assets 의 길이 있으면 그것 · 판매 장소는 없으면 SELL */
     public static Route get(boolean sell, boolean vip) {
         Route r = pick(map, sell, vip);
         if (!r.isEmpty() || !sell) return r;
-        Route b = fromSteps(SELL);
-        return vip ? b : b.scaled(VIP_SPEED);
+        return fromSteps(SELL);                                               // VIP+ 기준 값 그대로
     }
 
     public static boolean has(boolean sell) {
