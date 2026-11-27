@@ -101,7 +101,7 @@ final class Guide {
 
     /** 이동 · 판매에 아직 안 한 설정이 있나 (자동 낚시를 하려면 전부 필요) */
     static boolean moveNeeded() {
-        return Hub.stick == null || !baseReady() || Hub.fishRoute.isEmpty() || !sellReady() || Hub.sellRoute.isEmpty();
+        return Hub.stick == null || !baseReady() || Hub.fish().isEmpty() || !sellReady() || Hub.sell().isEmpty();
     }
 
     static List<Tut> all() {
@@ -140,8 +140,8 @@ final class Guide {
                         "Acrux 창 → [조이스틱] → 강조된 '조이스틱 찾기' 를 눌러 주세요.\n\n로블록스 이동 방식이 '조이스틱' 이어야 합니다. 자동으로 찾지 못하면 '조이스틱 직접 지정' 을 사용할 수 있습니다.")
                         .at("stick", "act:stickfind").need(() -> Hub.stick != null))
                 .add(new Step("점프 버튼 위치",
-                        "길 기록에서 점프를 쓰려면 설정해 주세요. 위치를 정할 때는 십자 포인터가 표시되며, 화면을 끌면 그만큼 움직이고 [확인] 으로 저장됩니다.\n\n점프를 쓰지 않는다면 건너뛰어도 됩니다.")
-                        .at("stick", "pos:jump_btn").need(() -> has("jump_btn")).opt());
+                        "판매 장소 기본 길에 점프가 있어서 꼭 필요합니다. 위치를 정할 때는 십자 포인터가 표시되며, 화면을 끌면 그만큼 움직이고 [확인] 으로 저장됩니다.")
+                        .at("stick", "pos:jump_btn").need(() -> has("jump_btn")));
         for (String[] k : Mover.BASE_KEYS) {
             mv.add(new Step("'" + k[1] + "' 위치",
                     "[기준 장소] → 강조된 항목을 누르고, 십자 포인터를 해당 버튼 위에 맞춘 뒤 [확인] 을 눌러 주세요.\n\n메뉴 · 재설정 화면을 직접 열어 둔 상태에서 맞추면 더 정확합니다.")
@@ -149,14 +149,14 @@ final class Guide {
         }
         mv.add(new Step("낚시 장소 길 기록",
                 "[낚시] → [길] → 낚시 장소 '길 기록' 을 눌러 주세요.\n\n기준 장소로 이동한 뒤 WASD 패드가 표시됩니다.\n· W A S D 탭 = 켜기 · 다시 탭 = 끄기 · 모서리 = 대각선 · ■ = 멈춤\n· 점프 탭 = 한 번 · [홀드] = 계속 누름\n\n도착하면 Acrux 창의 [도착] 을 눌러 주세요.")
-                .at("route", "act:rec_fish").need(() -> !Hub.fishRoute.isEmpty()));
+                .at("route", "act:rec_fish").need(() -> !Hub.fish().isEmpty()));
         if (sell) {
             mv.add(new Step("판매 장소 길 기록",
                             "[낚시] → [길] → 물고기 판매 장소 '길 기록' 을 누른 뒤, 기준 장소에서 Captain Flarg 앞까지 WASD 패드로 이동하고 [도착] 을 눌러 주세요.")
-                            .at("route", "act:rec_sell").need(() -> !Hub.sellRoute.isEmpty()))
+                            .at("route", "act:rec_sell").need(() -> !Hub.sell().isEmpty()))
                     .add(new Step("대화 버튼 위치",
                             "판매 장소에 선 상태로 [낚시] → [판매] → 강조된 '대화 버튼' 을 누르고, 포인터를 화면의 대화 버튼에 맞춘 뒤 [확인] 을 눌러 주세요.")
-                            .at("sell", "pos:talk_btn").need(() -> has("talk_btn")))
+                            .at("sell", "pos:talk_btn").need(() -> true))                 // 기본 = 화면 가운데 (안내에서는 건너뜀)
                     .add(new Step("판매 자동 보정",
                             "[낚시] → [판매] → '판매 자동 보정' 을 누른 뒤, Captain Flarg 앞에서 대화 버튼을 직접 눌러 주세요. 대화창 · 상점 · 확인창의 위치를 자동으로 찾습니다.\n\n확인창 위치까지 찾으려면 물고기를 가진 상태에서 진행해 주세요.")
                             .at("sell", "act:sellcal").need(Guide::sellReady))

@@ -144,6 +144,20 @@ public final class Route {
         theta = n >= 5 && Math.hypot(sx, sy) / n > 0.6 ? Math.atan2(sy, sx) : 0;
     }
 
+    /** 시간을 f 배로 늘이거나 줄인 길 (VIP 있음 ↔ 없음 · 위치 길은 뺌) */
+    public Route scaled(double f) {
+        Route r = new Route();
+        for (Seg g : segs) {
+            Seg c = new Seg(g.dx, g.dy, g.sec * f);
+            c.jump = g.jump;
+            c.jumpUp = g.jumpUp;
+            r.segs.add(c);
+        }
+        for (Ev e : evs) r.evs.add(new Ev(e.k, Math.round(e.t * f * 10) / 10.0, e.dx, e.dy, e.a, e.b));
+        r.theta = theta;
+        return r;
+    }
+
     public boolean isEmpty() {
         return segs.isEmpty() && evs.isEmpty();
     }

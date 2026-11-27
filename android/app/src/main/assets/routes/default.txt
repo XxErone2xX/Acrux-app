@@ -1,0 +1,5 @@
+# Acrux 모바일 기본 길 — 직접 기록한 길이 없을 때 기준 장소에서 이 길로 걸어감 (core/DefaultRoutes.java)
+# 앱 → 저장된 위치 · 길 → [내 길 복사] 로 나온 줄을 그대로 붙이면 됨
+#   fish_vip=  낚시 장소 (VIP 있음)    fish_free=  낚시 장소 (VIP 없음)
+#   sell_vip=  판매 장소 (VIP 있음)    sell_free=  판매 장소 (VIP 없음)
+# 한쪽 VIP 길만 있으면 시간을 1.25배로 늘이거나 줄여서 씀

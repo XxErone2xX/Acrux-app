@@ -68,12 +68,83 @@ final class Hub {
         if (!loaded) {
             loaded = true;
             loadLang();
+            loadDefaultRoutes();
             load();
             Online.start();
             DiscordLink.start();
             BugReport.start();
             Updater.loadCached(app);
         }
+    }
+
+    // ---- 기본 길 (assets/routes/default.txt) — 직접 기록한 길이 없을 때 씀
+    static void loadDefaultRoutes() {
+        try (java.io.InputStream in = app.getAssets().open("routes/default.txt")) {
+            com.acrux.mobile.core.DefaultRoutes.load(new String(readAll(in), java.nio.charset.StandardCharsets.UTF_8));
+        } catch (java.io.IOException ignored) {
+        }
+    }
+
+    static byte[] readAll(java.io.InputStream in) throws java.io.IOException {
+        java.io.ByteArrayOutputStream o = new java.io.ByteArrayOutputStream();
+        byte[] b = new byte[8192];
+        for (int n; (n = in.read(b)) > 0; ) o.write(b, 0, n);
+        return o.toByteArray();
+    }
+
+    /** 실제로 걸을 길: 직접 기록한 길 → 없으면 기본 길 (VIP 설정에 맞춰) */
+    static Route fish() {
+        return fishRoute.isEmpty() ? com.acrux.mobile.core.DefaultRoutes.get(false, move.vip) : fishRoute;
+    }
+
+    /** 판매 장소: VIP 있음이면 저장된 길이 있어도 기본 길 (직접 기록한 길이 자주 NPC 앞까지 못 감) */
+    static Route sell() {
+        if (sellRoute.isEmpty() || com.acrux.mobile.core.DefaultRoutes.forced(true, move.vip)) {
+            Route d = com.acrux.mobile.core.DefaultRoutes.get(true, move.vip);
+            if (!d.isEmpty()) return d;
+        }
+        return sellRoute;
+    }
+
+    /** 이 길을 기본 길로 걷는 중 */
+    static boolean defaultRoute(boolean sell) {
+        Route r = sell ? sell() : fish();
+        return !r.isEmpty() && r != (sell ? sellRoute : fishRoute);
+    }
+
+    /** [내 길 복사] — 그대로 assets/routes/default.txt 에 붙이거나 다른 폰의 [길 붙여넣기] 에 쓸 수 있는 글 */
+    static String exportRoutes() {
+        String v = move.vip ? "_vip" : "_free";
+        StringBuilder b = new StringBuilder();
+        b.append("# Acrux routes · V").append(Online.BuildConfigVersion.get()).append(" · ").append((android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL).trim());
+        CaptureService c = CaptureService.active;
+        if (c != null) b.append(" · ").append(c.width()).append('x').append(c.height());
+        if (stick != null) b.append(" · stick r ").append(Math.round(stick[2]));
+        b.append(" · VIP ").append(move.vip ? "on" : "off").append('\n');
+        if (!fishRoute.isEmpty()) b.append("fish").append(v).append('=').append(fishRoute.save()).append('\n');
+        if (!sellRoute.isEmpty()) b.append("sell").append(v).append('=').append(sellRoute.save()).append('\n');
+        return b.toString();
+    }
+
+    /** [길 붙여넣기] → 넣은 길 수 (0 = 알아볼 수 있는 길 없음) */
+    static int importRoutes(String text) {
+        java.util.Map<String, String> m = com.acrux.mobile.core.DefaultRoutes.parse(text);
+        Route f = com.acrux.mobile.core.DefaultRoutes.pick(m, false, move.vip), s = com.acrux.mobile.core.DefaultRoutes.pick(m, true, move.vip);
+        int n = 0;
+        if (!f.isEmpty()) {
+            fishRoute = f;
+            n++;
+        }
+        if (!s.isEmpty()) {
+            sellRoute = s;
+            n++;
+        }
+        if (n > 0) {
+            save();
+            changed();
+            log("길 붙여넣기: " + (f.isEmpty() ? "판매 장소 길" : s.isEmpty() ? "낚시 장소 길" : "낚시 장소 · 판매 장소 길"), 'g');
+        }
+        return n;
     }
 
     // ---- 언어 (PC 와 같은 사전 + 모바일 사전 · 한국어 글자가 열쇠)
@@ -918,7 +989,7 @@ final class Hub {
     }
 
     static Seller seller(CaptureService cap, Mover mv) {
-        Seller s = new Seller(cap, mv, new MlOcr(), pos, sellRoute, fishRoute, OUT);
+        Seller s = new Seller(cap, mv, new MlOcr(), pos, sell(), fish(), OUT);
         s.sellMax = sellMax;
         s.sellDelay = sellDelay;
         return s;
@@ -1043,10 +1114,10 @@ final class Hub {
             log("기준 장소 도착", 'g');
             endNote = "기준 장소 도착";
         } else if (m.equals("fish")) {
-            mv.goPlace("낚시 장소", fishRoute);
+            mv.goPlace("낚시 장소", fish());
             endNote = "낚시 장소까지 길 따라 이동 끝";
         } else if (m.equals("sellgo")) {
-            mv.goPlace("물고기 판매 장소", sellRoute);
+            mv.goPlace("물고기 판매 장소", sell());
             endNote = "물고기 판매 장소까지 길 따라 이동 끝";
         } else if (m.startsWith("rec_")) {
             record(mv, m.endsWith("sell"));

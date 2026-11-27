@@ -1,3 +1,11 @@
+## Acrux Mobile V1.9.2 업데이트
+1. 판매 장소 기본 길을 추가했습니다. 저장된 길 대신 기본 길로 걸어갑니다.
+2. 기록한 길을 복사해서 다른 폰에 붙여 넣을 수 있습니다.
+
+## Acrux Mobile V1.9.2 Update
+1. Added a default route to the selling spot. It is used instead of a saved route.
+2. Recorded routes can be copied and pasted on another phone.
+
 ## Acrux Mobile V1.9.1 업데이트
 1. 업데이트 안내 창을 바꿨습니다.
 2. 로블록스가 앞에 있는데도 "로블록스가 맨 앞에 없음"으로 멈추던 문제를 고쳤습니다.

@@ -40,8 +40,12 @@ public final class Seller {
         this.out = out;
     }
 
+    /** 대화 버튼 기본 = 화면 가운데 (Captain Flarg 앞에 서면 대화 버튼이 캐릭터 위 · 화면 가운데에 뜸) */
+    static final double[] TALK_DEFAULT = {0.5, 0.5};
+
     double[] p(String k) {
-        return pos.get(k);
+        double[] v = pos.get(k);
+        return v == null && "talk_btn".equals(k) ? TALK_DEFAULT : v;
     }
 
     /** 낚시 장소로 못 가는 이유 (null = 갈 수 있음) */
@@ -57,10 +61,10 @@ public final class Seller {
         List<String> miss = new ArrayList<>();
         for (String[] k : KEYS) if (!pos.containsKey(k[0])) miss.add(k[1]);
         if (!miss.isEmpty()) return "판매 자동 보정 필요: " + String.join(", ", miss) + " (Acrux 창 → 판매 자동 보정)";
-        for (String[] k : TALK) if (!pos.containsKey(k[0])) return "먼저 지정 필요: " + k[1] + " (Acrux 창 → 판매)";
         String m = mv.baseMissing();
         if (m != null) return m;
         if (sellRoute == null || sellRoute.isEmpty()) return "물고기 판매 장소 길이 없음 (Acrux 창 → 판매 장소 길 기록)";
+        if (sellRoute.jumps() > 0 && !mv.base.containsKey("jump_btn")) return "먼저 지정 필요: 점프 버튼 (Acrux 창 → 조이스틱 → 점프 버튼) — 판매 장소 길에 점프가 있음";
         return fishMissing();
     }
 

@@ -957,7 +957,7 @@ public class TapService extends AccessibilityService {
             case "fishcal":
                 return Hub.cfg.ready() ? "보정 완료" : "보정 필요";
             case "route":
-                return routes() + " / 2 기록됨";
+                return routes() + " / 2 준비됨";
             case "sell":
                 return sellState();
             case "move":
@@ -1035,7 +1035,7 @@ public class TapService extends AccessibilityService {
     }
 
     static int routes() {
-        return (Hub.fishRoute.isEmpty() ? 0 : 1) + (Hub.sellRoute.isEmpty() ? 0 : 1);
+        return (Hub.fish().isEmpty() ? 0 : 1) + (Hub.sell().isEmpty() ? 0 : 1);          // 기본 길도 셈
     }
 
     String page = "home";
@@ -1205,9 +1205,10 @@ public class TapService extends AccessibilityService {
         for (boolean sell : new boolean[]{false, true}) {
             m.addView(section((sell ? "물고기 판매 장소" : "낚시 장소") + " 길"), mw());
             info(m, () -> {
-                com.acrux.mobile.core.Route r = sell ? Hub.sellRoute : Hub.fishRoute;
-                return r.isEmpty() ? "기록 없음" : "기록됨 · " + fmt(r.seconds()) + "초 · " + r.parts() + "조각 · 점프 " + r.jumps() + "번";
-            }, () -> !(sell ? Hub.sellRoute : Hub.fishRoute).isEmpty());
+                com.acrux.mobile.core.Route r = sell ? Hub.sell() : Hub.fish();
+                if (r.isEmpty()) return "기록 없음";
+                return (Hub.defaultRoute(sell) ? "기본 길 사용 중 · " : "기록됨 · ") + fmt(r.seconds()) + "초 · " + r.parts() + "조각 · 점프 " + r.jumps() + "번";
+            }, () -> !(sell ? Hub.sell() : Hub.fish()).isEmpty());
             act(m, sell ? "act:rec_sell" : "act:rec_fish", "길 기록", "기준 장소로 간 뒤 WASD 패드로 걸어감 → [도착]", true, v -> toggle(sell ? "rec_sell" : "rec_fish"));
             act(m, sell ? "act:sellgo" : "act:fish", sell ? "기준 장소 → 판매 장소" : "기준 장소 → 낚시 장소",
                     null, false, v -> toggle(sell ? "sellgo" : "fish"));

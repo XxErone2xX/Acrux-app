@@ -720,6 +720,26 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams cp = Ui.wrap();
         cp.topMargin = Ui.dp(this, 8);
         saved.addView(clearPos, cp);
+
+        // 길 복사 · 붙여넣기 · 기본 길로 — 다른 폰과 길을 나누거나, 기본 길을 만들 때 씀
+        LinearLayout rs = section(pg, "길 공유");
+        rs.addView(Ui.text(this, "직접 기록한 길이 없으면 기본 길로 걸어갑니다. 기본 길로 도착하지 못하면 길을 직접 기록하세요. 기록한 길은 복사해서 다른 폰에 붙여 넣을 수 있습니다.",
+                12, Ui.MUTED, false), Ui.fill(this, 6));
+        LinearLayout rb = new LinearLayout(this);
+        rb.addView(Ui.button(this, "내 길 복사", Ui.ACCENT, v -> copyRoutes()), Ui.wrap());
+        LinearLayout.LayoutParams rl = Ui.wrap();
+        rl.leftMargin = Ui.dp(this, 10);
+        rb.addView(Ui.button(this, "길 붙여넣기", Ui.MUTED, v -> pasteRoutes()), rl);
+        rs.addView(rb, Ui.fill(this, 6));
+        rs.addView(Ui.button(this, "내 길 지우고 기본 길 쓰기", Ui.RED, v -> {
+            Hub.fishRoute = new com.acrux.mobile.core.Route();
+            Hub.sellRoute = new com.acrux.mobile.core.Route();
+            Hub.save();
+            Hub.changed();
+            Hub.log("직접 기록한 낚시·판매 길 지움 — 기본 길 사용", 'd');
+            toast(com.acrux.mobile.core.DefaultRoutes.has(false) || com.acrux.mobile.core.DefaultRoutes.has(true)
+                    ? "기본 길을 씁니다." : "아직 기본 길이 없습니다. 길을 직접 기록하세요.");
+        }), cp);
     }
 
     /** 아이템 사용 — 자동 낚시와 따로인 기능 (켜 두면 자동 낚시 중에도 같이 씀) · 아이템 · 언제 · 조건은 직접 만듦 · 위치는 게임에서 직접 지정 */
@@ -971,6 +991,32 @@ public class MainActivity extends Activity {
         }
         if (ms <= 0) then.accept(service);
         else Hub.main.postDelayed(() -> then.accept(service), ms);
+    }
+
+    void toast(String msg) {
+        android.widget.Toast.makeText(this, Ui.tr(msg), android.widget.Toast.LENGTH_LONG).show();
+    }
+
+    /** [내 길 복사] — 직접 기록한 낚시 · 판매 길을 클립보드로 */
+    void copyRoutes() {
+        if (Hub.fishRoute.isEmpty() && Hub.sellRoute.isEmpty()) {
+            toast("복사할 길이 없습니다. 먼저 길을 기록하세요.");
+            return;
+        }
+        android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        if (cm == null) return;
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("Acrux routes", Hub.exportRoutes()));
+        toast("길을 복사했습니다.");
+    }
+
+    /** [길 붙여넣기] — 클립보드의 길로 바꿈 */
+    void pasteRoutes() {
+        android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        CharSequence t = null;
+        if (cm != null && cm.hasPrimaryClip() && cm.getPrimaryClip() != null && cm.getPrimaryClip().getItemCount() > 0)
+            t = cm.getPrimaryClip().getItemAt(0).coerceToText(this);
+        int n = t == null ? 0 : Hub.importRoutes(t.toString());
+        toast(n > 0 ? "길을 붙여 넣었습니다." : "클립보드에 Acrux 길이 없습니다.");
     }
 
     /** 아이템 사용 칸의 상태 + 저장된 위치 (refresh 에서) */
@@ -1712,8 +1758,8 @@ public class MainActivity extends Activity {
         botPositions.setText(bot.toString().trim());
         for (String[] k : Seller.TALK) line(ps, Ui.tr(k[1]), Hub.pos.get(k[0]));
         for (String[] k : Seller.KEYS) line(ps, I18n.f("{0} (판매)", Ui.tr(k[1])), Hub.pos.get(k[0]));
-        route(ps, Ui.tr("낚시 장소 길"), Hub.fishRoute);
-        route(ps, Ui.tr("판매 장소 길"), Hub.sellRoute);
+        route(ps, Ui.tr("낚시 장소 길"), false);
+        route(ps, Ui.tr("판매 장소 길"), true);
         posView.setText(ps.toString().trim());
         showItems();
         if (hdPlan != null) hdPlan.setText(HdClip.plan());
@@ -1742,8 +1788,10 @@ public class MainActivity extends Activity {
         b.append('\n');
     }
 
-    static void route(StringBuilder b, String name, com.acrux.mobile.core.Route r) {
+    static void route(StringBuilder b, String name, boolean sell) {
+        com.acrux.mobile.core.Route r = sell ? Hub.sell() : Hub.fish();
         b.append(r.isEmpty() ? "· " : "✓ ").append(name);
+        if (Hub.defaultRoute(sell)) b.append("  ").append(Ui.tr("(기본 길)"));
         if (!r.isEmpty()) b.append("  ").append(I18n.f("{0}초", TapService.fmt(r.seconds()))).append(" · ").append(I18n.f("{0}조각", r.parts()))
                 .append(" · ").append(I18n.f("점프 {0}번", r.jumps()));
         b.append('\n');

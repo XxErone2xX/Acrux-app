@@ -1096,6 +1096,25 @@ E = [
     ["전 버전과는 많은 차이점이 발생했기 때문에, 이 업데이트는 필수입니다.", "This version differs a lot from the previous one, so this update is required.", "前のバージョンとの違いが大きいため、このアップデートは必須です。"],
     ["지금 버전 이후로 업데이트가 3번 이상 나왔기 때문에, 이 업데이트를 권장합니다.", "3 or more updates have come out since your version, so this update is recommended.", "今のバージョンから3回以上アップデートが出ているため、このアップデートをおすすめします。"],
     ["업데이트 로그", "Update log", "アップデートログ"],
+    # ---------------------------------------------------------------- V1.9.2: 기본 길 · 길 공유
+    ["기본 길 사용 중 · {0}초 · {1}조각 · 점프 {2}번", "Using the default route · {0} s · {1} parts · {2} jumps", "既定の道を使用中 · {0}秒 · {1}区間 · ジャンプ {2}回"],
+    ["(기본 길)", "(default route)", "(既定の道)"],
+    ["길 공유", "Share routes", "道共有"],
+    ["직접 기록한 길이 없으면 기본 길로 걸어갑니다. 기본 길로 도착하지 못하면 길을 직접 기록하세요. 기록한 길은 복사해서 다른 폰에 붙여 넣을 수 있습니다.", "Without a recorded route, the default route is walked. If it doesn't arrive, record the route yourself. Recorded routes can be copied and pasted on another phone.", "記録した道がなければ既定の道で歩きます。到着できなければ道を自分で記録してください。記録した道はコピーして別のスマホに貼り付けられます。"],
+    ["내 길 복사", "Copy my routes", "道をコピー"],
+    ["길 붙여넣기", "Paste routes", "道を貼り付け"],
+    ["내 길 지우고 기본 길 쓰기", "Delete my routes and use the default", "自分の道を消して既定を使う"],
+    ["기본 길을 씁니다.", "Using the default routes.", "既定の道を使います。"],
+    ["아직 기본 길이 없습니다. 길을 직접 기록하세요.", "There are no default routes yet. Record the routes yourself.", "まだ既定の道がありません。道を自分で記録してください。"],
+    ["복사할 길이 없습니다. 먼저 길을 기록하세요.", "No routes to copy. Record a route first.", "コピーする道がありません。先に道を記録してください。"],
+    ["길을 복사했습니다.", "Routes copied.", "道をコピーしました。"],
+    ["길을 붙여 넣었습니다.", "Routes pasted.", "道を貼り付けました。"],
+    ["클립보드에 Acrux 길이 없습니다.", "No Acrux routes in the clipboard.", "クリップボードに Acrux の道がありません。"],
+    ["직접 기록한 낚시·판매 길 지움 — 기본 길 사용", "Deleted the recorded fishing · selling routes — using the default", "記録した釣り・販売道を削除 — 既定を使用"],
+    ["길 붙여넣기: {0}", "Pasted routes: {0}", "道貼り付け: {0}"],
+    ["낚시 장소 · 판매 장소 길", "fishing spot · selling spot routes", "釣り場・販売場所の道"],
+    ["판매 장소 기본 길에 점프가 있어서 꼭 필요합니다. 위치를 정할 때는 십자 포인터가 표시되며, 화면을 끌면 그만큼 움직이고 [확인] 으로 저장됩니다.", "Required because the default selling route uses jumps. A crosshair appears while you set it; drag the screen to move it and tap [OK] to save.", "販売場所の既定の道にジャンプがあるため必須です。位置を決めるときは十字ポインターが表示され、画面をドラッグするとその分動き、［確認］で保存されます。"],
+    ["먼저 지정 필요: 점프 버튼 (Acrux 창 → 조이스틱 → 점프 버튼) — 판매 장소 길에 점프가 있음", "Set this first: jump button (Acrux window → Joystick → Jump button) — the selling route uses jumps", "先に指定が必要: ジャンプボタン（Acrux 画面 → ジョイスティック → ジャンプボタン）— 販売場所の道にジャンプがあります"],
 ]
 
 
