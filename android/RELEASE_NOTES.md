@@ -1,3 +1,9 @@
+## Acrux Mobile V1.9.5 업데이트
+1. 판매 장소 기본 길을 조정했습니다.
+
+## Acrux Mobile V1.9.5 Update
+1. Adjusted the default selling route.
+
 ## Acrux Mobile V1.9.4 업데이트
 1. 판매 장소 기본 길을 조정했습니다.
 

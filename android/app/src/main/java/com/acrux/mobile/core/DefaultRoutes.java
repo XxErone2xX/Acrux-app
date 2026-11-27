@@ -27,6 +27,7 @@ public final class DefaultRoutes {
             {"aw", 0.375, true},
             {"w", 0.55, true},
             {"w", 0.5, true},
+            {"aw", 0.15, false},
     };
     /** 테스트 설정의 '길 줄 사이 대기' · '점프 누르는 시간' · '점프 후 대기' (ms) */
     static final double LINE_GAP = 100, JUMP_TAP = 80, JUMP_AFTER = 100;
