@@ -1124,3 +1124,16 @@ V{0} 업데이트가 필요해요	Update to V{0} required	V{0} へのアップ�
 낚시 장소 · 판매 장소 길	fishing spot · selling spot routes	釣り場・販売場所の道
 판매 장소 기본 길에 점프가 있어서 꼭 필요합니다. 위치를 정할 때는 십자 포인터가 표시되며, 화면을 끌면 그만큼 움직이고 [확인] 으로 저장됩니다.	Required because the default selling route uses jumps. A crosshair appears while you set it; drag the screen to move it and tap [OK] to save.	販売場所の既定の道にジャンプがあるため必須です。位置を決めるときは十字ポインターが表示され、画面をドラッグするとその分動き、［確認］で保存されます。
 먼저 지정 필요: 점프 버튼 (Acrux 창 → 조이스틱 → 점프 버튼) — 판매 장소 길에 점프가 있음	Set this first: jump button (Acrux window → Joystick → Jump button) — the selling route uses jumps	先に指定が必要: ジャンプボタン（Acrux 画面 → ジョイスティック → ジャンプボタン）— 販売場所の道にジャンプがあります
+기본값으로	Reset to default	既定に戻す
+직접 기록한 길을 지우고 기본 길로	Delete the recorded route and use the default	記録した道を消して既定の道に
+이미 기본 길을 쓰는 중	Already using the default route	すでに既定の道を使用中
+판매 장소 길을 기본값으로 되돌림	Reset the selling route to default	販売場所の道を既定に戻しました
+낚시 장소 길을 기본값으로 되돌림	Reset the fishing route to default	釣り場の道を既定に戻しました
+판매 장소 길 기본값으로	Reset selling route to default	販売場所の道を既定に
+낚시 장소 길 기본값으로	Reset fishing route to default	釣り場の道を既定に
+이미 기본 길을 쓰는 중입니다.	Already using the default route.	すでに既定の道を使用中です。
+기본 길로 되돌렸습니다.	Reset to the default route.	既定の道に戻しました。
+판매 장소 길은 기본값이 들어 있습니다. 길을 다시 기록하면 그 길로 걷고, [기본값으로] 를 누르면 기본 길로 돌아갑니다. 기록한 길은 복사해서 다른 폰에 붙여 넣을 수 있습니다.	The selling route comes with a default. If you record a new route, that route is used; tap [Reset to default] to go back. Recorded routes can be copied and pasted on another phone.	販売場所の道には既定値があります。道を記録し直すとその道で歩き、［既定に戻す］で既定の道に戻ります。記録した道はコピーして別のスマホに貼り付けられます。
+점프 A	Jump A	ジャンプ A
+점프 S	Jump S	ジャンプ S
+점프 D	Jump D	ジャンプ D

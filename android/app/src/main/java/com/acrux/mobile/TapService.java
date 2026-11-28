@@ -1210,6 +1210,11 @@ public class TapService extends AccessibilityService {
                 return (Hub.defaultRoute(sell) ? "기본 길 사용 중 · " : "기록됨 · ") + fmt(r.seconds()) + "초 · " + r.parts() + "조각 · 점프 " + r.jumps() + "번";
             }, () -> !(sell ? Hub.sell() : Hub.fish()).isEmpty());
             act(m, sell ? "act:rec_sell" : "act:rec_fish", "길 기록", "기준 장소로 간 뒤 WASD 패드로 걸어감 → [도착]", true, v -> toggle(sell ? "rec_sell" : "rec_fish"));
+            if (com.acrux.mobile.core.DefaultRoutes.has(sell))
+                act(m, sell ? "act:route_default_sell" : "act:route_default_fish", "기본값으로", "직접 기록한 길을 지우고 기본 길로", false, v -> {
+                    if (Hub.defaultRoute(sell)) Hub.log("이미 기본 길을 쓰는 중", 'd');
+                    else Hub.resetRoute(sell);
+                });
             act(m, sell ? "act:sellgo" : "act:fish", sell ? "기준 장소 → 판매 장소" : "기준 장소 → 낚시 장소",
                     null, false, v -> toggle(sell ? "sellgo" : "fish"));
         }

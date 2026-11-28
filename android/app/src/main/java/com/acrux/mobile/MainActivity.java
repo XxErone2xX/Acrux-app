@@ -723,7 +723,7 @@ public class MainActivity extends Activity {
 
         // 길 복사 · 붙여넣기 · 기본 길로 — 다른 폰과 길을 나누거나, 기본 길을 만들 때 씀
         LinearLayout rs = section(pg, "길 공유");
-        rs.addView(Ui.text(this, "직접 기록한 길이 없으면 기본 길로 걸어갑니다. 기본 길로 도착하지 못하면 길을 직접 기록하세요. 기록한 길은 복사해서 다른 폰에 붙여 넣을 수 있습니다.",
+        rs.addView(Ui.text(this, "판매 장소 길은 기본값이 들어 있습니다. 길을 다시 기록하면 그 길로 걷고, [기본값으로] 를 누르면 기본 길로 돌아갑니다. 기록한 길은 복사해서 다른 폰에 붙여 넣을 수 있습니다.",
                 12, Ui.MUTED, false), Ui.fill(this, 6));
         LinearLayout rb = new LinearLayout(this);
         rb.addView(Ui.button(this, "내 길 복사", Ui.ACCENT, v -> copyRoutes()), Ui.wrap());
@@ -731,15 +731,13 @@ public class MainActivity extends Activity {
         rl.leftMargin = Ui.dp(this, 10);
         rb.addView(Ui.button(this, "길 붙여넣기", Ui.MUTED, v -> pasteRoutes()), rl);
         rs.addView(rb, Ui.fill(this, 6));
-        rs.addView(Ui.button(this, "내 길 지우고 기본 길 쓰기", Ui.RED, v -> {
-            Hub.fishRoute = new com.acrux.mobile.core.Route();
-            Hub.sellRoute = new com.acrux.mobile.core.Route();
-            Hub.save();
-            Hub.changed();
-            Hub.log("직접 기록한 낚시·판매 길 지움 — 기본 길 사용", 'd');
-            toast(com.acrux.mobile.core.DefaultRoutes.has(false) || com.acrux.mobile.core.DefaultRoutes.has(true)
-                    ? "기본 길을 씁니다." : "아직 기본 길이 없습니다. 길을 직접 기록하세요.");
-        }), cp);
+        for (boolean forSell : new boolean[]{false, true}) {             // 기본값이 있는 길만 [기본값으로]
+            if (!com.acrux.mobile.core.DefaultRoutes.has(forSell)) continue;
+            rs.addView(Ui.button(this, forSell ? "판매 장소 길 기본값으로" : "낚시 장소 길 기본값으로", Ui.RED, v -> {
+                if (Hub.defaultRoute(forSell)) toast("이미 기본 길을 쓰는 중입니다.");
+                else if (Hub.resetRoute(forSell)) toast("기본 길로 되돌렸습니다.");
+            }), cp);
+        }
     }
 
     /** 아이템 사용 — 자동 낚시와 따로인 기능 (켜 두면 자동 낚시 중에도 같이 씀) · 아이템 · 언제 · 조건은 직접 만듦 · 위치는 게임에서 직접 지정 */

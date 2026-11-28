@@ -1,3 +1,13 @@
+## Acrux Mobile V1.9.6 업데이트
+1. 판매 장소 길을 직접 바꿀 수 있게 했습니다.
+2. 길을 기본값으로 되돌리는 버튼을 추가했습니다.
+3. 길 기록에 점프 A · S · D 버튼을 추가했습니다.
+
+## Acrux Mobile V1.9.6 Update
+1. The selling route can be changed again.
+2. Added a button to reset a route to its default.
+3. Added Jump A · S · D buttons to route recording.
+
 ## Acrux Mobile V1.9.5 업데이트
 1. 판매 장소 기본 길을 조정했습니다.
 

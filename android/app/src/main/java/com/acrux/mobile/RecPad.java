@@ -18,12 +18,14 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * 길 기록용 WASD 패드 · 점프 버튼 — 키를 톡 누르면 켜지고 (홀드) 다시 누르면 꺼짐 · 켜 둔 동안 Acrux 가 로블록스 조이스틱을 그 방향으로 계속 밂
  *  · 꾹 누르기가 아닌 이유: 손가락이 화면에서 움직일 때마다 안드로이드가 Acrux 가 누르던 터치를 끊음 → 톡 누르는 순간만 끊기고 바로 다시 밂
  *  · W ↔ S, A ↔ D 는 반대라 하나를 켜면 반대쪽은 꺼짐 · 빈 모서리 칸 = 대각선 · 가운데 ■ = 전부 끄기
- *  · 점프: 동그라미 톡 = 한 번 뜀 · 오른쪽 아래 작은 [홀드] = 켜 둔 동안 점프 버튼을 계속 누르고 있음
+ *  · 점프: 가운데 동그라미 톡 = 한 번 뜀 · 위 · 왼쪽 · 아래 · 오른쪽 [점프 W · A · S · D] = 뛰면서 0.5초 그쪽으로
+ *    · 오른쪽 아래 작은 [홀드] = 켜 둔 동안 점프 버튼을 계속 누르고 있음
  */
 final class RecPad implements Mover.Pad {
     volatile boolean w, a, s, d, hold;
-    /** [점프 W] 를 누른 뒤 이 시각까지는 앞 (W) 으로만 감 (켜 둔 키는 그 뒤에 다시) */
+    /** [점프 W · A · S · D] 를 누른 뒤 이 시각까지는 그 방향 (dashKey) 으로만 감 (켜 둔 키는 그 뒤에 다시) */
     volatile long dashUntil;
+    volatile char dashKey = 'w';
     static final long DASH_MS = 500;
     final ConcurrentLinkedQueue<Integer> jumps = new ConcurrentLinkedQueue<>();
     View keyView, jumpView;
@@ -42,7 +44,10 @@ final class RecPad implements Mover.Pad {
 
     @Override
     public double[] stick() {
-        if (System.currentTimeMillis() < dashUntil) return Stick.dir(true, false, false, false);
+        if (System.currentTimeMillis() < dashUntil) {
+            char k = dashKey;
+            return Stick.dir(k == 'w', k == 'a', k == 's', k == 'd');
+        }
         return Stick.dir(w, a, s, d);
     }
 
@@ -64,9 +69,8 @@ final class RecPad implements Mover.Pad {
             int jr = b * 3 / 4;
             jumpView = new JumpView(t, b, jr);
             add(t, keyView, (int) (W * 0.32) - b * 3 / 2, (int) (H * 0.62) - b * 3 / 2, b * 3, b * 3);
-            int js = jumpSize(b, jr);
-            int top = jumpTop(b, jr);
-            add(t, jumpView, (int) (W * 0.66) - jr, (int) (H * 0.62) - top, js, top + js - jr);
+            int js = jumpSize(b, jr);                        // 점프 동그라미 가운데 = 화면 (0.66, 0.62) · 사방 작은 동그라미까지 들어가는 정사각형
+            add(t, jumpView, (int) (W * 0.66) - js / 2, (int) (H * 0.62) - js / 2, js, js);
         });
     }
 
@@ -104,16 +108,14 @@ final class RecPad implements Mover.Pad {
         }
     }
 
-    /** 점프 동그라미 가운데의 창 안 높이 (위쪽 [점프 W] 동그라미가 들어갈 자리) */
-    static int jumpTop(int b, int jr) {
-        float R = jr, h = jr * 0.6f;
-        return (int) Math.ceil(Math.max(R, (R + h + b * 0.08f) * 0.7071f + h)) + 2;
+    /** 큰 점프 동그라미 가운데 → 작은 동그라미 가운데 거리 */
+    static float jumpDist(int b, int jr) {
+        return jr + jr * 0.6f + b * 0.08f;
     }
 
-    /** 점프 창 너비 (큰 동그라미 + 오른쪽 위 · 아래 작은 동그라미가 다 들어가게) */
+    /** 점프 창 한 변 (가운데 큰 동그라미 + 사방 · 오른쪽 아래 작은 동그라미가 다 들어가는 정사각형) */
     static int jumpSize(int b, int jr) {
-        float R = jr, h = jr * 0.6f;
-        return (int) Math.ceil(R + (R + h + b * 0.08f) * 0.7071f + h) + 2;
+        return 2 * (int) Math.ceil(Math.max(jr, jumpDist(b, jr) + jr * 0.6f)) + 4;
     }
 
     static Paint text(int b) {
@@ -182,11 +184,13 @@ final class RecPad implements Mover.Pad {
         }
     }
 
-    /** 점프 (큰 동그라미 · 톡 = 한 번 뜀) + 오른쪽 아래 작은 동그라미 [홀드] (톡 = 점프 버튼을 계속 누르고 있기 / 떼기) */
-    /** 점프 (큰 동그라미 · 톡 = 한 번 뜀) + 오른쪽 위 [점프 W] (뛰면서 0.5초 앞으로) + 오른쪽 아래 [홀드] (톡 = 계속 누르고 있기 / 떼기) */
+    /** 가운데 [점프] (톡 = 한 번 뜀) + 위 · 왼쪽 · 아래 · 오른쪽 [점프 W · A · S · D] (뛰면서 0.5초 그쪽으로) + 오른쪽 아래 [홀드] (톡 = 계속 누르고 있기 / 떼기) */
     final class JumpView extends View {
+        /** 사방 점프: 키 · 가운데에서 x · y 방향 */
+        final char[] keys = {'w', 'a', 's', 'd'};
+        final int[][] dirs = {{0, -1}, {-1, 0}, {0, 1}, {1, 0}};
         final int b;
-        final float R, h, hc, T;       // 점프 반지름 · 작은 동그라미 반지름 · 작은 동그라미까지 (대각선) · 점프 가운데 높이
+        final float R, h, D, C, HD;    // 점프 반지름 · 작은 동그라미 반지름 · 가운데 → 작은 동그라미 거리 · 창 가운데 · 홀드 (대각선) 오프셋
         final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG), line = new Paint(Paint.ANTI_ALIAS_FLAG), label, small;
         boolean flash, dash, dashArmed;
 
@@ -195,8 +199,9 @@ final class RecPad implements Mover.Pad {
             this.b = b;
             R = jr;
             h = jr * 0.6f;
-            hc = (R + h + b * 0.08f) * 0.7071f;
-            T = jumpTop(b, jr);
+            D = jumpDist(b, jr);
+            C = jumpSize(b, jr) / 2f;
+            HD = D * 0.7071f;
             line.setStyle(Paint.Style.STROKE);
             line.setStrokeWidth(Math.max(2, b / 24f));
             line.setColor(0xCCFFFFFF);
@@ -216,9 +221,10 @@ final class RecPad implements Mover.Pad {
 
         @Override
         protected void onDraw(Canvas c) {
-            circle(c, R, T, R, flash || hold || dash, "점프", label, 0xEE202225);
-            circle(c, R + hc, T - hc, h, dash, "점프 W", small, 0xCC202225);
-            circle(c, R + hc, T + hc, h, hold, "홀드", small, 0xCC202225);
+            circle(c, C, C, R, flash || hold || dash, "점프", label, 0xEE202225);
+            for (int i = 0; i < 4; i++)
+                circle(c, C + dirs[i][0] * D, C + dirs[i][1] * D, h, dash && dashKey == keys[i], "점프 " + Character.toUpperCase(keys[i]), small, 0xCC202225);
+            circle(c, C + HD, C + HD, h * 0.85f, hold, "홀드", small, 0xCC202225);
         }
 
         /** 톡 점프 (0.2초 뒤 뗌) */
@@ -250,15 +256,19 @@ final class RecPad implements Mover.Pad {
             }
             if (act != MotionEvent.ACTION_DOWN) return true;
             float ex = e.getX(), ey = e.getY();
-            if (Math.hypot(ex - R, ey - T) <= R) {
+            int dir = -1;
+            for (int i = 0; i < 4; i++)
+                if (Math.hypot(ex - C - dirs[i][0] * D, ey - C - dirs[i][1] * D) <= h * 1.15) dir = i;
+            if (Math.hypot(ex - C, ey - C) <= R) {
                 tapJump();
-            } else if (Math.hypot(ex - R - hc, ey - T + hc) <= h * 1.15) {
-                // 점프 W: 뛰면서 0.5초 앞으로 (W 를 누른 채 점프보다 안정적)
+            } else if (dir >= 0) {
+                // 점프 W · A · S · D: 뛰면서 0.5초 그쪽으로 (키를 누른 채 점프보다 안정적)
                 tapJump();
+                dashKey = keys[dir];
                 dashUntil = System.currentTimeMillis() + DASH_MS + 1000;
                 dash = true;
                 dashArmed = true;
-            } else if (Math.hypot(ex - R - hc, ey - T - hc) <= h * 1.15) {
+            } else if (Math.hypot(ex - C - HD, ey - C - HD) <= h * 1.0) {
                 hold = !hold;
                 if (!flash) jumps.add(hold ? 1 : -1);        // 톡 점프 중에 켜면 그대로 이어서 누르고 있음
                 else if (!hold) jumps.add(-1);

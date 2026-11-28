@@ -97,13 +97,24 @@ final class Hub {
         return fishRoute.isEmpty() ? com.acrux.mobile.core.DefaultRoutes.get(false, move.vip) : fishRoute;
     }
 
-    /** 판매 장소: 저장된 길이 있어도 기본 길 (직접 기록한 길이 자주 NPC 앞까지 못 감 · VIP+ 기준) */
+    /** 판매 장소: 직접 기록한 길 → 없으면 기본 길 (VIP+ 기준) */
     static Route sell() {
         if (sellRoute.isEmpty() || com.acrux.mobile.core.DefaultRoutes.forced(true, move.vip)) {
             Route d = com.acrux.mobile.core.DefaultRoutes.get(true, move.vip);
             if (!d.isEmpty()) return d;
         }
         return sellRoute;
+    }
+
+    /** [기본값으로] — 직접 기록한 길을 지우고 기본 길로 (기본 길이 없으면 아무것도 안 함) */
+    static boolean resetRoute(boolean sell) {
+        if (!com.acrux.mobile.core.DefaultRoutes.has(sell)) return false;
+        if (sell) sellRoute = new Route();
+        else fishRoute = new Route();
+        save();
+        changed();
+        log((sell ? "판매 장소" : "낚시 장소") + " 길을 기본값으로 되돌림", 'g');
+        return true;
     }
 
     /** 이 길을 기본 길로 걷는 중 */
@@ -1328,6 +1339,10 @@ final class Hub {
         }
         fishRoute = Route.load(p.getString("fishRoute", ""));
         sellRoute = Route.load(p.getString("sellRoute", ""));
+        if (!p.getBoolean("sell_route_default", false)) {            // 기본 길이 생기기 전에 기록한 판매 장소 길은 한 번 지움 → 기본 길 (그 뒤로는 다시 기록하면 그 길)
+            if (com.acrux.mobile.core.DefaultRoutes.has(true)) sellRoute = new Route();
+            p.edit().putString("sellRoute", sellRoute.save()).putBoolean("sell_route_default", true).apply();
+        }
     }
 
     static void save() {

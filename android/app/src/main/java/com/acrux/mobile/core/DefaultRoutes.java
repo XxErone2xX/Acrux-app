@@ -18,7 +18,7 @@ public final class DefaultRoutes {
 
     /**
      * 판매 장소 기본 길 (VIP+ 기준 · PC 테스트 route_test.py 로 맞춘 값과 같은 순서 · 같은 시간) — 기준 장소에서 Captain Flarg 앞까지
-     *  한 줄 = {키, 초, 점프} · 저장된 길이 있어도 이걸 씀 (시간을 늘이거나 줄이지 않음)
+     *  한 줄 = {키, 초, 점프} · 판매 장소 길의 기본값 (유저가 다시 기록하면 그 길 · [기본값으로] 로 되돌림)
      *  줄마다: (첫 줄이 아니면) 손가락을 다 떼고 LINE_GAP 쉼 → (점프 줄이면) 점프 버튼만 JUMP_TAP 누르고 떼고 JUMP_AFTER 쉼 → 조이스틱을 그 방향으로 초 만큼
      */
     public static final Object[][] SELL = {
@@ -62,9 +62,9 @@ public final class DefaultRoutes {
         return r;
     }
 
-    /** 이 길은 저장된 길보다 기본 길을 먼저 씀 (판매 장소 · VIP+ 기준) */
+    /** 저장된 길이 있으면 늘 그걸 씀 (기본 길은 기본값 · [기본값으로] 로 되돌림) — 1.9.2 ~ 1.9.5 는 판매 장소를 늘 기본 길로 덮었음 */
     public static boolean forced(boolean sell, boolean vip) {
-        return sell;
+        return false;
     }
 
     private DefaultRoutes() {}
